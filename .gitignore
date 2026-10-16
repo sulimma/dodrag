@@ -1,0 +1,12 @@
+# Binaries & databases
+dodrag.exe
+dodrag_app.exe
+*.exe
+*.db
+*.db-shm
+*.db-wal
+
+# Build & Dependencies
+frontend/node_modules/
+frontend/dist/
+build/bin/
