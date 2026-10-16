@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeDependencyHighlights,
+  computeTransitiveReductionEdges,
   projectEvents,
   toDateKey,
 } from './projector';
@@ -60,7 +61,7 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     expect(taskB.isWaitingOrFuture).toBe(true);
   });
 
-  it('collapses consecutive empty date entries so only the latest date entry is displayed', () => {
+  it('always displays Today as the first date entry and collapses subsequent consecutive empty dates', () => {
     const futureDayIso = '2026-10-20T09:00:00.000Z';
     const events: StoredEvent[] = [
       {
@@ -78,16 +79,24 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     ];
 
     const state = projectEvents(events, fixedNow);
-    // There are no tasks on 2026-10-16, 17, 18, 19 -> all consecutive dates before 2026-10-20 must collapse into 2026-10-20!
+    // Today (2026-10-16) is always visible first so tasks can be dragged onto Today
     expect(state.listEntries[0].kind).toBe('date');
     if (state.listEntries[0].kind === 'date') {
-      expect(state.listEntries[0].dateKey).toBe('2026-10-20');
-      expect(state.listEntries[0].collapsedCount).toBeGreaterThan(0);
+      expect(state.listEntries[0].dateKey).toBe('2026-10-16');
+      expect(state.listEntries[0].isToday).toBe(true);
     }
-    expect(state.listEntries[1].kind).toBe('task');
+    // Consecutive dates after Today (17, 18, 19, 20) collapse into 2026-10-20
+    expect(state.listEntries[1].kind).toBe('date');
+    if (state.listEntries[1].kind === 'date') {
+      expect(state.listEntries[1].dateKey).toBe('2026-10-20');
+      expect(state.listEntries[1].collapsedCount).toBe(3);
+    }
+    expect(state.listEntries[2].kind).toBe('task');
+    // Since Today has no tasks, the task in the first non-empty day (2026-10-20) is displayed like Today's tasks (not faded)
+    expect(state.tasks['26-10'].isWaitingOrFuture).toBe(false);
   });
 
-  it('maintains stable order of unaffected tasks when another task is modified', () => {
+  it('places newly created tasks at the top and maintains stable order of unaffected tasks', () => {
     const baseEvents: StoredEvent[] = [
       {
         seq: 1,
@@ -127,9 +136,10 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     const initialTaskOrder = initial.listEntries
       .filter((e) => e.kind === 'task')
       .map((e) => (e.kind === 'task' ? e.task.id : ''));
-    expect(initialTaskOrder).toEqual(['26-1', '26-2', '26-3', '26-4']);
+    // Newest task ('26-4') is at the very top
+    expect(initialTaskOrder).toEqual(['26-4', '26-3', '26-2', '26-1']);
 
-    // Now move 26-2 to depend on 26-4; 26-1, 26-3, 26-4 must keep their relative order ['26-1', '26-3', '26-4']
+    // Now move 26-2 to depend on 26-4; 26-4, 26-3, 26-1 must keep their exact relative order ['26-4', '26-3', '26-1']
     const updated = projectEvents(
       [
         ...baseEvents,
@@ -150,7 +160,7 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
       .map((e) => (e.kind === 'task' ? e.task.id : ''))
       .filter((id) => id !== '26-2');
 
-    expect(unaffectedOrder).toEqual(['26-1', '26-3', '26-4']);
+    expect(unaffectedOrder).toEqual(['26-4', '26-3', '26-1']);
   });
 
   it('highlights ONLY true graph predecessors and successors, ignoring unrelated tasks earlier or later in the list', () => {
@@ -236,13 +246,75 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     expect(highlights['26-2']).toBe('predecessor-direct');
     expect(highlights['26-1']).toBe('predecessor-transitive');
     expect(highlights['26-4']).toBe('successor-direct');
-    // Unrelated tasks earlier in the list must NOT be highlighted!
     expect(highlights['26-0']).toBeUndefined();
     expect(highlights['26-99']).toBeUndefined();
   });
 
+  it('hides transitive edges in the network graph (A->B, B->C, and A->C omits A->C)', () => {
+    const events: StoredEvent[] = [
+      {
+        seq: 1,
+        id: '1',
+        timestamp: todayIso,
+        type: 'TASK_CREATED',
+        payload: { taskId: '26-1', title: 'A', configuredStart: todayIso },
+        undone: false,
+      },
+      {
+        seq: 2,
+        id: '2',
+        timestamp: todayIso,
+        type: 'TASK_CREATED',
+        payload: { taskId: '26-2', title: 'B', configuredStart: todayIso },
+        undone: false,
+      },
+      {
+        seq: 3,
+        id: '3',
+        timestamp: todayIso,
+        type: 'TASK_CREATED',
+        payload: { taskId: '26-3', title: 'C', configuredStart: todayIso },
+        undone: false,
+      },
+      {
+        seq: 4,
+        id: '4',
+        timestamp: todayIso,
+        type: 'DEPENDENCY_ADDED',
+        payload: { taskId: '26-2', predecessorId: '26-1' }, // A -> B
+        undone: false,
+      },
+      {
+        seq: 5,
+        id: '5',
+        timestamp: todayIso,
+        type: 'DEPENDENCY_ADDED',
+        payload: { taskId: '26-3', predecessorId: '26-2' }, // B -> C
+        undone: false,
+      },
+      {
+        seq: 6,
+        id: '6',
+        timestamp: todayIso,
+        type: 'DEPENDENCY_ADDED',
+        payload: { taskId: '26-3', predecessorId: '26-1' }, // A -> C (redundant transitive edge)
+        undone: false,
+      },
+    ];
+
+    const state = projectEvents(events, fixedNow);
+    const reducedEdges = computeTransitiveReductionEdges(state.openTasks);
+
+    expect(reducedEdges).toEqual(
+      expect.arrayContaining([
+        { from: '26-1', to: '26-2' },
+        { from: '26-2', to: '26-3' },
+      ])
+    );
+    expect(reducedEdges).not.toContainEqual({ from: '26-1', to: '26-3' });
+  });
+
   it('uses ISO-8601 date formatting and flags weekends (Saturday/Sunday)', () => {
-    // 2026-10-16 is Friday, 2026-10-17 is Saturday (Weekend), 2026-10-18 is Sunday (Weekend)
     const satIso = '2026-10-17T09:00:00.000Z';
     const events: StoredEvent[] = [
       {

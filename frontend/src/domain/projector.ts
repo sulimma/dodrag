@@ -396,6 +396,21 @@ export function projectEvents(
   const todayKey = toDateKey(now);
   const nowMs = now.getTime();
 
+  // "Wenn es keinen Task heute gibt, werden die Task im ersten nicht-leeren Tag so dargestellt wie sonst die Tasks heute."
+  let firstNonEmptyDateKey = todayKey;
+  const openEffectiveDateKeys: string[] = [];
+  for (const id of allTaskIds) {
+    const raw = rawTasks[id];
+    if (raw.completed) continue;
+    const { effective } = computeDates(id);
+    const rawKey = toDateKey(new Date(effective));
+    openEffectiveDateKeys.push(rawKey < todayKey ? todayKey : rawKey);
+  }
+  if (openEffectiveDateKeys.length > 0) {
+    openEffectiveDateKeys.sort();
+    firstNonEmptyDateKey = openEffectiveDateKeys[0];
+  }
+
   for (const id of allTaskIds) {
     const raw = rawTasks[id];
     const { calculated, effective } = computeDates(id);
@@ -408,7 +423,9 @@ export function projectEvents(
     // Past start dates are grouped under Today ("Heute") so actionable tasks appear under Today
     const effectiveDateKey = rawDateKey < todayKey ? todayKey : rawDateKey;
 
-    const isFutureStart = effectiveDateKey > todayKey || effectiveDate.getTime() > nowMs + 60_000;
+    const isFutureStart =
+      effectiveDateKey > firstNonEmptyDateKey ||
+      (effectiveDateKey === todayKey && effectiveDate.getTime() > nowMs + 60_000);
     const hasOpenPredecessors = openPreds.length > 0;
 
     // Only tasks without open predecessors can remain active
@@ -440,7 +457,8 @@ export function projectEvents(
     }
   }
 
-  openTasks.sort((a, b) => a.creationOrder - b.creationOrder);
+  // Newest tasks appear at the top (highest creationOrder first)
+  openTasks.sort((a, b) => b.creationOrder - a.creationOrder);
   completedTasks.sort((a, b) => {
     const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
     const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
@@ -465,8 +483,9 @@ export function projectEvents(
 
 /**
  * Builds the topologically sorted list of Date entries and Task entries,
- * preserving relative order of unaffected tasks (stable Kahn's algorithm)
- * and collapsing consecutive date entries so only the latest date entry is shown.
+ * preserving relative order of unaffected tasks (stable Kahn's algorithm, newest tasks first),
+ * always keeping Today ("Heute") visible at the top so tasks can be dragged onto Today,
+ * and collapsing other consecutive empty date entries so only the latest date entry is shown.
  */
 function buildTopologicallySortedAndCollapsedList(
   openTasks: TaskState[],
@@ -474,32 +493,37 @@ function buildTopologicallySortedAndCollapsedList(
 ): ListEntry[] {
   const todayKey = toDateKey(now);
 
-  // Collect all relevant date keys:
-  // 1. Today
-  // 2. Next 3 upcoming calendar days (so we also demonstrate consecutive empty date collapsing & drop targets)
-  // 3. Every open task's effectiveDateKey and configuredStart dateKey
+  // Collect all relevant date keys from Today up to the latest task date
   const dateKeySet = new Set<string>([todayKey]);
-
-  for (let offset = 1; offset <= 3; offset++) {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
-    dateKeySet.add(toDateKey(d));
-  }
+  let maxDateKey = todayKey;
 
   for (const t of openTasks) {
     if (t.effectiveDateKey >= todayKey) {
       dateKeySet.add(t.effectiveDateKey);
+      if (t.effectiveDateKey > maxDateKey) maxDateKey = t.effectiveDateKey;
     }
     const confKey = toDateKey(new Date(t.configuredStart));
     if (confKey >= todayKey) {
       dateKeySet.add(confKey);
+      if (confKey > maxDateKey) maxDateKey = confKey;
+    }
+  }
+
+  // Populate calendar days between todayKey and maxDateKey so consecutive empty days collapse into the following task day
+  if (maxDateKey > todayKey) {
+    const [sy, sm, sd] = todayKey.split('-').map(Number);
+    const [ey, em, ed] = maxDateKey.split('-').map(Number);
+    const cur = new Date(sy, (sm || 1) - 1, sd || 1);
+    const end = new Date(ey, (em || 1) - 1, ed || 1);
+    while (cur <= end) {
+      dateKeySet.add(toDateKey(cur));
+      cur.setDate(cur.getDate() + 1);
     }
   }
 
   const sortedDateKeys = Array.from(dateKeySet).sort();
 
   // Group tasks by their effectiveDateKey
-  // Because each predecessor P has effectiveStart(P) < calculatedStart(T) <= effectiveStart(T),
-  // effectiveDateKey(P) <= effectiveDateKey(T) is mathematically guaranteed!
   const tasksByDate: Record<string, TaskState[]> = {};
   for (const dk of sortedDateKeys) {
     tasksByDate[dk] = [];
@@ -513,7 +537,7 @@ function buildTopologicallySortedAndCollapsedList(
   }
 
   // Within each date bucket, perform a STABLE topological sort using Kahn's algorithm
-  // with creationOrder as deterministic tie-breaker so unaffected tasks never change order.
+  // with descending creationOrder (newest tasks at the very top) as deterministic tie-breaker.
   const rawEntries: ListEntry[] = [];
 
   for (const dk of sortedDateKeys) {
@@ -556,8 +580,8 @@ function buildTopologicallySortedAndCollapsedList(
     }
 
     const ready: TaskState[] = bucketTasks.filter((t) => inDegree[t.id] === 0);
-    // Stable priority queue ordered by creationOrder
-    ready.sort((a, b) => a.creationOrder - b.creationOrder);
+    // Stable priority queue ordered by descending creationOrder so newly created tasks appear at the top
+    ready.sort((a, b) => b.creationOrder - a.creationOrder);
 
     const taskMap: Record<string, TaskState> = {};
     for (const t of bucketTasks) taskMap[t.id] = t;
@@ -574,19 +598,26 @@ function buildTopologicallySortedAndCollapsedList(
         inDegree[depId] -= 1;
         if (inDegree[depId] === 0) {
           ready.push(taskMap[depId]);
-          ready.sort((a, b) => a.creationOrder - b.creationOrder);
+          ready.sort((a, b) => b.creationOrder - a.creationOrder);
         }
       }
     }
   }
 
   // Collapse rule:
-  // "Wenn mehrere Datumseinträge unmittelbar hintereinander folgen, wird nur der späteste angezeigt."
+  // 1. "Heute wird immer als Datum angezeigt, damit man tasks auf heute schieben kann."
+  // 2. "Wenn mehrere Datumseinträge unmittelbar hintereinander folgen, wird nur der späteste angezeigt."
   const collapsedEntries: ListEntry[] = [];
   let i = 0;
   while (i < rawEntries.length) {
     const current = rawEntries[i];
     if (current.kind === 'date') {
+      if (current.isToday) {
+        collapsedEntries.push(current);
+        i += 1;
+        continue;
+      }
+
       let j = i;
       while (j + 1 < rawEntries.length && rawEntries[j + 1].kind === 'date') {
         j += 1;
@@ -599,7 +630,7 @@ function buildTopologicallySortedAndCollapsedList(
         ...latestDateEntry,
         collapsedCount,
         collapsedFromDateKey: collapsedCount > 0 ? firstDateEntry.dateKey : undefined,
-        isToday: latestDateEntry.isToday || firstDateEntry.isToday,
+        isToday: latestDateEntry.isToday,
       });
       i = j + 1;
     } else {
@@ -609,6 +640,64 @@ function buildTopologicallySortedAndCollapsedList(
   }
 
   return collapsedEntries;
+}
+
+/**
+ * Computes transitive reduction of the dependency graph for open tasks.
+ * If A -> B, B -> C, and A -> C all exist in the database, the redundant edge A -> C is omitted.
+ * Returns array of reduced edges `{ from: predecessorId, to: taskId }`.
+ */
+export function computeTransitiveReductionEdges(
+  openTasks: TaskState[]
+): Array<{ from: string; to: string }> {
+  const taskMap: Record<string, TaskState> = {};
+  for (const t of openTasks) {
+    taskMap[t.id] = t;
+  }
+
+  // Helper: is `targetAncestorId` reachable from `startId` via predecessors?
+  function isAncestor(startId: string, targetAncestorId: string): boolean {
+    const visited = new Set<string>();
+    const queue: string[] = [startId];
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      if (curr === targetAncestorId) return true;
+      if (visited.has(curr)) continue;
+      visited.add(curr);
+      const node = taskMap[curr];
+      if (node) {
+        for (const p of node.predecessorIds) {
+          if (!visited.has(p)) {
+            queue.push(p);
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  const reducedEdges: Array<{ from: string; to: string }> = [];
+
+  for (const task of openTasks) {
+    for (const predId of task.predecessorIds) {
+      if (!taskMap[predId]) continue;
+      // Edge predId -> task.id is transitive (redundant) if there is ANOTHER predecessor `otherPred`
+      // of `task` such that `predId` is already an ancestor of `otherPred`.
+      let isRedundant = false;
+      for (const otherPred of task.predecessorIds) {
+        if (otherPred === predId || !taskMap[otherPred]) continue;
+        if (isAncestor(otherPred, predId)) {
+          isRedundant = true;
+          break;
+        }
+      }
+      if (!isRedundant) {
+        reducedEdges.push({ from: predId, to: task.id });
+      }
+    }
+  }
+
+  return reducedEdges;
 }
 
 /**
