@@ -151,7 +151,23 @@ func (s *Store) GetEvents() ([]Event, error) {
 	if events == nil {
 		events = []Event{}
 	}
-	return events, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	tasks := make(map[string]*task)
+	for _, event := range events {
+		if event.Undone {
+			continue
+		}
+		payload, err := validatePayload(event.Type, event.Payload)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := applyCommand(tasks, event.Type, payload); err != nil {
+			return nil, fmt.Errorf("event %d: %w", event.Seq, err)
+		}
+	}
+	return events, nil
 }
 
 func isCoalescableEventType(eventType string) bool {

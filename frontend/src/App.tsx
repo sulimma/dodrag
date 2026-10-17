@@ -486,6 +486,11 @@ export function App() {
     const currentInput = editingDateValue;
     if (!task) return;
 
+    if (currentInput.trim() === formatIso8601Display(task.configuredStart).isoText) {
+      setEditingDateTaskId(null);
+      return;
+    }
+
     const parsedIso = normalizeUserDate(currentInput, now);
     if (Date.parse(task.configuredStart) === Date.parse(parsedIso)) { setEditingDateTaskId(null); return; }
 
