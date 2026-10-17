@@ -35,17 +35,17 @@ declare global {
           ) => Promise<any[]>;
           Undo: () => Promise<any[]>;
           Redo: () => Promise<any[]>;
-          ResetDemoData: () => Promise<any[]>;
           GetSettings: () => Promise<AppSettings>;
           SetAutostart: (enabled: boolean) => Promise<AppSettings>;
           SelectFolderDialog: () => Promise<string>;
           CreateDatabase: (
             folderPath: string,
-            dbName: string
+            dbName: string,
+            seedDemo: boolean
           ) => Promise<AppSettings>;
           OpenExistingDatabaseDialog: () => Promise<AppSettings>;
           SwitchDatabase: (dbPath: string) => Promise<AppSettings>;
-          DeleteDatabase: (dbPath: string) => Promise<AppSettings>;
+          DeleteDatabase: (dbPath: string, deleteFile: boolean) => Promise<AppSettings>;
           EnterMiniMode: (
             corner: string,
             itemCount: number
@@ -182,7 +182,7 @@ function createInitialBrowserDemoEvents(): StoredEvent[] {
 function loadBrowserEvents(): StoredEvent[] {
   const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
   if (raw === null) {
-    return saveBrowserEvents(createInitialBrowserDemoEvents());
+    return [];
   }
   return normalizeEvents(JSON.parse(raw));
 }
@@ -265,30 +265,19 @@ export const eventBridge = {
     return saveBrowserEvents(events.map(event => event.seq === earliest.seq || earliest.groupId && event.groupId === earliest.groupId ? { ...event, undone: false } : event));
   },
 
-  async resetDemoData(): Promise<StoredEvent[]> {
-    if (isWailsAvailable()) {
-      const res = await window.go!.main!.App!.ResetDemoData();
-      return normalizeEvents(res);
-    }
-    const seeded = createInitialBrowserDemoEvents();
-    return saveBrowserEvents(seeded);
-  },
-
   async getSettings(): Promise<AppSettings> {
     if (isWailsAvailable()) {
       return await window.go!.main!.App!.GetSettings();
     }
-    try {
+    {
       const raw = localStorage.getItem(LOCAL_SETTINGS_KEY);
-      if (raw) {
+      if (raw !== null) {
         const parsed: AppSettings = JSON.parse(raw);
         return {
           ...parsed,
           databaseReady: Boolean(parsed.activeDatabasePath),
         };
       }
-    } catch {
-      // ignore
     }
     return {
       knownDatabases: [
@@ -296,7 +285,7 @@ export const eventBridge = {
           name: 'Demo-Datenbank',
           path: '%APPDATA%\\DoDrag\\dodrag.db',
           isDemo: true,
-          exists: true,
+          exists: localStorage.getItem(LOCAL_STORAGE_KEY) !== null,
         },
       ],
       activeDatabasePath: '',
@@ -324,15 +313,19 @@ export const eventBridge = {
 
   async createDatabase(
     folderPath: string,
-    dbName: string
+    dbName: string,
+    seedDemo: boolean
   ): Promise<AppSettings> {
     if (isWailsAvailable()) {
-      return await window.go!.main!.App!.CreateDatabase(folderPath, dbName);
+      return await window.go!.main!.App!.CreateDatabase(folderPath, dbName, seedDemo);
     }
     const current = await this.getSettings();
-    const cleanName = dbName.trim() || 'neue-datenbank';
+    const cleanName = dbName.trim();
     const fileName = cleanName.endsWith('.db') ? cleanName : `${cleanName}.db`;
     const fullPath = `${folderPath || '%APPDATA%\\DoDrag'}\\${fileName}`;
+    if (!cleanName || /[<>:"/\\|?*]/.test(cleanName) || cleanName.endsWith('.')) throw new Error('Datenbankname muss ein reiner Dateiname sein');
+    if (current.knownDatabases.some(entry => entry.path.toLowerCase() === fullPath.toLowerCase() && entry.exists)) throw new Error('Datenbank existiert bereits');
+    loadBrowserEvents(); // Never overwrite a corrupt browser history during creation.
     const next: AppSettings = {
       ...current,
       knownDatabases: [
@@ -342,8 +335,18 @@ export const eventBridge = {
       activeDatabasePath: fullPath,
       databaseReady: true,
     };
-    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(next));
-    saveBrowserEvents([]);
+    const oldSettings = localStorage.getItem(LOCAL_SETTINGS_KEY);
+    const oldEvents = localStorage.getItem(LOCAL_STORAGE_KEY);
+    try {
+      saveBrowserEvents(seedDemo ? createInitialBrowserDemoEvents() : []);
+      localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(next));
+    } catch (error) {
+      try {
+        if (oldEvents === null) localStorage.removeItem(LOCAL_STORAGE_KEY); else localStorage.setItem(LOCAL_STORAGE_KEY, oldEvents);
+        if (oldSettings === null) localStorage.removeItem(LOCAL_SETTINGS_KEY); else localStorage.setItem(LOCAL_SETTINGS_KEY, oldSettings);
+      } catch (rollback) { throw new Error(`${error}; Ruecksetzen fehlgeschlagen: ${rollback}`); }
+      throw error;
+    }
     return next;
   },
 
@@ -368,27 +371,16 @@ export const eventBridge = {
     return next;
   },
 
-  async deleteDatabase(dbPath: string): Promise<AppSettings> {
+  async deleteDatabase(dbPath: string, deleteFile: boolean): Promise<AppSettings> {
     if (isWailsAvailable()) {
-      return await window.go!.main!.App!.DeleteDatabase(dbPath);
+      return await window.go!.main!.App!.DeleteDatabase(dbPath, deleteFile);
     }
     const current = await this.getSettings();
     const remaining = current.knownDatabases.filter((d) => d.path !== dbPath);
-    const fallback =
-      remaining.length > 0
-        ? remaining
-        : [
-            {
-              name: 'Demo-Datenbank',
-              path: '%APPDATA%\\DoDrag\\dodrag.db',
-              isDemo: true,
-              exists: true,
-            },
-          ];
     const wasActive = current.activeDatabasePath === dbPath;
     const next: AppSettings = {
       ...current,
-      knownDatabases: fallback,
+      knownDatabases: remaining,
       activeDatabasePath: wasActive ? '' : current.activeDatabasePath,
       databaseReady: wasActive ? false : current.databaseReady,
     };

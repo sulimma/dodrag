@@ -16,10 +16,10 @@ interface SettingsModalProps {
   settings: AppSettings;
   onClose: () => void;
   onSelectFolder: () => Promise<string>;
-  onCreateDatabase: (folderPath: string, dbName: string) => Promise<void>;
+   onCreateDatabase: (folderPath: string, dbName: string, seedDemo: boolean) => Promise<void>;
   onOpenExistingDatabase: () => Promise<void>;
   onSwitchDatabase: (dbPath: string) => Promise<void>;
-  onDeleteDatabase: (dbPath: string) => Promise<void>;
+  onDeleteDatabase: (dbPath: string, deleteFile: boolean) => Promise<void>;
   onToggleAutostart: (enabled: boolean) => Promise<void>;
 }
 
@@ -35,6 +35,7 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const [folderPath, setFolderPath] = useState<string>('');
   const [dbName, setDbName] = useState<string>('');
+  const [seedDemo, setSeedDemo] = useState(() => !settings.knownDatabases.some(entry => entry.exists));
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(
     null
   );
@@ -64,7 +65,7 @@ export function SettingsModal({
     }
     setBusy(true);
     try {
-      await onCreateDatabase(folderPath.trim(), dbName.trim());
+      await onCreateDatabase(folderPath.trim(), dbName.trim(), seedDemo);
       setDbName('');
     } catch (err: any) {
       setErrorMsg(
@@ -93,11 +94,11 @@ export function SettingsModal({
     }
   };
 
-  const handleConfirmDelete = async (path: string) => {
+  const handleConfirmDelete = async (path: string, deleteFile: boolean) => {
     setErrorMsg(null);
     setBusy(true);
     try {
-      await onDeleteDatabase(path);
+      await onDeleteDatabase(path, deleteFile);
       setConfirmDeletePath(null);
     } catch (err: any) {
       setErrorMsg(
@@ -189,7 +190,10 @@ export function SettingsModal({
               <button
                 type="button"
                 disabled={busy}
-                onClick={onOpenExistingDatabase}
+                onClick={async () => {
+                  setBusy(true); setErrorMsg(null);
+                  try { await onOpenExistingDatabase(); } catch (error) { setErrorMsg(String(error)); } finally { setBusy(false); }
+                }}
                 className="text-xs font-medium text-sky-700 hover:text-sky-800 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-sky-50 transition-colors"
               >
                 <FolderOpen className="w-3.5 h-3.5" />
@@ -205,7 +209,7 @@ export function SettingsModal({
                   entry.path.toLowerCase() ===
                     settings.activeDatabasePath.toLowerCase();
                 const isConfirmingDelete = confirmDeletePath === entry.path;
-                const isMissing = !entry.exists && !entry.isDemo;
+                const isMissing = !entry.exists;
 
                 return (
                   <div
@@ -220,7 +224,7 @@ export function SettingsModal({
                       <div
                         className="min-w-0 flex-1 cursor-pointer"
                         onClick={() => {
-                          if (!busy) handleSwitch(entry);
+                           if (!busy && !isMissing && !isActive) handleSwitch(entry);
                         }}
                       >
                         <div className="flex items-center gap-2">
@@ -301,7 +305,15 @@ export function SettingsModal({
                           <button
                             type="button"
                             disabled={busy}
-                            onClick={() => handleConfirmDelete(entry.path)}
+                            onClick={() => handleConfirmDelete(entry.path, false)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-300"
+                          >
+                            Aus Liste entfernen
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => handleConfirmDelete(entry.path, true)}
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700"
                           >
                             Endgültig löschen
@@ -326,6 +338,10 @@ export function SettingsModal({
             </div>
 
             <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs text-slate-700">
+                <input type="checkbox" checked={seedDemo} onChange={event => setSeedDemo(event.target.checked)} disabled={busy} />
+                Mit Demodaten befuellen
+              </label>
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   Speicherort (z. B. Google-Drive-Ordner)

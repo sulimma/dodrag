@@ -187,17 +187,6 @@ func (s *Store) Redo() ([]Event, error) {
 	return s.GetEvents()
 }
 
-// ResetDemoData clears all events and seeds fresh demonstration tasks.
-func (s *Store) ResetDemoData() ([]Event, error) {
-	if _, err := s.db.Exec(`DELETE FROM events`); err != nil {
-		return nil, err
-	}
-	if err := s.seedIfEmpty(); err != nil {
-		return nil, err
-	}
-	return s.GetEvents()
-}
-
 func (s *Store) seedIfEmpty() error {
 	var count int
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM events`).Scan(&count); err != nil {
@@ -313,18 +302,23 @@ func (s *Store) seedIfEmpty() error {
 		},
 	}
 
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	for i, sEv := range seeds {
 		raw, err := json.Marshal(sEv.payload)
 		if err != nil {
 			return err
 		}
 		ts := now.Add(time.Duration(i) * time.Second).UTC().Format(time.RFC3339Nano)
-		if _, err := s.db.Exec(
+		if _, err := tx.Exec(
 			`INSERT INTO events (id, timestamp, type, payload, undone) VALUES (?, ?, ?, ?, 0)`,
 			sEv.id, ts, sEv.evType, string(raw),
 		); err != nil {
 			return err
 		}
 	}
-	return nil
+	return tx.Commit()
 }

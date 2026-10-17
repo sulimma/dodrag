@@ -257,17 +257,6 @@ func (a *App) onSecondInstanceLaunch(secondInstanceData options.SecondInstanceDa
 	}
 }
 
-func (a *App) ensureDemoDatabaseExistsLocked() {
-	if _, err := os.Stat(a.demoDBPath); err != nil {
-		if dir := filepath.Dir(a.demoDBPath); dir != "" && dir != "." {
-			_ = os.MkdirAll(dir, 0755)
-		}
-		if s, openErr := eventstore.NewStoreWithOptions(a.demoDBPath, true); openErr == nil {
-			_ = s.Close()
-		}
-	}
-}
-
 func (a *App) loadOrInitSettingsLocked() {
 	monitors := getConnectedMonitors()
 	primaryMonName := monitors[0].DeviceName
@@ -286,7 +275,6 @@ func (a *App) loadOrInitSettingsLocked() {
 				activePath = ""
 			}
 			if len(loaded.KnownDatabases) == 0 {
-				a.ensureDemoDatabaseExistsLocked()
 				loaded.KnownDatabases = []DatabaseEntry{
 					{
 						Name:   "Demo-Datenbank",
@@ -317,7 +305,6 @@ func (a *App) loadOrInitSettingsLocked() {
 	}
 
 	// No valid settings.json yet: prepare Demo-Datenbank in KnownDatabases, default dock is bottom-left of Monitor 1
-	a.ensureDemoDatabaseExistsLocked()
 	a.settings = AppSettings{
 		KnownDatabases: []DatabaseEntry{
 			{
@@ -346,7 +333,24 @@ func (a *App) saveSettingsLocked() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(a.settingsPath, data, 0644)
+	temp, err := os.CreateTemp(filepath.Dir(a.settingsPath), ".settings-*.tmp")
+	if err != nil {
+		return err
+	}
+	name := temp.Name()
+	defer os.Remove(name)
+	if _, err = temp.Write(data); err != nil {
+		temp.Close()
+		return err
+	}
+	if err = temp.Sync(); err != nil {
+		temp.Close()
+		return err
+	}
+	if err = temp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(name, a.settingsPath)
 }
 
 func (a *App) openActiveDatabaseLocked() {
@@ -376,7 +380,8 @@ func (a *App) openActiveDatabaseLocked() {
 		}
 	}
 
-	store, err := eventstore.NewStoreWithOptions(targetPath, isDemo)
+	_ = isDemo // Demo seeding is exclusively an explicit creation option.
+	store, err := eventstore.NewStoreWithOptions(targetPath, false)
 	if err != nil {
 		return
 	}
@@ -550,8 +555,13 @@ func (a *App) SetAutostart(enabled bool) (AppSettings, error) {
 	if err := syncWindowsAutostart(enabled); err != nil {
 		return a.snapshotSettingsLocked(), err
 	}
+	previous := a.settings.Autostart
 	a.settings.Autostart = enabled
-	_ = a.saveSettingsLocked()
+	if err := a.saveSettingsLocked(); err != nil {
+		a.settings.Autostart = previous
+		rollbackErr := syncWindowsAutostart(previous)
+		return a.snapshotSettingsLocked(), errors.Join(err, rollbackErr)
+	}
 	return a.snapshotSettingsLocked(), nil
 }
 
@@ -570,13 +580,16 @@ func (a *App) SelectFolderDialog() (string, error) {
 }
 
 // CreateDatabase creates a new SQLite database in folderPath with dbName, adds it to known databases, and activates it.
-func (a *App) CreateDatabase(folderPath string, dbName string) (AppSettings, error) {
+func (a *App) CreateDatabase(folderPath string, dbName string, seedDemo bool) (AppSettings, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	trimmedName := strings.TrimSpace(dbName)
 	if trimmedName == "" {
 		return a.snapshotSettingsLocked(), errors.New("bitte einen Namen für die Datenbank eingeben")
+	}
+	if strings.ContainsAny(trimmedName, `<>:"/\|?*`) || trimmedName == "." || trimmedName == ".." || strings.HasSuffix(trimmedName, ".") || strings.HasSuffix(trimmedName, " ") {
+		return a.snapshotSettingsLocked(), errors.New("Datenbankname muss ein reiner Dateiname sein")
 	}
 
 	trimmedFolder := strings.TrimSpace(folderPath)
@@ -601,16 +614,22 @@ func (a *App) CreateDatabase(folderPath string, dbName string) (AppSettings, err
 
 	fullPath := filepath.Clean(filepath.Join(trimmedFolder, fileName))
 
-	newStore, err := eventstore.NewStoreWithOptions(fullPath, false)
+	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
+		return a.snapshotSettingsLocked(), fmt.Errorf("Datei konnte nicht exklusiv angelegt werden: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		os.Remove(fullPath)
+		return a.snapshotSettingsLocked(), err
+	}
+	newStore, err := eventstore.NewStoreWithOptions(fullPath, seedDemo)
+	if err != nil {
+		os.Remove(fullPath)
 		return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank konnte nicht angelegt werden: %w", err)
 	}
 
-	if a.store != nil {
-		_ = a.store.Close()
-	}
-	a.store = newStore
-
+	previous := a.settings
+	a.settings.KnownDatabases = append([]DatabaseEntry(nil), previous.KnownDatabases...)
 	found := false
 	for i := range a.settings.KnownDatabases {
 		if strings.EqualFold(filepath.Clean(a.settings.KnownDatabases[i].Path), fullPath) {
@@ -629,7 +648,12 @@ func (a *App) CreateDatabase(folderPath string, dbName string) (AppSettings, err
 	}
 
 	a.settings.ActiveDatabasePath = fullPath
-	_ = a.saveSettingsLocked()
+	if err := a.activateStoreLocked(newStore, previous); err != nil {
+		os.Remove(fullPath)
+		os.Remove(fullPath + "-wal")
+		os.Remove(fullPath + "-shm")
+		return a.snapshotSettingsLocked(), err
+	}
 
 	return a.snapshotSettingsLocked(), nil
 }
@@ -649,7 +673,8 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 		},
 	})
 	if err != nil {
-		return a.GetSettings()
+		settings, _ := a.GetSettings()
+		return settings, err
 	}
 	if strings.TrimSpace(selectedFile) == "" {
 		return a.GetSettings()
@@ -661,15 +686,17 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 	fullPath := filepath.Clean(selectedFile)
 	isDemo := strings.EqualFold(fullPath, a.demoDBPath)
 
-	newStore, err := eventstore.NewStoreWithOptions(fullPath, isDemo)
+	info, err := os.Stat(fullPath)
+	if err != nil || info.IsDir() {
+		return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank nicht vorhanden: %s", fullPath)
+	}
+	newStore, err := eventstore.NewStoreWithOptions(fullPath, false)
 	if err != nil {
 		return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank konnte nicht geöffnet werden: %w", err)
 	}
 
-	if a.store != nil {
-		_ = a.store.Close()
-	}
-	a.store = newStore
+	previous := a.settings
+	a.settings.KnownDatabases = append([]DatabaseEntry(nil), previous.KnownDatabases...)
 
 	base := filepath.Base(fullPath)
 	displayName := strings.TrimSuffix(base, filepath.Ext(base))
@@ -693,7 +720,9 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 	}
 
 	a.settings.ActiveDatabasePath = fullPath
-	_ = a.saveSettingsLocked()
+	if err := a.activateStoreLocked(newStore, previous); err != nil {
+		return a.snapshotSettingsLocked(), err
+	}
 
 	return a.snapshotSettingsLocked(), nil
 }
@@ -704,6 +733,16 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 	defer a.mu.Unlock()
 
 	cleanTarget := filepath.Clean(dbPath)
+	known := false
+	for _, entry := range a.settings.KnownDatabases {
+		if strings.EqualFold(filepath.Clean(entry.Path), cleanTarget) {
+			known = true
+			break
+		}
+	}
+	if !known {
+		return a.snapshotSettingsLocked(), errors.New("Datenbank ist nicht in der Liste")
+	}
 	isDemo := strings.EqualFold(cleanTarget, a.demoDBPath)
 	for _, entry := range a.settings.KnownDatabases {
 		if strings.EqualFold(filepath.Clean(entry.Path), cleanTarget) {
@@ -712,50 +751,65 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 		}
 	}
 
-	if isDemo {
-		if dir := filepath.Dir(cleanTarget); dir != "" && dir != "." {
-			_ = os.MkdirAll(dir, 0755)
-		}
-	} else {
+	_ = isDemo
+	{
 		info, statErr := os.Stat(cleanTarget)
 		if statErr != nil || info.IsDir() {
 			return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank-Datei wurde nicht gefunden (verschoben oder gelöscht): %s", cleanTarget)
 		}
 	}
 
-	newStore, err := eventstore.NewStoreWithOptions(cleanTarget, isDemo)
+	newStore, err := eventstore.NewStoreWithOptions(cleanTarget, false)
 	if err != nil {
 		return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank konnte nicht geladen werden: %w", err)
 	}
 
-	if a.store != nil {
-		_ = a.store.Close()
-	}
-	a.store = newStore
+	previous := a.settings
 	a.settings.ActiveDatabasePath = cleanTarget
-	_ = a.saveSettingsLocked()
+	if err := a.activateStoreLocked(newStore, previous); err != nil {
+		return a.snapshotSettingsLocked(), err
+	}
 
 	return a.snapshotSettingsLocked(), nil
 }
 
-// DeleteDatabase deletes the specified database file from disk and removes it from known databases.
-func (a *App) DeleteDatabase(dbPath string) (AppSettings, error) {
+// DeleteDatabase separates forgetting an entry from physically deleting its files.
+func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	cleanTarget := filepath.Clean(dbPath)
+	known := false
+	for _, entry := range a.settings.KnownDatabases {
+		if strings.EqualFold(filepath.Clean(entry.Path), cleanTarget) {
+			known = true
+			break
+		}
+	}
+	if !known {
+		return a.snapshotSettingsLocked(), errors.New("Datenbank ist nicht in der Liste")
+	}
 	wasActive := strings.EqualFold(filepath.Clean(a.settings.ActiveDatabasePath), cleanTarget)
 
 	// Close the SQLite connection first if deleting the currently active database so Windows releases the file lock
 	if wasActive && a.store != nil {
-		_ = a.store.Close()
+		if err := a.store.Close(); err != nil {
+			return a.snapshotSettingsLocked(), err
+		}
 		a.store = nil
 	}
 
 	// Remove SQLite database file and optional WAL/SHM sidecar files
-	_ = os.Remove(cleanTarget)
-	_ = os.Remove(cleanTarget + "-wal")
-	_ = os.Remove(cleanTarget + "-shm")
+	if deleteFile {
+		for _, path := range []string{cleanTarget + "-wal", cleanTarget + "-shm", cleanTarget} {
+			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				if wasActive {
+					a.openActiveDatabaseLocked()
+				}
+				return a.snapshotSettingsLocked(), fmt.Errorf("Datei nicht geloescht (%s): %w", path, err)
+			}
+		}
+	}
 
 	remaining := make([]DatabaseEntry, 0, len(a.settings.KnownDatabases))
 	for _, entry := range a.settings.KnownDatabases {
@@ -764,15 +818,7 @@ func (a *App) DeleteDatabase(dbPath string) (AppSettings, error) {
 		}
 	}
 
-	if len(remaining) == 0 {
-		remaining = []DatabaseEntry{
-			{
-				Name:   "Demo-Datenbank",
-				Path:   a.demoDBPath,
-				IsDemo: true,
-			},
-		}
-	}
+	previous := a.settings
 	a.settings.KnownDatabases = remaining
 
 	if wasActive {
@@ -780,8 +826,37 @@ func (a *App) DeleteDatabase(dbPath string) (AppSettings, error) {
 		a.settings.ActiveDatabasePath = ""
 	}
 
-	_ = a.saveSettingsLocked()
+	if err := a.saveSettingsLocked(); err != nil {
+		a.settings = previous
+		if wasActive {
+			a.openActiveDatabaseLocked()
+		}
+		return a.snapshotSettingsLocked(), err
+	}
 	return a.snapshotSettingsLocked(), nil
+}
+
+func (a *App) activateStoreLocked(candidate *eventstore.Store, previous AppSettings) error {
+	if _, err := candidate.GetEvents(); err != nil {
+		candidate.Close()
+		a.settings = previous
+		return err
+	}
+	if err := a.saveSettingsLocked(); err != nil {
+		candidate.Close()
+		a.settings = previous
+		return err
+	}
+	old := a.store
+	a.store = candidate
+	if old != nil {
+		if err := old.Close(); err != nil {
+			if a.ctx != nil {
+				runtime.LogErrorf(a.ctx, "Neue Datenbank aktiv, Schliessen der alten fehlgeschlagen: %v", err)
+			}
+		}
+	}
+	return nil
 }
 
 // GetEvents returns the full event history from SQLite.
@@ -831,14 +906,4 @@ func (a *App) Redo() ([]eventstore.Event, error) {
 		return []eventstore.Event{}, nil
 	}
 	return a.store.Redo()
-}
-
-// ResetDemoData resets the database to the default demo state.
-func (a *App) ResetDemoData() ([]eventstore.Event, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.store == nil {
-		return []eventstore.Event{}, nil
-	}
-	return a.store.ResetDemoData()
 }

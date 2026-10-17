@@ -16,7 +16,6 @@ import {
   Network,
   Plus,
   Redo2,
-  RotateCcw,
   Settings,
   Undo2,
   X,
@@ -151,13 +150,15 @@ export function App() {
   const mutationBusy = useRef(false);
   const confirmedEvents = useRef<StoredEvent[]>([]);
   const editGroup = useRef('');
+  const databaseIdentity = useRef('');
+  const editDatabase = useRef('');
   const mutate = async (operation: () => Promise<StoredEvent[]>): Promise<StoredEvent[] | null> => {
     if (mutationBusy.current) return null;
     mutationBusy.current = true;
-    const database = appSettings?.activeDatabasePath;
+    const database = databaseIdentity.current;
     try {
       const updated = await operation();
-      if (database !== appSettings?.activeDatabasePath) throw new Error('Datenbank wurde gewechselt');
+      if (database !== databaseIdentity.current) throw new Error('Datenbank wurde gewechselt');
       confirmedEvents.current = updated;
       setEvents(updated);
       return updated;
@@ -181,6 +182,7 @@ export function App() {
   useEffect(() => {
     eventBridge.getEvents().then(updated => { confirmedEvents.current = updated; setEvents(updated); }).catch(error => pushToast(String(error), 'warning'));
     eventBridge.getSettings().then((s) => {
+      databaseIdentity.current = s.activeDatabasePath;
       setAppSettings(s);
       if (s.dockCorner) {
         setDockCorner(s.dockCorner);
@@ -480,6 +482,7 @@ export function App() {
   };
 
   const startInlineEdit = (task: TaskState) => {
+    editDatabase.current = databaseIdentity.current;
     editGroup.current = crypto.randomUUID();
     setEditingDateTaskId(null);
     setEditingTaskId(task.id);
@@ -488,6 +491,7 @@ export function App() {
   };
 
   const commitInlineEdit = async () => {
+    if (editDatabase.current !== databaseIdentity.current) return;
     if (!editingTaskId) return;
     const task = state.tasks[editingTaskId];
     const trimmed = editingTitle.trim();
@@ -501,6 +505,7 @@ export function App() {
   };
 
   const startInlineDateEdit = (task: TaskState) => {
+    editDatabase.current = databaseIdentity.current;
     editGroup.current = crypto.randomUUID();
     setEditingTaskId(null);
     setEditingDateTaskId(task.id);
@@ -510,6 +515,7 @@ export function App() {
   };
 
   const commitInlineDateEdit = async () => {
+    if (editDatabase.current !== databaseIdentity.current) return;
     if (!editingDateTaskId) return;
     const task = state.tasks[editingDateTaskId];
     const currentInput = editingDateValue;
@@ -696,38 +702,36 @@ export function App() {
     await mutate(() => eventBridge.redo());
   };
 
-  const handleResetDemo = async () => {
-    const updated = await eventBridge.resetDemoData();
-    setEvents(updated);
-    setSelectedTaskId(null);
-    clearEdgeSelection();
-  };
-
   const handleCloseSettingsModal = () => {
     if (!appSettings?.databaseReady) return;
     setShowSettingsModal(false);
   };
 
-  const handleCreateDatabase = async (folderPath: string, dbName: string) => {
-    const updatedSettings = await eventBridge.createDatabase(
-      folderPath,
-      dbName
-    );
-    setAppSettings(updatedSettings);
-    const updatedEvents = await eventBridge.getEvents();
-    setEvents(updatedEvents);
-    setSelectedTaskId(null);
-    clearEdgeSelection();
+  const changeDatabase = async (operation: () => Promise<AppSettings>) => {
+    if (mutationBusy.current) throw new Error('Eine Aenderung wird noch gespeichert');
+    mutationBusy.current = true;
+    try {
+      const settings = await operation();
+      databaseIdentity.current = settings.activeDatabasePath;
+      setAppSettings(settings);
+      const updated = await eventBridge.getEvents();
+      confirmedEvents.current = updated;
+      setEvents(updated);
+      setEditingTaskId(null); setEditingDateTaskId(null); editGroup.current = ''; editDatabase.current = '';
+      setNewTaskTitle(''); setSelectedTaskId(null); setContextMenu(null); clearEdgeSelection();
+      return settings;
+    } finally { mutationBusy.current = false; }
+  };
+
+  const handleCreateDatabase = async (folderPath: string, dbName: string, seedDemo: boolean) => {
+    await changeDatabase(() => eventBridge.createDatabase(folderPath, dbName, seedDemo));
     pushToast(`Datenbank „${dbName}“ angelegt und aktiviert`, 'success');
   };
 
   const handleOpenExistingDatabase = async () => {
     const prevPath = appSettings?.activeDatabasePath;
-    const updatedSettings = await eventBridge.openExistingDatabaseDialog();
-    setAppSettings(updatedSettings);
+    const updatedSettings = await changeDatabase(() => eventBridge.openExistingDatabaseDialog());
     if (updatedSettings.activeDatabasePath !== prevPath) {
-      const updatedEvents = await eventBridge.getEvents();
-      setEvents(updatedEvents);
       setSelectedTaskId(null);
       clearEdgeSelection();
       pushToast('Datenbank geöffnet und aktiviert', 'success');
@@ -735,10 +739,7 @@ export function App() {
   };
 
   const handleSwitchDatabase = async (dbPath: string) => {
-    const updatedSettings = await eventBridge.switchDatabase(dbPath);
-    setAppSettings(updatedSettings);
-    const updatedEvents = await eventBridge.getEvents();
-    setEvents(updatedEvents);
+    const updatedSettings = await changeDatabase(() => eventBridge.switchDatabase(dbPath));
     setSelectedTaskId(null);
     clearEdgeSelection();
     const activeEntry = updatedSettings.knownDatabases.find(
@@ -750,21 +751,18 @@ export function App() {
     );
   };
 
-  const handleDeleteDatabase = async (dbPath: string) => {
+  const handleDeleteDatabase = async (dbPath: string, deleteFile: boolean) => {
     const targetEntry = appSettings?.knownDatabases.find(
       (d) => d.path.toLowerCase() === dbPath.toLowerCase()
     );
-    const updatedSettings = await eventBridge.deleteDatabase(dbPath);
-    setAppSettings(updatedSettings);
-    const updatedEvents = await eventBridge.getEvents();
-    setEvents(updatedEvents);
+    const updatedSettings = await changeDatabase(() => eventBridge.deleteDatabase(dbPath, deleteFile));
     setSelectedTaskId(null);
     clearEdgeSelection();
     if (!updatedSettings.databaseReady) {
       setShowSettingsModal(true);
     }
     pushToast(
-      `Datenbank „${targetEntry?.name || dbPath}“ gelöscht`,
+      `Datenbank „${targetEntry?.name || dbPath}“ ${deleteFile ? 'geloescht' : 'aus Liste entfernt'}`,
       'warning'
     );
   };
@@ -929,17 +927,9 @@ export function App() {
           </div>
 
           <button
-            onClick={handleResetDemo}
-            title="Demo-Daten zurücksetzen"
-            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => {
-              eventBridge.getSettings().then(setAppSettings);
-              setShowSettingsModal(true);
+            onClick={async () => {
+              try { setAppSettings(await eventBridge.getSettings()); setShowSettingsModal(true); }
+              catch (error) { pushToast(String(error), 'warning'); }
             }}
             title="Einstellungen & Datenbanken"
             className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
