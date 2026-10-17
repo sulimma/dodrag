@@ -2,27 +2,63 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
+// Measure real card bounds and the browser's rendered SVG curve in viewport units.
+const verifyNetworkGeometry=async(page)=>{
+  const errors=await page.locator('g[data-edge-key] path[marker-end]').evaluateAll(paths=>{
+    const errors=[];
+    for(const path of paths) {
+      const key=path.parentElement.dataset.edgeKey;
+      const [from,to]=key.split('->');
+      const source=document.querySelector(`[data-task-drag="${from}"]`).getBoundingClientRect();
+      const target=document.querySelector(`[data-task-drag="${to}"]`).getBoundingClientRect();
+      const matrix=path.getScreenCTM(),length=path.getTotalLength();
+      const pointAt=distance=>{const p=path.getPointAtLength(distance);return new DOMPoint(p.x,p.y).matrixTransform(matrix);};
+      const start=pointAt(0),end=pointAt(length),before=pointAt(length-0.01);
+      const marker=document.querySelector(path.getAttribute('marker-end').slice(4,-1));
+      if(target.top<=source.bottom) errors.push(`${key}: not downward`);
+      // CSS card positions are quantized to 1/64px; SVG coordinates remain floats.
+      if(Math.abs(start.x-(source.left+source.width/2))>0.02 || Math.abs(start.y-source.bottom)>0.02
+        || Math.abs(end.x-(target.left+target.width/2))>0.02 || Math.abs(end.y+8-target.top)>0.02) errors.push(`${key}: endpoint gap`);
+      if(Math.abs(end.x-before.x)>0.001 || end.y<=before.y) errors.push(`${key}: end tangent`);
+      if(marker.getAttribute('markerUnits')!=='userSpaceOnUse' || marker.getAttribute('refX')!=='0') errors.push(`${key}: marker geometry`);
+      const inside=(p,node)=>p.x>node.left+0.001 && p.x<node.right-0.001 && p.y>node.top+0.001 && p.y<node.bottom-0.001;
+      for(let i=1;i<=2000;i++) {
+        const p=pointAt(length*i/2000);
+        if(inside(p,source)||inside(p,target)) {errors.push(`${key}: own card penetration`);break;}
+      }
+      // The fixed-size downward marker's triangle also stays outside both cards.
+      for(const p of [{x:end.x-3.5,y:end.y},{x:end.x+3.5,y:end.y},{x:end.x,y:end.y+8}]) {
+        if(inside(p,source)||inside(p,target)) errors.push(`${key}: arrowhead penetration`);
+      }
+    }
+    return errors;
+  });
+  assert.deepEqual(errors,[],'network curves and arrowheads stay outside their own endpoint cards');
+};
+
 const server=await createServer({server:{host:'127.0.0.1',port:5197,strictPort:true}});
 await server.listen();
 const browser=await chromium.launch({headless:true});
 try {
    for (const view of ['GanttDiagramm','Liste','Netzplan','Gantt']) for (const shiftBefore of (view==='GanttDiagramm'?[true,false,null]:[true,false])) {
     const page=await browser.newPage({viewport:{width:1400,height:950}});
-    await page.addInitScript(()=>{
-      const iso=new Date().toISOString();let seq=0;
+    await page.addInitScript(overdue=>{
+      const date=new Date();if(overdue) date.setDate(date.getDate()-10);
+      const iso=date.toISOString();let seq=0;
       const event=(type,payload)=>({seq:++seq,id:`e${seq}`,timestamp:iso,type,payload,undone:false});
       const events=['A','B','C','X'].map(taskId=>event('TASK_CREATED',{taskId,title:`Title ${taskId}`,configuredStart:iso,createdAt:iso}));
       for(const [predecessorId,taskId] of [['A','B'],['B','C'],['A','C'],['B','X']]) events.push(event('DEPENDENCY_ADDED',{predecessorId,taskId}));
       localStorage.setItem('dodrag_sqlite_fallback_events_v1',JSON.stringify(events));
       localStorage.setItem('dodrag_settings_fallback_v1',JSON.stringify({knownDatabases:[{name:'test',path:'test.db',exists:true,isDemo:false}],activeDatabasePath:'test.db',autostart:false}));
       window.dragStarts=0;document.addEventListener('dragstart',()=>window.dragStarts++);
-    });
+    },view==='Netzplan');
     await page.goto('http://127.0.0.1:5197');
     const diagram=view==='GanttDiagramm';
     await page.getByRole('button',{name:diagram?'Gantt':view,exact:true}).click();
     const source=diagram?page.locator('[data-gantt-node="A"]'):page.locator('[data-task-drag="A"]').first(), target=diagram?page.locator('[data-gantt-node="C"]'):page.locator('[data-task-drag="C"]').first();
     await source.waitFor();
     await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState!=='running'));
+    if(view==='Netzplan') await verifyNetworkGeometry(page);
     const sourceText=diagram?source:source.locator('[data-drag-handle]');
     const a=await sourceText.boundingBox(), c=await target.boundingBox();
     // Real native drag from the explicit non-text handle, never synthetic dragstart.
@@ -42,6 +78,7 @@ try {
     const preview=await page.locator('[data-deletion-preview="true"]').evaluateAll(elements=>elements.map(element=>element.getAttribute('data-edge-key')).sort());
     assert.deepEqual(preview,['A->B','A->C'],`${view}: exact source-local preview including redundant edge`);
     assert.ok(!(await target.getAttribute('class')).includes('bg-rose'),`${view}: target not red`);
+    if(view==='Netzplan') await verifyNetworkGeometry(page);
     await page.keyboard.up('Shift');
     await page.mouse.move(c.x+c.width*0.65+2,c.y+c.height*0.65,{steps:2});
     await page.waitForFunction(()=>document.querySelectorAll('[data-deletion-preview="true"]').length===0);
@@ -52,6 +89,7 @@ try {
     assert.equal(await page.locator('[data-deletion-preview="true"]').count(),0,'drop clears preview');
     await page.locator('button[title^="Rückgängig"]').click();
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='DEPENDENCY_REMOVED').every(event=>event.undone));
+    if(view==='Netzplan') await verifyNetworkGeometry(page);
     if(view!=='Liste') {
       const geometry=await page.locator('g[data-edge-key="B->C"] path[marker-end]').evaluate(path=>{
         const end=path.getPointAtLength(path.getTotalLength()),before=path.getPointAtLength(path.getTotalLength()-0.01);
@@ -97,6 +135,53 @@ try {
         console.log(`PASS ${previous}->Gantt ${marked}: complete stable geometry in first eight frames`);
       }
     }
+    await page.close();
+  }
+  {
+    const page=await browser.newPage({viewport:{width:1400,height:950}});
+    await page.addInitScript(()=>{
+      const date=new Date();date.setDate(date.getDate()-10);date.setHours(9,0,0,0);
+      const iso=date.toISOString();let seq=0;
+      const event=(type,payload)=>({seq:++seq,id:`layout${seq}`,timestamp:iso,type,payload,undone:false});
+      const events=['X','A','Y','Z','B','D','C','E','F'].map(taskId=>event('TASK_CREATED',{taskId,title:`Title ${taskId}`,configuredStart:iso,createdAt:iso}));
+      const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);tomorrow.setHours(9,0,0,0);
+      events.push(event('TASK_START_DATE_SET',{taskId:'F',configuredStart:tomorrow.toISOString()}));
+      for(const [predecessorId,taskId] of [['A','B'],['A','D'],['B','C'],['A','C'],['B','E'],['D','E'],['E','F']]) events.push(event('DEPENDENCY_ADDED',{predecessorId,taskId}));
+      localStorage.setItem('dodrag_sqlite_fallback_events_v1',JSON.stringify(events));
+      localStorage.setItem('dodrag_settings_fallback_v1',JSON.stringify({knownDatabases:[{name:'test',path:'test.db',exists:true,isDemo:false}],activeDatabasePath:'test.db',autostart:false}));
+    });
+    await page.goto('http://127.0.0.1:5197');
+    await page.getByRole('button',{name:'Netzplan',exact:true}).click();
+    await page.locator('[data-task-drag="F"]').waitFor();
+    const snapshot=()=>page.locator('[data-task-drag]').evaluateAll(nodes=>Object.fromEntries(nodes.map(node=>{
+      // Compare layout coordinates, unaffected by Playwright scrolling a title into view.
+      const rect=node.getBoundingClientRect(),origin=node.parentElement.getBoundingClientRect();
+      return [node.dataset.taskDrag,{x:rect.x-origin.x,y:rect.y-origin.y,bottom:rect.bottom-origin.y}];
+    })));
+    for(const width of [1400,850,500,1400]) {
+      await page.setViewportSize({width,height:950});
+      // Wait for ResizeObserver to feed the actual available width into the component.
+      await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      const nodes=await snapshot();
+      const roots=['A','X','Y','Z'],middle=['B','D'],last=['C','E'];
+      assert.ok(Math.min(...middle.map(id=>nodes[id].y))>Math.max(...roots.map(id=>nodes[id].bottom)),'next level follows ALL wrapped root rows');
+      assert.ok(Math.min(...last.map(id=>nodes[id].y))>Math.max(...middle.map(id=>nodes[id].bottom)),'diamond successors follow complete predecessor level');
+      assert.ok(nodes.F.y>Math.max(...last.map(id=>nodes[id].bottom)),'future date band follows all today levels');
+      if(width===1400) {
+        assert.equal(nodes.A.y,nodes.X.y,'independent roots share a wide row');
+        assert.ok(nodes.A.x<nodes.X.x,'same-level order follows existing timestamp/ID priority');
+        assert.equal(nodes.B.y,nodes.D.y,'independent diamond branches share a wide row');
+      }
+      if(width===500) assert.equal(new Set(Object.values(nodes).map(node=>node.x)).size,1,'narrow view uses one column');
+      if(width===850) assert.ok(new Set(roots.map(id=>nodes[id].y)).size>1,'wide root level wraps');
+      assert.equal(await page.locator('g[data-edge-key="A->C"]').count(),0,'redundant edge remains hidden normally');
+      await verifyNetworkGeometry(page);
+      const stable=await snapshot();
+      await page.locator('[data-task-drag="A"]').getByText('Title A',{exact:true}).click();
+      assert.deepEqual(await snapshot(),stable,'highlights do not change layout');
+      await verifyNetworkGeometry(page);
+    }
+    console.log('PASS network real geometry: overdue levels, wrapped roots, diamond, direct/transitive highlights, future band, responsive resize');
     await page.close();
   }
   const page=await browser.newPage({viewport:{width:1400,height:950}});

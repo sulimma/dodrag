@@ -12,6 +12,7 @@ import { TaskTitle, TitleEditor } from './TaskTitle';
 import { TaskDate } from './TaskDate';
 import { taskInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
+import { stableTopology } from '../domain/topology';
 import { TaskDragHandle } from './TaskDragHandle';
 import { arrowBase, ArrowMarkers } from './arrowGeometry';
 
@@ -190,7 +191,7 @@ export function NetworkPlanView({
     // 2. Transitive reduction of dependency edges (omits A->C if A->B and B->C exist)
     const reducedEdges = computeTransitiveReductionEdges(openTasks);
 
-    // Build adjacency lookup on reduced edges for Barycenter crossing minimization
+    // Reduced-edge neighbors guide horizontal alignment, not task ordering.
     const predsOf: Record<string, string[]> = {};
     const succsOf: Record<string, string[]> = {};
     for (const t of openTasks) {
@@ -210,12 +211,6 @@ export function NetworkPlanView({
       rows[r].push(t);
     }
 
-    // Preserve the shared topological order; horizontal alignment must not reorder nodes.
-    for (const row of rows) {
-      const index = new Map(openTasks.map((task,index) => [task.id,index]));
-      row.sort((a,b) => index.get(a.id)!-index.get(b.id)!);
-    }
-
     // Determine how many columns fit side-by-side within the available container width
     const stepX = NODE_WIDTH + NODE_SEP_X;
     const usableWidth = Math.max(
@@ -228,11 +223,39 @@ export function NetworkPlanView({
     );
     const maxAllowedX = Math.max(0, usableWidth - NODE_WIDTH);
 
-    // 4. Sugiyama Barycenter Crossing Minimization + Clamped Horizontal Parent-Child Alignment
+    // A level is 1 + the maximum level of ALL same-band predecessors (roots: 0).
+    // Compute levels topologically, then preserve openTasks priority within levels.
+    // Wrap each entire level before starting the next, including unrelated nodes.
+    const daySlices = rows.map((row) => {
+      const levelOf = new Map<string, number>();
+      for (const task of stableTopology(row)) {
+        let level = 0;
+        for (const id of task.predecessorIds) {
+          const predecessorLevel = levelOf.get(id);
+          if (predecessorLevel !== undefined) level = Math.max(level, predecessorLevel + 1);
+        }
+        levelOf.set(task.id, level);
+      }
+      const levels: TaskState[][] = [];
+      for (const task of row) {
+        const level = levelOf.get(task.id)!;
+        (levels[level] ??= []).push(task);
+      }
+      const slices: TaskState[][] = [];
+      for (const level of levels) {
+        for (let start = 0; start < level.length; start += maxCols) {
+          slices.push(level.slice(start, start + maxCols));
+        }
+      }
+      return slices;
+    });
+    const layoutRows = daySlices.flat();
+
+    // 4. Clamped horizontal neighbor alignment, preserving priority within each slice.
     const xPos: Record<string, number> = {};
 
-    // Assign initial X positions wrapped by maxCols
-    for (const row of rows) {
+    // Assign initial X positions within each wrapped level.
+    for (const row of layoutRows) {
       row.forEach((t, idx) => {
         xPos[t.id] = (idx % maxCols) * stepX;
       });
@@ -279,29 +302,11 @@ export function NetworkPlanView({
       });
     };
 
-    const resolveRowPositions = (
-      row: TaskState[],
-      desiredX: Record<string, number>
-    ) => {
-      if (row.length === 0) return;
-      const currentIdx = new Map<string, number>();
-      row.forEach((t, i) => currentIdx.set(t.id, i));
-
-      // Sort all tasks in the day by their desired horizontal Barycenter X
-      // No local barycenter ordering: all views use the same stable topological core.
-
-      // Resolve positions per sub-row of up to maxCols tasks so each sub-row stays within containerWidth
-      for (let start = 0; start < row.length; start += maxCols) {
-        const slice = row.slice(start, start + maxCols);
-        resolveSlicePositions(slice, desiredX);
-      }
-    };
-
-    // Perform 6 top-down & bottom-up Barycenter sweeps so connected nodes align vertically without crossings!
+    // Six neighbor-average sweeps improve alignment; crossings remain allowed.
     for (let iter = 0; iter < 6; iter++) {
       // Top-Down: align children directly under the average X of their predecessors
-      for (let r = 1; r < rows.length; r++) {
-        const row = rows[r];
+      for (let r = 1; r < layoutRows.length; r++) {
+        const row = layoutRows[r];
         if (row.length === 0) continue;
         const desired: Record<string, number> = {};
         for (const t of row) {
@@ -313,12 +318,12 @@ export function NetworkPlanView({
             desired[t.id] = xPos[t.id];
           }
         }
-        resolveRowPositions(row, desired);
+        resolveSlicePositions(row, desired);
       }
 
-      // Bottom-Up: align parents directly above the average X of their successors
-      for (let r = rows.length - 2; r >= 0; r--) {
-        const row = rows[r];
+      // Bottom-Up: approach the average X of predecessors and successors.
+      for (let r = layoutRows.length - 2; r >= 0; r--) {
+        const row = layoutRows[r];
         if (row.length === 0) continue;
         const desired: Record<string, number> = {};
         for (const t of row) {
@@ -335,7 +340,7 @@ export function NetworkPlanView({
             desired[t.id] = xPos[t.id];
           }
         }
-        resolveRowPositions(row, desired);
+        resolveSlicePositions(row, desired);
       }
     }
 
@@ -349,11 +354,9 @@ export function NetworkPlanView({
       const { label, subLabel, isToday, isWeekend, weekdayShort } =
         formatDateHeading(dk, now);
 
-      const rowTasks = rows[r];
-      const isRowEmpty = rowTasks.length === 0;
-      const numSubRows = isRowEmpty
-        ? 0
-        : Math.ceil(rowTasks.length / maxCols);
+      const slices = daySlices[r];
+      const isRowEmpty = slices.length === 0;
+      const numSubRows = slices.length;
 
       const bandTopY = currentY;
       const bandHeight = isRowEmpty
@@ -377,8 +380,7 @@ export function NetworkPlanView({
         bandHeight,
       });
 
-      rowTasks.forEach((t, idx) => {
-        const subRow = Math.floor(idx / maxCols);
+      slices.forEach((slice, subRow) => slice.forEach((t) => {
         const x = LEFT_DATE_GUTTER + (xPos[t.id] ?? 0);
         const y = nodeTopY + subRow * (NODE_HEIGHT + SUBROW_SEP_Y);
         nodes[t.id] = {
@@ -391,10 +393,11 @@ export function NetworkPlanView({
           height: NODE_HEIGHT,
           dateRank: r,
         };
-      });
+      }));
     }
 
-    // 6. Route clean, direct edges (only bending if an intermediate node actually blocks the straight path)
+    // 6. Downward endpoints keep curves outside their own cards. Intermediate
+    // obstacles only influence the existing soft curvature heuristic.
     const allNodes = Object.values(nodes);
     const routedEdges: RoutedEdge[] = [];
 
