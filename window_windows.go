@@ -781,12 +781,6 @@ func comRelease(obj uintptr) {
 	}
 }
 
-func comCallOK(obj uintptr, index uintptr, args ...uintptr) bool {
-	arguments := append([]uintptr{obj}, args...)
-	hr, _, _ := syscall.SyscallN(comVtableMethod(obj, index), arguments...)
-	return int32(hr) >= 0
-}
-
 func createJumpListShellLink(exePath string, args string, title string, description string) uintptr {
 	const clsctxInprocServer = 0x1
 	var shellLink uintptr
@@ -807,22 +801,26 @@ func createJumpListShellLink(exePath string, args string, title string, descript
 	titlePtr, _ := syscall.UTF16PtrFromString(title)
 
 	// SetPath (index 20)
-	if !comCallOK(shellLink, 20, uintptr(unsafe.Pointer(exePtr))) {
+	hr, _, _ = syscall.SyscallN(comVtableMethod(shellLink, 20), shellLink, uintptr(unsafe.Pointer(exePtr)))
+	if int32(hr) < 0 {
 		comRelease(shellLink)
 		return 0
 	}
 	// SetArguments (index 11)
-	if !comCallOK(shellLink, 11, uintptr(unsafe.Pointer(argsPtr))) {
+	hr, _, _ = syscall.SyscallN(comVtableMethod(shellLink, 11), shellLink, uintptr(unsafe.Pointer(argsPtr)))
+	if int32(hr) < 0 {
 		comRelease(shellLink)
 		return 0
 	}
 	// SetDescription (index 7)
-	if !comCallOK(shellLink, 7, uintptr(unsafe.Pointer(descPtr))) {
+	hr, _, _ = syscall.SyscallN(comVtableMethod(shellLink, 7), shellLink, uintptr(unsafe.Pointer(descPtr)))
+	if int32(hr) < 0 {
 		comRelease(shellLink)
 		return 0
 	}
 	// SetIconLocation (index 17)
-	if !comCallOK(shellLink, 17, uintptr(unsafe.Pointer(exePtr)), 0) {
+	hr, _, _ = syscall.SyscallN(comVtableMethod(shellLink, 17), shellLink, uintptr(unsafe.Pointer(exePtr)), 0)
+	if int32(hr) < 0 {
 		comRelease(shellLink)
 		return 0
 	}
@@ -841,13 +839,17 @@ func createJumpListShellLink(exePath string, args string, title string, descript
 			Val: uintptr(unsafe.Pointer(titlePtr)),
 		}
 		// SetValue (index 6)
-		if !comCallOK(propStore, 6, uintptr(unsafe.Pointer(&pkeyTitle)), uintptr(unsafe.Pointer(&pv))) {
+		hr, _, _ = syscall.SyscallN(comVtableMethod(propStore, 6), propStore, uintptr(unsafe.Pointer(&pkeyTitle)), uintptr(unsafe.Pointer(&pv)))
+		// pv.Val is a uintptr: keep its Go allocation alive even on failure paths.
+		runtime.KeepAlive(titlePtr)
+		if int32(hr) < 0 {
 			comRelease(propStore)
 			comRelease(shellLink)
 			return 0
 		}
 		// Commit (index 7)
-		if !comCallOK(propStore, 7) {
+		hr, _, _ = syscall.SyscallN(comVtableMethod(propStore, 7), propStore)
+		if int32(hr) < 0 {
 			comRelease(propStore)
 			comRelease(shellLink)
 			return 0
@@ -857,7 +859,6 @@ func createJumpListShellLink(exePath string, args string, title string, descript
 		comRelease(shellLink)
 		return 0
 	}
-	runtime.KeepAlive(titlePtr)
 
 	return shellLink
 }
@@ -924,9 +925,9 @@ func registerTaskbarJumpList() {
 	linkRestore := createJumpListShellLink(exePath, "--restore", "Wiederherstellen", "DoDrag Hauptfenster wiederherstellen")
 	if linkRestore != 0 {
 		// AddObject (index 5)
-		ok := comCallOK(objCollection, 5, linkRestore)
+		hr, _, _ = syscall.SyscallN(comVtableMethod(objCollection, 5), objCollection, linkRestore)
 		comRelease(linkRestore)
-		if !ok {
+		if int32(hr) < 0 {
 			return
 		}
 	}
@@ -934,9 +935,9 @@ func registerTaskbarJumpList() {
 	linkMinimize := createJumpListShellLink(exePath, "--minimize", "Minimieren", "DoDrag in die Kompaktansicht minimieren")
 	if linkMinimize != 0 {
 		// AddObject (index 5)
-		ok := comCallOK(objCollection, 5, linkMinimize)
+		hr, _, _ = syscall.SyscallN(comVtableMethod(objCollection, 5), objCollection, linkMinimize)
 		comRelease(linkMinimize)
-		if !ok {
+		if int32(hr) < 0 {
 			return
 		}
 	}
@@ -950,13 +951,14 @@ func registerTaskbarJumpList() {
 	)
 	if hr == 0 && tasksArray != 0 {
 		// AddUserTasks (index 7)
-		ok := comCallOK(destList, 7, tasksArray)
+		hr, _, _ = syscall.SyscallN(comVtableMethod(destList, 7), destList, tasksArray)
 		comRelease(tasksArray)
-		if !ok {
+		if int32(hr) < 0 {
 			return
 		}
 		// CommitList (index 8)
-		if !comCallOK(destList, 8) {
+		hr, _, _ = syscall.SyscallN(comVtableMethod(destList, 8), destList)
+		if int32(hr) < 0 {
 			return
 		}
 	}

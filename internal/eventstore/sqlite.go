@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -39,7 +40,6 @@ func NewStoreWithOptions(dbPath string, seedDemo bool) (*Store, error) {
 	}
 
 	schema := `
-	PRAGMA journal_mode=WAL;
 	CREATE TABLE IF NOT EXISTS events (
 		seq INTEGER PRIMARY KEY AUTOINCREMENT,
 		id TEXT NOT NULL UNIQUE,
@@ -54,46 +54,15 @@ func NewStoreWithOptions(dbPath string, seedDemo bool) (*Store, error) {
 		return nil, fmt.Errorf("init schema: %w", err)
 	}
 
-	s := &Store{db: db}
-	rows, err := db.Query(`PRAGMA table_info(events)`)
-	if err != nil {
+	if err := validateSchema(db); err != nil {
 		_ = db.Close()
-		return nil, err
+		return nil, fmt.Errorf("incompatible events schema: %w", err)
 	}
-	hasGroup := false
-	columns := make(map[string]bool)
-	for rows.Next() {
-		var cid, notnull, pk int
-		var name, kind string
-		var defaultValue interface{}
-		if err := rows.Scan(&cid, &name, &kind, &notnull, &defaultValue, &pk); err != nil {
-			rows.Close()
-			db.Close()
-			return nil, err
-		}
-		if name == "group_id" {
-			hasGroup = true
-		}
-		columns[name] = true
+	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("enable WAL: %w", err)
 	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		db.Close()
-		return nil, err
-	}
-	rows.Close()
-	for _, required := range []string{"seq", "id", "timestamp", "type", "payload", "undone"} {
-		if !columns[required] {
-			db.Close()
-			return nil, fmt.Errorf("incompatible events schema: missing %s", required)
-		}
-	}
-	if !hasGroup {
-		if _, err := db.Exec(`ALTER TABLE events ADD COLUMN group_id TEXT NOT NULL DEFAULT ''`); err != nil {
-			db.Close()
-			return nil, err
-		}
-	}
+	s := &Store{db: db}
 	if _, err := s.GetEvents(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("validate event store: %w", err)
@@ -106,6 +75,109 @@ func NewStoreWithOptions(dbPath string, seedDemo bool) (*Store, error) {
 	}
 
 	return s, nil
+}
+
+func validateSchema(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_xinfo(events)`)
+	if err != nil {
+		return err
+	}
+	type column struct {
+		kind       string
+		notnull    int
+		pk         int
+		hidden     int
+		defaultVal sql.NullString
+	}
+	columns := make(map[string]column)
+	primaryKeys := 0
+	for rows.Next() {
+		var cid int
+		var name string
+		var c column
+		if err := rows.Scan(&cid, &name, &c.kind, &c.notnull, &c.defaultVal, &c.pk, &c.hidden); err != nil {
+			rows.Close()
+			return err
+		}
+		if c.pk != 0 {
+			primaryKeys++
+		}
+		columns[strings.ToLower(name)] = c
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, required := range []string{"seq", "id", "timestamp", "type", "payload", "undone"} {
+		c, ok := columns[required]
+		if !ok {
+			return fmt.Errorf("missing %s", required)
+		}
+		kind := "TEXT"
+		if required == "seq" || required == "undone" {
+			kind = "INTEGER"
+		}
+		if !strings.EqualFold(strings.TrimSpace(c.kind), kind) || c.hidden != 0 {
+			return fmt.Errorf("%s must be a writable %s column", required, kind)
+		}
+		if required == "seq" {
+			if c.pk != 1 || primaryKeys != 1 {
+				return fmt.Errorf("seq must be the sole INTEGER PRIMARY KEY")
+			}
+		} else if c.notnull != 1 || c.pk != 0 {
+			return fmt.Errorf("%s must be NOT NULL and not a primary key", required)
+		}
+	}
+	if c, ok := columns["group_id"]; ok {
+		if !strings.EqualFold(strings.TrimSpace(c.kind), "TEXT") || c.notnull != 1 || c.pk != 0 || c.hidden != 0 || c.defaultVal.String != "''" {
+			return fmt.Errorf("group_id must be TEXT NOT NULL DEFAULT ''")
+		}
+	}
+
+	rows, err = db.Query(`PRAGMA index_list(events)`)
+	if err != nil {
+		return err
+	}
+	var uniqueIndexes []string
+	for rows.Next() {
+		var seq, unique, partial int
+		var name, origin string
+		if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
+			rows.Close()
+			return err
+		}
+		// A rowid alias has no PK index. This excludes WITHOUT ROWID and INTEGER PK DESC.
+		if origin == "pk" {
+			rows.Close()
+			return fmt.Errorf("seq must alias the SQLite rowid")
+		}
+		if unique == 1 && partial == 0 {
+			uniqueIndexes = append(uniqueIndexes, name)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	uniqueID := false
+	for _, name := range uniqueIndexes {
+		var count, idColumns int
+		if err := db.QueryRow(`SELECT COUNT(*), COALESCE(SUM(lower(name) = 'id'), 0) FROM pragma_index_info(?)`, name).Scan(&count, &idColumns); err != nil {
+			return err
+		}
+		uniqueID = uniqueID || count == 1 && idColumns == 1
+	}
+	if !uniqueID {
+		return fmt.Errorf("id must have an unconditional single-column UNIQUE constraint")
+	}
+	// Additive migration happens only after the existing contract has been verified.
+	if _, ok := columns["group_id"]; !ok {
+		_, err = db.Exec(`ALTER TABLE events ADD COLUMN group_id TEXT NOT NULL DEFAULT ''`)
+		return err
+	}
+	return nil
 }
 
 // Close closes the underlying SQLite connection.

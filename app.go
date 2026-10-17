@@ -61,6 +61,8 @@ type App struct {
 	settingsPath        string
 	demoDBPath          string
 	settings            AppSettings
+	settingsLoadErr     error
+	settingsSaveErr     error
 	hwnd                uintptr
 	isMiniMode          bool
 	lastMiniItemCount   int
@@ -103,11 +105,14 @@ func (a *App) startup(ctx context.Context) {
 	a.settingsPath = filepath.Join(appDir, "settings.json")
 	a.demoDBPath = filepath.Clean(filepath.Join(appDir, "dodrag.db"))
 
-	a.loadOrInitSettingsLocked()
-	if a.settings.Autostart {
-		_ = syncWindowsAutostart(true)
+	if err := a.loadOrInitSettingsLocked(); err != nil {
+		runtime.LogErrorf(ctx, "Settings konnten nicht geladen werden: %v", err)
+	} else {
+		if a.settings.Autostart {
+			_ = syncWindowsAutostart(true)
+		}
+		a.openActiveDatabaseLocked()
 	}
-	a.openActiveDatabaseLocked()
 	a.mu.Unlock()
 
 	go registerTaskbarJumpList()
@@ -271,54 +276,64 @@ func (a *App) onSecondInstanceLaunch(secondInstanceData options.SecondInstanceDa
 	}
 }
 
-func (a *App) loadOrInitSettingsLocked() {
+func (a *App) loadOrInitSettingsLocked() (err error) {
+	defer func() { a.settingsLoadErr = err }()
+	a.settingsLoadErr = nil
+	a.settingsSaveErr = nil
 	monitors := getConnectedMonitors()
 	primaryMonName := monitors[0].DeviceName
 
 	raw, err := os.ReadFile(a.settingsPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("Settings lesen (%s): %w", a.settingsPath, err)
+	}
 	if err == nil {
 		var loaded persistedSettings
-		if jsonErr := json.Unmarshal(raw, &loaded); jsonErr == nil {
-			for i := range loaded.KnownDatabases {
-				loaded.KnownDatabases[i].Path = filepath.Clean(loaded.KnownDatabases[i].Path)
-			}
-			activePath := strings.TrimSpace(loaded.ActiveDatabasePath)
-			if activePath != "" && activePath != "." {
-				activePath = filepath.Clean(activePath)
-			} else {
-				activePath = ""
-			}
-			if len(loaded.KnownDatabases) == 0 {
-				loaded.KnownDatabases = []DatabaseEntry{
-					{
-						Name:   "Demo-Datenbank",
-						Path:   a.demoDBPath,
-						IsDemo: true,
-					},
-				}
-			}
-			// Default is bottom-left of Monitor 1 (Primary Monitor)
-			if loaded.DockMonitor == "" {
-				loaded.DockMonitor = primaryMonName
-				loaded.DockCorner = "bottom-left"
-			} else if _, exists := resolveMonitorOrPrimary(loaded.DockMonitor); !exists {
-				loaded.DockMonitor = primaryMonName
-			}
-			if loaded.DockCorner == "" {
-				loaded.DockCorner = "bottom-left"
-			}
-			a.settings = AppSettings{
-				KnownDatabases:     loaded.KnownDatabases,
-				ActiveDatabasePath: activePath,
-				Autostart:          loaded.Autostart,
-				DockMonitor:        loaded.DockMonitor,
-				DockCorner:         loaded.DockCorner,
-			}
-			return
+		if jsonErr := json.Unmarshal(raw, &loaded); jsonErr != nil {
+			return fmt.Errorf("Settings JSON (%s): %w", a.settingsPath, jsonErr)
 		}
+		if strings.TrimSpace(string(raw)) == "null" {
+			return fmt.Errorf("Settings JSON (%s): Objekt erwartet", a.settingsPath)
+		}
+		for i := range loaded.KnownDatabases {
+			loaded.KnownDatabases[i].Path = filepath.Clean(loaded.KnownDatabases[i].Path)
+		}
+		activePath := strings.TrimSpace(loaded.ActiveDatabasePath)
+		if activePath != "" && activePath != "." {
+			activePath = filepath.Clean(activePath)
+		} else {
+			activePath = ""
+		}
+		if len(loaded.KnownDatabases) == 0 {
+			loaded.KnownDatabases = []DatabaseEntry{
+				{
+					Name:   "Demo-Datenbank",
+					Path:   a.demoDBPath,
+					IsDemo: true,
+				},
+			}
+		}
+		// Default is bottom-left of Monitor 1 (Primary Monitor)
+		if loaded.DockMonitor == "" {
+			loaded.DockMonitor = primaryMonName
+			loaded.DockCorner = "bottom-left"
+		} else if _, exists := resolveMonitorOrPrimary(loaded.DockMonitor); !exists {
+			loaded.DockMonitor = primaryMonName
+		}
+		if loaded.DockCorner == "" {
+			loaded.DockCorner = "bottom-left"
+		}
+		a.settings = AppSettings{
+			KnownDatabases:     loaded.KnownDatabases,
+			ActiveDatabasePath: activePath,
+			Autostart:          loaded.Autostart,
+			DockMonitor:        loaded.DockMonitor,
+			DockCorner:         loaded.DockCorner,
+		}
+		return nil
 	}
 
-	// No valid settings.json yet: prepare Demo-Datenbank in KnownDatabases, default dock is bottom-left of Monitor 1
+	// Only a missing file is first start; unreadable or invalid originals stay untouched.
 	a.settings = AppSettings{
 		KnownDatabases: []DatabaseEntry{
 			{
@@ -332,10 +347,15 @@ func (a *App) loadOrInitSettingsLocked() {
 		DockMonitor:        primaryMonName,
 		DockCorner:         "bottom-left",
 	}
-	_ = a.saveSettingsLocked()
+	return a.saveSettingsLocked()
 }
 
-func (a *App) saveSettingsLocked() error {
+func (a *App) saveSettingsLocked() (err error) {
+	// Native callbacks cannot return errors; GetSettings exposes the latest save failure.
+	defer func() { a.settingsSaveErr = err }()
+	if a.settingsLoadErr != nil {
+		return a.settingsLoadErr
+	}
 	toSave := persistedSettings{
 		KnownDatabases:     a.settings.KnownDatabases,
 		ActiveDatabasePath: a.settings.ActiveDatabasePath,
@@ -491,7 +511,8 @@ func (a *App) enterMiniModeLocked(corner string, itemCount int) string {
 func (a *App) EnterMiniMode(corner string, itemCount int) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.enterMiniModeLocked(corner, itemCount), nil
+	corner = a.enterMiniModeLocked(corner, itemCount)
+	return corner, a.settingsSaveErr
 }
 
 // UpdateMiniModeHeight adjusts the compact window height (up to 4 items) while staying docked in the current corner.
@@ -533,7 +554,9 @@ func (a *App) SnapMiniWindowToNearestCorner(itemCount int) (string, error) {
 		)
 		a.settings.DockMonitor = monName
 		a.settings.DockCorner = cornerName
-		_ = a.saveSettingsLocked()
+		if err := a.saveSettingsLocked(); err != nil {
+			return cornerName, err
+		}
 	}
 	return a.settings.DockCorner, nil
 }
@@ -581,7 +604,10 @@ func (a *App) shutdown(ctx context.Context) {
 func (a *App) GetSettings() (AppSettings, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return a.snapshotSettingsLocked(), nil
+	if a.settingsLoadErr != nil {
+		return a.snapshotSettingsLocked(), a.settingsLoadErr
+	}
+	return a.snapshotSettingsLocked(), a.settingsSaveErr
 }
 
 // SetAutostart enables or disables launching DoDrag automatically on Windows boot/login.
@@ -589,6 +615,9 @@ func (a *App) SetAutostart(enabled bool) (AppSettings, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	if a.settingsLoadErr != nil {
+		return a.snapshotSettingsLocked(), a.settingsLoadErr
+	}
 	if err := syncWindowsAutostart(enabled); err != nil {
 		return a.snapshotSettingsLocked(), err
 	}
@@ -621,6 +650,9 @@ func (a *App) CreateDatabase(folderPath string, dbName string, seedDemo bool) (A
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	if a.settingsLoadErr != nil {
+		return a.snapshotSettingsLocked(), a.settingsLoadErr
+	}
 	trimmedName := strings.TrimSpace(dbName)
 	if trimmedName == "" {
 		return a.snapshotSettingsLocked(), errors.New("bitte einen Namen für die Datenbank eingeben")
@@ -721,6 +753,9 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 	defer a.mu.Unlock()
 
 	fullPath := filepath.Clean(selectedFile)
+	if a.settingsLoadErr != nil {
+		return a.snapshotSettingsLocked(), a.settingsLoadErr
+	}
 	isDemo := strings.EqualFold(fullPath, a.demoDBPath)
 
 	info, err := os.Stat(fullPath)
@@ -769,6 +804,9 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	if a.settingsLoadErr != nil {
+		return a.snapshotSettingsLocked(), a.settingsLoadErr
+	}
 	cleanTarget := filepath.Clean(dbPath)
 	known := false
 	for _, entry := range a.settings.KnownDatabases {
@@ -815,6 +853,9 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	if a.settingsLoadErr != nil {
+		return a.snapshotSettingsLocked(), a.settingsLoadErr
+	}
 	cleanTarget := filepath.Clean(dbPath)
 	known := false
 	for _, entry := range a.settings.KnownDatabases {
@@ -836,14 +877,19 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 		a.store = nil
 	}
 
-	// Remove SQLite database file and optional WAL/SHM sidecar files
+	var deleteErr error
+	// Delete the main file first: a failed removal must not discard committed WAL.
+	// This is not atomic; after success, sidecar/settings failures cannot restore the DB.
 	if deleteFile {
-		for _, path := range []string{cleanTarget + "-wal", cleanTarget + "-shm", cleanTarget} {
+		if err := os.Remove(cleanTarget); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if wasActive {
+				a.openActiveDatabaseLocked()
+			}
+			return a.snapshotSettingsLocked(), fmt.Errorf("Hauptdatei nicht geloescht (%s), WAL/SHM nicht entfernt: %w", cleanTarget, err)
+		}
+		for _, path := range []string{cleanTarget + "-wal", cleanTarget + "-shm"} {
 			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-				if wasActive {
-					a.openActiveDatabaseLocked()
-				}
-				return a.snapshotSettingsLocked(), fmt.Errorf("Datei nicht geloescht (%s): %w", path, err)
+				deleteErr = errors.Join(deleteErr, fmt.Errorf("Hauptdatei entfernt, Sidecar nicht geloescht (%s): %w", path, err))
 			}
 		}
 	}
@@ -868,9 +914,12 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 		if wasActive {
 			a.openActiveDatabaseLocked()
 		}
-		return a.snapshotSettingsLocked(), err
+		if deleteFile {
+			err = fmt.Errorf("Hauptdatei entfernt, Settings nicht gespeichert: %w", err)
+		}
+		return a.snapshotSettingsLocked(), errors.Join(deleteErr, err)
 	}
-	return a.snapshotSettingsLocked(), nil
+	return a.snapshotSettingsLocked(), deleteErr
 }
 
 func (a *App) activateStoreLocked(candidate *eventstore.Store, previous AppSettings) error {
