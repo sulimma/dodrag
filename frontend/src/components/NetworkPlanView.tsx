@@ -718,7 +718,7 @@ export function NetworkPlanView({
             'bg-emerald-100/95 border-emerald-500 ring-2 ring-emerald-500/25 shadow-sm';
         } else if (task.isDeemphasized) {
           containerClasses =
-            'bg-white/75 border-slate-200/70 opacity-60 hover:opacity-90';
+            'bg-white/75 border-slate-200/70 opacity-80 hover:opacity-100';
         }
 
         return (

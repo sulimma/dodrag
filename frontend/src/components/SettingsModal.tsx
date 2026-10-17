@@ -452,7 +452,7 @@ export function SettingsModal({
         {/* Footer */}
         <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
           <span className="text-[11px] text-slate-500 font-mono truncate">
-            DoDrag v{settings.version || '0.1.0'} · Build {formatBuildTime(settings.buildTime)}
+            DoDrag v{settings.version || '0.1.1'} · Build {formatBuildTime(settings.buildTime)}
           </span>
           <button
             type="button"

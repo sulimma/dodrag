@@ -464,7 +464,7 @@ export function GanttView({
               draggable={titleEditor.taskId !== task.id}
               className={`absolute left-0 right-0 px-2.5 border-b border-slate-200/60 flex items-center gap-1.5 cursor-pointer transition-colors ${rowBgClasses} ${
                 isBeingDragged ? 'opacity-35' : ''
-              } ${task.isDeemphasized && !role ? 'opacity-65' : ''}`}
+              } ${task.isDeemphasized && !role ? 'opacity-80' : ''}`}
             >
               <TaskDragHandle />
               {task.predecessorIds.length === 0 && (
@@ -711,7 +711,7 @@ export function GanttView({
             'bg-emerald-100 border-emerald-500 text-emerald-950 font-semibold ring-2 ring-emerald-500/25 shadow-sm';
         } else if (task.isDeemphasized) {
           containerClasses =
-            'bg-white/80 border-slate-200/80 text-slate-500 opacity-60 hover:opacity-90';
+            'bg-white/80 border-slate-200/80 text-slate-600 opacity-80 hover:opacity-100';
         }
 
         return (

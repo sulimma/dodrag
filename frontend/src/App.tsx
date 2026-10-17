@@ -1019,7 +1019,7 @@ export function App() {
                     'bg-emerald-100/90 border-emerald-500 ring-2 ring-emerald-500/25 shadow-sm';
                 } else if (task.isDeemphasized) {
                   containerClasses =
-                    'bg-white/60 border-slate-200/60 opacity-50 hover:opacity-85';
+                    'bg-white/60 border-slate-200/60 opacity-80 hover:opacity-100';
                 }
 
                 return (
