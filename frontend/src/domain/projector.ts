@@ -407,7 +407,7 @@ export function projectEvents(
       isActive: effectiveIsActive,
       completed: raw.completed,
       completedAt: raw.completedAt,
-      isWaitingOrFuture: isFutureStart || hasOpenPredecessors,
+      isDeemphasized: isFutureStart || hasOpenPredecessors,
     };
 
     tasks[id] = taskState;

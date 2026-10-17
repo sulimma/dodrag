@@ -26,7 +26,7 @@ export interface TaskState {
   isActive: boolean; // Active flag (only effective when predecessorIds.length === 0)
   completed: boolean;
   completedAt?: string;
-  isWaitingOrFuture: boolean; // True if effectiveStart > now OR predecessorIds.length > 0
+  isDeemphasized: boolean; // Presentation: later than first populated date, future today, or blocked.
 }
 
 export type ListEntry =

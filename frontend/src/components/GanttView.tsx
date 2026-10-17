@@ -9,8 +9,11 @@ import {
   toDateKey,
 } from '../domain/projector';
 import { HighlightRole, ListEntry, TaskState } from '../domain/types';
+import { TaskTitle, TitleEditor } from './TaskTitle';
+import { taskInteractions } from './taskInteractions';
 
 interface GanttViewProps {
+  titleEditor: TitleEditor;
   openTasks: TaskState[];
   listEntries: ListEntry[];
   now: Date;
@@ -58,7 +61,6 @@ interface GanttBarItem {
   task: TaskState;
   rowIndex: number;
   colIndex: number;
-  configuredColIndex: number;
   x: number;
   y: number;
   width: number;
@@ -132,6 +134,7 @@ export function GanttView({
   onRemoveDependencyBetween,
   onSetConfiguredDate,
   onToggleActive,
+  titleEditor,
 }: GanttViewProps) {
   const [windowStart, setWindowStart] = useState(() => toDateKey(now));
   const layout = useMemo(() => {
@@ -201,7 +204,6 @@ export function GanttView({
         task,
         rowIndex: rIdx,
         colIndex: cIdx,
-        configuredColIndex: confColIdx,
         x,
         y,
         width,
@@ -305,7 +307,7 @@ export function GanttView({
       const toBar = bars[to];
       const startX = fromBar.x + fromBar.width;
       const startY = startYByEdgeKey[key] ?? fromBar.cy;
-      const endX = toBar.x;
+      const endX = toBar.colIndex === fromBar.colIndex ? toBar.x + toBar.width : toBar.x;
       const endY = endYByEdgeKey[key] ?? toBar.cy;
       const laneX =
         laneXByEdgeKey[key] ?? startX + Math.max(10, (endX - startX) / 2);
@@ -422,57 +424,10 @@ export function GanttView({
                 top: HEADER_HEIGHT + rowIndex * ROW_HEIGHT,
                 height: ROW_HEIGHT,
               }}
-              draggable
-              onMouseDown={(e) => {
-                if (e.shiftKey) {
-                  onShiftKeyChange(true);
-                  if (selectedTaskId !== task.id) {
-                    onSelectTask(task.id);
-                  }
-                }
-              }}
-              onDragStart={(e) => onDragStartTask(e, task.id)}
-              onDragEnd={onDragEndTask}
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (e.shiftKey !== isShiftDrag) {
-                  onShiftKeyChange(e.shiftKey);
-                }
-                if (draggedTaskId && draggedTaskId !== task.id) {
-                  e.dataTransfer.dropEffect = 'move';
-                  if (activeDropTargetKey !== dropKey) {
-                    setActiveDropTargetKey(dropKey);
-                  }
-                }
-              }}
-              onDragLeave={() => {
-                if (activeDropTargetKey === dropKey) {
-                  setActiveDropTargetKey(null);
-                }
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                const sourceId =
-                  draggedTaskId || e.dataTransfer.getData('text/plain');
-                const shiftHeld = e.shiftKey || isShiftDrag;
-                setActiveDropTargetKey(null);
-                setDraggedTaskId(null);
-                if (sourceId && sourceId !== task.id) {
-                  if (shiftHeld) {
-                    onRemoveDependencyBetween(sourceId, task.id);
-                  } else {
-                    onAddPredecessor(sourceId, task.id);
-                  }
-                }
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectTask(task.id);
-              }}
-              onContextMenu={(e) => onContextMenuTask(e, task.id)}
+              {...taskInteractions(task.id, dropKey, {onSelectTask,onDragStartTask,onDragEndTask,onShiftKeyChange,isShiftDrag,draggedTaskId,setDraggedTaskId,setActiveDropTargetKey,onAddPredecessor,onRemoveDependencyBetween,onContextMenuTask})}
               className={`absolute left-0 right-0 px-2.5 border-b border-slate-200/60 flex items-center gap-1.5 cursor-pointer transition-colors ${rowBgClasses} ${
                 isBeingDragged ? 'opacity-35' : ''
-              } ${task.isWaitingOrFuture && !role ? 'opacity-65' : ''}`}
+              } ${task.isDeemphasized && !role ? 'opacity-65' : ''}`}
             >
               <GripVertical className="w-3.5 h-3.5 text-slate-400 shrink-0 cursor-grab" />
               {task.predecessorIds.length === 0 && (
@@ -502,7 +457,7 @@ export function GanttView({
                     : 'font-medium text-slate-900'
                 }`}
               >
-                {task.title}
+                <TaskTitle task={task} editor={titleEditor} className="block truncate" />
               </span>
             </div>
           );
@@ -772,7 +727,7 @@ export function GanttView({
         } else if (task.isActive) {
           containerClasses =
             'bg-emerald-100 border-emerald-500 text-emerald-950 font-semibold ring-2 ring-emerald-500/25 shadow-sm';
-        } else if (task.isWaitingOrFuture) {
+        } else if (task.isDeemphasized) {
           containerClasses =
             'bg-white/80 border-slate-200/80 text-slate-500 opacity-60 hover:opacity-90';
         }
@@ -786,55 +741,8 @@ export function GanttView({
               width,
               height,
             }}
-            draggable
             title={`${task.id}: ${task.title} (${confDisplay.isoText})`}
-            onMouseDown={(e) => {
-              if (e.shiftKey) {
-                onShiftKeyChange(true);
-                if (selectedTaskId !== task.id) {
-                  onSelectTask(task.id);
-                }
-              }
-            }}
-            onDragStart={(e) => onDragStartTask(e, task.id)}
-            onDragEnd={onDragEndTask}
-            onDragOver={(e) => {
-              e.preventDefault();
-              if (e.shiftKey !== isShiftDrag) {
-                onShiftKeyChange(e.shiftKey);
-              }
-              if (draggedTaskId && draggedTaskId !== task.id) {
-                e.dataTransfer.dropEffect = 'move';
-                if (activeDropTargetKey !== dropKey) {
-                  setActiveDropTargetKey(dropKey);
-                }
-              }
-            }}
-            onDragLeave={() => {
-              if (activeDropTargetKey === dropKey) {
-                setActiveDropTargetKey(null);
-              }
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              const sourceId =
-                draggedTaskId || e.dataTransfer.getData('text/plain');
-              const shiftHeld = e.shiftKey || isShiftDrag;
-              setActiveDropTargetKey(null);
-              setDraggedTaskId(null);
-              if (sourceId && sourceId !== task.id) {
-                if (shiftHeld) {
-                  onRemoveDependencyBetween(sourceId, task.id);
-                } else {
-                  onAddPredecessor(sourceId, task.id);
-                }
-              }
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelectTask(task.id);
-            }}
-            onContextMenu={(e) => onContextMenuTask(e, task.id)}
+            {...taskInteractions(task.id, dropKey, {onSelectTask,onDragStartTask,onDragEndTask,onShiftKeyChange,isShiftDrag,draggedTaskId,setDraggedTaskId,setActiveDropTargetKey,onAddPredecessor,onRemoveDependencyBetween,onContextMenuTask})}
             className={`absolute z-20 rounded-lg border px-1 flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors font-mono text-[11px] ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''
             }`}

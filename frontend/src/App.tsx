@@ -37,6 +37,9 @@ import {
 } from './domain/projector';
 import { HighlightRole, StoredEvent, TaskState } from './domain/types';
 import { normalizeUserDate } from './domain/dates';
+import { normalizeTitleInput } from './domain/input';
+import { TaskTitle, TitleEditor } from './components/TaskTitle';
+import { taskInteractions } from './components/taskInteractions';
 
 interface ContextMenuState {
   x: number;
@@ -120,11 +123,9 @@ export function App() {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [isMiniMode, setIsMiniMode] = useState<boolean>(false);
-  const [dockCorner, setDockCorner] = useState<string>('bottom-left');
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
-  const inlineEditInputRef = useRef<HTMLInputElement | null>(null);
   const inlineDateInputRef = useRef<HTMLInputElement | null>(null);
   const mutationBusy = useRef(false);
   const confirmedEvents = useRef<StoredEvent[]>([]);
@@ -163,16 +164,11 @@ export function App() {
     eventBridge.getSettings().then((s) => {
       databaseIdentity.current = s.activeDatabasePath;
       setAppSettings(s);
-      if (s.dockCorner) {
-        setDockCorner(s.dockCorner);
-      }
       if (!s.databaseReady) {
         setShowSettingsModal(true);
       } else if (s.bootMinimized) {
         setIsMiniMode(true);
-        eventBridge.enterMiniMode('', 4).then((resolved) => {
-          if (resolved) setDockCorner(resolved);
-        });
+        eventBridge.enterMiniMode('', 4).catch(error => pushToast(String(error), 'warning'));
       }
     });
     const unsubMinimize = eventBridge.onWindowMinimized(() => {
@@ -181,14 +177,10 @@ export function App() {
     const unsubRestore = eventBridge.onWindowRestored(() => {
       setIsMiniMode(false);
     });
-    const unsubCorner = eventBridge.onWindowCornerChanged((corner) => {
-      setDockCorner(corner);
-    });
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => {
       unsubMinimize();
       unsubRestore();
-      unsubCorner();
       clearInterval(interval);
     };
   }, []);
@@ -277,14 +269,6 @@ export function App() {
     });
   };
 
-  // Focus inline title input when editing starts
-  useEffect(() => {
-    if (editingTaskId && inlineEditInputRef.current) {
-      inlineEditInputRef.current.focus();
-      inlineEditInputRef.current.select();
-    }
-  }, [editingTaskId]);
-
   // Focus inline date input when date editing starts
   useEffect(() => {
     if (editingDateTaskId && inlineDateInputRef.current) {
@@ -303,12 +287,13 @@ export function App() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || showSettingsModal || showShortcutsModal || contextMenu) return;
       const target = e.target as HTMLElement | null;
       const isInputFocused =
         target &&
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
-          target.isContentEditable);
+          target.isContentEditable || Boolean(target.closest('button,a,select,[role="button"],[role="switch"]')));
 
       if (
         (e.ctrlKey || e.metaKey) &&
@@ -341,6 +326,7 @@ export function App() {
       }
 
       if (isInputFocused) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       if (e.key === 'Escape') {
         setSelectedTaskId(null);
@@ -438,12 +424,12 @@ export function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedTaskId, selectedEdgeKeys, draggedTaskId, state]);
+  }, [selectedTaskId, selectedEdgeKeys, draggedTaskId, state, showSettingsModal, showShortcutsModal, contextMenu]);
 
   // Actions
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = newTaskTitle.trim();
+    const trimmed = normalizeTitleInput(newTaskTitle).trim();
     if (!trimmed) return;
 
     if (mutationBusy.current) return;
@@ -473,7 +459,7 @@ export function App() {
     if (editDatabase.current !== databaseIdentity.current) return;
     if (!editingTaskId) return;
     const task = state.tasks[editingTaskId];
-    const trimmed = editingTitle.trim();
+    const trimmed = normalizeTitleInput(editingTitle).trim();
     if (!task || !trimmed || trimmed === task.title) { setEditingTaskId(null); return; }
 
     const updated = await mutate(() => eventBridge.appendEvent('TASK_RENAMED', {
@@ -752,8 +738,7 @@ export function App() {
 
   const handleEnterMiniMode = async () => {
     setIsMiniMode(true);
-    const resolved = await eventBridge.enterMiniMode('', miniTasks.length);
-    if (resolved) setDockCorner(resolved);
+    await eventBridge.enterMiniMode('', miniTasks.length);
   };
 
   const handleRestoreFromMiniMode = async (selectTaskId?: string) => {
@@ -785,6 +770,8 @@ export function App() {
     setActiveDropTargetKey(null);
   };
 
+  const titleEditor: TitleEditor = { taskId: editingTaskId, value: editingTitle, onChange: value => setEditingTitle(normalizeTitleInput(value)), onStart: startInlineEdit, onCommit: commitInlineEdit, onCancel: () => setEditingTaskId(null) };
+
   if (isMiniMode) {
     return (
       <MiniCornerView
@@ -796,7 +783,7 @@ export function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-100/80 text-slate-800 select-none overflow-hidden">
+    <div className="flex flex-col h-screen w-screen bg-slate-100/80 text-slate-800 overflow-hidden">
       {/* Top Header Bar */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white/90 backdrop-blur-md z-20 shadow-sm shrink-0">
         <div className="flex items-center gap-4">
@@ -1022,7 +1009,7 @@ export function App() {
                 } else if (task.isActive) {
                   containerClasses =
                     'bg-emerald-100/90 border-emerald-500 ring-2 ring-emerald-500/25 shadow-sm';
-                } else if (task.isWaitingOrFuture) {
+                } else if (task.isDeemphasized) {
                   containerClasses =
                     'bg-white/60 border-slate-200/60 opacity-50 hover:opacity-85';
                 }
@@ -1031,77 +1018,13 @@ export function App() {
                   <div
                     key={entry.key}
                     data-flip-key={entry.key}
+                    {...taskInteractions(task.id, entry.key, {
+                      onSelectTask: id => { clearEdgeSelection(); setSelectedTaskId(previous => previous === id ? null : id); },
+                      onDragStartTask, onDragEndTask, onShiftKeyChange: setIsShiftDrag, isShiftDrag, draggedTaskId, setDraggedTaskId, setActiveDropTargetKey,
+                      onAddPredecessor: handleAddPredecessor, onRemoveDependencyBetween: handleRemoveDependencyBetween,
+                      onContextMenuTask: (event,id) => { event.preventDefault();event.stopPropagation();clearEdgeSelection();setSelectedTaskId(id);setContextMenu({x:event.clientX,y:event.clientY,taskId:id}); },
+                    })}
                     draggable={!isEditing && !isEditingDate}
-                    onMouseDown={(e) => {
-                      if (e.shiftKey) {
-                        setIsShiftDrag(true);
-                        if (selectedTaskId !== task.id) {
-                          setSelectedTaskId(task.id);
-                          clearEdgeSelection();
-                        }
-                      }
-                    }}
-                    onDragStart={(e) => onDragStartTask(e, task.id)}
-                    onDragEnd={onDragEndTask}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (e.shiftKey !== isShiftDrag) {
-                        setIsShiftDrag(e.shiftKey);
-                        if (
-                          e.shiftKey &&
-                          draggedTaskId &&
-                          selectedTaskId !== draggedTaskId
-                        ) {
-                          setSelectedTaskId(draggedTaskId);
-                          clearEdgeSelection();
-                        }
-                      }
-                      if (draggedTaskId && draggedTaskId !== task.id) {
-                        e.dataTransfer.dropEffect = 'move';
-                        if (activeDropTargetKey !== entry.key) {
-                          setActiveDropTargetKey(entry.key);
-                        }
-                      }
-                    }}
-                    onDragLeave={() => {
-                      if (activeDropTargetKey === entry.key) {
-                        setActiveDropTargetKey(null);
-                      }
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const sourceId =
-                        draggedTaskId || e.dataTransfer.getData('text/plain');
-                      const shiftHeld = e.shiftKey || isShiftDrag;
-                      setActiveDropTargetKey(null);
-                      setDraggedTaskId(null);
-                      setIsShiftDrag(false);
-                      if (sourceId && sourceId !== task.id) {
-                        if (shiftHeld) {
-                          handleRemoveDependencyBetween(sourceId, task.id);
-                        } else {
-                          handleAddPredecessor(sourceId, task.id);
-                        }
-                      }
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      clearEdgeSelection();
-                      setSelectedTaskId((prev) =>
-                        prev === task.id ? null : task.id
-                      );
-                    }}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      clearEdgeSelection();
-                      setSelectedTaskId(task.id);
-                      setContextMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                        taskId: task.id,
-                      });
-                    }}
                     className={`group relative flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border transition-colors cursor-pointer ${containerClasses} ${
                       isBeingDragged ? 'opacity-35' : ''
                     }`}
@@ -1149,49 +1072,7 @@ export function App() {
                         {task.id}
                       </span>
 
-                      {isEditing ? (
-                        <input
-                          ref={inlineEditInputRef}
-                          type="text"
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onBlur={commitInlineEdit}
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              commitInlineEdit();
-                            } else if (e.key === 'Escape') {
-                              e.preventDefault();
-                              setEditingTaskId(null);
-                            }
-                          }}
-                          className="flex-1 bg-white border border-sky-500 rounded-lg px-2.5 py-0.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
-                        />
-                      ) : (
-                        <span
-                          onClick={(e) => {
-                            if (selectedTaskId === task.id) {
-                              e.stopPropagation();
-                              startInlineEdit(task);
-                            }
-                          }}
-                          onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            startInlineEdit(task);
-                          }}
-                          title="Klick (wenn ausgewählt) oder Doppelklick / F2 zum Bearbeiten"
-                          className={`text-sm truncate px-1.5 py-0.5 -mx-1.5 rounded hover:bg-black/5 transition-colors ${
-                            task.isActive
-                              ? 'font-semibold text-emerald-950'
-                              : task.isWaitingOrFuture && !role
-                              ? 'text-slate-600'
-                              : 'text-slate-900 font-medium'
-                          }`}
-                        >
-                          {task.title}
-                        </span>
-                      )}
+                      <TaskTitle task={task} editor={titleEditor} className="text-sm truncate min-w-0 flex-1" />
                     </div>
 
                     {/* Right section: Selectable Predecessor chips (Ctrl/Shift multi-select, Del/Backspace) & In-Place Editable Configured Date */}
@@ -1335,6 +1216,7 @@ export function App() {
               onRemoveDependencyBetween={handleRemoveDependencyBetween}
               onSetConfiguredDate={handleSetConfiguredDate}
               onToggleActive={handleToggleActive}
+              titleEditor={titleEditor}
             />
           ) : (
             <GanttView
@@ -1379,6 +1261,7 @@ export function App() {
               onRemoveDependencyBetween={handleRemoveDependencyBetween}
               onSetConfiguredDate={handleSetConfiguredDate}
               onToggleActive={handleToggleActive}
+              titleEditor={titleEditor}
             />
           )}
         </main>
@@ -1537,8 +1420,9 @@ export function App() {
       {contextMenu && state.tasks[contextMenu.taskId] && (
         <div
           style={{
-            top: Math.min(contextMenu.y, window.innerHeight - 260),
-            left: Math.min(contextMenu.x, window.innerWidth - 260),
+            top: Math.max(8, Math.min(contextMenu.y, window.innerHeight - 260)),
+            left: Math.max(8, Math.min(contextMenu.x, window.innerWidth - 260)),
+            maxHeight: 'calc(100vh - 16px)', overflowY: 'auto', maxWidth: 'calc(100vw - 16px)',
           }}
           onClick={(e) => e.stopPropagation()}
           className="fixed z-50 w-64 rounded-xl bg-white border border-slate-200 shadow-xl py-1.5 text-xs text-slate-700"

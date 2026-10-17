@@ -59,7 +59,7 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     expect(taskB.calculatedStart).not.toBeNull();
     expect(toDateKey(new Date(taskB.calculatedStart!))).toBe('2026-10-17');
     expect(taskB.effectiveDateKey).toBe('2026-10-17');
-    expect(taskB.isWaitingOrFuture).toBe(true);
+    expect(taskB.isDeemphasized).toBe(true);
   });
 
   it('always displays Today as the first date entry and collapses subsequent consecutive empty dates', () => {
@@ -94,7 +94,7 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     }
     expect(state.listEntries[2].kind).toBe('task');
     // Since Today has no tasks, the task in the first non-empty day (2026-10-20) is displayed like Today's tasks (not faded)
-    expect(state.tasks['26-10'].isWaitingOrFuture).toBe(false);
+    expect(state.tasks['26-10'].isDeemphasized).toBe(false);
   });
 
   it('places newly created tasks at the top and maintains stable order of unaffected tasks', () => {

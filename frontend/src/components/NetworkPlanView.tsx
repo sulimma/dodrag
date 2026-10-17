@@ -9,8 +9,11 @@ import {
 } from '../domain/projector';
 import { HighlightRole, TaskState } from '../domain/types';
 import { DateLayerLine } from './DateLayerLine';
+import { TaskTitle, TitleEditor } from './TaskTitle';
+import { taskInteractions } from './taskInteractions';
 
 interface NetworkPlanViewProps {
+  titleEditor: TitleEditor;
   openTasks: TaskState[];
   now: Date;
   selectedTaskId: string | null;
@@ -223,6 +226,7 @@ export function NetworkPlanView({
   onRemoveDependencyBetween,
   onSetConfiguredDate,
   onToggleActive,
+  titleEditor,
 }: NetworkPlanViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(840);
@@ -746,7 +750,7 @@ export function NetworkPlanView({
         } else if (task.isActive) {
           containerClasses =
             'bg-emerald-100/95 border-emerald-500 ring-2 ring-emerald-500/25 shadow-sm';
-        } else if (task.isWaitingOrFuture) {
+        } else if (task.isDeemphasized) {
           containerClasses =
             'bg-white/75 border-slate-200/70 opacity-60 hover:opacity-90';
         }
@@ -760,54 +764,7 @@ export function NetworkPlanView({
               width,
               height,
             }}
-            draggable
-            onMouseDown={(e) => {
-              if (e.shiftKey) {
-                onShiftKeyChange(true);
-                if (selectedTaskId !== task.id) {
-                  onSelectTask(task.id);
-                }
-              }
-            }}
-            onDragStart={(e) => onDragStartTask(e, task.id)}
-            onDragEnd={onDragEndTask}
-            onDragOver={(e) => {
-              e.preventDefault();
-              if (e.shiftKey !== isShiftDrag) {
-                onShiftKeyChange(e.shiftKey);
-              }
-              if (draggedTaskId && draggedTaskId !== task.id) {
-                e.dataTransfer.dropEffect = 'move';
-                if (activeDropTargetKey !== dropKey) {
-                  setActiveDropTargetKey(dropKey);
-                }
-              }
-            }}
-            onDragLeave={() => {
-              if (activeDropTargetKey === dropKey) {
-                setActiveDropTargetKey(null);
-              }
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              const sourceId =
-                draggedTaskId || e.dataTransfer.getData('text/plain');
-              const shiftHeld = e.shiftKey || isShiftDrag;
-              setActiveDropTargetKey(null);
-              setDraggedTaskId(null);
-              if (sourceId && sourceId !== task.id) {
-                if (shiftHeld) {
-                  onRemoveDependencyBetween(sourceId, task.id);
-                } else {
-                  onAddPredecessor(sourceId, task.id);
-                }
-              }
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelectTask(task.id);
-            }}
-            onContextMenu={(e) => onContextMenuTask(e, task.id)}
+            {...taskInteractions(task.id, dropKey, {onSelectTask,onDragStartTask,onDragEndTask,onShiftKeyChange,isShiftDrag,draggedTaskId,setDraggedTaskId,setActiveDropTargetKey,onAddPredecessor,onRemoveDependencyBetween,onContextMenuTask})}
             className={`absolute z-20 rounded-xl border px-2.5 py-2 flex flex-col justify-between cursor-pointer transition-colors ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''
             }`}
@@ -850,7 +807,7 @@ export function NetworkPlanView({
             </div>
 
             <div className="text-xs font-medium text-slate-900 truncate pl-1">
-              {task.title}
+              <TaskTitle task={task} editor={titleEditor} className="block truncate" />
             </div>
           </div>
         );

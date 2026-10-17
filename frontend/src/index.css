@@ -4,12 +4,9 @@
 
 @layer base {
   * {
-    user-select: none;
-  }
-
-  input, textarea {
     user-select: text;
   }
+  .cursor-grab { user-select: none; }
 }
 
 /* Custom sleek scrollbar */

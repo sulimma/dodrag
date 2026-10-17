@@ -28,6 +28,10 @@ export function SmoothFlipList({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const prevTopsRef = useRef<Map<string, number>>(new Map());
   const animationsRef = useRef<Map<string, Animation>>(new Map());
+  useLayoutEffect(() => () => {
+    for (const animation of animationsRef.current.values()) animation.cancel();
+    animationsRef.current.clear();
+  }, []);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -47,10 +51,14 @@ export function SmoothFlipList({
       if (!key) continue;
       const runningAnim = animationsRef.current.get(key);
       if (runningAnim && runningAnim.playState === 'running') {
-        const rect = el.getBoundingClientRect();
-        currentVisualTops.set(key, rect.top - containerRect.top);
+        const transform = getComputedStyle(el).transform;
+        const offset = transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42;
+        currentVisualTops.set(key, (prevTopsRef.current.get(key) ?? el.getBoundingClientRect().top - containerRect.top) + offset);
+        runningAnim.oncancel = null;
+        runningAnim.onfinish = null;
         runningAnim.cancel();
         animationsRef.current.delete(key);
+        el.style.zIndex = ''; el.style.position = '';
       }
     }
 
@@ -69,7 +77,7 @@ export function SmoothFlipList({
     const prevTops = prevTopsRef.current;
     const isInitialRender = prevTops.size === 0;
 
-    if (!isInitialRender) {
+    if (!isInitialRender && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       for (const el of elements) {
         const key = el.dataset.flipKey;
         if (!key) continue;
@@ -91,7 +99,7 @@ export function SmoothFlipList({
             }
           );
           animationsRef.current.set(key, anim);
-          anim.onfinish = () => animationsRef.current.delete(key);
+          anim.onfinish = () => { if (animationsRef.current.get(key) === anim) animationsRef.current.delete(key); };
           continue;
         }
 
@@ -125,6 +133,7 @@ export function SmoothFlipList({
 
         animationsRef.current.set(key, anim);
         const cleanupStyle = () => {
+          if (animationsRef.current.get(key) !== anim) return;
           el.style.zIndex = '';
           el.style.position = '';
           animationsRef.current.delete(key);
