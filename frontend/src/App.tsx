@@ -128,17 +128,21 @@ export function App() {
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [isMiniMode, setIsMiniMode] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
+  const [snapshotReady, setSnapshotReady] = useState(false);
 
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
   const listScrollRef = useRef<HTMLElement | null>(null);
   const mutationBusy = useRef(false);
+  const snapshotConfirmed = useRef(false);
   const confirmedEvents = useRef<StoredEvent[]>([]);
   const editGroup = useRef('');
+  const editRevision = useRef(0);
+  const editSession = editGroup.current;
   const databaseIdentity = useRef('');
   const editDatabase = useRef('');
   const dragIdentity = useRef<{database:string;taskId:string}|null>(null);
   const mutate = async (operation: () => Promise<StoredEvent[]>): Promise<StoredEvent[] | null> => {
-    if (mutationBusy.current) return null;
+    if (mutationBusy.current || !snapshotConfirmed.current) return null;
     mutationBusy.current = true;
     const database = databaseIdentity.current;
     try {
@@ -164,18 +168,57 @@ export function App() {
     }, 2400);
   };
 
+  const invalidateSnapshot = () => {
+    // Backend operations can activate another DB even when their promise rejects.
+    snapshotConfirmed.current = false;
+    setSnapshotReady(false);
+    databaseIdentity.current = '';
+    confirmedEvents.current = [];
+    setEvents([]);
+    editGroup.current = '';
+    editDatabase.current = '';
+    editRevision.current++;
+    setEditingTaskId(null);
+    setEditingDateTaskId(null);
+    setNewTaskTitle('');
+    setSelectedTaskId(null);
+    setSelectedEdgeKeys([]);
+    setLastClickedEdgeKey(null);
+    setContextMenu(null);
+  };
+
+  const loadSnapshot = async (isCurrent = () => true) => {
+    const settings = await eventBridge.getSettings();
+    if (!isCurrent()) return settings;
+    setAppSettings(settings);
+    if (!settings.databaseReady) {
+      setShowSettingsModal(true);
+      return settings;
+    }
+    const updated = await eventBridge.getEvents();
+    if (!isCurrent()) return settings;
+    databaseIdentity.current = settings.activeDatabasePath;
+    confirmedEvents.current = updated;
+    setEvents(updated);
+    snapshotConfirmed.current = true;
+    setSnapshotReady(true);
+    return settings;
+  };
+
   useEffect(() => {
-    eventBridge.getEvents().then(updated => { confirmedEvents.current = updated; setEvents(updated); }).catch(error => pushToast(String(error), 'warning'));
-    eventBridge.getSettings().then((s) => {
-      databaseIdentity.current = s.activeDatabasePath;
-      setAppSettings(s);
-      if (!s.databaseReady) {
-        setShowSettingsModal(true);
-      } else if (s.bootMinimized) {
+    let current = true;
+    mutationBusy.current = true;
+    loadSnapshot(() => current).then(s => {
+      if (!current) return;
+      if (s.databaseReady && s.bootMinimized) {
         setIsMiniMode(true);
         eventBridge.enterMiniMode('', 4).catch(error => pushToast(String(error), 'warning'));
       }
-    }).catch(error => pushToast(String(error), 'warning'));
+    }).catch(error => {
+      if (!current) return;
+      pushToast(String(error), 'warning');
+      setShowSettingsModal(true);
+    }).finally(() => { if (current) mutationBusy.current = false; });
     const unsubMinimize = eventBridge.onWindowMinimized(() => {
       setIsMiniMode(true);
     });
@@ -184,6 +227,7 @@ export function App() {
     });
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => {
+      current = false;
       unsubMinimize();
       unsubRestore();
       clearInterval(interval);
@@ -285,7 +329,17 @@ export function App() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || showSettingsModal || showShortcutsModal || contextMenu) return;
+      if (e.defaultPrevented || isMiniMode || showSettingsModal) return;
+      // Dismiss the top overlay before focus/shortcut guards, without acting below it.
+      if (showShortcutsModal || contextMenu) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setShowShortcutsModal(false);
+          setContextMenu(null);
+        }
+        return;
+      }
+      if (!snapshotReady) return;
       const target = e.target as HTMLElement | null;
       const isInputFocused =
         target &&
@@ -442,7 +496,7 @@ export function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedTaskId, selectedEdgeKeys, draggedTaskId, state, showSettingsModal, showShortcutsModal, contextMenu]);
+  }, [selectedTaskId, selectedEdgeKeys, draggedTaskId, state, showSettingsModal, showShortcutsModal, contextMenu, isMiniMode, snapshotReady]);
 
   // Actions
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -465,8 +519,10 @@ export function App() {
   };
 
   const startInlineEdit = (task: TaskState) => {
+    if (!snapshotConfirmed.current) return;
     editDatabase.current = databaseIdentity.current;
     editGroup.current = crypto.randomUUID();
+    editRevision.current++;
     setEditingDateTaskId(null);
     setEditingTaskId(task.id);
     setEditingTitle(task.title);
@@ -474,22 +530,27 @@ export function App() {
   };
 
   const commitInlineEdit = async () => {
+    if (editSession !== editGroup.current) return;
     if (editDatabase.current !== databaseIdentity.current) return;
     if (!editingTaskId) return;
     const task = state.tasks[editingTaskId];
     const trimmed = normalizeTitleInput(editingTitle).trim();
     if (!task || !trimmed || trimmed === task.title) { setEditingTaskId(null); return; }
 
+    const revision = editRevision.current;
     const updated = await mutate(() => eventBridge.appendEvent('TASK_RENAMED', {
       taskId: task.id,
       title: trimmed,
-    }, editGroup.current));
-    if (updated) setEditingTaskId(null);
+    }, editSession));
+    // Only the unchanged originating editor may be closed by this response.
+    if (updated && editSession === editGroup.current && revision === editRevision.current) setEditingTaskId(null);
   };
 
   const startInlineDateEdit = (task: TaskState) => {
+    if (!snapshotConfirmed.current) return;
     editDatabase.current = databaseIdentity.current;
     editGroup.current = crypto.randomUUID();
+    editRevision.current++;
     setEditingTaskId(null);
     setEditingDateTaskId(task.id);
     const { isoText } = formatIso8601Display(task.configuredStart);
@@ -498,6 +559,7 @@ export function App() {
   };
 
   const commitInlineDateEdit = async () => {
+    if (editSession !== editGroup.current) return;
     if (editDatabase.current !== databaseIdentity.current) return;
     if (!editingDateTaskId) return;
     const task = state.tasks[editingDateTaskId];
@@ -513,11 +575,12 @@ export function App() {
     if (Date.parse(task.configuredStart) === Date.parse(parsedIso)) { setEditingDateTaskId(null); return; }
 
     setLastMovedKey(`task:${task.id}`);
+    const revision = editRevision.current;
     const updated = await mutate(() => eventBridge.appendEvent('TASK_START_DATE_SET', {
       taskId: task.id,
       configuredStart: parsedIso,
-    }, editGroup.current));
-    if (updated) setEditingDateTaskId(null);
+    }, editSession));
+    if (updated && editSession === editGroup.current && revision === editRevision.current) setEditingDateTaskId(null);
   };
 
   const handleToggleActive = async (task: TaskState) => {
@@ -664,7 +727,7 @@ export function App() {
   };
 
   const handleCloseSettingsModal = () => {
-    if (!appSettings?.databaseReady) return;
+    if (mutationBusy.current || !snapshotConfirmed.current) return;
     setShowSettingsModal(false);
   };
 
@@ -672,16 +735,24 @@ export function App() {
     if (dragIdentity.current) throw new Error('Datenbankwechsel erst nach Ende des Ziehens');
     if (mutationBusy.current) throw new Error('Eine Aenderung wird noch gespeichert');
     mutationBusy.current = true;
+    invalidateSnapshot();
     try {
-      const settings = await operation();
-      databaseIdentity.current = settings.activeDatabasePath;
-      setAppSettings(settings);
-      const updated = await eventBridge.getEvents();
-      confirmedEvents.current = updated;
-      setEvents(updated);
-      setEditingTaskId(null); setEditingDateTaskId(null); editGroup.current = ''; editDatabase.current = '';
-      setNewTaskTitle(''); setSelectedTaskId(null); setContextMenu(null); clearEdgeSelection();
+      let operationError: unknown;
+      try { await operation(); }
+      catch (error) { operationError = error; }
+      // Read the actual backend identity after both success and partial failure.
+      let settings: AppSettings;
+      try { settings = await loadSnapshot(); }
+      catch (error) {
+        if (operationError !== undefined) throw new Error(`${String(operationError)}; ${String(error)}`);
+        throw error;
+      }
+      if (operationError !== undefined) throw operationError;
       return settings;
+    } catch (error) {
+      setShowSettingsModal(true);
+      pushToast(String(error), 'warning');
+      throw error;
     } finally { mutationBusy.current = false; }
   };
 
@@ -756,7 +827,7 @@ export function App() {
 
   // Drag handlers
   const onDragStartTask = (e: React.DragEvent, taskId: string) => {
-    if (mutationBusy.current || !state.tasks[taskId]) { e.preventDefault(); return; }
+    if (mutationBusy.current || !snapshotConfirmed.current || !state.tasks[taskId]) { e.preventDefault(); return; }
     dragIdentity.current = {database:databaseIdentity.current,taskId};
     setDraggedTaskId(taskId);
     e.dataTransfer.setData('text/plain', taskId);
@@ -796,8 +867,22 @@ export function App() {
     return () => { window.removeEventListener('keydown',key,true);window.removeEventListener('keyup',key,true);window.removeEventListener('blur',stop);window.removeEventListener('dragend',stop); };
   }, []);
 
-  const titleEditor: TitleEditor = { taskId: editingTaskId, value: editingTitle, onChange: value => setEditingTitle(normalizeTitleInput(value)), onStart: startInlineEdit, onCommit: commitInlineEdit, onCancel: () => setEditingTaskId(null) };
-  const dateEditor: TitleEditor = { taskId: editingDateTaskId, value: editingDateValue, onChange: setEditingDateValue, onStart: startInlineDateEdit, onCommit: commitInlineDateEdit, onCancel: () => setEditingDateTaskId(null) };
+  const cancelEdit = () => {
+    editGroup.current = '';
+    editRevision.current++;
+    setEditingTaskId(null);
+    setEditingDateTaskId(null);
+  };
+  const titleEditor: TitleEditor = {
+    taskId: editingTaskId, value: editingTitle,
+    onChange: value => { editRevision.current++; setEditingTitle(normalizeTitleInput(value)); },
+    onStart: startInlineEdit, onCommit: commitInlineEdit, onCancel: cancelEdit,
+  };
+  const dateEditor: TitleEditor = {
+    taskId: editingDateTaskId, value: editingDateValue,
+    onChange: value => { editRevision.current++; setEditingDateValue(value); },
+    onStart: startInlineDateEdit, onCommit: commitInlineDateEdit, onCancel: cancelEdit,
+  };
 
   if (isMiniMode) {
     return (
@@ -871,6 +956,7 @@ export function App() {
             <input
               ref={newTaskInputRef}
               type="text"
+              disabled={!snapshotReady}
               value={newTaskTitle}
               onChange={(e) => setNewTaskTitle(e.target.value)}
               placeholder="Neues kleines TODO eingeben... (Taste N)"
@@ -878,6 +964,7 @@ export function App() {
             />
             <button
               type="submit"
+              disabled={!snapshotReady}
               title="Task hinzufügen (Enter)"
               className="absolute right-2 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
             >
@@ -912,7 +999,11 @@ export function App() {
 
           <button
             onClick={async () => {
-              try { setAppSettings(await eventBridge.getSettings()); setShowSettingsModal(true); }
+              setShowSettingsModal(true);
+              try {
+                if (!snapshotConfirmed.current) await changeDatabase(() => eventBridge.getSettings());
+                else setAppSettings(await eventBridge.getSettings());
+              }
               catch (error) { pushToast(String(error), 'warning'); }
             }}
             title="Einstellungen & Datenbanken"
@@ -1606,10 +1697,11 @@ export function App() {
       </AnimatePresence>
 
       {/* Settings & Database Management Modal */}
-      {showSettingsModal && appSettings && (
+      {showSettingsModal && (
         <SettingsModal
-          settings={appSettings}
+          settings={{ ...(appSettings || { knownDatabases: [], activeDatabasePath: '', autostart: false }), databaseReady: snapshotReady }}
           onClose={handleCloseSettingsModal}
+          onReloadDatabase={async () => { await changeDatabase(() => eventBridge.getSettings()); }}
           onSelectFolder={() => eventBridge.selectFolderDialog()}
           onCreateDatabase={handleCreateDatabase}
           onOpenExistingDatabase={handleOpenExistingDatabase}

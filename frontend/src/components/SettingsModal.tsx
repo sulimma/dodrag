@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Check,
   Database,
@@ -15,6 +15,7 @@ import { AppSettings, DatabaseEntry } from '../bridge/eventBridge';
 interface SettingsModalProps {
   settings: AppSettings;
   onClose: () => void;
+  onReloadDatabase?: () => Promise<void>;
   onSelectFolder: () => Promise<string>;
    onCreateDatabase: (folderPath: string, dbName: string, seedDemo: boolean) => Promise<void>;
   onOpenExistingDatabase: () => Promise<void>;
@@ -35,6 +36,7 @@ export function formatBuildTime(raw?: string): string {
 export function SettingsModal({
   settings,
   onClose,
+  onReloadDatabase,
   onSelectFolder,
   onCreateDatabase,
   onOpenExistingDatabase,
@@ -52,6 +54,16 @@ export function SettingsModal({
   const [busy, setBusy] = useState<boolean>(false);
 
   const isDbReady = Boolean(settings.databaseReady);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.key !== 'Escape') return;
+      event.preventDefault();
+      if (isDbReady && !busy) onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isDbReady, busy, onClose]);
 
   const handleBrowseFolder = async () => {
     setErrorMsg(null);
@@ -124,7 +136,7 @@ export function SettingsModal({
     <div
       className="fixed inset-0 z-50 bg-slate-900/35 backdrop-blur-xs flex items-center justify-center p-4"
       onClick={() => {
-        if (isDbReady) onClose();
+        if (isDbReady && !busy) onClose();
       }}
     >
       <div
@@ -151,6 +163,7 @@ export function SettingsModal({
           {isDbReady && (
             <button
               type="button"
+              disabled={busy}
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
               title="Schließen"
@@ -187,6 +200,18 @@ export function SettingsModal({
               <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
               <span>{errorMsg}</span>
             </div>
+          )}
+
+          {!isDbReady && onReloadDatabase && (
+            <button type="button" disabled={busy} onClick={async () => {
+              setBusy(true);
+              setErrorMsg(null);
+              try { await onReloadDatabase(); }
+              catch (error) { setErrorMsg(String(error)); }
+              finally { setBusy(false); }
+            }} className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs disabled:opacity-40">
+              Aktive Datenbank erneut laden
+            </button>
           )}
 
           {/* Section 1: Known Databases on this PC */}
@@ -456,7 +481,7 @@ export function SettingsModal({
           </span>
           <button
             type="button"
-            disabled={!isDbReady}
+            disabled={!isDbReady || busy}
             onClick={onClose}
             className="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-medium hover:bg-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
