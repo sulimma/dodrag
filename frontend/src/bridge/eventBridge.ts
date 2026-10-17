@@ -10,10 +10,10 @@ export interface DatabaseEntry {
 export interface AppSettings {
   knownDatabases: DatabaseEntry[];
   activeDatabasePath: string;
-  firstRunCompleted: boolean;
   autostart: boolean;
   dockCorner?: string;
   bootMinimized?: boolean;
+  databaseReady?: boolean;
 }
 
 declare global {
@@ -35,7 +35,6 @@ declare global {
           ResetDemoData: () => Promise<any[]>;
           GetSettings: () => Promise<AppSettings>;
           SetAutostart: (enabled: boolean) => Promise<AppSettings>;
-          CompleteFirstRun: () => Promise<AppSettings>;
           SelectFolderDialog: () => Promise<string>;
           CreateDatabase: (
             folderPath: string,
@@ -322,7 +321,13 @@ export const eventBridge = {
     }
     try {
       const raw = localStorage.getItem(LOCAL_SETTINGS_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed: AppSettings = JSON.parse(raw);
+        return {
+          ...parsed,
+          databaseReady: Boolean(parsed.activeDatabasePath),
+        };
+      }
     } catch {
       // ignore
     }
@@ -335,9 +340,9 @@ export const eventBridge = {
           exists: true,
         },
       ],
-      activeDatabasePath: '%APPDATA%\\DoDrag\\dodrag.db',
-      firstRunCompleted: false,
+      activeDatabasePath: '',
       autostart: false,
+      databaseReady: false,
     };
   },
 
@@ -347,16 +352,6 @@ export const eventBridge = {
     }
     const current = await this.getSettings();
     const updated: AppSettings = { ...current, autostart: enabled };
-    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(updated));
-    return updated;
-  },
-
-  async completeFirstRun(): Promise<AppSettings> {
-    if (isWailsAvailable()) {
-      return await window.go!.main!.App!.CompleteFirstRun();
-    }
-    const current = await this.getSettings();
-    const updated: AppSettings = { ...current, firstRunCompleted: true };
     localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(updated));
     return updated;
   },
@@ -386,7 +381,7 @@ export const eventBridge = {
         { name: cleanName, path: fullPath, isDemo: false, exists: true },
       ],
       activeDatabasePath: fullPath,
-      firstRunCompleted: true,
+      databaseReady: true,
     };
     localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(next));
     saveBrowserEvents([]);
@@ -408,7 +403,7 @@ export const eventBridge = {
     const next: AppSettings = {
       ...current,
       activeDatabasePath: dbPath,
-      firstRunCompleted: true,
+      databaseReady: true,
     };
     localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(next));
     return next;
@@ -431,13 +426,12 @@ export const eventBridge = {
               exists: true,
             },
           ];
+    const wasActive = current.activeDatabasePath === dbPath;
     const next: AppSettings = {
       ...current,
       knownDatabases: fallback,
-      activeDatabasePath:
-        current.activeDatabasePath === dbPath
-          ? fallback[0].path
-          : current.activeDatabasePath,
+      activeDatabasePath: wasActive ? '' : current.activeDatabasePath,
+      databaseReady: wasActive ? false : current.databaseReady,
     };
     localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(next));
     return next;

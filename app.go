@@ -23,14 +23,21 @@ type DatabaseEntry struct {
 	Exists bool   `json:"exists"`
 }
 
-// AppSettings stores known databases, the currently active database, first-run status, autostart flag, and dock corner in %APPDATA%\DoDrag\settings.json.
+// AppSettings stores known databases, the currently active database, autostart flag, and dock corner in %APPDATA%\DoDrag\settings.json.
 type AppSettings struct {
 	KnownDatabases     []DatabaseEntry `json:"knownDatabases"`
 	ActiveDatabasePath string          `json:"activeDatabasePath"`
-	FirstRunCompleted  bool            `json:"firstRunCompleted"`
 	Autostart          bool            `json:"autostart"`
 	DockCorner         string          `json:"dockCorner"`
-	BootMinimized      bool            `json:"bootMinimized"`
+	BootMinimized      bool            `json:"bootMinimized,omitempty"`
+	DatabaseReady      bool            `json:"databaseReady,omitempty"`
+}
+
+type persistedSettings struct {
+	KnownDatabases     []DatabaseEntry `json:"knownDatabases"`
+	ActiveDatabasePath string          `json:"activeDatabasePath"`
+	Autostart          bool            `json:"autostart"`
+	DockCorner         string          `json:"dockCorner"`
 }
 
 // App struct binds Go methods to the Wails frontend.
@@ -119,16 +126,33 @@ func (a *App) watchNativeMinimize(ctx context.Context) {
 	}
 }
 
+func (a *App) ensureDemoDatabaseExistsLocked() {
+	if _, err := os.Stat(a.demoDBPath); err != nil {
+		if dir := filepath.Dir(a.demoDBPath); dir != "" && dir != "." {
+			_ = os.MkdirAll(dir, 0755)
+		}
+		if s, openErr := eventstore.NewStoreWithOptions(a.demoDBPath, true); openErr == nil {
+			_ = s.Close()
+		}
+	}
+}
+
 func (a *App) loadOrInitSettingsLocked() {
 	raw, err := os.ReadFile(a.settingsPath)
 	if err == nil {
-		var loaded AppSettings
+		var loaded persistedSettings
 		if jsonErr := json.Unmarshal(raw, &loaded); jsonErr == nil {
 			for i := range loaded.KnownDatabases {
 				loaded.KnownDatabases[i].Path = filepath.Clean(loaded.KnownDatabases[i].Path)
 			}
-			loaded.ActiveDatabasePath = filepath.Clean(loaded.ActiveDatabasePath)
+			activePath := strings.TrimSpace(loaded.ActiveDatabasePath)
+			if activePath != "" && activePath != "." {
+				activePath = filepath.Clean(activePath)
+			} else {
+				activePath = ""
+			}
 			if len(loaded.KnownDatabases) == 0 {
+				a.ensureDemoDatabaseExistsLocked()
 				loaded.KnownDatabases = []DatabaseEntry{
 					{
 						Name:   "Demo-Datenbank",
@@ -137,18 +161,21 @@ func (a *App) loadOrInitSettingsLocked() {
 					},
 				}
 			}
-			if loaded.ActiveDatabasePath == "" || loaded.ActiveDatabasePath == "." {
-				loaded.ActiveDatabasePath = loaded.KnownDatabases[0].Path
-			}
 			if loaded.DockCorner == "" {
 				loaded.DockCorner = "bottom-right"
 			}
-			a.settings = loaded
+			a.settings = AppSettings{
+				KnownDatabases:     loaded.KnownDatabases,
+				ActiveDatabasePath: activePath,
+				Autostart:          loaded.Autostart,
+				DockCorner:         loaded.DockCorner,
+			}
 			return
 		}
 	}
 
-	// First start: initialize settings with Demo-Datenbank available for selection and FirstRunCompleted = false
+	// No valid settings.json yet: prepare Demo-Datenbank in KnownDatabases, but leave ActiveDatabasePath empty so Settings opens
+	a.ensureDemoDatabaseExistsLocked()
 	a.settings = AppSettings{
 		KnownDatabases: []DatabaseEntry{
 			{
@@ -157,8 +184,7 @@ func (a *App) loadOrInitSettingsLocked() {
 				IsDemo: true,
 			},
 		},
-		ActiveDatabasePath: a.demoDBPath,
-		FirstRunCompleted:  false,
+		ActiveDatabasePath: "",
 		Autostart:          false,
 		DockCorner:         "bottom-right",
 	}
@@ -166,7 +192,13 @@ func (a *App) loadOrInitSettingsLocked() {
 }
 
 func (a *App) saveSettingsLocked() error {
-	data, err := json.MarshalIndent(a.settings, "", "  ")
+	toSave := persistedSettings{
+		KnownDatabases:     a.settings.KnownDatabases,
+		ActiveDatabasePath: a.settings.ActiveDatabasePath,
+		Autostart:          a.settings.Autostart,
+		DockCorner:         a.settings.DockCorner,
+	}
+	data, err := json.MarshalIndent(toSave, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -179,25 +211,34 @@ func (a *App) openActiveDatabaseLocked() {
 		a.store = nil
 	}
 
-	targetPath := filepath.Clean(a.settings.ActiveDatabasePath)
-	isDemo := filepath.Clean(targetPath) == a.demoDBPath
+	activePath := strings.TrimSpace(a.settings.ActiveDatabasePath)
+	if activePath == "" || activePath == "." {
+		// No database selected -> leave a.store = nil so the Settings dialog is shown
+		return
+	}
+
+	targetPath := filepath.Clean(activePath)
+	info, statErr := os.Stat(targetPath)
+	if statErr != nil || info.IsDir() {
+		// Configured database file does not exist (deleted or moved) -> leave a.store = nil so Settings dialog is shown
+		return
+	}
+
+	isDemo := strings.EqualFold(targetPath, a.demoDBPath)
 	for _, entry := range a.settings.KnownDatabases {
-		if filepath.Clean(entry.Path) == targetPath {
+		if strings.EqualFold(filepath.Clean(entry.Path), targetPath) {
 			isDemo = entry.IsDemo
 			break
 		}
 	}
 
-	if dir := filepath.Dir(targetPath); dir != "" && dir != "." {
-		_ = os.MkdirAll(dir, 0755)
-	}
-
 	store, err := eventstore.NewStoreWithOptions(targetPath, isDemo)
 	if err != nil {
-		// Fallback to demo database if active database path is inaccessible
-		store, _ = eventstore.NewStoreWithOptions(a.demoDBPath, true)
-		a.settings.ActiveDatabasePath = a.demoDBPath
-		_ = a.saveSettingsLocked()
+		return
+	}
+	if _, err := store.GetEvents(); err != nil {
+		_ = store.Close()
+		return
 	}
 	a.store = store
 }
@@ -205,15 +246,15 @@ func (a *App) openActiveDatabaseLocked() {
 func (a *App) snapshotSettingsLocked() AppSettings {
 	out := AppSettings{
 		ActiveDatabasePath: a.settings.ActiveDatabasePath,
-		FirstRunCompleted:  a.settings.FirstRunCompleted,
 		Autostart:          a.settings.Autostart,
 		DockCorner:         a.settings.DockCorner,
-		BootMinimized:      a.bootMinimized,
+		BootMinimized:      a.bootMinimized && a.store != nil,
+		DatabaseReady:      a.store != nil,
 		KnownDatabases:     make([]DatabaseEntry, len(a.settings.KnownDatabases)),
 	}
 	for i, entry := range a.settings.KnownDatabases {
-		_, err := os.Stat(entry.Path)
-		entry.Exists = err == nil
+		info, err := os.Stat(entry.Path)
+		entry.Exists = err == nil && !info.IsDir()
 		out.KnownDatabases[i] = entry
 	}
 	return out
@@ -339,15 +380,6 @@ func (a *App) SetAutostart(enabled bool) (AppSettings, error) {
 	return a.snapshotSettingsLocked(), nil
 }
 
-// CompleteFirstRun marks the initial setup dialog as completed and saves settings.
-func (a *App) CompleteFirstRun() (AppSettings, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.settings.FirstRunCompleted = true
-	_ = a.saveSettingsLocked()
-	return a.snapshotSettingsLocked(), nil
-}
-
 // SelectFolderDialog opens a native folder picker dialog (e.g. to choose a Google Drive directory).
 func (a *App) SelectFolderDialog() (string, error) {
 	if a.ctx == nil {
@@ -422,7 +454,6 @@ func (a *App) CreateDatabase(folderPath string, dbName string) (AppSettings, err
 	}
 
 	a.settings.ActiveDatabasePath = fullPath
-	a.settings.FirstRunCompleted = true
 	_ = a.saveSettingsLocked()
 
 	return a.snapshotSettingsLocked(), nil
@@ -487,7 +518,6 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 	}
 
 	a.settings.ActiveDatabasePath = fullPath
-	a.settings.FirstRunCompleted = true
 	_ = a.saveSettingsLocked()
 
 	return a.snapshotSettingsLocked(), nil
@@ -507,8 +537,15 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 		}
 	}
 
-	if dir := filepath.Dir(cleanTarget); dir != "" && dir != "." {
-		_ = os.MkdirAll(dir, 0755)
+	if isDemo {
+		if dir := filepath.Dir(cleanTarget); dir != "" && dir != "." {
+			_ = os.MkdirAll(dir, 0755)
+		}
+	} else {
+		info, statErr := os.Stat(cleanTarget)
+		if statErr != nil || info.IsDir() {
+			return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank-Datei wurde nicht gefunden (verschoben oder gelöscht): %s", cleanTarget)
+		}
 	}
 
 	newStore, err := eventstore.NewStoreWithOptions(cleanTarget, isDemo)
@@ -521,7 +558,6 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 	}
 	a.store = newStore
 	a.settings.ActiveDatabasePath = cleanTarget
-	a.settings.FirstRunCompleted = true
 	_ = a.saveSettingsLocked()
 
 	return a.snapshotSettingsLocked(), nil
@@ -565,8 +601,8 @@ func (a *App) DeleteDatabase(dbPath string) (AppSettings, error) {
 	a.settings.KnownDatabases = remaining
 
 	if wasActive {
-		a.settings.ActiveDatabasePath = a.settings.KnownDatabases[0].Path
-		a.openActiveDatabaseLocked()
+		// Active database was deleted -> clear selection so user chooses/creates one in Settings
+		a.settings.ActiveDatabasePath = ""
 	}
 
 	_ = a.saveSettingsLocked()
@@ -587,6 +623,9 @@ func (a *App) GetEvents() ([]eventstore.Event, error) {
 func (a *App) AppendEvent(id string, eventType string, payloadJSON string) ([]eventstore.Event, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.store == nil {
+		return []eventstore.Event{}, errors.New("keine Datenbank geöffnet")
+	}
 	return a.store.AppendEvent(id, eventType, payloadJSON)
 }
 
@@ -594,6 +633,9 @@ func (a *App) AppendEvent(id string, eventType string, payloadJSON string) ([]ev
 func (a *App) Undo() ([]eventstore.Event, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.store == nil {
+		return []eventstore.Event{}, nil
+	}
 	return a.store.Undo()
 }
 
@@ -601,6 +643,9 @@ func (a *App) Undo() ([]eventstore.Event, error) {
 func (a *App) Redo() ([]eventstore.Event, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.store == nil {
+		return []eventstore.Event{}, nil
+	}
 	return a.store.Redo()
 }
 
@@ -608,6 +653,9 @@ func (a *App) Redo() ([]eventstore.Event, error) {
 func (a *App) ResetDemoData() ([]eventstore.Event, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.store == nil {
+		return []eventstore.Event{}, nil
+	}
 	return a.store.ResetDemoData()
 }
 

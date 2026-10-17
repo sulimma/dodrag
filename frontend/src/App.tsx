@@ -141,7 +141,6 @@ export function App() {
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
-  const [isFirstRunDialog, setIsFirstRunDialog] = useState<boolean>(false);
   const [isMiniMode, setIsMiniMode] = useState<boolean>(false);
   const [dockCorner, setDockCorner] = useState<string>('bottom-right');
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
@@ -168,11 +167,10 @@ export function App() {
       if (s.dockCorner) {
         setDockCorner(s.dockCorner);
       }
-      if (s.bootMinimized) {
-        setIsMiniMode(true);
-      } else if (!s.firstRunCompleted) {
-        setIsFirstRunDialog(true);
+      if (!s.databaseReady) {
         setShowSettingsModal(true);
+      } else if (s.bootMinimized) {
+        setIsMiniMode(true);
       }
     });
     const unsubMinimize = eventBridge.onWindowMinimized(() => {
@@ -697,12 +695,8 @@ export function App() {
     clearEdgeSelection();
   };
 
-  const handleCloseSettingsModal = async () => {
-    if (isFirstRunDialog) {
-      const updated = await eventBridge.completeFirstRun();
-      setAppSettings(updated);
-      setIsFirstRunDialog(false);
-    }
+  const handleCloseSettingsModal = () => {
+    if (!appSettings?.databaseReady) return;
     setShowSettingsModal(false);
   };
 
@@ -712,7 +706,6 @@ export function App() {
       dbName
     );
     setAppSettings(updatedSettings);
-    setIsFirstRunDialog(false);
     const updatedEvents = await eventBridge.getEvents();
     setEvents(updatedEvents);
     setSelectedTaskId(null);
@@ -725,7 +718,6 @@ export function App() {
     const updatedSettings = await eventBridge.openExistingDatabaseDialog();
     setAppSettings(updatedSettings);
     if (updatedSettings.activeDatabasePath !== prevPath) {
-      setIsFirstRunDialog(false);
       const updatedEvents = await eventBridge.getEvents();
       setEvents(updatedEvents);
       setSelectedTaskId(null);
@@ -737,7 +729,6 @@ export function App() {
   const handleSwitchDatabase = async (dbPath: string) => {
     const updatedSettings = await eventBridge.switchDatabase(dbPath);
     setAppSettings(updatedSettings);
-    setIsFirstRunDialog(false);
     const updatedEvents = await eventBridge.getEvents();
     setEvents(updatedEvents);
     setSelectedTaskId(null);
@@ -761,6 +752,9 @@ export function App() {
     setEvents(updatedEvents);
     setSelectedTaskId(null);
     clearEdgeSelection();
+    if (!updatedSettings.databaseReady) {
+      setShowSettingsModal(true);
+    }
     pushToast(
       `Datenbank „${targetEntry?.name || dbPath}“ gelöscht`,
       'warning'
@@ -1766,7 +1760,6 @@ export function App() {
       {showSettingsModal && appSettings && (
         <SettingsModal
           settings={appSettings}
-          isFirstRun={isFirstRunDialog}
           onClose={handleCloseSettingsModal}
           onSelectFolder={() => eventBridge.selectFolderDialog()}
           onCreateDatabase={handleCreateDatabase}

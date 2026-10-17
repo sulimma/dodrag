@@ -14,7 +14,6 @@ import { AppSettings, DatabaseEntry } from '../bridge/eventBridge';
 
 interface SettingsModalProps {
   settings: AppSettings;
-  isFirstRun: boolean;
   onClose: () => void;
   onSelectFolder: () => Promise<string>;
   onCreateDatabase: (folderPath: string, dbName: string) => Promise<void>;
@@ -26,7 +25,6 @@ interface SettingsModalProps {
 
 export function SettingsModal({
   settings,
-  isFirstRun,
   onClose,
   onSelectFolder,
   onCreateDatabase,
@@ -42,6 +40,8 @@ export function SettingsModal({
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<boolean>(false);
+
+  const isDbReady = Boolean(settings.databaseReady);
 
   const handleBrowseFolder = async () => {
     setErrorMsg(null);
@@ -113,7 +113,9 @@ export function SettingsModal({
   return (
     <div
       className="fixed inset-0 z-50 bg-slate-900/35 backdrop-blur-xs flex items-center justify-center p-4"
-      onClick={onClose}
+      onClick={() => {
+        if (isDbReady) onClose();
+      }}
     >
       <div
         className="w-full max-w-xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
@@ -127,8 +129,8 @@ export function SettingsModal({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">
-                {isFirstRun
-                  ? 'Willkommen bei DoDrag – Datenbank wählen'
+                {!isDbReady
+                  ? 'Datenbank auswählen oder anlegen'
                   : 'Einstellungen & Datenbanken'}
               </h2>
               <p className="text-xs text-slate-500">
@@ -136,24 +138,37 @@ export function SettingsModal({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
-            title="Schließen"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {isDbReady && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+              title="Schließen"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-6">
-          {isFirstRun && (
-            <div className="rounded-xl bg-sky-50 border border-sky-200 px-4 py-3 text-xs text-sky-900">
-              <strong>Erster Start:</strong> Du kannst direkt mit der{' '}
-              <span className="font-semibold">Demo-Datenbank</span> starten oder
-              unten eine eigene Datenbank (z. B. in deinem Google-Drive-Ordner)
-              anlegen.
+          {!isDbReady && (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-900">
+              {settings.activeDatabasePath ? (
+                <>
+                  <strong>Datenbank nicht verfügbar:</strong> Die ausgewählte
+                  Datenbank (<span className="font-mono">{settings.activeDatabasePath}</span>)
+                  konnte nicht geöffnet werden (evtl. verschoben oder gelöscht).
+                  Bitte wähle eine Datenbank aus oder lege eine neue an.
+                </>
+              ) : (
+                <>
+                  <strong>Keine Datenbank geöffnet:</strong> Bitte wähle eine
+                  vorhandene Datenbank (z. B. die{' '}
+                  <span className="font-semibold">Demo-Datenbank</span>) oder
+                  lege unten eine neue Datenbank an.
+                </>
+              )}
             </div>
           )}
 
@@ -185,9 +200,12 @@ export function SettingsModal({
             <div className="space-y-2">
               {settings.knownDatabases.map((entry) => {
                 const isActive =
+                  isDbReady &&
+                  Boolean(settings.activeDatabasePath) &&
                   entry.path.toLowerCase() ===
-                  settings.activeDatabasePath.toLowerCase();
+                    settings.activeDatabasePath.toLowerCase();
                 const isConfirmingDelete = confirmDeletePath === entry.path;
+                const isMissing = !entry.exists && !entry.isDemo;
 
                 return (
                   <div
@@ -220,6 +238,11 @@ export function SettingsModal({
                               Aktiv
                             </span>
                           )}
+                          {isMissing && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">
+                              Datei fehlt
+                            </span>
+                          )}
                         </div>
                         <div
                           className="text-[11px] font-mono text-slate-500 truncate mt-0.5"
@@ -230,26 +253,15 @@ export function SettingsModal({
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {!isActive ? (
+                        {!isActive && (
                           <button
                             type="button"
-                            disabled={busy}
+                            disabled={busy || isMissing}
                             onClick={() => handleSwitch(entry)}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-sky-600 hover:text-white text-slate-700 transition-colors"
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-sky-600 hover:text-white text-slate-700 disabled:opacity-40 disabled:pointer-events-none transition-colors"
                           >
                             Verwenden
                           </button>
-                        ) : (
-                          isFirstRun && (
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={onClose}
-                              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-sky-600 hover:bg-sky-700 text-white transition-colors"
-                            >
-                              Auswählen
-                            </button>
-                          )
                         )}
 
                         <button
@@ -419,8 +431,9 @@ export function SettingsModal({
           </span>
           <button
             type="button"
+            disabled={!isDbReady}
             onClick={onClose}
-            className="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-medium hover:bg-slate-900 transition-colors"
+            className="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-medium hover:bg-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
             Fertig
           </button>
