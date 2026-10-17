@@ -4,6 +4,7 @@ import {
   Database,
   FolderOpen,
   Plus,
+  Power,
   Settings,
   Trash2,
   AlertTriangle,
@@ -20,6 +21,7 @@ interface SettingsModalProps {
   onOpenExistingDatabase: () => Promise<void>;
   onSwitchDatabase: (dbPath: string) => Promise<void>;
   onDeleteDatabase: (dbPath: string) => Promise<void>;
+  onToggleAutostart: (enabled: boolean) => Promise<void>;
 }
 
 export function SettingsModal({
@@ -31,6 +33,7 @@ export function SettingsModal({
   onOpenExistingDatabase,
   onSwitchDatabase,
   onDeleteDatabase,
+  onToggleAutostart,
 }: SettingsModalProps) {
   const [folderPath, setFolderPath] = useState<string>('');
   const [dbName, setDbName] = useState<string>('');
@@ -357,6 +360,56 @@ export function SettingsModal({
               </div>
             </div>
           </form>
+
+          {/* Section 3: Windows Autostart */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-slate-100 text-slate-600 mt-0.5">
+                <Power className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-slate-900">
+                  Beim Booten automatisch starten
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Startet DoDrag automatisch bei der Windows-Anmeldung im
+                  Hintergrund (minimiert).
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(settings.autostart)}
+              disabled={busy}
+              onClick={async () => {
+                setErrorMsg(null);
+                setBusy(true);
+                try {
+                  await onToggleAutostart(!settings.autostart);
+                } catch (err: any) {
+                  setErrorMsg(
+                    typeof err === 'string'
+                      ? err
+                      : err?.message ||
+                          'Autostart-Einstellung konnte nicht geändert werden.'
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                settings.autostart ? 'bg-sky-600' : 'bg-slate-200'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  settings.autostart ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Footer */}

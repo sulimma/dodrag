@@ -11,6 +11,7 @@ export interface AppSettings {
   knownDatabases: DatabaseEntry[];
   activeDatabasePath: string;
   firstRunCompleted: boolean;
+  autostart: boolean;
 }
 
 declare global {
@@ -28,6 +29,7 @@ declare global {
           Redo: () => Promise<any[]>;
           ResetDemoData: () => Promise<any[]>;
           GetSettings: () => Promise<AppSettings>;
+          SetAutostart: (enabled: boolean) => Promise<AppSettings>;
           CompleteFirstRun: () => Promise<AppSettings>;
           SelectFolderDialog: () => Promise<string>;
           CreateDatabase: (
@@ -321,7 +323,18 @@ export const eventBridge = {
       ],
       activeDatabasePath: '%APPDATA%\\DoDrag\\dodrag.db',
       firstRunCompleted: false,
+      autostart: false,
     };
+  },
+
+  async setAutostart(enabled: boolean): Promise<AppSettings> {
+    if (isWailsAvailable() && window.go!.main!.App!.SetAutostart) {
+      return await window.go!.main!.App!.SetAutostart(enabled);
+    }
+    const current = await this.getSettings();
+    const updated: AppSettings = { ...current, autostart: enabled };
+    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(updated));
+    return updated;
   },
 
   async completeFirstRun(): Promise<AppSettings> {

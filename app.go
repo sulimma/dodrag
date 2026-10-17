@@ -22,11 +22,12 @@ type DatabaseEntry struct {
 	Exists bool   `json:"exists"`
 }
 
-// AppSettings stores known databases, the currently active database, and first-run status in %APPDATA%\DoDrag\settings.json.
+// AppSettings stores known databases, the currently active database, first-run status, and autostart flag in %APPDATA%\DoDrag\settings.json.
 type AppSettings struct {
 	KnownDatabases     []DatabaseEntry `json:"knownDatabases"`
 	ActiveDatabasePath string          `json:"activeDatabasePath"`
 	FirstRunCompleted  bool            `json:"firstRunCompleted"`
+	Autostart          bool            `json:"autostart"`
 }
 
 // App struct binds Go methods to the Wails frontend.
@@ -64,6 +65,9 @@ func (a *App) startup(ctx context.Context) {
 	a.demoDBPath = filepath.Clean(filepath.Join(appDir, "dodrag.db"))
 
 	a.loadOrInitSettingsLocked()
+	if a.settings.Autostart {
+		_ = syncWindowsAutostart(true)
+	}
 	a.openActiveDatabaseLocked()
 }
 
@@ -104,6 +108,7 @@ func (a *App) loadOrInitSettingsLocked() {
 		},
 		ActiveDatabasePath: a.demoDBPath,
 		FirstRunCompleted:  false,
+		Autostart:          false,
 	}
 	_ = a.saveSettingsLocked()
 }
@@ -149,6 +154,7 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 	out := AppSettings{
 		ActiveDatabasePath: a.settings.ActiveDatabasePath,
 		FirstRunCompleted:  a.settings.FirstRunCompleted,
+		Autostart:          a.settings.Autostart,
 		KnownDatabases:     make([]DatabaseEntry, len(a.settings.KnownDatabases)),
 	}
 	for i, entry := range a.settings.KnownDatabases {
@@ -173,6 +179,19 @@ func (a *App) shutdown(ctx context.Context) {
 func (a *App) GetSettings() (AppSettings, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.snapshotSettingsLocked(), nil
+}
+
+// SetAutostart enables or disables launching DoDrag automatically on Windows boot/login.
+func (a *App) SetAutostart(enabled bool) (AppSettings, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if err := syncWindowsAutostart(enabled); err != nil {
+		return a.snapshotSettingsLocked(), err
+	}
+	a.settings.Autostart = enabled
+	_ = a.saveSettingsLocked()
 	return a.snapshotSettingsLocked(), nil
 }
 

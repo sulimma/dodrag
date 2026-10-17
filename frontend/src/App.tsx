@@ -730,6 +730,17 @@ export function App() {
     );
   };
 
+  const handleToggleAutostart = async (enabled: boolean) => {
+    const updatedSettings = await eventBridge.setAutostart(enabled);
+    setAppSettings(updatedSettings);
+    pushToast(
+      enabled
+        ? 'Autostart beim Windows-Booten aktiviert'
+        : 'Autostart beim Windows-Booten deaktiviert',
+      'info'
+    );
+  };
+
   // Drag handlers
   const onDragStartTask = (e: React.DragEvent, taskId: string) => {
     setDraggedTaskId(taskId);
@@ -1673,6 +1684,7 @@ export function App() {
           onOpenExistingDatabase={handleOpenExistingDatabase}
           onSwitchDatabase={handleSwitchDatabase}
           onDeleteDatabase={handleDeleteDatabase}
+          onToggleAutostart={handleToggleAutostart}
         />
       )}
 
