@@ -60,4 +60,20 @@ func TestSQLiteEventStore(t *testing.T) {
 	if len(events) != initialCount+1 {
 		t.Fatalf("expected coalesced event count to remain %d, got %d", initialCount+1, len(events))
 	}
+
+	// Empty database creation test (without demo seed)
+	emptyDBPath := filepath.Join(t.TempDir(), "custom_google_drive.db")
+	emptyStore, err := NewStoreWithOptions(emptyDBPath, false)
+	if err != nil {
+		t.Fatalf("NewStoreWithOptions(false) failed: %v", err)
+	}
+	defer emptyStore.Close()
+	emptyEvents, err := emptyStore.GetEvents()
+	if err != nil {
+		t.Fatalf("emptyStore.GetEvents failed: %v", err)
+	}
+	if len(emptyEvents) != 0 {
+		t.Fatalf("expected 0 events in custom empty database, got %d", len(emptyEvents))
+	}
 }
+

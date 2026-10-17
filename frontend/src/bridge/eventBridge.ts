@@ -1,5 +1,18 @@
 import { EventType, StoredEvent } from '../domain/types';
 
+export interface DatabaseEntry {
+  name: string;
+  path: string;
+  isDemo: boolean;
+  exists: boolean;
+}
+
+export interface AppSettings {
+  knownDatabases: DatabaseEntry[];
+  activeDatabasePath: string;
+  firstRunCompleted: boolean;
+}
+
 declare global {
   interface Window {
     go?: {
@@ -14,6 +27,16 @@ declare global {
           Undo: () => Promise<any[]>;
           Redo: () => Promise<any[]>;
           ResetDemoData: () => Promise<any[]>;
+          GetSettings: () => Promise<AppSettings>;
+          CompleteFirstRun: () => Promise<AppSettings>;
+          SelectFolderDialog: () => Promise<string>;
+          CreateDatabase: (
+            folderPath: string,
+            dbName: string
+          ) => Promise<AppSettings>;
+          OpenExistingDatabaseDialog: () => Promise<AppSettings>;
+          SwitchDatabase: (dbPath: string) => Promise<AppSettings>;
+          DeleteDatabase: (dbPath: string) => Promise<AppSettings>;
         };
       };
     };
@@ -21,6 +44,7 @@ declare global {
 }
 
 const LOCAL_STORAGE_KEY = 'dodrag_sqlite_fallback_events_v1';
+const LOCAL_SETTINGS_KEY = 'dodrag_settings_fallback_v1';
 
 function isWailsAvailable(): boolean {
   return Boolean(window?.go?.main?.App);
@@ -275,4 +299,124 @@ export const eventBridge = {
     const seeded = createInitialBrowserDemoEvents();
     return saveBrowserEvents(seeded);
   },
+
+  async getSettings(): Promise<AppSettings> {
+    if (isWailsAvailable() && window.go!.main!.App!.GetSettings) {
+      return await window.go!.main!.App!.GetSettings();
+    }
+    try {
+      const raw = localStorage.getItem(LOCAL_SETTINGS_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    return {
+      knownDatabases: [
+        {
+          name: 'Demo-Datenbank',
+          path: '%APPDATA%\\DoDrag\\dodrag.db',
+          isDemo: true,
+          exists: true,
+        },
+      ],
+      activeDatabasePath: '%APPDATA%\\DoDrag\\dodrag.db',
+      firstRunCompleted: false,
+    };
+  },
+
+  async completeFirstRun(): Promise<AppSettings> {
+    if (isWailsAvailable() && window.go!.main!.App!.CompleteFirstRun) {
+      return await window.go!.main!.App!.CompleteFirstRun();
+    }
+    const current = await this.getSettings();
+    const updated: AppSettings = { ...current, firstRunCompleted: true };
+    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(updated));
+    return updated;
+  },
+
+  async selectFolderDialog(): Promise<string> {
+    if (isWailsAvailable() && window.go!.main!.App!.SelectFolderDialog) {
+      return await window.go!.main!.App!.SelectFolderDialog();
+    }
+    return '';
+  },
+
+  async createDatabase(
+    folderPath: string,
+    dbName: string
+  ): Promise<AppSettings> {
+    if (isWailsAvailable() && window.go!.main!.App!.CreateDatabase) {
+      return await window.go!.main!.App!.CreateDatabase(folderPath, dbName);
+    }
+    const current = await this.getSettings();
+    const cleanName = dbName.trim() || 'neue-datenbank';
+    const fileName = cleanName.endsWith('.db') ? cleanName : `${cleanName}.db`;
+    const fullPath = `${folderPath || '%APPDATA%\\DoDrag'}\\${fileName}`;
+    const next: AppSettings = {
+      ...current,
+      knownDatabases: [
+        ...current.knownDatabases.filter((d) => d.path !== fullPath),
+        { name: cleanName, path: fullPath, isDemo: false, exists: true },
+      ],
+      activeDatabasePath: fullPath,
+      firstRunCompleted: true,
+    };
+    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(next));
+    saveBrowserEvents([]);
+    return next;
+  },
+
+  async openExistingDatabaseDialog(): Promise<AppSettings> {
+    if (
+      isWailsAvailable() &&
+      window.go!.main!.App!.OpenExistingDatabaseDialog
+    ) {
+      return await window.go!.main!.App!.OpenExistingDatabaseDialog();
+    }
+    return await this.getSettings();
+  },
+
+  async switchDatabase(dbPath: string): Promise<AppSettings> {
+    if (isWailsAvailable() && window.go!.main!.App!.SwitchDatabase) {
+      return await window.go!.main!.App!.SwitchDatabase(dbPath);
+    }
+    const current = await this.getSettings();
+    const next: AppSettings = {
+      ...current,
+      activeDatabasePath: dbPath,
+      firstRunCompleted: true,
+    };
+    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(next));
+    return next;
+  },
+
+  async deleteDatabase(dbPath: string): Promise<AppSettings> {
+    if (isWailsAvailable() && window.go!.main!.App!.DeleteDatabase) {
+      return await window.go!.main!.App!.DeleteDatabase(dbPath);
+    }
+    const current = await this.getSettings();
+    const remaining = current.knownDatabases.filter((d) => d.path !== dbPath);
+    const fallback =
+      remaining.length > 0
+        ? remaining
+        : [
+            {
+              name: 'Demo-Datenbank',
+              path: '%APPDATA%\\DoDrag\\dodrag.db',
+              isDemo: true,
+              exists: true,
+            },
+          ];
+    const next: AppSettings = {
+      ...current,
+      knownDatabases: fallback,
+      activeDatabasePath:
+        current.activeDatabasePath === dbPath
+          ? fallback[0].path
+          : current.activeDatabasePath,
+    };
+    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(next));
+    return next;
+  },
 };
+

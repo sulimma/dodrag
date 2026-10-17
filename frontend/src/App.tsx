@@ -16,13 +16,15 @@ import {
   Plus,
   Redo2,
   RotateCcw,
+  Settings,
   Undo2,
   X,
 } from 'lucide-react';
-import { eventBridge } from './bridge/eventBridge';
+import { AppSettings, eventBridge } from './bridge/eventBridge';
 import { DateLayerLine } from './components/DateLayerLine';
 import { GanttView } from './components/GanttView';
 import { NetworkPlanView } from './components/NetworkPlanView';
+import { SettingsModal } from './components/SettingsModal';
 import { SmoothFlipList } from './components/SmoothFlipList';
 import {
   calculateQuickResubmitDate,
@@ -134,6 +136,9 @@ export function App() {
   );
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [isFirstRunDialog, setIsFirstRunDialog] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
@@ -153,6 +158,13 @@ export function App() {
 
   useEffect(() => {
     eventBridge.getEvents().then(setEvents);
+    eventBridge.getSettings().then((s) => {
+      setAppSettings(s);
+      if (!s.firstRunCompleted) {
+        setIsFirstRunDialog(true);
+        setShowSettingsModal(true);
+      }
+    });
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(interval);
   }, []);
@@ -648,6 +660,76 @@ export function App() {
     clearEdgeSelection();
   };
 
+  const handleCloseSettingsModal = async () => {
+    if (isFirstRunDialog) {
+      const updated = await eventBridge.completeFirstRun();
+      setAppSettings(updated);
+      setIsFirstRunDialog(false);
+    }
+    setShowSettingsModal(false);
+  };
+
+  const handleCreateDatabase = async (folderPath: string, dbName: string) => {
+    const updatedSettings = await eventBridge.createDatabase(
+      folderPath,
+      dbName
+    );
+    setAppSettings(updatedSettings);
+    setIsFirstRunDialog(false);
+    const updatedEvents = await eventBridge.getEvents();
+    setEvents(updatedEvents);
+    setSelectedTaskId(null);
+    clearEdgeSelection();
+    pushToast(`Datenbank „${dbName}“ angelegt und aktiviert`, 'success');
+  };
+
+  const handleOpenExistingDatabase = async () => {
+    const prevPath = appSettings?.activeDatabasePath;
+    const updatedSettings = await eventBridge.openExistingDatabaseDialog();
+    setAppSettings(updatedSettings);
+    if (updatedSettings.activeDatabasePath !== prevPath) {
+      setIsFirstRunDialog(false);
+      const updatedEvents = await eventBridge.getEvents();
+      setEvents(updatedEvents);
+      setSelectedTaskId(null);
+      clearEdgeSelection();
+      pushToast('Datenbank geöffnet und aktiviert', 'success');
+    }
+  };
+
+  const handleSwitchDatabase = async (dbPath: string) => {
+    const updatedSettings = await eventBridge.switchDatabase(dbPath);
+    setAppSettings(updatedSettings);
+    setIsFirstRunDialog(false);
+    const updatedEvents = await eventBridge.getEvents();
+    setEvents(updatedEvents);
+    setSelectedTaskId(null);
+    clearEdgeSelection();
+    const activeEntry = updatedSettings.knownDatabases.find(
+      (d) => d.path.toLowerCase() === dbPath.toLowerCase()
+    );
+    pushToast(
+      `Datenbank „${activeEntry?.name || dbPath}“ geladen`,
+      'info'
+    );
+  };
+
+  const handleDeleteDatabase = async (dbPath: string) => {
+    const targetEntry = appSettings?.knownDatabases.find(
+      (d) => d.path.toLowerCase() === dbPath.toLowerCase()
+    );
+    const updatedSettings = await eventBridge.deleteDatabase(dbPath);
+    setAppSettings(updatedSettings);
+    const updatedEvents = await eventBridge.getEvents();
+    setEvents(updatedEvents);
+    setSelectedTaskId(null);
+    clearEdgeSelection();
+    pushToast(
+      `Datenbank „${targetEntry?.name || dbPath}“ gelöscht`,
+      'warning'
+    );
+  };
+
   // Drag handlers
   const onDragStartTask = (e: React.DragEvent, taskId: string) => {
     setDraggedTaskId(taskId);
@@ -777,6 +859,17 @@ export function App() {
             className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => {
+              eventBridge.getSettings().then(setAppSettings);
+              setShowSettingsModal(true);
+            }}
+            title="Einstellungen & Datenbanken"
+            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
+          >
+            <Settings className="w-4 h-4" />
           </button>
 
           <button
@@ -1568,6 +1661,20 @@ export function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Settings & Database Management Modal */}
+      {showSettingsModal && appSettings && (
+        <SettingsModal
+          settings={appSettings}
+          isFirstRun={isFirstRunDialog}
+          onClose={handleCloseSettingsModal}
+          onSelectFolder={() => eventBridge.selectFolderDialog()}
+          onCreateDatabase={handleCreateDatabase}
+          onOpenExistingDatabase={handleOpenExistingDatabase}
+          onSwitchDatabase={handleSwitchDatabase}
+          onDeleteDatabase={handleDeleteDatabase}
+        />
+      )}
 
       {/* Floating Toasts */}
       <div className="fixed bottom-4 left-6 z-50 flex flex-col gap-2 pointer-events-none">

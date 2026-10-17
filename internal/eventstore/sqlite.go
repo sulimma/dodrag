@@ -24,8 +24,13 @@ type Store struct {
 	db *sql.DB
 }
 
-// NewStore opens or creates the SQLite database at dbPath and initializes the schema.
+// NewStore opens or creates the SQLite database at dbPath, initializes the schema, and seeds demo data if empty.
 func NewStore(dbPath string) (*Store, error) {
+	return NewStoreWithOptions(dbPath, true)
+}
+
+// NewStoreWithOptions opens or creates the SQLite database at dbPath and optionally seeds demo data if empty.
+func NewStoreWithOptions(dbPath string, seedDemo bool) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -48,9 +53,11 @@ func NewStore(dbPath string) (*Store, error) {
 	}
 
 	s := &Store{db: db}
-	if err := s.seedIfEmpty(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("seed initial data: %w", err)
+	if seedDemo {
+		if err := s.seedIfEmpty(); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("seed initial data: %w", err)
+		}
 	}
 
 	return s, nil
