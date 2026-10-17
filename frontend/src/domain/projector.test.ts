@@ -439,3 +439,14 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
   });
 });
 
+it('projects a deep chain and distant legacy dates without daily materialization', () => {
+  const iso='2026-10-17T09:00:00Z';
+  const events: StoredEvent[] = [];
+  for (let i=9999;i>=0;i--) events.push({seq:events.length+1,id:`e${i}`,timestamp:iso,type:'TASK_CREATED',payload:{taskId:`t${i}`,title:'Task',configuredStart:iso,createdAt:iso},undone:false});
+  for (let i=9999;i>0;i--) events.push({seq:events.length+1,id:`d${i}`,timestamp:iso,type:'DEPENDENCY_ADDED',payload:{taskId:`t${i}`,predecessorId:`t${i-1}`},undone:false});
+  const projected=projectEvents(events,new Date(iso));
+  expect(projected.openTasks[0].id).toBe('t0'); expect(projected.openTasks[9999].id).toBe('t9999');
+  const future=[{...events[0],payload:{...events[0].payload,configuredStart:'9999-01-01T09:00:00Z'}}];
+  expect(projectEvents(future,new Date(iso)).listEntries.length).toBe(3);
+  expect(projectEvents(future,new Date('2026-10-18T09:00:00Z')).tasks['t9999'].configuredStart).toBe('9999-01-01T09:00:00Z');
+});

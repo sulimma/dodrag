@@ -5,12 +5,20 @@ import {
   StoredEvent,
   TaskState,
 } from './types';
+import { calendarDistance, localDate } from './dates';
+import { stableTopology } from './topology';
+const weekdayFormatter = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
+interface MutableTask {
+  id: string; title: string; creationOrder: number; createdAt: string; configuredStart: string;
+  predecessors: Set<string>; isActive: boolean; completed: boolean; completedAt?: string;
+}
+const replayCache = new WeakMap<StoredEvent[], { rawTasks: Record<string, MutableTask>; predecessorMap: Record<string, Set<string>> }>();
 
 /**
  * Formats a Date into local YYYY-MM-DD key.
  */
 export function toDateKey(date: Date): string {
-  const y = date.getFullYear();
+  const y = String(date.getFullYear()).padStart(4, '0');
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
@@ -21,7 +29,7 @@ export function toDateKey(date: Date): string {
  */
 export function dateKeyToIsoStart(dateKey: string): string {
   const [y, m, d] = dateKey.split('-').map(Number);
-  const dt = new Date(y, (m || 1) - 1, d || 1, 9, 0, 0, 0);
+  const dt = localDate(y, m || 1, d || 1);
   return dt.toISOString();
 }
 
@@ -63,9 +71,7 @@ export function formatIso8601Display(isoString: string): {
   const hh = String(dt.getHours()).padStart(2, '0');
   const mm = String(dt.getMinutes()).padStart(2, '0');
   const isoText = hasCustomTime ? `${datePart} ${hh}:${mm}` : datePart;
-  const weekdayShort = new Intl.DateTimeFormat('de-DE', {
-    weekday: 'short',
-  })
+  const weekdayShort = weekdayFormatter
     .format(dt)
     .replace('.', '');
   const day = dt.getDay();
@@ -96,11 +102,11 @@ export function formatDateHeading(
   const dayAfterKey = toDateKey(dayAfter);
 
   const [y, m, d] = dateKey.split('-').map(Number);
-  const target = new Date(y, (m || 1) - 1, d || 1);
+  const target = localDate(y, m || 1, d || 1, 0);
   const dayOfWeek = target.getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-  const weekdayShort = new Intl.DateTimeFormat('de-DE', { weekday: 'short' })
+  const weekdayShort = weekdayFormatter
     .format(target)
     .replace('.', '');
 
@@ -194,32 +200,22 @@ export function projectEvents(
   const canUndo = activeEvents.length > 0;
   const canRedo = events.some((e) => e.undone);
 
-  interface MutableTask {
-    id: string;
-    title: string;
-    creationOrder: number;
-    createdAt: string;
-    configuredStart: string;
-    predecessors: Set<string>;
-    isActive: boolean;
-    completed: boolean;
-    completedAt?: string;
-  }
-
-  const rawTasks: Record<string, MutableTask> = {};
-  const predecessorMap: Record<string, Set<string>> = {};
+  const cached = replayCache.get(events);
+  const rawTasks: Record<string, MutableTask> = cached?.rawTasks ?? Object.create(null);
+  const predecessorMap: Record<string, Set<string>> = cached?.predecessorMap ?? Object.create(null);
   let creationCounter = 0;
 
   const currentYearTwoDigits = now.getFullYear() % 100;
   const yearPrefix = `${String(currentYearTwoDigits).padStart(2, '0')}-`;
   let maxNumberForYear = 100;
 
-  for (const ev of activeEvents) {
+  for (const ev of cached ? [] : activeEvents) {
     const p = ev.payload || {};
     switch (ev.type) {
       case 'TASK_CREATED': {
         const taskId = String(p.taskId || '');
         if (!taskId) break;
+        if (rawTasks[taskId]) throw new Error(`Duplicate task: ${taskId}`);
         if (taskId.startsWith(yearPrefix)) {
           const numPart = parseInt(taskId.slice(yearPrefix.length), 10);
           if (!isNaN(numPart) && numPart > maxNumberForYear) {
@@ -306,7 +302,13 @@ export function projectEvents(
     }
   }
 
-  // Build open predecessor & successor adjacency for open tasks
+  if (!cached) replayCache.set(events,{rawTasks,predecessorMap});
+  for (const id of Object.keys(rawTasks)) if (id.startsWith(yearPrefix)) {
+    const number = Number(id.slice(yearPrefix.length));
+    if (Number.isInteger(number)) maxNumberForYear = Math.max(maxNumberForYear, number);
+  }
+
+  // Build time-dependent presentation separately from the cached event replay.
   const openPredsMap: Record<string, string[]> = {};
   const openSuccsMap: Record<string, string[]> = {};
 
@@ -332,61 +334,20 @@ export function projectEvents(
     }
   }
 
-  // Memoized recursive calculation of calculatedStart and effectiveStart across the DAG
-  const calculatedStartCache: Record<string, string | null> = {};
-  const effectiveStartCache: Record<string, string> = {};
-  const visiting = new Set<string>();
+  // Calculate once in topological order, without recursion.
+  const calculatedStartCache: Record<string, string | null> = Object.create(null);
+  const effectiveStartCache: Record<string, string> = Object.create(null);
+  const orderedRawTasks = stableTopology(allTaskIds.map(id => ({ ...rawTasks[id], predecessorIds: openPredsMap[id] })));
+  for (const raw of orderedRawTasks) {
+    let latest: string | null = null;
+    for (const pred of openPredsMap[raw.id]) { const value = effectiveStartCache[pred]; if (!latest || Date.parse(value) > Date.parse(latest)) latest = value; }
+    const calculated = latest ? addCalendarDays(latest,1) : null;
+    calculatedStartCache[raw.id] = calculated;
+    effectiveStartCache[raw.id] = calculated && Date.parse(calculated) > Date.parse(raw.configuredStart) ? calculated : raw.configuredStart;
+  }
 
   function computeDates(taskId: string): { calculated: string | null; effective: string } {
-    if (effectiveStartCache[taskId] !== undefined) {
-      return {
-        calculated: calculatedStartCache[taskId],
-        effective: effectiveStartCache[taskId],
-      };
-    }
-
-    const t = rawTasks[taskId];
-    if (!t) {
-      const fallback = now.toISOString();
-      return { calculated: null, effective: fallback };
-    }
-
-    if (visiting.has(taskId)) {
-      // Safety guard against unexpected cycles
-      return { calculated: null, effective: t.configuredStart };
-    }
-    visiting.add(taskId);
-
-    const openPreds = openPredsMap[taskId] || [];
-    let latestPredEffectiveMs: number | null = null;
-    let latestPredEffectiveIso: string | null = null;
-
-    for (const predId of openPreds) {
-      const predDates = computeDates(predId);
-      const ms = new Date(predDates.effective).getTime();
-      if (latestPredEffectiveMs === null || ms > latestPredEffectiveMs) {
-        latestPredEffectiveMs = ms;
-        latestPredEffectiveIso = predDates.effective;
-      }
-    }
-
-    visiting.delete(taskId);
-
-    // "Letzteres liegt einen Tag nach dem spätesten startdatum eines vorgängers."
-    const calculatedIso = latestPredEffectiveIso
-      ? addCalendarDays(latestPredEffectiveIso, 1)
-      : null;
-
-    const configuredMs = new Date(t.configuredStart).getTime();
-    const calculatedMs = calculatedIso ? new Date(calculatedIso).getTime() : -Infinity;
-
-    const effectiveIso =
-      calculatedIso && calculatedMs > configuredMs ? calculatedIso : t.configuredStart;
-
-    calculatedStartCache[taskId] = calculatedIso;
-    effectiveStartCache[taskId] = effectiveIso;
-
-    return { calculated: calculatedIso, effective: effectiveIso };
+    return { calculated: calculatedStartCache[taskId], effective: effectiveStartCache[taskId] };
   }
 
   const tasks: Record<string, TaskState> = {};
@@ -458,7 +419,7 @@ export function projectEvents(
   }
 
   // Newest tasks appear at the top (highest creationOrder first)
-  openTasks.sort((a, b) => b.creationOrder - a.creationOrder);
+  openTasks.splice(0,openTasks.length,...stableTopology(openTasks));
   completedTasks.sort((a, b) => {
     const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
     const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
@@ -509,17 +470,7 @@ function buildTopologicallySortedAndCollapsedList(
     }
   }
 
-  // Populate calendar days between todayKey and maxDateKey so consecutive empty days collapse into the following task day
-  if (maxDateKey > todayKey) {
-    const [sy, sm, sd] = todayKey.split('-').map(Number);
-    const [ey, em, ed] = maxDateKey.split('-').map(Number);
-    const cur = new Date(sy, (sm || 1) - 1, sd || 1);
-    const end = new Date(ey, (em || 1) - 1, ed || 1);
-    while (cur <= end) {
-      dateKeySet.add(toDateKey(cur));
-      cur.setDate(cur.getDate() + 1);
-    }
-  }
+  // Only relevant headings are materialized; skipped calendar spans are counted arithmetically.
 
   const sortedDateKeys = Array.from(dateKeySet).sort();
 
@@ -559,49 +510,7 @@ function buildTopologicallySortedAndCollapsedList(
     });
 
     const bucketTasks = tasksByDate[dk] || [];
-    if (bucketTasks.length === 0) continue;
-
-    const bucketIds = new Set(bucketTasks.map((t) => t.id));
-    const inDegree: Record<string, number> = {};
-    const dependents: Record<string, string[]> = {};
-
-    for (const t of bucketTasks) {
-      inDegree[t.id] = 0;
-      dependents[t.id] = [];
-    }
-
-    for (const t of bucketTasks) {
-      for (const predId of t.predecessorIds) {
-        if (bucketIds.has(predId)) {
-          inDegree[t.id] += 1;
-          dependents[predId].push(t.id);
-        }
-      }
-    }
-
-    const ready: TaskState[] = bucketTasks.filter((t) => inDegree[t.id] === 0);
-    // Stable priority queue ordered by descending creationOrder so newly created tasks appear at the top
-    ready.sort((a, b) => b.creationOrder - a.creationOrder);
-
-    const taskMap: Record<string, TaskState> = {};
-    for (const t of bucketTasks) taskMap[t.id] = t;
-
-    while (ready.length > 0) {
-      const current = ready.shift()!;
-      rawEntries.push({
-        kind: 'task',
-        key: `task:${current.id}`,
-        task: current,
-      });
-
-      for (const depId of dependents[current.id]) {
-        inDegree[depId] -= 1;
-        if (inDegree[depId] === 0) {
-          ready.push(taskMap[depId]);
-          ready.sort((a, b) => b.creationOrder - a.creationOrder);
-        }
-      }
-    }
+    for (const task of stableTopology(bucketTasks)) rawEntries.push({ kind: 'task', key: `task:${task.id}`, task });
   }
 
   // Collapse rule:
@@ -639,6 +548,12 @@ function buildTopologicallySortedAndCollapsedList(
     }
   }
 
+  let previousDate = todayKey;
+  for (const entry of collapsedEntries) if (entry.kind === 'date' && !entry.isToday) {
+    entry.collapsedCount = Math.max(0,calendarDistance(previousDate,entry.dateKey)-1);
+    entry.collapsedFromDateKey = entry.collapsedCount ? toDateKey(new Date(addCalendarDays(dateKeyToIsoStart(previousDate),1))) : undefined;
+    previousDate = entry.dateKey;
+  }
   return collapsedEntries;
 }
 
@@ -655,43 +570,23 @@ export function computeTransitiveReductionEdges(
     taskMap[t.id] = t;
   }
 
-  // Helper: is `targetAncestorId` reachable from `startId` via predecessors?
-  function isAncestor(startId: string, targetAncestorId: string): boolean {
-    const visited = new Set<string>();
-    const queue: string[] = [startId];
-    while (queue.length > 0) {
-      const curr = queue.shift()!;
-      if (curr === targetAncestorId) return true;
-      if (visited.has(curr)) continue;
-      visited.add(curr);
-      const node = taskMap[curr];
-      if (node) {
-        for (const p of node.predecessorIds) {
-          if (!visited.has(p)) {
-            queue.push(p);
-          }
-        }
-      }
-    }
-    return false;
-  }
-
   const reducedEdges: Array<{ from: string; to: string }> = [];
-
   for (const task of openTasks) {
+    if (task.predecessorIds.length < 2) {
+      for (const pred of task.predecessorIds) if (taskMap[pred]) reducedEdges.push({from:pred,to:task.id});
+      continue;
+    }
+    // One shared traversal of all predecessor ancestors per fan-in, not pairwise BFS.
+    const redundant = new Set<string>();
+    const stack = task.predecessorIds.flatMap(id => taskMap[id]?.predecessorIds ?? []);
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (redundant.has(id)) continue;
+      redundant.add(id); stack.push(...(taskMap[id]?.predecessorIds ?? []));
+    }
     for (const predId of task.predecessorIds) {
       if (!taskMap[predId]) continue;
-      // Edge predId -> task.id is transitive (redundant) if there is ANOTHER predecessor `otherPred`
-      // of `task` such that `predId` is already an ancestor of `otherPred`.
-      let isRedundant = false;
-      for (const otherPred of task.predecessorIds) {
-        if (otherPred === predId || !taskMap[otherPred]) continue;
-        if (isAncestor(otherPred, predId)) {
-          isRedundant = true;
-          break;
-        }
-      }
-      if (!isRedundant) {
+      if (!redundant.has(predId)) {
         reducedEdges.push({ from: predId, to: task.id });
       }
     }
@@ -842,4 +737,3 @@ export function computeMiniWindowTasks(
     return b.creationOrder - a.creationOrder;
   });
 }
-

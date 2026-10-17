@@ -36,6 +36,7 @@ import {
   QuickResubmitTargetId,
 } from './domain/projector';
 import { HighlightRole, StoredEvent, TaskState } from './domain/types';
+import { normalizeUserDate } from './domain/dates';
 
 interface ContextMenuState {
   x: number;
@@ -86,28 +87,6 @@ const RESUBMIT_TARGETS: Array<{
     icon: <Calendar className="w-4 h-4 text-fuchsia-600" />,
   },
 ];
-
-function parseUserDateInputToIso(input: string): string | null {
-  const trimmed = input.trim();
-  // Match YYYY-MM-DD or YYYY-MM-DD HH:mm
-  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?$/.exec(
-    trimmed
-  );
-  if (!match) return null;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const hour = match[4] !== undefined ? Number(match[4]) : 9;
-  const minute = match[5] !== undefined ? Number(match[5]) : 0;
-
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-
-  const dt = new Date(year, month - 1, day, hour, minute, 0, 0);
-  if (isNaN(dt.getTime()) || dt.getMonth() !== month - 1) return null;
-  return dt.toISOString();
-}
 
 export function App() {
   const [events, setEvents] = useState<StoredEvent[]>([]);
@@ -521,15 +500,8 @@ export function App() {
     const currentInput = editingDateValue;
     if (!task) return;
 
-    const parsedIso = parseUserDateInputToIso(currentInput);
-    if (!parsedIso) {
-      pushToast('Format: JJJJ-MM-TT (z.B. 2026-10-20)', 'warning');
-      return;
-    }
-
-    const prevIsoText = formatIso8601Display(task.configuredStart).isoText;
-    const nextIsoText = formatIso8601Display(parsedIso).isoText;
-    if (prevIsoText === nextIsoText) { setEditingDateTaskId(null); return; }
+    const parsedIso = normalizeUserDate(currentInput, now);
+    if (Date.parse(task.configuredStart) === Date.parse(parsedIso)) { setEditingDateTaskId(null); return; }
 
     setLastMovedKey(`task:${task.id}`);
     const updated = await mutate(() => eventBridge.appendEvent('TASK_START_DATE_SET', {
@@ -563,7 +535,7 @@ export function App() {
     if (!state.tasks[taskId]) return;
     const updated = await mutate(() => eventBridge.appendEvent('TASK_START_DATE_SET', {
       taskId,
-      configuredStart: isoDate,
+      configuredStart: normalizeUserDate(formatIso8601Display(isoDate).isoText, now),
     }));
     if (!updated) return;
     pushToast(`Startdatum von ${taskId} → ${humanLabel}`, 'info');

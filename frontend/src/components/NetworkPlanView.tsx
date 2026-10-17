@@ -277,14 +277,10 @@ export function NetworkPlanView({
       rows[r].push(t);
     }
 
-    // Initial order within each row: nodes without dependencies first, then newest first
+    // Preserve the shared topological order; horizontal alignment must not reorder nodes.
     for (const row of rows) {
-      row.sort((a, b) => {
-        const aRoot = a.predecessorIds.length === 0 ? 0 : 1;
-        const bRoot = b.predecessorIds.length === 0 ? 0 : 1;
-        if (aRoot !== bRoot) return aRoot - bRoot;
-        return b.creationOrder - a.creationOrder;
-      });
+      const index = new Map(openTasks.map((task,index) => [task.id,index]));
+      row.sort((a,b) => index.get(a.id)!-index.get(b.id)!);
     }
 
     // Determine how many columns fit side-by-side within the available container width
@@ -359,11 +355,7 @@ export function NetworkPlanView({
       row.forEach((t, i) => currentIdx.set(t.id, i));
 
       // Sort all tasks in the day by their desired horizontal Barycenter X
-      row.sort((a, b) => {
-        const diff = (desiredX[a.id] ?? 0) - (desiredX[b.id] ?? 0);
-        if (Math.abs(diff) > 1) return diff;
-        return (currentIdx.get(a.id) ?? 0) - (currentIdx.get(b.id) ?? 0);
-      });
+      // No local barycenter ordering: all views use the same stable topological core.
 
       // Resolve positions per sub-row of up to maxCols tasks so each sub-row stays within containerWidth
       for (let start = 0; start < row.length; start += maxCols) {

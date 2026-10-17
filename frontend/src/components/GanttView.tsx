@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { futureLimit, localDate } from '../domain/dates';
 import { Flame, GripVertical } from 'lucide-react';
 import {
   computeTransitiveReductionEdges,
@@ -132,49 +133,19 @@ export function GanttView({
   onSetConfiguredDate,
   onToggleActive,
 }: GanttViewProps) {
+  const [windowStart, setWindowStart] = useState(() => toDateKey(now));
   const layout = useMemo(() => {
     const todayKey = toDateKey(now);
 
-    // Determine continuous real calendar range (no dates hidden!)
-    let maxDateKey = todayKey;
-    const minDefaultEnd = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + 9
-    );
-    const minDefaultEndKey = toDateKey(minDefaultEnd);
-    if (minDefaultEndKey > maxDateKey) {
-      maxDateKey = minDefaultEndKey;
-    }
-
-    for (const t of openTasks) {
-      if (t.effectiveDateKey > maxDateKey) {
-        maxDateKey = t.effectiveDateKey;
-      }
-      const confKey = toDateKey(new Date(t.configuredStart));
-      if (confKey > maxDateKey) {
-        maxDateKey = confKey;
-      }
-    }
-
-    // Add 2 buffer days at the right end of the calendar
-    const [ey, em, ed] = maxDateKey.split('-').map(Number);
-    const endBufferDate = new Date(ey, (em || 1) - 1, (ed || 1) + 2);
-
-    // Generate EVERY calendar day from todayKey to endBufferDate without hiding any dates
+    // A bounded, navigable 42-day window; legacy dates never expand the axis.
     const calendarDays: CalendarDayCol[] = [];
     const dateKeyToCol = new Map<string, number>();
 
-    const [sy, sm, sd] = todayKey.split('-').map(Number);
+    const [sy, sm, sd] = windowStart.split('-').map(Number);
     const cur = new Date(sy, (sm || 1) - 1, sd || 1);
-    const end = new Date(
-      endBufferDate.getFullYear(),
-      endBufferDate.getMonth(),
-      endBufferDate.getDate()
-    );
 
     let colIdx = 0;
-    while (cur <= end) {
+    while (colIdx < 42 && cur <= futureLimit(now)) {
       const dk = toDateKey(cur);
       const { isToday, isWeekend, weekdayShort } = formatDateHeading(dk, now);
       calendarDays.push({
@@ -213,7 +184,8 @@ export function GanttView({
     orderedTasks.forEach((task, rIdx) => {
       const effKey =
         task.effectiveDateKey < todayKey ? todayKey : task.effectiveDateKey;
-      const cIdx = dateKeyToCol.get(effKey) ?? 0;
+      const cIdx = dateKeyToCol.get(effKey);
+      if (cIdx === undefined) return;
 
       const rawConfKey = toDateKey(new Date(task.configuredStart));
       const confKey = rawConfKey < todayKey ? todayKey : rawConfKey;
@@ -373,7 +345,15 @@ export function GanttView({
       canvasWidth,
       canvasHeight,
     };
-  }, [openTasks, listEntries, now]);
+  }, [openTasks, listEntries, now, windowStart]);
+
+  const navigate = (days: number) => {
+    const [y,m,d] = windowStart.split('-').map(Number);
+    const date = localDate(y,m,d); date.setDate(date.getDate()+days);
+    const today = localDate(now.getFullYear(),now.getMonth()+1,now.getDate());
+    const last = futureLimit(now); last.setDate(last.getDate()-41);
+    setWindowStart(toDateKey(new Date(Math.max(today.getTime(),Math.min(last.getTime(),date.getTime())))));
+  };
 
   return (
     <div
@@ -401,7 +381,9 @@ export function GanttView({
           style={{ height: HEADER_HEIGHT }}
           className="w-full border-b border-slate-300/90 bg-slate-100/85 px-3 flex items-center text-[11px] font-semibold uppercase tracking-wider text-slate-500 select-none"
         >
-          Tasks
+          <button type="button" onClick={() => navigate(-35)} aria-label="Vorheriges Zeitfenster">&lt;</button>
+          <button type="button" onClick={() => setWindowStart(toDateKey(now))} className="mx-2">Heute</button>
+          <button type="button" onClick={() => navigate(35)} aria-label="Naechstes Zeitfenster">&gt;</button>
         </div>
 
         {/* Left List Task Rows */}
