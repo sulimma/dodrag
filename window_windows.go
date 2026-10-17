@@ -4,7 +4,9 @@ package main
 
 import (
 	"os"
+	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"unsafe"
@@ -39,6 +41,7 @@ var (
 	procModifyMenuW              = user32.NewProc("ModifyMenuW")
 	procGetDpiForMonitor         = shcore.NewProc("GetDpiForMonitor")
 	procCoInitializeEx           = ole32.NewProc("CoInitializeEx")
+	procCoUninitialize           = ole32.NewProc("CoUninitialize")
 	procCoCreateInstance         = ole32.NewProc("CoCreateInstance")
 )
 
@@ -86,13 +89,13 @@ const (
 	sysMenuRestoreID  = 0x1001
 	sysMenuMinimizeID = 0x1002
 
-	mfByCommand = 0x00000000
+	mfByCommand  = 0x00000000
 	mfByPosition = 0x00000400
-	mfString    = 0x00000000
-	mfSeparator = 0x00000800
-	mfEnabled   = 0x00000000
-	mfGrayed    = 0x00000001
-	mfDisabled  = 0x00000002
+	mfString     = 0x00000000
+	mfSeparator  = 0x00000800
+	mfEnabled    = 0x00000000
+	mfGrayed     = 0x00000001
+	mfDisabled   = 0x00000002
 
 	monitorInfoFPrimary = 0x00000001
 	mdtEffectiveDPI     = 0
@@ -143,11 +146,11 @@ type desktopMonitor struct {
 var (
 	inMiniModeAtomic    atomic.Bool
 	subclassedHWND      uintptr
-	origWndProc         uintptr
-	appInstanceForHooks *App
+	origWndProc         atomic.Uintptr
+	appInstanceForHooks atomic.Pointer[App]
 
 	// UI-thread drag state for magnetic corner snapping
-	isDraggingMini     bool
+	isDraggingMini     atomic.Bool
 	dragOffsetX        int32
 	dragOffsetY        int32
 	isCurrentlySnapped bool
@@ -156,10 +159,16 @@ var (
 
 	subclassWndProcPtr uintptr
 	enumMonitorsCbPtr  = syscall.NewCallback(enumMonitorsCallback)
-	collectedMonitors  []desktopMonitor
+	monitorCalls       sync.Map
+	monitorCallID      atomic.Uintptr
 )
 
 func enumMonitorsCallback(hMonitor uintptr, hdcMonitor uintptr, lprcMonitor uintptr, dwData uintptr) uintptr {
+	value, ok := monitorCalls.Load(dwData)
+	if !ok {
+		return 0
+	}
+	collectedMonitors := value.(*[]desktopMonitor)
 	var mi monitorInfoExW
 	mi.CbSize = uint32(unsafe.Sizeof(mi))
 	ret, _, _ := procGetMonitorInfoW.Call(hMonitor, uintptr(unsafe.Pointer(&mi)))
@@ -188,17 +197,20 @@ func enumMonitorsCallback(hMonitor uintptr, hdcMonitor uintptr, lprcMonitor uint
 		}
 		if isPrimary {
 			// Ensure Monitor 1 (Primary Monitor) is always first (index 0)
-			collectedMonitors = append([]desktopMonitor{mon}, collectedMonitors...)
+			*collectedMonitors = append([]desktopMonitor{mon}, (*collectedMonitors)...)
 		} else {
-			collectedMonitors = append(collectedMonitors, mon)
+			*collectedMonitors = append(*collectedMonitors, mon)
 		}
 	}
 	return 1 // continue enumeration
 }
 
 func getConnectedMonitors() []desktopMonitor {
-	collectedMonitors = nil
-	procEnumDisplayMonitors.Call(0, 0, enumMonitorsCbPtr, 0)
+	var collectedMonitors []desktopMonitor
+	id := monitorCallID.Add(1)
+	monitorCalls.Store(id, &collectedMonitors)
+	defer monitorCalls.Delete(id)
+	procEnumDisplayMonitors.Call(0, 0, enumMonitorsCbPtr, id)
 	if len(collectedMonitors) == 0 {
 		work := getPrimaryWorkArea()
 		return []desktopMonitor{
@@ -378,8 +390,8 @@ func installWindowSubclassIfNeeded(hwnd uintptr, app *App) {
 	if hwnd == 0 {
 		return
 	}
-	appInstanceForHooks = app
-	if subclassedHWND == hwnd && origWndProc != 0 {
+	appInstanceForHooks.Store(app)
+	if subclassedHWND == hwnd && origWndProc.Load() != 0 {
 		return
 	}
 	if subclassWndProcPtr == 0 {
@@ -387,13 +399,14 @@ func installWindowSubclassIfNeeded(hwnd uintptr, app *App) {
 	}
 	prev, _, _ := procSetWindowLongPtrW.Call(hwnd, gwlpWndProc, subclassWndProcPtr)
 	if prev != 0 {
-		origWndProc = prev
+		origWndProc.Store(prev)
 		subclassedHWND = hwnd
 		ensureSystemMenuItems(hwnd)
 	}
 }
 
 func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) uintptr {
+	app := appInstanceForHooks.Load()
 	switch msg {
 	case wmNcCalcSize:
 		if inMiniModeAtomic.Load() {
@@ -403,26 +416,29 @@ func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) u
 
 	case wmDpiChanged:
 		if inMiniModeAtomic.Load() {
-			// Suppress Wails' automatic WM_DPICHANGED SetWindowPos while in mini mode
+			// Recompute logical mini dimensions after Wails' DPI handling is suppressed.
+			if app != nil {
+				go app.onDisplayChange()
+			}
 			return 0
 		}
 
 	case wmInitMenuPopup, wmPopupSystemMenu:
-		ret, _, _ := procCallWindowProcW.Call(origWndProc, hwnd, uintptr(msg), wparam, lparam)
+		ret, _, _ := procCallWindowProcW.Call(origWndProc.Load(), hwnd, uintptr(msg), wparam, lparam)
 		updateTaskbarSystemMenu(hwnd, inMiniModeAtomic.Load())
 		return ret
 
 	case wmSysCommand:
 		cmd := wparam & 0xFFF0
 		if cmd == scMinimize || wparam == sysMenuMinimizeID {
-			if !inMiniModeAtomic.Load() && appInstanceForHooks != nil {
-				go appInstanceForHooks.triggerMinimizeFromNative()
+			if !inMiniModeAtomic.Load() && app != nil {
+				go app.triggerMinimizeFromNative()
 			}
 			return 0
 		}
 		if cmd == scRestore || wparam == sysMenuRestoreID {
-			if inMiniModeAtomic.Load() && appInstanceForHooks != nil {
-				go appInstanceForHooks.triggerRestoreFromNative()
+			if inMiniModeAtomic.Load() && app != nil {
+				go app.triggerRestoreFromNative()
 				return 0
 			}
 		}
@@ -434,13 +450,13 @@ func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) u
 			if r, ok := getWindowRectNative(hwnd); ok {
 				dragOffsetX = pt.X - r.Left
 				dragOffsetY = pt.Y - r.Top
-				isDraggingMini = true
+				isDraggingMini.Store(true)
 				isCurrentlySnapped = false
 			}
 		}
 
 	case wmMoving:
-		if inMiniModeAtomic.Load() && isDraggingMini && lparam != 0 {
+		if inMiniModeAtomic.Load() && isDraggingMini.Load() && lparam != 0 {
 			r := (*winRect)(unsafe.Pointer(lparam))
 			physW := r.Right - r.Left
 			physH := r.Bottom - r.Top
@@ -468,13 +484,13 @@ func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) u
 		}
 
 	case wmExitSizeMove:
-		if inMiniModeAtomic.Load() && isDraggingMini {
-			isDraggingMini = false
+		if inMiniModeAtomic.Load() && isDraggingMini.Load() {
+			isDraggingMini.Store(false)
 			if isCurrentlySnapped && snappedCornerName != "" {
 				monName := snappedMonitorName
 				cornerName := snappedCornerName
-				if appInstanceForHooks != nil {
-					go appInstanceForHooks.onMiniWindowSnapped(monName, cornerName)
+				if app != nil {
+					go app.onMiniWindowSnapped(monName, cornerName)
 				}
 			} else if r, ok := getWindowRectNative(hwnd); ok {
 				tx, ty, monName, cornerName := findNearestCornerAcrossMonitors(r)
@@ -489,20 +505,20 @@ func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) u
 					uintptr(physH),
 					swpNoActivate|swpShowWindow,
 				)
-				if appInstanceForHooks != nil {
-					go appInstanceForHooks.onMiniWindowSnapped(monName, cornerName)
+				if app != nil {
+					go app.onMiniWindowSnapped(monName, cornerName)
 				}
 			}
 		}
 
 	case wmDisplayChange:
-		if appInstanceForHooks != nil {
-			go appInstanceForHooks.onDisplayChange()
+		if app != nil {
+			go app.onDisplayChange()
 		}
 	}
 
-	if origWndProc != 0 {
-		ret, _, _ := procCallWindowProcW.Call(origWndProc, hwnd, uintptr(msg), wparam, lparam)
+	if origWndProc.Load() != 0 {
+		ret, _, _ := procCallWindowProcW.Call(origWndProc.Load(), hwnd, uintptr(msg), wparam, lparam)
 		return ret
 	}
 	return 0
@@ -765,6 +781,12 @@ func comRelease(obj uintptr) {
 	}
 }
 
+func comCallOK(obj uintptr, index uintptr, args ...uintptr) bool {
+	arguments := append([]uintptr{obj}, args...)
+	hr, _, _ := syscall.SyscallN(comVtableMethod(obj, index), arguments...)
+	return int32(hr) >= 0
+}
+
 func createJumpListShellLink(exePath string, args string, title string, description string) uintptr {
 	const clsctxInprocServer = 0x1
 	var shellLink uintptr
@@ -785,13 +807,25 @@ func createJumpListShellLink(exePath string, args string, title string, descript
 	titlePtr, _ := syscall.UTF16PtrFromString(title)
 
 	// SetPath (index 20)
-	syscall.SyscallN(comVtableMethod(shellLink, 20), shellLink, uintptr(unsafe.Pointer(exePtr)))
+	if !comCallOK(shellLink, 20, uintptr(unsafe.Pointer(exePtr))) {
+		comRelease(shellLink)
+		return 0
+	}
 	// SetArguments (index 11)
-	syscall.SyscallN(comVtableMethod(shellLink, 11), shellLink, uintptr(unsafe.Pointer(argsPtr)))
+	if !comCallOK(shellLink, 11, uintptr(unsafe.Pointer(argsPtr))) {
+		comRelease(shellLink)
+		return 0
+	}
 	// SetDescription (index 7)
-	syscall.SyscallN(comVtableMethod(shellLink, 7), shellLink, uintptr(unsafe.Pointer(descPtr)))
+	if !comCallOK(shellLink, 7, uintptr(unsafe.Pointer(descPtr))) {
+		comRelease(shellLink)
+		return 0
+	}
 	// SetIconLocation (index 17)
-	syscall.SyscallN(comVtableMethod(shellLink, 17), shellLink, uintptr(unsafe.Pointer(exePtr)), 0)
+	if !comCallOK(shellLink, 17, uintptr(unsafe.Pointer(exePtr)), 0) {
+		comRelease(shellLink)
+		return 0
+	}
 
 	// QueryInterface for IPropertyStore (index 0)
 	var propStore uintptr
@@ -807,28 +841,41 @@ func createJumpListShellLink(exePath string, args string, title string, descript
 			Val: uintptr(unsafe.Pointer(titlePtr)),
 		}
 		// SetValue (index 6)
-		syscall.SyscallN(
-			comVtableMethod(propStore, 6),
-			propStore,
-			uintptr(unsafe.Pointer(&pkeyTitle)),
-			uintptr(unsafe.Pointer(&pv)),
-		)
+		if !comCallOK(propStore, 6, uintptr(unsafe.Pointer(&pkeyTitle)), uintptr(unsafe.Pointer(&pv))) {
+			comRelease(propStore)
+			comRelease(shellLink)
+			return 0
+		}
 		// Commit (index 7)
-		syscall.SyscallN(comVtableMethod(propStore, 7), propStore)
+		if !comCallOK(propStore, 7) {
+			comRelease(propStore)
+			comRelease(shellLink)
+			return 0
+		}
 		comRelease(propStore)
+	} else {
+		comRelease(shellLink)
+		return 0
 	}
+	runtime.KeepAlive(titlePtr)
 
 	return shellLink
 }
 
 func registerTaskbarJumpList() {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	exePath, err := os.Executable()
 	if err != nil || exePath == "" {
 		return
 	}
 
 	// COINIT_APARTMENTTHREADED = 0x2
-	procCoInitializeEx.Call(0, 0x2)
+	initialized, _, _ := procCoInitializeEx.Call(0, 0x2)
+	if int32(initialized) < 0 {
+		return
+	}
+	defer procCoUninitialize.Call()
 
 	const clsctxInprocServer = 0x1
 	var destList uintptr
@@ -877,15 +924,21 @@ func registerTaskbarJumpList() {
 	linkRestore := createJumpListShellLink(exePath, "--restore", "Wiederherstellen", "DoDrag Hauptfenster wiederherstellen")
 	if linkRestore != 0 {
 		// AddObject (index 5)
-		syscall.SyscallN(comVtableMethod(objCollection, 5), objCollection, linkRestore)
+		ok := comCallOK(objCollection, 5, linkRestore)
 		comRelease(linkRestore)
+		if !ok {
+			return
+		}
 	}
 
 	linkMinimize := createJumpListShellLink(exePath, "--minimize", "Minimieren", "DoDrag in die Kompaktansicht minimieren")
 	if linkMinimize != 0 {
 		// AddObject (index 5)
-		syscall.SyscallN(comVtableMethod(objCollection, 5), objCollection, linkMinimize)
+		ok := comCallOK(objCollection, 5, linkMinimize)
 		comRelease(linkMinimize)
+		if !ok {
+			return
+		}
 	}
 
 	var tasksArray uintptr
@@ -897,9 +950,14 @@ func registerTaskbarJumpList() {
 	)
 	if hr == 0 && tasksArray != 0 {
 		// AddUserTasks (index 7)
-		syscall.SyscallN(comVtableMethod(destList, 7), destList, tasksArray)
+		ok := comCallOK(destList, 7, tasksArray)
 		comRelease(tasksArray)
+		if !ok {
+			return
+		}
 		// CommitList (index 8)
-		syscall.SyscallN(comVtableMethod(destList, 8), destList)
+		if !comCallOK(destList, 8) {
+			return
+		}
 	}
 }

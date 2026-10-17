@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -57,6 +58,7 @@ type App struct {
 	lastMiniItemCount   int
 	savedStyle          uintptr
 	savedRect           winRect
+	savedPlacement      windowPlacement
 	bootMinimized       bool
 	ignoreMinimizeUntil time.Time
 }
@@ -149,7 +151,7 @@ func (a *App) watchNativeMinimize(ctx context.Context) {
 					if style := getWindowStyleNative(hwnd); style != 0 && (style&wsMinimize) == 0 && (style&wsPopup) == 0 {
 						a.savedStyle = style
 					}
-				} else if !isDraggingMini {
+				} else if !isDraggingMini.Load() {
 					// In mini mode: verify the target monitor still exists; if disconnected, switch to Monitor 1
 					mon, exists := resolveMonitorOrPrimary(a.settings.DockMonitor)
 					if a.settings.DockMonitor != "" && !exists {
@@ -196,6 +198,10 @@ func (a *App) onDisplayChange() {
 
 func (a *App) onMiniWindowSnapped(monitorName string, corner string) {
 	a.mu.Lock()
+	if a.isMiniMode {
+		width, height := computeMiniLogicalSize(a.lastMiniItemCount)
+		monitorName, corner = applyMiniWindowBoundsNative(a.hwnd, monitorName, corner, width, height)
+	}
 	a.settings.DockMonitor = monitorName
 	a.settings.DockCorner = corner
 	_ = a.saveSettingsLocked()
@@ -428,6 +434,20 @@ func (a *App) enterMiniModeLocked(corner string, itemCount int) string {
 		a.lastMiniItemCount = itemCount
 	}
 	hwnd := a.ensureWindowHandleLocked()
+	if !a.isMiniMode && hwnd != 0 {
+		var placement windowPlacement
+		placement.Length = uint32(unsafe.Sizeof(placement))
+		if result, _, _ := procGetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&placement))); result != 0 {
+			if placement.ShowCmd == 2 || placement.ShowCmd == 6 || placement.ShowCmd == 7 {
+				if placement.Flags&2 != 0 {
+					placement.ShowCmd = 3
+				} else {
+					placement.ShowCmd = swShowNormal
+				}
+			}
+			a.savedPlacement = placement
+		}
+	}
 	if !a.isMiniMode && hwnd != 0 && !isWindowMinimizedNative(hwnd) {
 		if rect, ok := getWindowRectNative(hwnd); ok && (rect.Right-rect.Left) >= 600 && (rect.Bottom-rect.Top) >= 400 && rect.Left > -10000 && rect.Top > -10000 {
 			a.savedRect = rect
@@ -520,6 +540,13 @@ func (a *App) exitMiniModeLocked() {
 	}
 
 	a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, a.savedRect)
+	if a.savedPlacement.Length != 0 {
+		placement := a.savedPlacement
+		if _, valid := isRectOnAnyMonitor(placement.RcNormalPosition); !valid {
+			placement.RcNormalPosition = a.savedRect
+		}
+		procSetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&placement)))
+	}
 }
 
 // ExitMiniMode restores the full application window from compact corner-docked mode.
