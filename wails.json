@@ -2,7 +2,7 @@
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "dodrag",
   "outputfilename": "dodrag",
-  "frontend:install": "npm install",
+  "frontend:install": "npm install --package-lock=false",
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",

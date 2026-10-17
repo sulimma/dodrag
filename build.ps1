@@ -1,38 +1,46 @@
-# Projekt-Build & Test Skript für DoDrag (kompatibel mit Google Drive G:\)
+# Build and test with a local dependency cache; never stop or start user processes.
 $ErrorActionPreference = "Stop"
-
+Set-StrictMode -Version Latest
 $env:PATH += ";C:\Program Files\Go\bin;$env:USERPROFILE\go\bin"
-$localNodeDir = "$env:LOCALAPPDATA\dodrag_node_cache"
-
-Write-Host "==> 1. Synchronisiere Frontend-Dateien in lokalen Build-Cache..." -ForegroundColor Cyan
-New-Item -ItemType Directory -Force -Path $localNodeDir | Out-Null
-Copy-Item "frontend\package.json" "$localNodeDir\package.json" -Force
-Copy-Item "frontend\index.html", "frontend\tsconfig.json", "frontend\vite.config.ts", "frontend\tailwind.config.js", "frontend\postcss.config.js" $localNodeDir -Force
-Remove-Item "$localNodeDir\src" -Recurse -Force -ErrorAction SilentlyContinue
-Copy-Item "frontend\src" "$localNodeDir\src" -Recurse -Force
-
-if (-not (Test-Path "$localNodeDir\node_modules")) {
-    Write-Host "==> Installiere Frontend-Abhängigkeiten..." -ForegroundColor Cyan
-    npm --prefix $localNodeDir install
+$localNodeDir = Join-Path $env:LOCALAPPDATA "dodrag_node_cache"
+function Assert-NativeSuccess([string]$step) {
+    if ($LASTEXITCODE -ne 0) { throw "$step failed (exit $LASTEXITCODE)" }
 }
-
-Write-Host "==> 2. Führe Frontend Unit-Tests aus..." -ForegroundColor Cyan
-npm --prefix $localNodeDir test
-
-Write-Host "==> 3. Baue Frontend (Vite + Tailwind)..." -ForegroundColor Cyan
-npm --prefix $localNodeDir run build
-Remove-Item "frontend\dist" -Recurse -Force -ErrorAction SilentlyContinue
-Copy-Item "$localNodeDir\dist" "frontend\dist" -Recurse -Force
-
-Write-Host "==> 4. Führe Go SQLite Event-Store Tests aus..." -ForegroundColor Cyan
-go test ./... -v
-
-Write-Host "==> 5. Baue native Wails Desktop-App..." -ForegroundColor Cyan
-Get-Process dodrag* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 300
-go build -tags "desktop,production" -ldflags "-w -s -H windowsgui" -o "$localNodeDir\dodrag.exe" .
-try { Copy-Item "$localNodeDir\dodrag.exe" "dodrag.exe" -Force -ErrorAction Stop } catch {}
-try { Copy-Item "$localNodeDir\dodrag.exe" "dodrag_app.exe" -Force -ErrorAction Stop } catch {}
-
-Write-Host "==> Fertig! Starte App..." -ForegroundColor Green
-Start-Process "$localNodeDir\dodrag.exe"
+if (-not (Test-Path -LiteralPath $PSScriptRoot)) { throw "Project directory missing" }
+if (-not (Test-Path -LiteralPath $env:LOCALAPPDATA)) { throw "Local cache parent missing" }
+Push-Location $PSScriptRoot
+try {
+    New-Item -ItemType Directory -Force -Path $localNodeDir | Out-Null
+    $definitionHash = (Get-FileHash -LiteralPath "frontend\package.json" -Algorithm SHA256).Hash
+    $marker = Join-Path $localNodeDir ".dependencies.sha256"
+    $previousHash = if (Test-Path -LiteralPath $marker) { [IO.File]::ReadAllText($marker).Trim() } else { "" }
+    Copy-Item "frontend\package.json", "frontend\index.html", "frontend\tsconfig.json", "frontend\vite.config.ts", "frontend\tailwind.config.js", "frontend\postcss.config.js" $localNodeDir -Force
+    if (Test-Path -LiteralPath "$localNodeDir\src") { Remove-Item -LiteralPath "$localNodeDir\src" -Recurse -Force }
+    Copy-Item "frontend\src" "$localNodeDir\src" -Recurse -Force
+    if (-not (Test-Path -LiteralPath "$localNodeDir\node_modules") -or $previousHash -ne $definitionHash) {
+        npm --prefix $localNodeDir install --package-lock=false --no-audit --no-fund
+        Assert-NativeSuccess "Dependency installation"
+        [IO.File]::WriteAllText($marker, $definitionHash)
+    }
+    npm --prefix $localNodeDir test
+    Assert-NativeSuccess "Frontend tests"
+    npm --prefix $localNodeDir run build
+    Assert-NativeSuccess "Frontend build"
+    if (-not (Test-Path -LiteralPath "$localNodeDir\dist\index.html")) { throw "Frontend artifact missing" }
+    if (Test-Path -LiteralPath "frontend\dist") { Remove-Item -LiteralPath "frontend\dist" -Recurse -Force }
+    Copy-Item "$localNodeDir\dist" "frontend\dist" -Recurse -Force
+    go test ./...
+    Assert-NativeSuccess "Go tests"
+    # Wails embeds the Windows manifest and resources; -s skips the already checked frontend.
+    $oldToolchain = $env:GOTOOLCHAIN
+    try {
+        # Wails 2.9.2's CLI dependency x/tools is incompatible with Go 1.27.
+        $env:GOTOOLCHAIN = "go1.23.12"
+        go run github.com/wailsapp/wails/v2/cmd/wails@v2.9.2 build -s -o dodrag.exe
+        Assert-NativeSuccess "Wails packaging"
+    } finally { $env:GOTOOLCHAIN = $oldToolchain }
+    if (-not (Test-Path -LiteralPath "build\bin\dodrag.exe")) { throw "Packaged executable missing" }
+    Copy-Item "build\bin\dodrag.exe" "dodrag.exe" -Force
+    Copy-Item "build\bin\dodrag.exe" "dodrag_app.exe" -Force
+    Write-Host "Build and tests completed. App was not started." -ForegroundColor Green
+} finally { Pop-Location }
