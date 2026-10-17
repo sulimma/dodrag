@@ -294,15 +294,16 @@ export function GanttView({
       });
     }
 
-    // Assign a distinct vertical lane X inside each column gap so vertical segments run side-by-side without overlapping
+    // Assign a distinct vertical lane X inside each column gap:
+    // "Du musst nur die Pfeile die am weitesten Oben nach rechts gehen, ganz rechts routen."
     const laneXByEdgeKey: Record<string, number> = {};
     for (const [colStr, edges] of Object.entries(edgesByChannel)) {
       const cIdx = Number(colStr);
-      // Sort edges in this channel deterministically by source row, then target row
+      // Sort edges by target row ascending (the row where the arrow turns right), then source row ascending
       edges.sort((a, b) => {
-        const rDiff = bars[a.from].rowIndex - bars[b.from].rowIndex;
-        if (rDiff !== 0) return rDiff;
-        return bars[a.to].rowIndex - bars[b.to].rowIndex;
+        const targetDiff = bars[a.to].rowIndex - bars[b.to].rowIndex;
+        if (targetDiff !== 0) return targetDiff;
+        return bars[a.from].rowIndex - bars[b.from].rowIndex;
       });
 
       const channelStartX =
@@ -318,8 +319,10 @@ export function GanttView({
         } else {
           const step = Math.min(6, usableWidth / Math.max(1, edges.length - 1));
           const totalSpan = step * (edges.length - 1);
-          const startLane = channelStartX + (usableWidth - totalSpan) / 2;
-          laneXByEdgeKey[key] = startLane + idx * step;
+          const rightmostLane =
+            channelStartX + (usableWidth - totalSpan) / 2 + totalSpan;
+          // idx = 0 (highest right turn) gets rightmostLane; lower right turns sit to its left
+          laneXByEdgeKey[key] = rightmostLane - idx * step;
         }
       });
     }

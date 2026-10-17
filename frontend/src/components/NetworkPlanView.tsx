@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Flame, GripVertical } from 'lucide-react';
 import {
   computeTransitiveReductionEdges,
@@ -71,13 +71,14 @@ interface RoutedEdge {
   pathD: string;
 }
 
-const NODE_WIDTH = 224;
-const NODE_HEIGHT = 64;
-const NODE_SEP_X = 48; // Horizontal gap between side-by-side nodes in the same day
-const RANK_SEP_Y = 72; // Vertical gap between date layers
-const LEFT_DATE_GUTTER = 152;
-const CANVAS_PAD_X = 48;
-const CANVAS_PAD_Y = 36;
+const NODE_WIDTH = 188;
+const NODE_HEIGHT = 56;
+const NODE_SEP_X = 16; // Compact horizontal gap between side-by-side nodes
+const SUBROW_SEP_Y = 20; // Vertical gap between wrapped rows within the same day
+const RANK_SEP_Y = 36; // Reduced vertical gap between date layers
+const LEFT_DATE_GUTTER = 136;
+const CANVAS_PAD_X = 16;
+const CANVAS_PAD_Y = 18;
 
 /**
  * Checks if the line segment (x1, y1) -> (x2, y2) intersects the padded rectangle [left, right] x [top, bottom].
@@ -133,8 +134,8 @@ function buildCleanEdgePath(
   endPt: { x: number; y: number },
   intermediateObstacles: PositionedNode[]
 ): string {
-  const padX = 14;
-  const padY = 6;
+  const padX = 8;
+  const padY = 5;
 
   // Check if any intermediate node actually blocks the direct path
   const blockingNodes = intermediateObstacles
@@ -168,8 +169,8 @@ function buildCleanEdgePath(
     const t = (obs.cy - prevPt.y) / Math.max(1, endPt.y - prevPt.y);
     const lineXAtObs = prevPt.x + t * (endPt.x - prevPt.x);
 
-    const leftPassX = obs.x - 18;
-    const rightPassX = obs.x + obs.width + 18;
+    const leftPassX = obs.x - 10;
+    const rightPassX = obs.x + obs.width + 10;
 
     const passX =
       Math.abs(lineXAtObs - leftPassX) <= Math.abs(rightPassX - lineXAtObs)
@@ -223,6 +224,23 @@ export function NetworkPlanView({
   onSetConfiguredDate,
   onToggleActive,
 }: NetworkPlanViewProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(840);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const updateWidth = () => {
+      if (el.clientWidth > 0) {
+        setContainerWidth(el.clientWidth);
+      }
+    };
+    updateWidth();
+    const observer = new ResizeObserver(() => updateWidth());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const layout = useMemo(() => {
     const todayKey = toDateKey(now);
 
@@ -269,52 +287,89 @@ export function NetworkPlanView({
       });
     }
 
-    // 4. Sugiyama Barycenter Crossing Minimization + Horizontal Parent-Child Alignment
-    const xPos: Record<string, number> = {};
+    // Determine how many columns fit side-by-side within the available container width
     const stepX = NODE_WIDTH + NODE_SEP_X;
+    const usableWidth = Math.max(
+      NODE_WIDTH,
+      containerWidth - LEFT_DATE_GUTTER - CANVAS_PAD_X
+    );
+    const maxCols = Math.max(
+      1,
+      Math.floor((usableWidth + NODE_SEP_X) / stepX)
+    );
+    const maxAllowedX = Math.max(0, usableWidth - NODE_WIDTH);
 
-    // Assign initial X positions
+    // 4. Sugiyama Barycenter Crossing Minimization + Clamped Horizontal Parent-Child Alignment
+    const xPos: Record<string, number> = {};
+
+    // Assign initial X positions wrapped by maxCols
     for (const row of rows) {
       row.forEach((t, idx) => {
-        xPos[t.id] = idx * stepX;
+        xPos[t.id] = (idx % maxCols) * stepX;
       });
     }
 
-    // Helper: place nodes in `row` as close as possible to their desired target X while maintaining `stepX` minimum spacing
-    const resolveRowPositions = (
-      row: TaskState[],
+    // Helper: place a single horizontal slice of <= maxCols nodes as close as possible to their desired target X
+    // while maintaining `stepX` spacing and never exceeding `[0, maxAllowedX]`.
+    const resolveSlicePositions = (
+      slice: TaskState[],
       desiredX: Record<string, number>
     ) => {
-      if (row.length === 0) return;
-      // Sort row by desired X (preserving current order on ties)
-      const currentIdx = new Map<string, number>();
-      row.forEach((t, i) => currentIdx.set(t.id, i));
+      if (slice.length === 0) return;
+      const xs = slice.map((t) =>
+        Math.max(0, Math.min(maxAllowedX, desiredX[t.id] ?? 0))
+      );
 
-      row.sort((a, b) => {
-        const diff = desiredX[a.id] - desiredX[b.id];
-        if (Math.abs(diff) > 1) return diff;
-        return (currentIdx.get(a.id) ?? 0) - (currentIdx.get(b.id) ?? 0);
-      });
-
-      const xs = row.map((t) => desiredX[t.id]);
       // Left-to-right pass to enforce minimum gap
       for (let i = 1; i < xs.length; i++) {
         if (xs[i] < xs[i - 1] + stepX) {
           xs[i] = xs[i - 1] + stepX;
         }
       }
-      // Right-to-left pass to re-center if pushed right
+      // Clamp right boundary and sweep right-to-left so nodes never overflow right edge
+      if (xs[xs.length - 1] > maxAllowedX) {
+        xs[xs.length - 1] = maxAllowedX;
+      }
       for (let i = xs.length - 2; i >= 0; i--) {
         if (xs[i] > xs[i + 1] - stepX) {
           xs[i] = xs[i + 1] - stepX;
         }
       }
-      // Ensure non-negative
-      const minVal = Math.min(...xs);
-      const shift = minVal < 0 ? -minVal : 0;
-      row.forEach((t, i) => {
-        xPos[t.id] = xs[i] + shift;
+      // Clamp left boundary and sweep left-to-right
+      if (xs[0] < 0) {
+        xs[0] = 0;
+      }
+      for (let i = 1; i < xs.length; i++) {
+        if (xs[i] < xs[i - 1] + stepX) {
+          xs[i] = xs[i - 1] + stepX;
+        }
+      }
+
+      slice.forEach((t, i) => {
+        xPos[t.id] = xs[i];
       });
+    };
+
+    const resolveRowPositions = (
+      row: TaskState[],
+      desiredX: Record<string, number>
+    ) => {
+      if (row.length === 0) return;
+      const currentIdx = new Map<string, number>();
+      row.forEach((t, i) => currentIdx.set(t.id, i));
+
+      // Sort all tasks in the day by their desired horizontal Barycenter X
+      row.sort((a, b) => {
+        const diff = (desiredX[a.id] ?? 0) - (desiredX[b.id] ?? 0);
+        if (Math.abs(diff) > 1) return diff;
+        return (currentIdx.get(a.id) ?? 0) - (currentIdx.get(b.id) ?? 0);
+      });
+
+      // Resolve positions per sub-row of up to maxCols tasks so each sub-row stays within containerWidth
+      for (let start = 0; start < row.length; start += maxCols) {
+        const slice = row.slice(start, start + maxCols);
+        resolveSlicePositions(slice, desiredX);
+      }
     };
 
     // Perform 6 top-down & bottom-up Barycenter sweeps so connected nodes align vertically without crossings!
@@ -359,16 +414,9 @@ export function NetworkPlanView({
       }
     }
 
-    // 5. Build positioned nodes & date bands
-    let minX = Infinity;
-    for (const t of openTasks) {
-      if (xPos[t.id] < minX) minX = xPos[t.id];
-    }
-    if (!isFinite(minX)) minX = 0;
-
+    // 5. Build positioned nodes & date bands (supporting multiple sub-rows within a day)
     const nodes: Record<string, PositionedNode> = {};
     const dateBands: DateBandLayout[] = [];
-    const bandPitch = NODE_HEIGHT + RANK_SEP_Y;
     let currentY = CANVAS_PAD_Y;
 
     for (let r = 0; r < sortedDateKeys.length; r++) {
@@ -376,10 +424,20 @@ export function NetworkPlanView({
       const { label, subLabel, isToday, isWeekend, weekdayShort } =
         formatDateHeading(dk, now);
 
-      const isRowEmpty = rows[r].length === 0;
+      const rowTasks = rows[r];
+      const isRowEmpty = rowTasks.length === 0;
+      const numSubRows = isRowEmpty
+        ? 0
+        : Math.ceil(rowTasks.length / maxCols);
+
       const bandTopY = currentY;
-      const bandHeight = isRowEmpty ? 42 : bandPitch;
-      const nodeTopY = bandTopY + 26;
+      const bandHeight = isRowEmpty
+        ? 38
+        : 24 +
+          numSubRows * NODE_HEIGHT +
+          Math.max(0, numSubRows - 1) * SUBROW_SEP_Y +
+          RANK_SEP_Y;
+      const nodeTopY = bandTopY + 24;
       currentY += bandHeight;
 
       dateBands.push({
@@ -394,9 +452,10 @@ export function NetworkPlanView({
         bandHeight,
       });
 
-      for (const t of rows[r]) {
-        const x = LEFT_DATE_GUTTER + (xPos[t.id] - minX);
-        const y = nodeTopY;
+      rowTasks.forEach((t, idx) => {
+        const subRow = Math.floor(idx / maxCols);
+        const x = LEFT_DATE_GUTTER + (xPos[t.id] ?? 0);
+        const y = nodeTopY + subRow * (NODE_HEIGHT + SUBROW_SEP_Y);
         nodes[t.id] = {
           task: t,
           x,
@@ -407,7 +466,7 @@ export function NetworkPlanView({
           height: NODE_HEIGHT,
           dateRank: r,
         };
-      }
+      });
     }
 
     // 6. Route clean, direct edges (only bending if an intermediate node actually blocks the straight path)
@@ -428,9 +487,15 @@ export function NetworkPlanView({
         y: toNode.y,
       };
 
-      // Only nodes in strictly intermediate date ranks can possibly lie between fromNode and toNode
+      // Any node vertically between fromNode and toNode (including other sub-rows in the same day) is a potential obstacle
+      const minCy = Math.min(fromNode.cy, toNode.cy);
+      const maxCy = Math.max(fromNode.cy, toNode.cy);
       const intermediateObstacles = allNodes.filter(
-        (n) => n.dateRank > fromNode.dateRank && n.dateRank < toNode.dateRank
+        (n) =>
+          n.task.id !== edge.from &&
+          n.task.id !== edge.to &&
+          n.cy > minCy + 4 &&
+          n.cy < maxCy - 4
       );
 
       routedEdges.push({
@@ -455,8 +520,11 @@ export function NetworkPlanView({
       (acc, n) => Math.max(acc, n.x + n.width),
       LEFT_DATE_GUTTER + NODE_WIDTH
     );
-    const canvasWidth = Math.max(760, rightmostEdge + CANVAS_PAD_X);
-    const canvasHeight = Math.max(480, currentY + 32);
+    const canvasWidth = Math.max(
+      containerWidth,
+      rightmostEdge + CANVAS_PAD_X
+    );
+    const canvasHeight = Math.max(420, currentY + 24);
 
     return {
       nodes,
@@ -466,13 +534,13 @@ export function NetworkPlanView({
       canvasWidth,
       canvasHeight,
     };
-  }, [openTasks, now]);
+  }, [openTasks, now, containerWidth]);
 
   return (
     <div
-      className="relative mx-auto"
+      ref={containerRef}
+      className="relative w-full"
       style={{
-        width: layout.canvasWidth,
         height: layout.canvasHeight,
       }}
       onClick={() => {
