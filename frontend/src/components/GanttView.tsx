@@ -5,7 +5,6 @@ import {
   computeTransitiveReductionEdges,
   dateKeyToIsoStart,
   formatDateHeading,
-  formatIso8601Display,
   toDateKey,
 } from '../domain/projector';
 import { HighlightRole, ListEntry, TaskState } from '../domain/types';
@@ -266,7 +265,11 @@ export function GanttView({
     const endYByEdgeKey: Record<string, number> = {};
     for (const [toId, edges] of Object.entries(incomingByTarget)) {
       const toBar = bars[toId];
-      edges.sort((a, b) => bars[a.from].rowIndex - bars[b.from].rowIndex);
+      // Further-left channels enter lower; within a channel, lower sources enter lower.
+      edges.sort((a, b) =>
+        bars[b.from].colIndex - bars[a.from].colIndex ||
+        bars[a.from].rowIndex - bars[b.from].rowIndex
+      );
       edges.forEach((e, idx) => {
         const offset = (idx - (edges.length - 1) / 2) * 4;
         endYByEdgeKey[`${e.from}->${e.to}`] = Math.max(
@@ -667,7 +670,7 @@ export function GanttView({
         const isDropTarget =
           activeDropTargetKey === dropKey && draggedTaskId !== task.id;
         const isBeingDragged = draggedTaskId === task.id;
-        const confDisplay = formatIso8601Display(task.configuredStart);
+        const configuredDate = toDateKey(new Date(task.configuredStart));
 
         let containerClasses =
           'bg-white border-slate-300 text-slate-700 shadow-xs hover:border-slate-400';
@@ -709,7 +712,7 @@ export function GanttView({
               width,
               height,
             }}
-            title={`${task.id}: ${task.title} (${confDisplay.isoText})`}
+            title={`${task.id}: ${task.title} (${configuredDate})`}
             {...taskInteractions(task.id, dropKey, {onSelectTask,onDragStartTask,onDragEndTask,onShiftKeyChange,isShiftDrag,draggedTaskId,setDraggedTaskId,setActiveDropTargetKey,onAddPredecessor,onRemoveDependencyBetween,onContextMenuTask})}
             className={`absolute z-20 rounded-lg border px-1 flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors font-mono text-[11px] ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''

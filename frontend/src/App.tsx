@@ -64,13 +64,13 @@ const RESUBMIT_TARGETS: Array<{
   {
     id: 'plus_2h',
     label: '+2 Stunden',
-    sublabel: 'Kurze Wiedervorlage heute',
+    sublabel: 'Zwei Stunden nach dem Tasktermin',
     icon: <Clock className="w-4 h-4 text-sky-600" />,
   },
   {
     id: 'plus_1d',
     label: '+1 Tag',
-    sublabel: 'Morgen früh um 09:00',
+    sublabel: 'Folgetag des Tasktermins um 09:00',
     icon: <CalendarClock className="w-4 h-4 text-teal-600" />,
   },
   {
@@ -1311,19 +1311,19 @@ export function App() {
                         draggedTaskId || e.dataTransfer.getData('text/plain');
                       setActiveDropTargetKey(null);
                       setDraggedTaskId(null);
-                      if (tId) {
+                      if (tId && state.tasks[tId]) {
                         const targetIso = calculateQuickResubmitDate(
                           target.id,
-                          new Date()
+                          state.tasks[tId]
                         );
                         handleSetConfiguredDate(tId, targetIso, target.label);
                       }
                     }}
                     onClick={() => {
-                      if (selectedTaskId) {
+                      if (selectedTaskId && state.tasks[selectedTaskId]) {
                         const targetIso = calculateQuickResubmitDate(
                           target.id,
-                          new Date()
+                          state.tasks[selectedTaskId]
                         );
                         handleSetConfiguredDate(
                           selectedTaskId,

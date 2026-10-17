@@ -670,8 +670,12 @@ export type QuickResubmitTargetId =
 
 export function calculateQuickResubmitDate(
   targetId: QuickResubmitTargetId,
-  now: Date = new Date()
+  task: Pick<TaskState, 'effectiveStart' | 'effectiveDateKey'>
 ): string {
+  const effective = new Date(task.effectiveStart);
+  const [year, month, day] = task.effectiveDateKey.split('-').map(Number);
+  // Use the visible day (overdue tasks appear under Today), retaining the effective time.
+  const now = localDate(year, month, day, effective.getHours(), effective.getMinutes(), effective.getSeconds());
   switch (targetId) {
     case 'plus_2h': {
       return new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString();

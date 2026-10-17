@@ -4,7 +4,6 @@ import {
   computeTransitiveReductionEdges,
   dateKeyToIsoStart,
   formatDateHeading,
-  formatIso8601Display,
   toDateKey,
 } from '../domain/projector';
 import { HighlightRole, TaskState } from '../domain/types';
@@ -688,7 +687,7 @@ export function NetworkPlanView({
         const isDropTarget =
           activeDropTargetKey === dropKey && draggedTaskId !== task.id;
         const isBeingDragged = draggedTaskId === task.id;
-        const confDisplay = formatIso8601Display(task.configuredStart);
+        const configuredDate = toDateKey(new Date(task.configuredStart));
 
         let containerClasses =
           'bg-white border-slate-200/90 shadow-sm hover:border-slate-300';
@@ -767,7 +766,7 @@ export function NetworkPlanView({
               </div>
 
               <span className="text-[10px] font-mono text-slate-500 shrink-0">
-                {confDisplay.isoText}
+                {configuredDate}
               </span>
             </div>
 
