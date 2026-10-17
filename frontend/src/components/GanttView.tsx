@@ -190,10 +190,6 @@ export function GanttView({
       const cIdx = dateKeyToCol.get(effKey);
       if (cIdx === undefined) return;
 
-      const rawConfKey = toDateKey(new Date(task.configuredStart));
-      const confKey = rawConfKey < todayKey ? todayKey : rawConfKey;
-      const confColIdx = dateKeyToCol.get(confKey) ?? cIdx;
-
       const x = LEFT_LIST_WIDTH + cIdx * DAY_COL_WIDTH + NODE_OFFSET_X;
       const y =
         HEADER_HEIGHT + rIdx * ROW_HEIGHT + (ROW_HEIGHT - NODE_HEIGHT) / 2;

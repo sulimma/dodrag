@@ -61,6 +61,7 @@ func NewStoreWithOptions(dbPath string, seedDemo bool) (*Store, error) {
 		return nil, err
 	}
 	hasGroup := false
+	columns := make(map[string]bool)
 	for rows.Next() {
 		var cid, notnull, pk int
 		var name, kind string
@@ -73,8 +74,20 @@ func NewStoreWithOptions(dbPath string, seedDemo bool) (*Store, error) {
 		if name == "group_id" {
 			hasGroup = true
 		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		db.Close()
+		return nil, err
 	}
 	rows.Close()
+	for _, required := range []string{"seq", "id", "timestamp", "type", "payload", "undone"} {
+		if !columns[required] {
+			db.Close()
+			return nil, fmt.Errorf("incompatible events schema: missing %s", required)
+		}
+	}
 	if !hasGroup {
 		if _, err := db.Exec(`ALTER TABLE events ADD COLUMN group_id TEXT NOT NULL DEFAULT ''`); err != nil {
 			db.Close()

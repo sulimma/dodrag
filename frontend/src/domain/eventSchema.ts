@@ -6,7 +6,9 @@ const timestamp = v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{
   const [year, month, date] = day.split('-').map(Number);
   const probe = new Date(0);
   probe.setUTCFullYear(year, month - 1, date);
-  return Number.isFinite(Date.parse(value)) && probe.getUTCFullYear() === year && probe.getUTCMonth() === month - 1 && probe.getUTCDate() === date;
+  const [hour, minute, second] = value.slice(11,19).split(':').map(Number);
+  const offset = /[+-](\d{2}):(\d{2})$/.exec(value);
+  return hour < 24 && minute < 60 && second < 60 && (!offset || Number(offset[1]) < 24 && Number(offset[2]) < 60) && Number.isFinite(Date.parse(value)) && probe.getUTCFullYear() === year && probe.getUTCMonth() === month - 1 && probe.getUTCDate() === date;
 }));
 const title = v.pipe(v.string(), v.minLength(1), v.check(value => value.trim().length > 0));
 export const CommandSchema = v.variant('type', [

@@ -67,10 +67,11 @@ export function formatIso8601Display(isoString: string): {
 } {
   const dt = new Date(isoString);
   const datePart = toDateKey(dt);
-  const hasCustomTime = dt.getHours() !== 9 || dt.getMinutes() !== 0;
+  const hasCustomTime = dt.getHours() !== 9 || dt.getMinutes() !== 0 || dt.getSeconds() !== 0;
   const hh = String(dt.getHours()).padStart(2, '0');
   const mm = String(dt.getMinutes()).padStart(2, '0');
-  const isoText = hasCustomTime ? `${datePart} ${hh}:${mm}` : datePart;
+  const seconds = dt.getSeconds() ? `:${String(dt.getSeconds()).padStart(2,'0')}` : '';
+  const isoText = hasCustomTime ? `${datePart} ${hh}:${mm}${seconds}` : datePart;
   const weekdayShort = weekdayFormatter
     .format(dt)
     .replace('.', '');

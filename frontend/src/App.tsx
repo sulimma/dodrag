@@ -170,7 +170,7 @@ export function App() {
         setIsMiniMode(true);
         eventBridge.enterMiniMode('', 4).catch(error => pushToast(String(error), 'warning'));
       }
-    });
+    }).catch(error => pushToast(String(error), 'warning'));
     const unsubMinimize = eventBridge.onWindowMinimized(() => {
       setIsMiniMode(true);
     });
