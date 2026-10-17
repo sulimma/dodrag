@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
-const server=await createServer({server:{host:'127.0.0.1',port:5197}});
+const server=await createServer({server:{host:'127.0.0.1',port:5197,strictPort:true}});
 await server.listen();
 const browser=await chromium.launch({headless:true});
 try {
@@ -99,4 +99,64 @@ try {
     }
     await page.close();
   }
+  const page=await browser.newPage({viewport:{width:1400,height:950}});
+  await page.addInitScript(()=>{
+    const date=new Date();date.setHours(9,0,0,0);const iso=date.toISOString();let seq=0;
+    const event=(type,payload)=>({seq:++seq,id:`date${seq}`,timestamp:iso,type,payload,undone:false});
+    const events=['A','B','P'].map(taskId=>event('TASK_CREATED',{taskId,title:`Title ${taskId}`,configuredStart:iso,createdAt:iso}));
+    date.setDate(date.getDate()+3);
+    events.push(event('TASK_START_DATE_SET',{taskId:'P',configuredStart:date.toISOString()}),event('DEPENDENCY_ADDED',{predecessorId:'P',taskId:'B'}));
+    localStorage.setItem('dodrag_sqlite_fallback_events_v1',JSON.stringify(events));
+    localStorage.setItem('dodrag_settings_fallback_v1',JSON.stringify({knownDatabases:[{name:'test',path:'test.db',exists:true,isDemo:false}],activeDatabasePath:'test.db',autostart:false}));
+  });
+  await page.goto('http://127.0.0.1:5197');
+  const keys=await page.evaluate(()=>Array.from({length:6},(_,offset)=>{
+    const date=new Date();date.setDate(date.getDate()+offset);
+    return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  }));
+  const dateEvents=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='TASK_START_DATE_SET' && event.payload.taskId==='A' && !event.undone));
+  await page.getByRole('button',{name:'Netzplan',exact:true}).click();
+  await page.getByRole('button',{name:'Startdatum A bearbeiten',exact:true}).click();
+  let input=page.getByRole('textbox',{name:'Startdatum A',exact:true});
+  await input.fill(`${keys[2]} 14:30`);await input.press('Enter');
+  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).some(event=>event.type==='TASK_START_DATE_SET' && event.payload.taskId==='A'));
+  await page.getByRole('button',{name:'Liste',exact:true}).click();
+  assert.ok((await page.getByRole('button',{name:'Startdatum A bearbeiten',exact:true}).textContent()).includes(`${keys[2]} 14:30`),'shared date edit persisted with time');
+  await page.getByRole('button',{name:'Netzplan',exact:true}).click();
+  await page.getByRole('button',{name:'Startdatum A bearbeiten',exact:true}).click();
+  input=page.getByRole('textbox',{name:'Startdatum A',exact:true});
+  await input.fill(keys[5]);await input.press('Escape');assert.equal((await dateEvents()).length,1,'Escape cancels date edit');
+  await page.getByRole('button',{name:'Startdatum A bearbeiten',exact:true}).click();
+  input=page.getByRole('textbox',{name:'Startdatum A',exact:true});await input.fill(keys[1]);
+  await page.locator('[data-task-drag="A"]').getByText('Title A',{exact:true}).click();
+  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='TASK_START_DATE_SET' && event.payload.taskId==='A').length===2);
+  await page.getByRole('button',{name:'Gantt',exact:true}).click();
+  const dragToDate=async(id,key,cancel=false)=>{
+    await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState!=='running'));
+    const source=await page.locator(`[data-gantt-node="${id}"]`).boundingBox();
+    const target=page.locator(`[data-gantt-date="${key}"]`);await target.scrollIntoViewIfNeeded();
+    const dest=await target.boundingBox();
+    await page.mouse.move(source.x+source.width/2,source.y+source.height/2);await page.mouse.down();
+    await page.mouse.move(source.x+source.width/2+16,source.y+source.height/2,{steps:8});
+    await page.mouse.move(dest.x+20,source.y+source.height/2,{steps:18});
+    if(cancel) await page.keyboard.press('Escape');
+    await page.mouse.up();
+  };
+  await dragToDate('A',keys[3]);
+  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='TASK_START_DATE_SET' && event.payload.taskId==='A').length===3);
+  const moved=(await dateEvents()).at(-1);
+  assert.equal(await page.evaluate(iso=>{const date=new Date(iso);return [date.getHours(),date.getMinutes()];},moved.payload.configuredStart).then(JSON.stringify),'[9,0]','date column uses local 09:00');
+  assert.ok((await page.locator('[data-gantt-node="A"]').getAttribute('title')).includes(keys[3]));
+  const position=await page.locator('[data-gantt-node="A"]').evaluate(element=>element.style.left);
+  await page.locator('button[title^="Rückgängig"]').click();
+  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='TASK_START_DATE_SET' && event.payload.taskId==='A').at(-1).undone);
+  assert.notEqual(await page.locator('[data-gantt-node="A"]').evaluate(element=>element.style.left),position,'undo restores position');
+  await dragToDate('A',keys[5],true);assert.equal((await dateEvents()).length,2,'Escape cancels native date drag');
+  const constrained=await page.locator('[data-gantt-node="B"]').evaluate(element=>element.style.left);
+  await dragToDate('B',keys[1]);
+  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).some(event=>event.type==='TASK_START_DATE_SET' && event.payload.taskId==='B'));
+  assert.equal(await page.locator('[data-gantt-node="B"]').evaluate(element=>element.style.left),constrained,'predecessor constraint keeps effective position');
+  assert.ok((await page.locator('[data-gantt-node="B"]').getAttribute('title')).includes(keys[1]),'drop changes configured date despite constraint');
+  console.log('PASS shared list/network date editing: Enter, blur, Escape, time; real Gantt date drag, undo, cancellation, predecessor constraint');
+  await page.close();
 } finally {await browser.close();await server.close();}

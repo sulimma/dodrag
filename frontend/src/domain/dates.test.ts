@@ -32,10 +32,10 @@ it('resubmits from the displayed dependency-derived date, not the configured dat
     { seq: 3, id: 'e3', timestamp: configuredStart, undone: false, type: 'DEPENDENCY_ADDED', payload: { taskId: 'b', predecessorId: 'a' } },
   ], now);
   const task = state.tasks.b;
-  expect(task.effectiveDateKey).toBe('2026-10-26');
+  expect(task.effectiveDateKey).toBe('2026-10-25');
   const expected: [QuickResubmitTargetId, string][] = [
-    ['plus_2h', '2026-10-26 16:30'], ['plus_1d', '2026-10-27'],
-    ['next_week', '2026-11-02'], ['plus_7d', '2026-11-02'], ['next_month', '2026-11-01'],
+    ['plus_2h', '2026-10-25 16:30'], ['plus_1d', '2026-10-26'],
+    ['next_week', '2026-10-26'], ['plus_7d', '2026-11-01'], ['next_month', '2026-11-01'],
   ];
   for (const [target, date] of expected) {
     expect(formatIso8601Display(calculateQuickResubmitDate(target, task)).isoText).toBe(date);

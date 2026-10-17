@@ -35,6 +35,7 @@ it('places incoming edges from further left lower, then orders equal-column sour
     deletionPreview: [], selectedTaskId: null, selectedEdgeKeys: [], highlights: {},
     draggedTaskId: null, isShiftDrag: false, activeDropTargetKey: null,
     titleEditor: { taskId: null, value: '', onChange: noop, onStart: noop, onCommit: noop, onCancel: noop },
+    dateEditor: { taskId: null, value: '', onChange: noop, onStart: noop, onCommit: noop, onCancel: noop },
     onSelectEdge: noop, onClearEdgeSelection: noop, onShiftKeyChange: noop,
     setActiveDropTargetKey: noop, setDraggedTaskId: noop, onSelectTask: noop,
     onContextMenuTask: noop, onDragStartTask: noop, onDragEndTask: noop,
@@ -55,9 +56,11 @@ it('places incoming edges from further left lower, then orders equal-column sour
   expect(upper[1]).toBeLessThan(other[1]);
   expect(upper[4]).toBeGreaterThan(lower[4]);
   expect(lower[4]).toBeGreaterThan(other[4]);
-  expect(element.querySelector('[data-gantt-node="target"]')!.getAttribute('title')).toBe('target: target (2026-10-19)');
+  expect(element.querySelector('[data-gantt-node="target"]')!.getAttribute('title')).toContain('target: target (2026-10-19)');
   const networkMarkup = renderToStaticMarkup(<NetworkPlanView {...props} />);
   expect(networkMarkup).toContain('2026-10-19');
-  expect(networkMarkup).not.toContain('14:30');
+  element.innerHTML = networkMarkup;
+  expect(element.textContent).not.toContain('14:30');
+  expect(element.querySelector('button[aria-label="Startdatum target bearbeiten"]')).not.toBeNull();
   expect(formatIso8601Display(tasks[3].configuredStart).isoText).toBe('2026-10-19 14:30:12');
 });

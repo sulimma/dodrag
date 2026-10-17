@@ -36,11 +36,12 @@ try {
     try {
         # Wails 2.9.2's CLI dependency x/tools is incompatible with Go 1.27.
         $env:GOTOOLCHAIN = "go1.23.12"
-        go run github.com/wailsapp/wails/v2/cmd/wails@v2.9.2 build -s -o dodrag.exe
+        $buildVersion = "0.1.0"
+        $buildTime = (Get-Date).ToUniversalTime().ToString("o")
+        go run github.com/wailsapp/wails/v2/cmd/wails@v2.9.2 build -s -ldflags "-X main.buildVersion=$buildVersion -X main.buildTime=$buildTime" -o dodrag.exe
         Assert-NativeSuccess "Wails packaging"
     } finally { $env:GOTOOLCHAIN = $oldToolchain }
     if (-not (Test-Path -LiteralPath "build\bin\dodrag.exe")) { throw "Packaged executable missing" }
     Copy-Item "build\bin\dodrag.exe" "dodrag.exe" -Force
-    Copy-Item "build\bin\dodrag.exe" "dodrag_app.exe" -Force
     Write-Host "Build and tests completed. App was not started." -ForegroundColor Green
 } finally { Pop-Location }

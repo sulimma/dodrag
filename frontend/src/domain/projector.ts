@@ -14,6 +14,11 @@ interface MutableTask {
 }
 const replayCache = new WeakMap<StoredEvent[], { rawTasks: Record<string, MutableTask>; predecessorMap: Record<string, Set<string>> }>();
 
+function compareTaskDates(a: TaskState, b: TaskState): number {
+  return Date.parse(a.effectiveStart) - Date.parse(b.effectiveStart) ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
 /**
  * Formats a Date into local YYYY-MM-DD key.
  */
@@ -338,13 +343,15 @@ export function projectEvents(
   // Calculate once in topological order, without recursion.
   const calculatedStartCache: Record<string, string | null> = Object.create(null);
   const effectiveStartCache: Record<string, string> = Object.create(null);
-  const orderedRawTasks = stableTopology(allTaskIds.map(id => ({ ...rawTasks[id], predecessorIds: openPredsMap[id] })));
+  const orderedRawTasks = stableTopology(allTaskIds.map(id => ({ ...rawTasks[id], predecessorIds: Array.from(rawTasks[id].predecessors) })));
   for (const raw of orderedRawTasks) {
     let latest: string | null = null;
-    for (const pred of openPredsMap[raw.id]) { const value = effectiveStartCache[pred]; if (!latest || Date.parse(value) > Date.parse(latest)) latest = value; }
-    const calculated = latest ? addCalendarDays(latest,1) : null;
-    calculatedStartCache[raw.id] = calculated;
-    effectiveStartCache[raw.id] = calculated && Date.parse(calculated) > Date.parse(raw.configuredStart) ? calculated : raw.configuredStart;
+    for (const pred of raw.predecessors) {
+      const value = effectiveStartCache[pred];
+      if (!latest || Date.parse(value) > Date.parse(latest)) latest = value;
+    }
+    calculatedStartCache[raw.id] = latest;
+    effectiveStartCache[raw.id] = latest && Date.parse(latest) > Date.parse(raw.configuredStart) ? latest : raw.configuredStart;
   }
 
   function computeDates(taskId: string): { calculated: string | null; effective: string } {
@@ -419,15 +426,10 @@ export function projectEvents(
     }
   }
 
-  // Newest tasks appear at the top (highest creationOrder first)
-  openTasks.splice(0,openTasks.length,...stableTopology(openTasks));
-  completedTasks.sort((a, b) => {
-    const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
-    const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
-    return bTime - aTime;
-  });
+  openTasks.sort(compareTaskDates);
+  completedTasks.sort(compareTaskDates);
 
-  const listEntries = buildTopologicallySortedAndCollapsedList(openTasks, now);
+  const listEntries = buildDateGroupedAndCollapsedList(openTasks, now);
   const nextTaskId = `${yearPrefix}${maxNumberForYear + 1}`;
 
   return {
@@ -444,12 +446,11 @@ export function projectEvents(
 }
 
 /**
- * Builds the topologically sorted list of Date entries and Task entries,
- * preserving relative order of unaffected tasks (stable Kahn's algorithm, newest tasks first),
+ * Groups the chronologically sorted tasks under date headings,
  * always keeping Today ("Heute") visible at the top so tasks can be dragged onto Today,
  * and collapsing other consecutive empty date entries so only the latest date entry is shown.
  */
-function buildTopologicallySortedAndCollapsedList(
+function buildDateGroupedAndCollapsedList(
   openTasks: TaskState[],
   now: Date
 ): ListEntry[] {
@@ -488,8 +489,7 @@ function buildTopologicallySortedAndCollapsedList(
     tasksByDate[dk].push(t);
   }
 
-  // Within each date bucket, perform a STABLE topological sort using Kahn's algorithm
-  // with descending creationOrder (newest tasks at the very top) as deterministic tie-breaker.
+  // Date buckets preserve the timestamp/ID order of openTasks, including overdue tasks.
   const rawEntries: ListEntry[] = [];
 
   for (const dk of sortedDateKeys) {
@@ -511,7 +511,7 @@ function buildTopologicallySortedAndCollapsedList(
     });
 
     const bucketTasks = tasksByDate[dk] || [];
-    for (const task of stableTopology(bucketTasks)) rawEntries.push({ kind: 'task', key: `task:${task.id}`, task });
+    for (const task of bucketTasks) rawEntries.push({ kind: 'task', key: `task:${task.id}`, task });
   }
 
   // Collapse rule:
@@ -715,7 +715,7 @@ export function calculateQuickResubmitDate(
  * Returns the tasks to display in the compact corner-docked minimized window:
  * - Only tasks that can currently be worked on (no open predecessors: predecessorIds.length === 0).
  * - Specifically: tasks from Today without predecessors; if there are none on Today, all open tasks without predecessors.
- * - Active tasks (isActive) are sorted to the top, followed by effectiveDateKey ascending and newest creationOrder first.
+ * - Tasks are sorted by effective timestamp, then task ID, like the main list.
  */
 export function computeMiniWindowTasks(
   openTasks: TaskState[],
@@ -732,13 +732,5 @@ export function computeMiniWindowTasks(
 
   const pool = todayStartable.length > 0 ? todayStartable : withoutPreds;
 
-  return [...pool].sort((a, b) => {
-    if (a.isActive !== b.isActive) {
-      return a.isActive ? -1 : 1;
-    }
-    if (a.effectiveDateKey !== b.effectiveDateKey) {
-      return a.effectiveDateKey.localeCompare(b.effectiveDateKey);
-    }
-    return b.creationOrder - a.creationOrder;
-  });
+  return [...pool].sort(compareTaskDates);
 }

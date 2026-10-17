@@ -23,6 +23,15 @@ interface SettingsModalProps {
   onToggleAutostart: (enabled: boolean) => Promise<void>;
 }
 
+// Build time arrives as RFC3339 (UTC); show it in the local zone, keeping the raw value on parse failure.
+export function formatBuildTime(raw?: string): string {
+  if (!raw) return 'unbekannt';
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(parsed.getDate())}.${pad(parsed.getMonth() + 1)}.${parsed.getFullYear()} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+}
+
 export function SettingsModal({
   settings,
   onClose,
@@ -441,9 +450,9 @@ export function SettingsModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-          <span className="text-[11px] text-slate-400 font-mono truncate max-w-[360px]">
-            Konfiguration: %APPDATA%\DoDrag\settings.json
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
+          <span className="text-[11px] text-slate-500 font-mono truncate">
+            DoDrag v{settings.version || '0.1.0'} · Build {formatBuildTime(settings.buildTime)}
           </span>
           <button
             type="button"

@@ -39,6 +39,7 @@ import { HighlightRole, StoredEvent, TaskState } from './domain/types';
 import { normalizeUserDate } from './domain/dates';
 import { normalizeTitleInput } from './domain/input';
 import { TaskTitle, TitleEditor } from './components/TaskTitle';
+import { TaskDate } from './components/TaskDate';
 import { taskInteractions } from './components/taskInteractions';
 import { dependencyPathEdges, previewPathKeys } from './domain/dependencyPaths';
 import { TaskDragHandle } from './components/TaskDragHandle';
@@ -108,7 +109,7 @@ export function App() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
 
-  // In-place configured date editing state (stays strictly YYYY-MM-DD)
+  // In-place configured date editing state (optional local time)
   const [editingDateTaskId, setEditingDateTaskId] = useState<string | null>(
     null
   );
@@ -128,7 +129,6 @@ export function App() {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
-  const inlineDateInputRef = useRef<HTMLInputElement | null>(null);
   const mutationBusy = useRef(false);
   const confirmedEvents = useRef<StoredEvent[]>([]);
   const editGroup = useRef('');
@@ -272,14 +272,6 @@ export function App() {
       return [edgeKey];
     });
   };
-
-  // Focus inline date input when date editing starts
-  useEffect(() => {
-    if (editingDateTaskId && inlineDateInputRef.current) {
-      inlineDateInputRef.current.focus();
-      inlineDateInputRef.current.select();
-    }
-  }, [editingDateTaskId]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -526,11 +518,14 @@ export function App() {
     isoDate: string,
     humanLabel: string
   ) => {
-    setLastMovedKey(`task:${taskId}`);
     if (!state.tasks[taskId]) return;
+    if (dragIdentity.current && (dragIdentity.current.database !== databaseIdentity.current || dragIdentity.current.taskId !== taskId)) return;
+    const configuredStart = normalizeUserDate(formatIso8601Display(isoDate).isoText, now);
+    if (Date.parse(state.tasks[taskId].configuredStart) === Date.parse(configuredStart)) return;
+    setLastMovedKey(`task:${taskId}`);
     const updated = await mutate(() => eventBridge.appendEvent('TASK_START_DATE_SET', {
       taskId,
-      configuredStart: normalizeUserDate(formatIso8601Display(isoDate).isoText, now),
+      configuredStart,
     }));
     if (!updated) return;
     pushToast(`Startdatum von ${taskId} → ${humanLabel}`, 'info');
@@ -780,6 +775,7 @@ export function App() {
   }, []);
 
   const titleEditor: TitleEditor = { taskId: editingTaskId, value: editingTitle, onChange: value => setEditingTitle(normalizeTitleInput(value)), onStart: startInlineEdit, onCommit: commitInlineEdit, onCancel: () => setEditingTaskId(null) };
+  const dateEditor: TitleEditor = { taskId: editingDateTaskId, value: editingDateValue, onChange: setEditingDateValue, onStart: startInlineDateEdit, onCommit: commitInlineDateEdit, onCancel: () => setEditingDateTaskId(null) };
 
   if (isMiniMode) {
     return (
@@ -991,7 +987,6 @@ export function App() {
                   draggedTaskId !== task.id;
                 const isEditing = editingTaskId === task.id;
                 const isEditingDate = editingDateTaskId === task.id;
-                const confDisplay = formatIso8601Display(task.configuredStart);
 
                 let containerClasses =
                   'bg-white border-slate-200/90 shadow-sm hover:border-slate-300';
@@ -1128,58 +1123,7 @@ export function App() {
                         </div>
                       )}
 
-                      <div
-                        className="flex items-center text-[11px] font-mono"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {isEditingDate ? (
-                          <input
-                            ref={inlineDateInputRef}
-                            type="text"
-                            value={editingDateValue}
-                            placeholder="JJJJ-MM-TT"
-                            onChange={(e) =>
-                              setEditingDateValue(e.target.value)
-                            }
-                            onBlur={commitInlineDateEdit}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                commitInlineDateEdit();
-                              } else if (e.key === 'Escape') {
-                                e.preventDefault();
-                                setEditingDateTaskId(null);
-                              }
-                            }}
-                            className="w-28 px-2 py-0.5 rounded border border-sky-500 bg-white text-slate-900 text-[11px] font-mono focus:outline-none focus:ring-2 focus:ring-sky-500/30"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startInlineDateEdit(task);
-                            }}
-                            title="Klicken zum Bearbeiten (JJJJ-MM-TT)"
-                            className={`px-2 py-0.5 rounded border transition-colors hover:border-sky-400 hover:bg-sky-50/60 ${
-                              confDisplay.isWeekend
-                                ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                : 'bg-slate-100/90 text-slate-600 border-slate-200'
-                            }`}
-                          >
-                            {confDisplay.isoText}{' '}
-                            <span
-                              className={
-                                confDisplay.isWeekend
-                                  ? 'text-amber-700 font-semibold'
-                                  : 'text-slate-400'
-                              }
-                            >
-                              ({confDisplay.weekdayShort})
-                            </span>
-                          </button>
-                        )}
-                      </div>
+                      <TaskDate task={task} editor={dateEditor} />
                     </div>
                   </div>
                 );
@@ -1228,6 +1172,7 @@ export function App() {
               onSetConfiguredDate={handleSetConfiguredDate}
               onToggleActive={handleToggleActive}
               titleEditor={titleEditor}
+              dateEditor={dateEditor}
               deletionPreview={deletionPreview}
             />
           ) : (

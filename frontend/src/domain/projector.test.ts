@@ -8,11 +8,67 @@ import {
 } from './projector';
 import { StoredEvent } from './types';
 
-describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
+describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
   const fixedNow = new Date('2026-10-16T10:00:00.000Z');
   const todayIso = '2026-10-16T09:00:00.000Z';
 
-  it('computes calculatedStart as 1 day after the latest effectiveStart of predecessors', () => {
+  it('takes the maximum of own date and all recursively computed predecessor dates, including completed tasks', () => {
+    const dates = {
+      a: '2026-10-18T14:30:12.000Z',
+      b: '2026-10-17T18:00:00.000Z',
+      c: todayIso,
+      d: todayIso,
+      e: '2026-10-19T08:00:00.000Z',
+    };
+    const events: StoredEvent[] = Object.entries(dates).map(([taskId, configuredStart], i) => ({
+      seq: i + 1, id: `e${i}`, timestamp: todayIso, undone: false, type: 'TASK_CREATED',
+      payload: { taskId, title: taskId, configuredStart },
+    }));
+    for (const [taskId, predecessorId] of [['c', 'a'], ['c', 'b'], ['d', 'c'], ['e', 'd']]) {
+      events.push({ seq: events.length + 1, id: `e${events.length}`, timestamp: todayIso,
+        undone: false, type: 'DEPENDENCY_ADDED', payload: { taskId, predecessorId } });
+    }
+    const before = projectEvents(events, fixedNow);
+    const after = projectEvents([...events, {
+      seq: events.length + 1, id: 'completed', timestamp: todayIso, undone: false,
+      type: 'TASK_COMPLETED', payload: { taskId: 'a' },
+    }], fixedNow);
+    for (const state of [before, after]) {
+      expect(state.tasks.c.effectiveStart).toBe(dates.a);
+      expect(state.tasks.d.effectiveStart).toBe(dates.a);
+      expect(state.tasks.e.effectiveStart).toBe(dates.e);
+    }
+    expect(after.tasks.c.predecessorIds).toEqual(['b']);
+  });
+
+  it('sorts full timestamps then IDs, including overdue, active and completed tasks', () => {
+    const dates = [
+      ['26-108', '2026-10-17T18:41:31+02:00'],
+      ['26-104', '2026-10-17T14:39:31+02:00'],
+      ['26-103', '2026-10-17T12:39:31Z'],
+      ['26-102', '2026-10-16T23:00:00Z'],
+      ['26-101', '2026-10-15T23:00:00Z'],
+    ];
+    const events: StoredEvent[] = dates.map(([taskId, configuredStart], i) => ({
+      seq: i + 1, id: `e${i}`, timestamp: todayIso, undone: false, type: 'TASK_CREATED',
+      payload: { taskId, title: taskId, configuredStart },
+    }));
+    events.push({ seq: 6, id: 'active', timestamp: todayIso, undone: false,
+      type: 'TASK_ACTIVE_SET', payload: { taskId: '26-108', isActive: true } });
+    const now = new Date('2026-10-18T12:00:00Z');
+    const state = projectEvents(events, now);
+    const expected = ['26-101', '26-102', '26-103', '26-104', '26-108'];
+    expect(state.openTasks.map(t => t.id)).toEqual(expected);
+    expect(state.listEntries.flatMap(e => e.kind === 'task' ? [e.task.id] : [])).toEqual(expected);
+    expect(computeMiniWindowTasks([...state.openTasks].reverse(), now).map(t => t.id)).toEqual(expected);
+    const completed = projectEvents([...events, ...expected.map((taskId, i): StoredEvent => ({
+      seq: 7 + i, id: `done${i}`, timestamp: todayIso, undone: false,
+      type: 'TASK_COMPLETED', payload: { taskId, completedAt: `2026-10-18T12:00:0${i}Z` },
+    }))], now);
+    expect(completed.completedTasks.map(t => t.id)).toEqual(expected);
+  });
+
+  it('inherits the predecessor timestamp without adding a day', () => {
     const events: StoredEvent[] = [
       {
         seq: 1,
@@ -56,9 +112,10 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     const taskB = state.tasks['26-2'];
 
     expect(taskA.calculatedStart).toBeNull();
-    expect(taskB.calculatedStart).not.toBeNull();
-    expect(toDateKey(new Date(taskB.calculatedStart!))).toBe('2026-10-17');
-    expect(taskB.effectiveDateKey).toBe('2026-10-17');
+    expect(taskA.effectiveStart).toBe(todayIso);
+    expect(taskB.calculatedStart).toBe(todayIso);
+    expect(taskB.effectiveStart).toBe(todayIso);
+    expect(taskB.effectiveDateKey).toBe(toDateKey(new Date(todayIso)));
     expect(taskB.isDeemphasized).toBe(true);
   });
 
@@ -97,7 +154,7 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     expect(state.tasks['26-10'].isDeemphasized).toBe(false);
   });
 
-  it('places newly created tasks at the top and maintains stable order of unaffected tasks', () => {
+  it('breaks timestamp ties by ID regardless of creation order or dependencies', () => {
     const baseEvents: StoredEvent[] = [
       {
         seq: 1,
@@ -137,10 +194,9 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     const initialTaskOrder = initial.listEntries
       .filter((e) => e.kind === 'task')
       .map((e) => (e.kind === 'task' ? e.task.id : ''));
-    // Newest task ('26-4') is at the very top
-    expect(initialTaskOrder).toEqual(['26-4', '26-3', '26-2', '26-1']);
+    expect(initialTaskOrder).toEqual(['26-1', '26-2', '26-3', '26-4']);
 
-    // Now move 26-2 to depend on 26-4; 26-4, 26-3, 26-1 must keep their exact relative order ['26-4', '26-3', '26-1']
+    // Equal dates remain ID-sorted even when the successor ID precedes its predecessor.
     const updated = projectEvents(
       [
         ...baseEvents,
@@ -161,7 +217,9 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
       .map((e) => (e.kind === 'task' ? e.task.id : ''))
       .filter((id) => id !== '26-2');
 
-    expect(unaffectedOrder).toEqual(['26-4', '26-3', '26-1']);
+    expect(unaffectedOrder).toEqual(['26-1', '26-3', '26-4']);
+    expect(updated.openTasks.map(t => t.id)).toEqual(initialTaskOrder);
+    expect(updated.listEntries.flatMap(e => e.kind === 'task' ? [e.task.id] : [])).toEqual(initialTaskOrder);
   });
 
   it('highlights ONLY true graph predecessors and successors, ignoring unrelated tasks earlier or later in the list', () => {
@@ -357,7 +415,7 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     const tomorrowIso = '2026-10-17T09:00:00.000Z';
     const nextWeekIso = '2026-10-20T09:00:00.000Z';
 
-    // Case 1: Today has tasks without predecessors -> only today's startable tasks are returned (active first)
+    // Case 1: Today has tasks without predecessors -> timestamp/ID order, not active first.
     const eventsWithToday: StoredEvent[] = [
       {
         seq: 1,
@@ -395,7 +453,7 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
 
     const state1 = projectEvents(eventsWithToday, fixedNow);
     const mini1 = computeMiniWindowTasks(state1.openTasks, fixedNow);
-    expect(mini1.map((t) => t.id)).toEqual(['26-2', '26-1']);
+    expect(mini1.map((t) => t.id)).toEqual(['26-1', '26-2']);
 
     // Case 2: Today has NO tasks -> all tasks without predecessors across future days are returned
     const eventsWithoutToday: StoredEvent[] = [

@@ -9,6 +9,7 @@ import {
 import { HighlightRole, TaskState } from '../domain/types';
 import { DateLayerLine } from './DateLayerLine';
 import { TaskTitle, TitleEditor } from './TaskTitle';
+import { TaskDate } from './TaskDate';
 import { taskInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
 import { TaskDragHandle } from './TaskDragHandle';
@@ -17,6 +18,7 @@ import { arrowBase, ArrowMarkers } from './arrowGeometry';
 interface NetworkPlanViewProps {
   deletionPreview: string[];
   titleEditor: TitleEditor;
+  dateEditor: TitleEditor;
   openTasks: TaskState[];
   now: Date;
   selectedTaskId: string | null;
@@ -77,7 +79,7 @@ interface RoutedEdge {
   pathD: string;
 }
 
-const NODE_WIDTH = 188;
+const NODE_WIDTH = 232;
 const NODE_HEIGHT = 56;
 const NODE_SEP_X = 16; // Compact horizontal gap between side-by-side nodes
 const SUBROW_SEP_Y = 20; // Vertical gap between wrapped rows within the same day
@@ -232,6 +234,7 @@ export function NetworkPlanView({
   onSetConfiguredDate,
   onToggleActive,
   titleEditor,
+  dateEditor,
   deletionPreview,
 }: NetworkPlanViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -687,7 +690,6 @@ export function NetworkPlanView({
         const isDropTarget =
           activeDropTargetKey === dropKey && draggedTaskId !== task.id;
         const isBeingDragged = draggedTaskId === task.id;
-        const configuredDate = toDateKey(new Date(task.configuredStart));
 
         let containerClasses =
           'bg-white border-slate-200/90 shadow-sm hover:border-slate-300';
@@ -729,6 +731,7 @@ export function NetworkPlanView({
               height,
             }}
             {...taskInteractions(task.id, dropKey, {onSelectTask,onDragStartTask,onDragEndTask,onShiftKeyChange,isShiftDrag,draggedTaskId,setDraggedTaskId,setActiveDropTargetKey,onAddPredecessor,onRemoveDependencyBetween,onContextMenuTask})}
+            draggable={titleEditor.taskId !== task.id && dateEditor.taskId !== task.id}
             className={`absolute z-20 rounded-xl border px-2.5 py-2 flex flex-col justify-between cursor-pointer transition-colors ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''
             }`}
@@ -765,9 +768,7 @@ export function NetworkPlanView({
                 </span>
               </div>
 
-              <span className="text-[10px] font-mono text-slate-500 shrink-0">
-                {configuredDate}
-              </span>
+               <TaskDate task={task} editor={dateEditor} compact />
             </div>
 
             <div className="text-xs font-medium text-slate-900 truncate pl-1">

@@ -17,6 +17,12 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+// Build-time identity, overridable via: go build -ldflags "-X main.buildVersion=0.1.0 -X main.buildTime=..."
+var (
+	buildVersion = "0.1.0"
+	buildTime    = ""
+)
+
 // DatabaseEntry represents a known SQLite database file on this computer.
 type DatabaseEntry struct {
 	Name   string `json:"name"`
@@ -34,6 +40,8 @@ type AppSettings struct {
 	DockCorner         string          `json:"dockCorner"`
 	BootMinimized      bool            `json:"bootMinimized,omitempty"`
 	DatabaseReady      bool            `json:"databaseReady,omitempty"`
+	Version            string          `json:"version,omitempty"`
+	BuildTime          string          `json:"buildTime,omitempty"`
 }
 
 type persistedSettings struct {
@@ -406,6 +414,8 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 		DockCorner:         a.settings.DockCorner,
 		BootMinimized:      a.bootMinimized && a.store != nil,
 		DatabaseReady:      a.store != nil,
+		Version:            buildVersion,
+		BuildTime:          buildTime,
 		KnownDatabases:     make([]DatabaseEntry, len(a.settings.KnownDatabases)),
 	}
 	for i, entry := range a.settings.KnownDatabases {

@@ -3,7 +3,7 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { TaskTitle, TitleEditor } from './TaskTitle';
-import { SettingsModal } from './SettingsModal';
+import { SettingsModal, formatBuildTime } from './SettingsModal';
 import { TaskState } from '../domain/types';
 import { AppSettings } from '../bridge/eventBridge';
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
@@ -30,4 +30,13 @@ it('defaults demo checkbox from existing files, retaining a choice across settin
   act(()=>next.render(<SettingsModal settings={{...settings,knownDatabases:[{...settings.knownDatabases[0],exists:true}]}} {...props}/>));
   expect(element.querySelector<HTMLInputElement>('input[type=checkbox]')!.checked).toBe(false);
   act(()=>next.unmount());
+});
+
+it('formats an RFC3339 build timestamp for local display and preserves unparsable input', () => {
+  const raw='2026-10-17T12:38:51.000Z';
+  const expected=new Date(raw);
+  const pad=(n:number)=>String(n).padStart(2,'0');
+  expect(formatBuildTime(raw)).toBe(`${pad(expected.getDate())}.${pad(expected.getMonth()+1)}.${expected.getFullYear()} ${pad(expected.getHours())}:${pad(expected.getMinutes())}`);
+  expect(formatBuildTime('not-a-date')).toBe('not-a-date');
+  expect(formatBuildTime(undefined)).toBe('unbekannt');
 });

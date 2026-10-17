@@ -369,6 +369,11 @@ export function GanttView({
     setWindowStart(toDateKey(new Date(Math.max(today.getTime(),Math.min(last.getTime(),date.getTime())))));
   };
 
+  const dropDay = (event: React.DragEvent<HTMLDivElement>) => {
+    const x = event.clientX - event.currentTarget.getBoundingClientRect().left;
+    return layout.calendarDays[Math.floor((x - LEFT_LIST_WIDTH) / DAY_COL_WIDTH)];
+  };
+
   return (
     <div
       className="relative bg-white/80 rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden mx-auto"
@@ -378,6 +383,25 @@ export function GanttView({
       }}
       onClick={() => {
         if (selectedEdgeKeys.length > 0) onClearEdgeSelection();
+      }}
+      onDragOver={event => {
+        if (!draggedTaskId) return;
+        const day = dropDay(event);
+        if (!day) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        onShiftKeyChange(event.shiftKey);
+        setActiveDropTargetKey(`gantt-date:${day.dateKey}`);
+      }}
+      onDragLeave={event => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setActiveDropTargetKey(null);
+      }}
+      onDrop={event => {
+        const day = dropDay(event);
+        if (!day || !draggedTaskId) return;
+        event.preventDefault();
+        onSetConfiguredDate(draggedTaskId, day.isoDate, day.dateKey);
+        onDragEndTask();
       }}
     >
       {/* Left Task List Column (written-out task names stacked vertically) */}
@@ -437,6 +461,7 @@ export function GanttView({
                 height: ROW_HEIGHT,
               }}
               {...taskInteractions(task.id, dropKey, {onSelectTask,onDragStartTask,onDragEndTask,onShiftKeyChange,isShiftDrag,draggedTaskId,setDraggedTaskId,setActiveDropTargetKey,onAddPredecessor,onRemoveDependencyBetween,onContextMenuTask})}
+              draggable={titleEditor.taskId !== task.id}
               className={`absolute left-0 right-0 px-2.5 border-b border-slate-200/60 flex items-center gap-1.5 cursor-pointer transition-colors ${rowBgClasses} ${
                 isBeingDragged ? 'opacity-35' : ''
               } ${task.isDeemphasized && !role ? 'opacity-65' : ''}`}
@@ -484,33 +509,12 @@ export function GanttView({
         return (
           <div
             key={day.dateKey}
+            data-gantt-date={day.dateKey}
             style={{
               left: day.x,
               top: 0,
               width: day.width,
               height: layout.canvasHeight,
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-              if (activeDropTargetKey !== dropKey) {
-                setActiveDropTargetKey(dropKey);
-              }
-            }}
-            onDragLeave={() => {
-              if (activeDropTargetKey === dropKey) {
-                setActiveDropTargetKey(null);
-              }
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              const tId =
-                draggedTaskId || e.dataTransfer.getData('text/plain');
-              setActiveDropTargetKey(null);
-              setDraggedTaskId(null);
-              if (tId) {
-                onSetConfiguredDate(tId, day.isoDate, day.dateKey);
-              }
             }}
             className={`absolute border-r transition-colors ${
               isDropActive
@@ -712,7 +716,7 @@ export function GanttView({
               width,
               height,
             }}
-            title={`${task.id}: ${task.title} (${configuredDate})`}
+            title={`${task.id}: ${task.title} (${configuredDate}). Auf Datum ziehen: Startdatum setzen; auf Task ziehen: Vorgänger setzen; Shift: Kanten lösen.`}
             {...taskInteractions(task.id, dropKey, {onSelectTask,onDragStartTask,onDragEndTask,onShiftKeyChange,isShiftDrag,draggedTaskId,setDraggedTaskId,setActiveDropTargetKey,onAddPredecessor,onRemoveDependencyBetween,onContextMenuTask})}
             className={`absolute z-20 rounded-lg border px-1 flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors font-mono text-[11px] ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''

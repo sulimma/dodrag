@@ -16,6 +16,8 @@ export interface AppSettings {
   dockCorner?: string;
   bootMinimized?: boolean;
   databaseReady?: boolean;
+  version?: string;
+  buildTime?: string;
 }
 
 declare global {
@@ -291,6 +293,7 @@ export const eventBridge = {
       activeDatabasePath: '',
       autostart: false,
       databaseReady: false,
+      version: '0.1.0',
     };
   },
 
