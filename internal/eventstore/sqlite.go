@@ -4,13 +4,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	_ "modernc.org/sqlite"
 )
 
-// Event represents a single immutable domain event stored in SQLite.
+// Event is a stored command; explicit edit groups may coalesce the latest payload.
 type Event struct {
 	Seq       int64           `json:"seq"`
 	ID        string          `json:"id"`
@@ -190,7 +192,16 @@ func (s *Store) Close() error {
 
 // GetEvents returns all events ordered by sequence number ascending.
 func (s *Store) GetEvents() ([]Event, error) {
-	rows, err := s.db.Query(`SELECT seq, id, timestamp, type, payload, undone, group_id FROM events ORDER BY seq ASC`)
+	events, _, err := s.readReplay(s.db)
+	return events, err
+}
+
+type eventReader interface {
+	Query(string, ...interface{}) (*sql.Rows, error)
+}
+
+func (s *Store) readEvents(reader eventReader) ([]Event, error) {
+	rows, err := reader.Query(`SELECT seq, id, timestamp, type, payload, undone, group_id FROM events ORDER BY seq ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("query events: %w", err)
 	}
@@ -212,11 +223,11 @@ func (s *Store) GetEvents() ([]Event, error) {
 		if err := checkID(ev.ID); err != nil {
 			return nil, err
 		}
+		if ev.Seq < 1 || ev.Seq > 9007199254740991 || utf8.RuneCountInString(ev.GroupID) > 256 {
+			return nil, fmt.Errorf("invalid event metadata at %d", ev.Seq)
+		}
 		if _, err := parseEventTime(ev.Timestamp); err != nil {
 			return nil, err
-		}
-		if _, err := validatePayload(ev.Type, ev.Payload); err != nil {
-			return nil, fmt.Errorf("event %d: %w", ev.Seq, err)
 		}
 		events = append(events, ev)
 	}
@@ -226,20 +237,32 @@ func (s *Store) GetEvents() ([]Event, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	return events, nil
+}
+
+func (s *Store) readReplay(reader eventReader) ([]Event, map[string]*task, error) {
+	events, err := s.readEvents(reader)
+	if err != nil {
+		return nil, nil, err
+	}
 	tasks := make(map[string]*task)
 	for _, event := range events {
+		payload, err := validatePayload(event.Type, event.Payload)
+		if err != nil {
+			return nil, nil, fmt.Errorf("event %d: %w", event.Seq, err)
+		}
 		if event.Undone {
 			continue
 		}
-		payload, err := validatePayload(event.Type, event.Payload)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := applyCommand(tasks, event.Type, payload); err != nil {
-			return nil, fmt.Errorf("event %d: %w", event.Seq, err)
+		// Only the final replay graph must be acyclic, not historical intermediates.
+		if _, err := applyValidatedCommand(tasks, event.Type, payload, false); err != nil {
+			return nil, nil, fmt.Errorf("event %d: %w", event.Seq, err)
 		}
 	}
-	return events, nil
+	if err := validateTopology(tasks); err != nil {
+		return nil, nil, err
+	}
+	return events, tasks, nil
 }
 
 func isCoalescableEventType(eventType string) bool {
@@ -251,41 +274,64 @@ func isCoalescableEventType(eventType string) bool {
 	}
 }
 
+var persistedTimestamp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$`)
+
 func parseEventTime(ts string) (time.Time, error) {
-	if t, err := time.Parse(time.RFC3339Nano, ts); err == nil {
-		return t, nil
+	if !persistedTimestamp.MatchString(ts) {
+		return time.Time{}, fmt.Errorf("invalid persisted timestamp: %q", ts)
 	}
-	return time.Parse(time.RFC3339, ts)
+	if ts[len(ts)-1] != 'Z' {
+		offset := ts[len(ts)-5:]
+		if offset[:2] >= "24" || offset[3:] >= "60" {
+			return time.Time{}, fmt.Errorf("invalid timestamp offset: %q", ts)
+		}
+	}
+	return time.Parse(time.RFC3339Nano, ts)
 }
 
-// Undo marks the latest active event as undone.
+// Undo marks the latest active group as undone, only if its target state is valid.
 func (s *Store) Undo() ([]Event, error) {
-	s.groupID = ""
-	_, err := s.db.Exec(`
-		UPDATE events
-		SET undone = 1
-		WHERE seq = (SELECT seq FROM events WHERE undone = 0 ORDER BY seq DESC LIMIT 1)
-		OR (group_id <> '' AND group_id = (SELECT group_id FROM events WHERE undone = 0 ORDER BY seq DESC LIMIT 1))
-	`)
-	if err != nil {
-		return nil, err
-	}
-	return s.GetEvents()
+	return s.setHistoryUndone(true)
 }
 
-// Redo restores the earliest undone event.
+// Redo restores the earliest undone group, only if its target state is valid.
 func (s *Store) Redo() ([]Event, error) {
+	return s.setHistoryUndone(false)
+}
+
+func (s *Store) setHistoryUndone(undone bool) ([]Event, error) {
 	s.groupID = ""
-	_, err := s.db.Exec(`
-		UPDATE events
-		SET undone = 0
-		WHERE seq = (SELECT seq FROM events WHERE undone = 1 ORDER BY seq ASC LIMIT 1)
-		OR (group_id <> '' AND group_id = (SELECT group_id FROM events WHERE undone = 1 ORDER BY seq ASC LIMIT 1))
-	`)
+	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, err
 	}
-	return s.GetEvents()
+	defer tx.Rollback()
+	if _, _, err := s.readReplay(tx); err != nil {
+		return nil, err
+	}
+	order := "ASC"
+	if undone {
+		order = "DESC"
+	}
+	var seq int64
+	var group string
+	err = tx.QueryRow(`SELECT seq, group_id FROM events WHERE undone = ? ORDER BY seq `+order+` LIMIT 1`, !undone).Scan(&seq, &group)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	if err == nil {
+		if _, err := tx.Exec(`UPDATE events SET undone = ? WHERE seq = ? OR (group_id <> '' AND group_id = ?)`, undone, seq, group); err != nil {
+			return nil, err
+		}
+	}
+	events, _, err := s.readReplay(tx)
+	if err != nil {
+		return nil, fmt.Errorf("history change rejected: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return events, nil
 }
 
 func (s *Store) seedIfEmpty() error {

@@ -1,6 +1,6 @@
 import { EventType, StoredEvent } from '../domain/types';
 import { EventCommand, parseCommand, parseStoredEvent } from '../domain/eventSchema';
-import { applyCommand, replayCommands } from '../domain/commands';
+import { applyCommand, copyReplayTasks, replayCommands } from '../domain/commands';
 
 export interface DatabaseEntry {
   name: string;
@@ -28,15 +28,15 @@ declare global {
     go?: {
       main?: {
         App?: {
-          GetEvents: () => Promise<any[]>;
-          AppendBatch: (commands: Array<EventCommand & { id: string; groupId?: string }>) => Promise<any[]>;
+           GetEvents: () => Promise<unknown>;
+           AppendBatch: (commands: Array<EventCommand & { id: string; groupId?: string }>) => Promise<unknown>;
           AppendEvent: (
             id: string,
             eventType: string,
             payloadJSON: string
-          ) => Promise<any[]>;
-          Undo: () => Promise<any[]>;
-          Redo: () => Promise<any[]>;
+           ) => Promise<unknown>;
+           Undo: () => Promise<unknown>;
+           Redo: () => Promise<unknown>;
           GetSettings: () => Promise<AppSettings>;
           SetAutostart: (enabled: boolean) => Promise<AppSettings>;
           SelectFolderDialog: () => Promise<string>;
@@ -70,10 +70,15 @@ function isWailsAvailable(): boolean {
   return Boolean(window?.go?.main?.App);
 }
 
-function normalizeEvents(rawList: any[]): StoredEvent[] {
+const normalizedCache = new WeakMap<object, StoredEvent[]>();
+
+export function normalizeEvents(rawList: unknown): StoredEvent[] {
   if (!Array.isArray(rawList)) throw new Error('Event history must be an array');
-  const events = rawList.map(item => parseStoredEvent({ ...item, payload: typeof item.payload === 'string' ? JSON.parse(item.payload) : item.payload }));
+  const cached = normalizedCache.get(rawList);
+  if (cached) return cached;
+  const events = rawList.map((item: unknown) => parseStoredEvent(item));
   replayCommands(events);
+  normalizedCache.set(rawList, events);
   return events;
 }
 
@@ -93,7 +98,7 @@ function createInitialBrowserDemoEvents(): StoredEvent[] {
   const t5 = `${yy}-105`;
   const t6 = `${yy}-106`;
 
-  const raw: Array<{ type: EventType; payload: Record<string, any> }> = [
+  const raw: EventCommand[] = [
     {
       type: 'TASK_CREATED',
       payload: {
@@ -175,8 +180,7 @@ function createInitialBrowserDemoEvents(): StoredEvent[] {
     seq: i + 1,
     id: `seed-${i + 1}`,
     timestamp: new Date(now.getTime() + i * 1000).toISOString(),
-    type: r.type,
-    payload: r.payload,
+    ...r,
     undone: false,
   }));
 }
@@ -190,6 +194,7 @@ function loadBrowserEvents(): StoredEvent[] {
 }
 
 function saveBrowserEvents(events: StoredEvent[]): StoredEvent[] {
+  replayCommands(events);
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(events));
   return events;
 }
@@ -209,34 +214,50 @@ export const eventBridge = {
     return loadBrowserEvents();
   },
 
-  async appendEvent(
-    type: EventType,
-    payload: Record<string, any>,
+  async appendEvent<T extends EventType>(
+    type: T,
+    payload: Extract<EventCommand, { type: T }>['payload'],
     groupId = ''
   ): Promise<StoredEvent[]> {
     return this.appendBatch([parseCommand({ type, payload })], groupId);
   },
 
   async appendBatch(commands: EventCommand[], groupId = ''): Promise<StoredEvent[]> {
+    if ([...groupId].length > 256) throw new Error('Invalid edit group');
     const checked = commands.map(parseCommand);
-    const identified = checked.map(command => ({ ...command, groupId, id: `ev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}` }));
+    const identified = checked.map(command => ({
+      ...command,
+      groupId,
+      id: `ev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    }));
     if (isWailsAvailable()) {
       const res = await window.go!.main!.App!.AppendBatch(identified);
       return normalizeEvents(res);
     }
     const history = loadBrowserEvents();
-    const tasks = replayCommands(history);
+    const tasks = copyReplayTasks(replayCommands(history));
     const effective = identified.filter(command => applyCommand(tasks, command));
     if (!effective.length) return history;
     const current = history.filter(event => !event.undone);
-    const storedGroup = effective.length > 1 ? `batch-${effective[0].id}` : groupId && browserGroup === groupId ? current[current.length - 1]?.groupId : `edit-${effective[0].id}`;
+    let storedGroup = `edit-${effective[0].id}`;
+    if (groupId && browserGroup === groupId) {
+      storedGroup = current[current.length - 1]?.groupId || storedGroup;
+    }
+    if (effective.length > 1) storedGroup = `batch-${effective[0].id}`;
     let seq = history.reduce((max, event) => Math.max(max, event.seq), 0);
     for (const command of effective) {
       const last = current[current.length - 1];
       const timestamp = new Date().toISOString();
-      if (effective.length === 1 && groupId && browserGroup === groupId && last && last.type === command.type && last.payload.taskId === command.payload.taskId && ['TASK_RENAMED', 'TASK_START_DATE_SET', 'TASK_ACTIVE_SET'].includes(command.type)) {
-        current[current.length - 1] = { ...last, payload: command.payload, timestamp };
-      } else current.push({ ...command, groupId: storedGroup, seq: ++seq, timestamp, undone: false });
+      const coalesce = effective.length === 1 && groupId && browserGroup === groupId &&
+        last && last.type === command.type && last.payload.taskId === command.payload.taskId &&
+        ['TASK_RENAMED', 'TASK_START_DATE_SET', 'TASK_ACTIVE_SET'].includes(command.type);
+      if (coalesce) {
+        current[current.length - 1] = {
+          ...command, seq: last.seq, id: last.id, groupId: last.groupId, timestamp, undone: false,
+        };
+      } else {
+        current.push({ ...command, groupId: storedGroup, seq: ++seq, timestamp, undone: false });
+      }
     }
     const saved = saveBrowserEvents(current);
     browserGroup = groupId;
@@ -252,7 +273,11 @@ export const eventBridge = {
     const events = loadBrowserEvents();
     const latest = [...events].reverse().find(event => !event.undone);
     if (!latest) return events;
-    return saveBrowserEvents(events.map(event => event.seq === latest.seq || latest.groupId && event.groupId === latest.groupId ? { ...event, undone: true } : event));
+    return saveBrowserEvents(events.map(event =>
+      event.seq === latest.seq || latest.groupId && event.groupId === latest.groupId
+        ? { ...event, undone: true }
+        : event
+    ));
   },
 
   async redo(): Promise<StoredEvent[]> {
@@ -264,7 +289,11 @@ export const eventBridge = {
     const events = loadBrowserEvents();
     const earliest = events.find(event => event.undone);
     if (!earliest) return events;
-    return saveBrowserEvents(events.map(event => event.seq === earliest.seq || earliest.groupId && event.groupId === earliest.groupId ? { ...event, undone: false } : event));
+    return saveBrowserEvents(events.map(event =>
+      event.seq === earliest.seq || earliest.groupId && event.groupId === earliest.groupId
+        ? { ...event, undone: false }
+        : event
+    ));
   },
 
   async getSettings(): Promise<AppSettings> {

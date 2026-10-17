@@ -6,13 +6,8 @@ import {
   TaskState,
 } from './types';
 import { calendarDistance, localDate } from './dates';
-import { stableTopology } from './topology';
+import { replayCommands } from './commands';
 const weekdayFormatter = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
-interface MutableTask {
-  id: string; title: string; creationOrder: number; createdAt: string; configuredStart: string;
-  predecessors: Set<string>; isActive: boolean; completed: boolean; completedAt?: string;
-}
-const replayCache = new WeakMap<StoredEvent[], { rawTasks: Record<string, MutableTask>; predecessorMap: Record<string, Set<string>> }>();
 
 function compareTaskDates(a: TaskState, b: TaskState): number {
   return Date.parse(a.effectiveStart) - Date.parse(b.effectiveStart) ||
@@ -39,7 +34,7 @@ export function dateKeyToIsoStart(dateKey: string): string {
 }
 
 /**
- * Adds whole calendar days to an ISO timestamp while preserving time or defaulting to 09:00 local.
+ * Adds whole local calendar days to an ISO timestamp while preserving its time.
  */
 export function addCalendarDays(isoString: string, days: number): string {
   const dt = new Date(isoString);
@@ -178,7 +173,7 @@ export function wouldCreateCycle(
   const queue: string[] = [candidatePredId];
 
   while (queue.length > 0) {
-    const curr = queue.shift()!;
+    const curr = queue.pop()!;
     if (curr === taskId) return true;
     if (visited.has(curr)) continue;
     visited.add(curr);
@@ -199,119 +194,23 @@ export function wouldCreateCycle(
  * Projects an ordered list of StoredEvents into the deterministic application state.
  */
 export function projectEvents(
-  events: StoredEvent[],
+  events: readonly StoredEvent[],
   now: Date = new Date()
 ): ProjectedState {
-  const activeEvents = events.filter((e) => !e.undone);
-  const canUndo = activeEvents.length > 0;
-  const canRedo = events.some((e) => e.undone);
-
-  const cached = replayCache.get(events);
-  const rawTasks: Record<string, MutableTask> = cached?.rawTasks ?? Object.create(null);
-  const predecessorMap: Record<string, Set<string>> = cached?.predecessorMap ?? Object.create(null);
-  let creationCounter = 0;
+  const replay = replayCommands(events);
+  const rawTasks = Object.fromEntries(replay.tasks);
+  const canUndo = replay.activeEventCount > 0;
+  const canRedo = replay.canRedo;
 
   const currentYearTwoDigits = now.getFullYear() % 100;
   const yearPrefix = `${String(currentYearTwoDigits).padStart(2, '0')}-`;
   let maxNumberForYear = 100;
 
-  for (const ev of cached ? [] : activeEvents) {
-    const p = ev.payload || {};
-    switch (ev.type) {
-      case 'TASK_CREATED': {
-        const taskId = String(p.taskId || '');
-        if (!taskId) break;
-        if (rawTasks[taskId]) throw new Error(`Duplicate task: ${taskId}`);
-        if (taskId.startsWith(yearPrefix)) {
-          const numPart = parseInt(taskId.slice(yearPrefix.length), 10);
-          if (!isNaN(numPart) && numPart > maxNumberForYear) {
-            maxNumberForYear = numPart;
-          }
-        }
-        creationCounter += 1;
-        const preds = new Set<string>();
-        predecessorMap[taskId] = preds;
-        rawTasks[taskId] = {
-          id: taskId,
-          title: String(p.title ?? 'Unbenannter Task'),
-          creationOrder: creationCounter,
-          createdAt: String(p.createdAt || ev.timestamp || now.toISOString()),
-          configuredStart: String(p.configuredStart || now.toISOString()),
-          predecessors: preds,
-          isActive: false,
-          completed: false,
-        };
-        break;
-      }
-
-      case 'TASK_RENAMED': {
-        const t = rawTasks[String(p.taskId)];
-        if (t && typeof p.title === 'string') {
-          t.title = p.title;
-        }
-        break;
-      }
-
-      case 'TASK_START_DATE_SET': {
-        const t = rawTasks[String(p.taskId)];
-        if (t && typeof p.configuredStart === 'string') {
-          t.configuredStart = p.configuredStart;
-        }
-        break;
-      }
-
-      case 'DEPENDENCY_ADDED': {
-        const taskId = String(p.taskId);
-        const predId = String(p.predecessorId);
-        const t = rawTasks[taskId];
-        const pred = rawTasks[predId];
-        if (t && pred && !wouldCreateCycle(taskId, predId, predecessorMap)) {
-          t.predecessors.add(predId);
-        }
-        break;
-      }
-
-      case 'DEPENDENCY_REMOVED': {
-        const t = rawTasks[String(p.taskId)];
-        if (t) {
-          t.predecessors.delete(String(p.predecessorId));
-        }
-        break;
-      }
-
-      case 'TASK_ACTIVE_SET': {
-        const t = rawTasks[String(p.taskId)];
-        if (t) {
-          t.isActive = Boolean(p.isActive);
-        }
-        break;
-      }
-
-      case 'TASK_COMPLETED': {
-        const t = rawTasks[String(p.taskId)];
-        if (t) {
-          t.completed = true;
-          t.completedAt = String(p.completedAt || ev.timestamp || now.toISOString());
-          t.isActive = false;
-        }
-        break;
-      }
-
-      case 'TASK_REOPENED': {
-        const t = rawTasks[String(p.taskId)];
-        if (t) {
-          t.completed = false;
-          t.completedAt = undefined;
-        }
-        break;
-      }
+  for (const id of Object.keys(rawTasks)) {
+    if (id.startsWith(yearPrefix)) {
+      const number = Number(id.slice(yearPrefix.length));
+      if (Number.isInteger(number)) maxNumberForYear = Math.max(maxNumberForYear, number);
     }
-  }
-
-  if (!cached) replayCache.set(events,{rawTasks,predecessorMap});
-  for (const id of Object.keys(rawTasks)) if (id.startsWith(yearPrefix)) {
-    const number = Number(id.slice(yearPrefix.length));
-    if (Number.isInteger(number)) maxNumberForYear = Math.max(maxNumberForYear, number);
   }
 
   // Build time-dependent presentation separately from the cached event replay.
@@ -343,8 +242,7 @@ export function projectEvents(
   // Calculate once in topological order, without recursion.
   const calculatedStartCache: Record<string, string | null> = Object.create(null);
   const effectiveStartCache: Record<string, string> = Object.create(null);
-  const orderedRawTasks = stableTopology(allTaskIds.map(id => ({ ...rawTasks[id], predecessorIds: Array.from(rawTasks[id].predecessors) })));
-  for (const raw of orderedRawTasks) {
+  for (const raw of replay.orderedTasks) {
     let latest: string | null = null;
     for (const pred of raw.predecessors) {
       const value = effectiveStartCache[pred];
@@ -440,7 +338,7 @@ export function projectEvents(
     listEntries,
     canUndo,
     canRedo,
-    activeEventCount: activeEvents.length,
+    activeEventCount: replay.activeEventCount,
     totalEventCount: events.length,
     nextTaskId,
   };

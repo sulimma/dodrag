@@ -27,8 +27,8 @@ it('sorts deep graphs iteratively with deterministic disconnected nodes', () => 
 it('resubmits from the displayed dependency-derived date, not the configured date or today', () => {
   const configuredStart = localDate(2026, 10, 17).toISOString();
   const state = projectEvents([
-    { seq: 1, id: 'e1', timestamp: configuredStart, undone: false, type: 'TASK_CREATED', payload: { taskId: 'a', title: 'A', configuredStart: localDate(2026, 10, 25, 14, 30).toISOString() } },
-    { seq: 2, id: 'e2', timestamp: configuredStart, undone: false, type: 'TASK_CREATED', payload: { taskId: 'b', title: 'B', configuredStart } },
+    { seq: 1, id: 'e1', timestamp: configuredStart, undone: false, type: 'TASK_CREATED', payload: { taskId: 'a', title: 'A', createdAt: configuredStart, configuredStart: localDate(2026, 10, 25, 14, 30).toISOString() } },
+    { seq: 2, id: 'e2', timestamp: configuredStart, undone: false, type: 'TASK_CREATED', payload: { taskId: 'b', title: 'B', createdAt: configuredStart, configuredStart } },
     { seq: 3, id: 'e3', timestamp: configuredStart, undone: false, type: 'DEPENDENCY_ADDED', payload: { taskId: 'b', predecessorId: 'a' } },
   ], now);
   const task = state.tasks.b;

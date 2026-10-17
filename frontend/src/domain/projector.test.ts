@@ -23,7 +23,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     };
     const events: StoredEvent[] = Object.entries(dates).map(([taskId, configuredStart], i) => ({
       seq: i + 1, id: `e${i}`, timestamp: todayIso, undone: false, type: 'TASK_CREATED',
-      payload: { taskId, title: taskId, configuredStart },
+      payload: { taskId, title: taskId, configuredStart, createdAt: todayIso },
     }));
     for (const [taskId, predecessorId] of [['c', 'a'], ['c', 'b'], ['d', 'c'], ['e', 'd']]) {
       events.push({ seq: events.length + 1, id: `e${events.length}`, timestamp: todayIso,
@@ -32,7 +32,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     const before = projectEvents(events, fixedNow);
     const after = projectEvents([...events, {
       seq: events.length + 1, id: 'completed', timestamp: todayIso, undone: false,
-      type: 'TASK_COMPLETED', payload: { taskId: 'a' },
+      type: 'TASK_COMPLETED', payload: { taskId: 'a', completedAt: todayIso },
     }], fixedNow);
     for (const state of [before, after]) {
       expect(state.tasks.c.effectiveStart).toBe('2026-10-19T14:30:12.000Z');
@@ -53,7 +53,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     ];
     const events: StoredEvent[] = dates.map(([taskId, configuredStart], i) => ({
       seq: i + 1, id: `e${i}`, timestamp: todayIso, undone: false, type: 'TASK_CREATED',
-      payload: { taskId, title: taskId, configuredStart },
+      payload: { taskId, title: taskId, configuredStart, createdAt: todayIso },
     }));
     events.push({ seq: 6, id: 'active', timestamp: todayIso, undone: false,
       type: 'TASK_ACTIVE_SET', payload: { taskId: '26-108', isActive: true } });
@@ -75,8 +75,8 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       const start = localDate(year, month, day, 14, 30, 12).toISOString();
       const expected = localDate(year, month, day + 1, 14, 30, 12).toISOString();
       const state = projectEvents([
-        { seq: 1, id: 'a', timestamp: start, undone: false, type: 'TASK_CREATED', payload: { taskId: 'a', configuredStart: start } },
-        { seq: 2, id: 'b', timestamp: start, undone: false, type: 'TASK_CREATED', payload: { taskId: 'b', configuredStart: start } },
+        { seq: 1, id: 'a', timestamp: start, undone: false, type: 'TASK_CREATED', payload: { taskId: 'a', title: 'A', configuredStart: start, createdAt: start } },
+        { seq: 2, id: 'b', timestamp: start, undone: false, type: 'TASK_CREATED', payload: { taskId: 'b', title: 'B', configuredStart: start, createdAt: start } },
         { seq: 3, id: 'dep', timestamp: start, undone: false, type: 'DEPENDENCY_ADDED', payload: { taskId: 'b', predecessorId: 'a' } },
       ], new Date(start));
       expect(state.tasks.b.effectiveStart).toBe(expected);
@@ -94,6 +94,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
           taskId: '26-1',
           title: 'Task A (Vorgänger)',
           configuredStart: todayIso,
+          createdAt: todayIso,
         },
         undone: false,
       },
@@ -106,6 +107,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
           taskId: '26-2',
           title: 'Task B (Nachfolger)',
           configuredStart: todayIso,
+          createdAt: todayIso,
         },
         undone: false,
       },
@@ -146,6 +148,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
           taskId: '26-10',
           title: 'Erst in 4 Tagen starten',
           configuredStart: futureDayIso,
+          createdAt: todayIso,
         },
         undone: false,
       },
@@ -176,7 +179,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'e1',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-1', title: 'Alpha', configuredStart: todayIso },
+        payload: { taskId: '26-1', title: 'Alpha', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -184,7 +187,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'e2',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-2', title: 'Beta', configuredStart: todayIso },
+        payload: { taskId: '26-2', title: 'Beta', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -192,7 +195,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'e3',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-3', title: 'Gamma', configuredStart: todayIso },
+        payload: { taskId: '26-3', title: 'Gamma', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -200,7 +203,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'e4',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-4', title: 'Delta', configuredStart: todayIso },
+        payload: { taskId: '26-4', title: 'Delta', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
     ];
@@ -252,7 +255,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'u1',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-0', title: 'Unbeteiligter Task ganz oben', configuredStart: todayIso },
+        payload: { taskId: '26-0', title: 'Unbeteiligter Task ganz oben', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -260,7 +263,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: '1',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-1', title: 'T1', configuredStart: todayIso },
+        payload: { taskId: '26-1', title: 'T1', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -268,7 +271,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'u2',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-99', title: 'Unbeteiligter Task dazwischen', configuredStart: todayIso },
+        payload: { taskId: '26-99', title: 'Unbeteiligter Task dazwischen', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -276,7 +279,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: '2',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-2', title: 'T2', configuredStart: todayIso },
+        payload: { taskId: '26-2', title: 'T2', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -284,7 +287,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: '3',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-3', title: 'T3', configuredStart: todayIso },
+        payload: { taskId: '26-3', title: 'T3', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -292,7 +295,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: '4',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-4', title: 'T4', configuredStart: todayIso },
+        payload: { taskId: '26-4', title: 'T4', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -339,7 +342,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: '1',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-1', title: 'A', configuredStart: todayIso },
+        payload: { taskId: '26-1', title: 'A', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -347,7 +350,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: '2',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-2', title: 'B', configuredStart: todayIso },
+        payload: { taskId: '26-2', title: 'B', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -355,7 +358,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: '3',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-3', title: 'C', configuredStart: todayIso },
+        payload: { taskId: '26-3', title: 'C', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -404,7 +407,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'w1',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-50', title: 'Freitag Task', configuredStart: todayIso },
+        payload: { taskId: '26-50', title: 'Freitag Task', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -412,7 +415,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'w2',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-51', title: 'Samstag Task', configuredStart: satIso },
+        payload: { taskId: '26-51', title: 'Samstag Task', configuredStart: satIso, createdAt: todayIso },
         undone: false,
       },
     ];
@@ -445,7 +448,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'm1',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-1', title: 'Heute Startbar Normal', configuredStart: todayIso },
+        payload: { taskId: '26-1', title: 'Heute Startbar Normal', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -453,7 +456,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'm2',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-2', title: 'Heute Aktiv', configuredStart: todayIso },
+        payload: { taskId: '26-2', title: 'Heute Aktiv', configuredStart: todayIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -469,7 +472,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'm4',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-3', title: 'Morgen ohne Vorgänger', configuredStart: tomorrowIso },
+        payload: { taskId: '26-3', title: 'Morgen ohne Vorgänger', configuredStart: tomorrowIso, createdAt: todayIso },
         undone: false,
       },
     ];
@@ -485,7 +488,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'f1',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-10', title: 'Morgen ohne Vorgänger', configuredStart: tomorrowIso },
+        payload: { taskId: '26-10', title: 'Morgen ohne Vorgänger', configuredStart: tomorrowIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -493,7 +496,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'f2',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-11', title: 'Nächste Woche ohne Vorgänger', configuredStart: nextWeekIso },
+        payload: { taskId: '26-11', title: 'Nächste Woche ohne Vorgänger', configuredStart: nextWeekIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -501,7 +504,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         id: 'f3',
         timestamp: todayIso,
         type: 'TASK_CREATED',
-        payload: { taskId: '26-12', title: 'Blockierter Task', configuredStart: tomorrowIso },
+        payload: { taskId: '26-12', title: 'Blockierter Task', configuredStart: tomorrowIso, createdAt: todayIso },
         undone: false,
       },
       {
@@ -527,7 +530,7 @@ it('projects a deep chain and distant legacy dates without daily materialization
   for (let i=9999;i>0;i--) events.push({seq:events.length+1,id:`d${i}`,timestamp:iso,type:'DEPENDENCY_ADDED',payload:{taskId:`t${i}`,predecessorId:`t${i-1}`},undone:false});
   const projected=projectEvents(events,new Date(iso));
   expect(projected.openTasks[0].id).toBe('t0'); expect(projected.openTasks[9999].id).toBe('t9999');
-  const future=[{...events[0],payload:{...events[0].payload,configuredStart:'9999-01-01T09:00:00Z'}}];
+  const future: StoredEvent[] = [{ seq: 1, id: 'future', timestamp: iso, undone: false, type: 'TASK_CREATED', payload: { taskId: 't9999', title: 'Future', createdAt: iso, configuredStart: '9999-01-01T09:00:00Z' } }];
   expect(projectEvents(future,new Date(iso)).listEntries.length).toBe(3);
   expect(projectEvents(future,new Date('2026-10-18T09:00:00Z')).tasks['t9999'].configuredStart).toBe('9999-01-01T09:00:00Z');
 });

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type Command struct {
@@ -82,7 +83,7 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 				return nil, fmt.Errorf("empty title")
 			}
 		default:
-			if _, err := time.Parse(time.RFC3339Nano, value); err != nil {
+			if _, err := parseEventTime(value); err != nil {
 				return nil, fmt.Errorf("invalid %s: %w", field, err)
 			}
 		}
@@ -90,6 +91,10 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 	return p, nil
 }
 func applyCommand(tasks map[string]*task, kind string, p map[string]interface{}) (bool, error) {
+	return applyValidatedCommand(tasks, kind, p, true)
+}
+
+func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]interface{}, checkCycle bool) (bool, error) {
 	id := p["taskId"].(string)
 	t := tasks[id]
 	if kind == "TASK_CREATED" {
@@ -159,7 +164,10 @@ func applyCommand(tasks map[string]*task, kind string, p map[string]interface{})
 		if t.predecessors[pred] {
 			return false, nil
 		}
-		stack := []string{pred}
+		var stack []string
+		if checkCycle {
+			stack = append(stack, pred)
+		}
 		visited := make(map[string]bool)
 		for len(stack) > 0 {
 			current := stack[len(stack)-1]
@@ -184,28 +192,24 @@ func (s *Store) AppendEvent(id, kind, payload string) ([]Event, error) {
 	return s.AppendBatch([]Command{{ID: id, Type: kind, Payload: json.RawMessage(payload)}})
 }
 func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
-	events, err := s.GetEvents()
+	events, tasks, err := s.readReplay(s.db)
 	if err != nil {
 		return nil, err
 	}
-	tasks := make(map[string]*task)
-	for _, ev := range events {
-		if ev.Undone {
-			continue
-		}
-		p, err := validatePayload(ev.Type, ev.Payload)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := applyCommand(tasks, ev.Type, p); err != nil {
-			return nil, fmt.Errorf("event %d: %w", ev.Seq, err)
-		}
-	}
 	changed := make([]Command, 0, len(commands))
+	payloads := make(map[string]map[string]interface{}, len(commands))
+	ids := make(map[string]bool, len(events)+len(commands))
+	for _, event := range events {
+		ids[event.ID] = true
+	}
 	for _, command := range commands {
 		if err := checkID(command.ID); err != nil {
 			return nil, err
 		}
+		if utf8.RuneCountInString(command.GroupID) > 256 || ids[command.ID] {
+			return nil, fmt.Errorf("invalid group or duplicate event ID: %s", command.ID)
+		}
+		ids[command.ID] = true
 		p, err := validatePayload(command.Type, command.Payload)
 		if err != nil {
 			return nil, err
@@ -216,6 +220,7 @@ func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
 		}
 		if effect {
 			changed = append(changed, command)
+			payloads[command.ID] = p
 		}
 	}
 	if len(changed) == 0 {
@@ -238,7 +243,7 @@ func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
 		if len(changed) == 1 && command.GroupID != "" && command.GroupID == s.groupID && isCoalescableEventType(command.Type) && len(events) > 0 {
 			last := events[len(events)-1]
 			previous, _ := validatePayload(last.Type, last.Payload)
-			incoming, _ := validatePayload(command.Type, command.Payload)
+			incoming := payloads[command.ID]
 			if !last.Undone && last.Type == command.Type && previous["taskId"] == incoming["taskId"] {
 				if _, err := tx.Exec(`UPDATE events SET payload = ?, timestamp = ? WHERE seq = ?`, string(command.Payload), ts, last.Seq); err != nil {
 					return nil, err
@@ -246,9 +251,12 @@ func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
 				continue
 			}
 		}
-		group := command.GroupID
-		if group == "" || group != s.groupID {
-			group = "edit-" + command.ID
+		group := "edit-" + command.ID
+		if command.GroupID != "" && command.GroupID == s.groupID && len(events) > 0 {
+			last := events[len(events)-1]
+			if !last.Undone {
+				group = last.GroupID
+			}
 		}
 		if batchGroup != "" {
 			group = batchGroup
@@ -261,5 +269,34 @@ func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
 		return nil, err
 	}
 	s.groupID = changed[len(changed)-1].GroupID
-	return s.GetEvents()
+	// The incoming commands were already validated against the replayed state.
+	return s.readEvents(s.db)
+}
+
+// Final Kahn validation covers completed tasks and every persisted dependency.
+func validateTopology(tasks map[string]*task) error {
+	degree := make(map[string]int, len(tasks))
+	successors := make(map[string][]string, len(tasks))
+	queue := make([]string, 0, len(tasks))
+	for id, task := range tasks {
+		degree[id] = len(task.predecessors)
+		if len(task.predecessors) == 0 {
+			queue = append(queue, id)
+		}
+		for pred := range task.predecessors {
+			successors[pred] = append(successors[pred], id)
+		}
+	}
+	for i := 0; i < len(queue); i++ {
+		for _, id := range successors[queue[i]] {
+			degree[id]--
+			if degree[id] == 0 {
+				queue = append(queue, id)
+			}
+		}
+	}
+	if len(queue) != len(tasks) {
+		return fmt.Errorf("dependency cycle in final event history")
+	}
+	return nil
 }

@@ -1,15 +1,13 @@
 import type { EventCommand } from './eventSchema';
 export type EventType = EventCommand['type'];
 
-export interface StoredEvent {
+export type StoredEvent = EventCommand & {
   seq: number;
   id: string;
   timestamp: string;
-  type: EventType;
-  payload: Record<string, any>;
   undone: boolean;
   groupId?: string;
-}
+};
 
 export interface TaskState {
   id: string; // e.g. "26-125"

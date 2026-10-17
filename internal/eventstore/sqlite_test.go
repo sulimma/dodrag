@@ -2,6 +2,7 @@ package eventstore
 
 import (
 	"database/sql"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -26,7 +27,15 @@ func TestSQLiteEventStore(t *testing.T) {
 	}
 
 	// Append a new event
-	events, err = store.AppendEvent("test-ev-1", "TASK_RENAMED", `{"taskId":"26-101","title":"Geänderter Titel"}`)
+	seed, err := validatePayload(events[0].Type, events[0].Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rename, err := json.Marshal(map[string]interface{}{"taskId": seed["taskId"], "title": "Geänderter Titel"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err = store.AppendEvent("test-ev-1", "TASK_RENAMED", string(rename))
 	if err != nil {
 		t.Fatalf("AppendEvent failed: %v", err)
 	}
@@ -55,7 +64,11 @@ func TestSQLiteEventStore(t *testing.T) {
 	}
 
 	// A standalone edit after redo must not coalesce with an earlier edit.
-	events, err = store.AppendEvent("test-ev-2", "TASK_RENAMED", `{"taskId":"26-101","title":"Zweite Änderung innerhalb 1 Minute"}`)
+	rename, err = json.Marshal(map[string]interface{}{"taskId": seed["taskId"], "title": "Zweite Änderung innerhalb 1 Minute"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err = store.AppendEvent("test-ev-2", "TASK_RENAMED", string(rename))
 	if err != nil {
 		t.Fatalf("AppendEvent coalesced failed: %v", err)
 	}
