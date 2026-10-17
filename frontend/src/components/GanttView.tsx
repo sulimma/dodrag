@@ -653,7 +653,7 @@ export function GanttView({
                 stroke={strokeColor}
                 strokeWidth={strokeWidth}
                 markerEnd={marker}
-                className="transition-all group-hover:stroke-[2.6px]"
+                className="group-hover:stroke-[2.6px]"
               />
             </g>
           );
@@ -702,6 +702,7 @@ export function GanttView({
         return (
           <div
             key={task.id}
+            data-gantt-node={task.id}
             style={{
               left: x,
               top: y,
@@ -714,7 +715,7 @@ export function GanttView({
               isBeingDragged ? 'opacity-35' : ''
             }`}
           >
-            {task.id}
+            <span className="pointer-events-none select-none">{task.id}</span>
           </div>
         );
       })}

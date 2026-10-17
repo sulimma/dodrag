@@ -674,7 +674,7 @@ export function NetworkPlanView({
                 stroke={strokeColor}
                 strokeWidth={strokeWidth}
                 markerEnd={marker}
-                className="transition-all group-hover:stroke-[2.8px]"
+                className="group-hover:stroke-[2.8px]"
               />
             </g>
           );
