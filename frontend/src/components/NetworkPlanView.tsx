@@ -724,6 +724,7 @@ export function NetworkPlanView({
         return (
           <div
             key={task.id}
+            data-dependency-highlight={role?.startsWith('predecessor-') ? 'predecessor' : role?.startsWith('successor-') ? 'successor' : undefined}
             style={{
               left: x,
               top: y,

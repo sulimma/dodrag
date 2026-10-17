@@ -43,6 +43,7 @@ import { TaskDate } from './components/TaskDate';
 import { taskInteractions } from './components/taskInteractions';
 import { dependencyPathEdges, previewPathKeys } from './domain/dependencyPaths';
 import { TaskDragHandle } from './components/TaskDragHandle';
+import { DependencyHighlightIndicators } from './components/DependencyHighlightIndicators';
 
 interface ContextMenuState {
   x: number;
@@ -129,6 +130,7 @@ export function App() {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
+  const listScrollRef = useRef<HTMLElement | null>(null);
   const mutationBusy = useRef(false);
   const confirmedEvents = useRef<StoredEvent[]>([]);
   const editGroup = useRef('');
@@ -921,7 +923,9 @@ export function App() {
 
       {/* Main Content Area: Liste / Netzplan (Left, mouse-wheel scrollable) + Sidebar (Right) */}
       <div className="flex-1 flex overflow-hidden">
+        <div className="relative flex flex-1 min-w-0 overflow-hidden">
         <main
+          ref={listScrollRef}
           className="flex-1 overflow-y-auto overflow-x-auto px-6 py-5"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -1022,6 +1026,7 @@ export function App() {
                   <div
                     key={entry.key}
                     data-flip-key={entry.key}
+                    data-dependency-highlight={role?.startsWith('predecessor-') ? 'predecessor' : role?.startsWith('successor-') ? 'successor' : undefined}
                     {...taskInteractions(task.id, entry.key, {
                       onSelectTask: id => { clearEdgeSelection(); setSelectedTaskId(previous => previous === id ? null : id); },
                       onDragStartTask, onDragEndTask, onShiftKeyChange: setIsShiftDrag, isShiftDrag, draggedTaskId, setDraggedTaskId, setActiveDropTargetKey,
@@ -1223,6 +1228,8 @@ export function App() {
             />
           )}
         </main>
+        <DependencyHighlightIndicators key={viewMode} scrollRef={listScrollRef} contentKey={highlights} horizontal={viewMode === 'gantt'} />
+        </div>
 
         {/* Right Sidebar: Wiedervorlage Drag-Targets + Permanent "Erledigte Tasks" List (Drop Target) */}
         <aside className="w-80 border-l border-slate-200 bg-white/90 p-4 flex flex-col gap-4 shrink-0 overflow-hidden">

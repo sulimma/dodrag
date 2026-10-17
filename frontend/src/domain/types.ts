@@ -17,8 +17,8 @@ export interface TaskState {
   creationOrder: number; // Immutable sequence index for stable topological sorting
   createdAt: string;
   configuredStart: string; // ISO timestamp
-  calculatedStart: string | null; // Latest effective timestamp of all predecessors, or null
-  effectiveStart: string; // Computed timestamp: max(configuredStart, all predecessor timestamps)
+  calculatedStart: string | null; // Latest effective timestamp of all predecessors + 1 calendar day, or null
+  effectiveStart: string; // Computed timestamp: max(configuredStart, calculatedStart)
   effectiveDateKey: string; // YYYY-MM-DD in local time
   predecessorIds: string[]; // Open predecessor IDs
   allPredecessorIds: string[]; // All configured predecessor IDs (including completed)

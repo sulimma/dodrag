@@ -7,18 +7,19 @@ import {
   toDateKey,
 } from './projector';
 import { StoredEvent } from './types';
+import { localDate } from './dates';
 
 describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
   const fixedNow = new Date('2026-10-16T10:00:00.000Z');
   const todayIso = '2026-10-16T09:00:00.000Z';
 
-  it('takes the maximum of own date and all recursively computed predecessor dates, including completed tasks', () => {
+  it('adds one calendar day to the latest computed predecessor before taking the maximum with the own date', () => {
     const dates = {
       a: '2026-10-18T14:30:12.000Z',
       b: '2026-10-17T18:00:00.000Z',
       c: todayIso,
       d: todayIso,
-      e: '2026-10-19T08:00:00.000Z',
+      e: '2026-10-22T08:00:00.000Z',
     };
     const events: StoredEvent[] = Object.entries(dates).map(([taskId, configuredStart], i) => ({
       seq: i + 1, id: `e${i}`, timestamp: todayIso, undone: false, type: 'TASK_CREATED',
@@ -34,8 +35,9 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       type: 'TASK_COMPLETED', payload: { taskId: 'a' },
     }], fixedNow);
     for (const state of [before, after]) {
-      expect(state.tasks.c.effectiveStart).toBe(dates.a);
-      expect(state.tasks.d.effectiveStart).toBe(dates.a);
+      expect(state.tasks.c.effectiveStart).toBe('2026-10-19T14:30:12.000Z');
+      expect(state.tasks.d.effectiveStart).toBe('2026-10-20T14:30:12.000Z');
+      expect(state.tasks.e.calculatedStart).toBe('2026-10-21T14:30:12.000Z');
       expect(state.tasks.e.effectiveStart).toBe(dates.e);
     }
     expect(after.tasks.c.predecessorIds).toEqual(['b']);
@@ -68,7 +70,20 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     expect(completed.completedTasks.map(t => t.id)).toEqual(expected);
   });
 
-  it('inherits the predecessor timestamp without adding a day', () => {
+  it('preserves local time when adding a calendar day across DST and year boundaries', () => {
+    for (const [year, month, day] of [[2027, 3, 27], [2027, 10, 30], [2026, 12, 31]]) {
+      const start = localDate(year, month, day, 14, 30, 12).toISOString();
+      const expected = localDate(year, month, day + 1, 14, 30, 12).toISOString();
+      const state = projectEvents([
+        { seq: 1, id: 'a', timestamp: start, undone: false, type: 'TASK_CREATED', payload: { taskId: 'a', configuredStart: start } },
+        { seq: 2, id: 'b', timestamp: start, undone: false, type: 'TASK_CREATED', payload: { taskId: 'b', configuredStart: start } },
+        { seq: 3, id: 'dep', timestamp: start, undone: false, type: 'DEPENDENCY_ADDED', payload: { taskId: 'b', predecessorId: 'a' } },
+      ], new Date(start));
+      expect(state.tasks.b.effectiveStart).toBe(expected);
+    }
+  });
+
+  it('adds one day to the predecessor timestamp', () => {
     const events: StoredEvent[] = [
       {
         seq: 1,
@@ -113,9 +128,9 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
 
     expect(taskA.calculatedStart).toBeNull();
     expect(taskA.effectiveStart).toBe(todayIso);
-    expect(taskB.calculatedStart).toBe(todayIso);
-    expect(taskB.effectiveStart).toBe(todayIso);
-    expect(taskB.effectiveDateKey).toBe(toDateKey(new Date(todayIso)));
+    expect(taskB.calculatedStart).toBe('2026-10-17T09:00:00.000Z');
+    expect(taskB.effectiveStart).toBe(taskB.calculatedStart);
+    expect(taskB.effectiveDateKey).toBe(toDateKey(new Date(taskB.effectiveStart)));
     expect(taskB.isDeemphasized).toBe(true);
   });
 
@@ -204,6 +219,14 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
           seq: 5,
           id: 'e5',
           timestamp: todayIso,
+          type: 'TASK_START_DATE_SET',
+          payload: { taskId: '26-4', configuredStart: '2026-10-15T09:00:00.000Z' },
+          undone: false,
+        },
+        {
+          seq: 6,
+          id: 'e6',
+          timestamp: todayIso,
           type: 'DEPENDENCY_ADDED',
           payload: { taskId: '26-2', predecessorId: '26-4' },
           undone: false,
@@ -217,9 +240,9 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       .map((e) => (e.kind === 'task' ? e.task.id : ''))
       .filter((id) => id !== '26-2');
 
-    expect(unaffectedOrder).toEqual(['26-1', '26-3', '26-4']);
-    expect(updated.openTasks.map(t => t.id)).toEqual(initialTaskOrder);
-    expect(updated.listEntries.flatMap(e => e.kind === 'task' ? [e.task.id] : [])).toEqual(initialTaskOrder);
+    expect(unaffectedOrder).toEqual(['26-4', '26-1', '26-3']);
+    expect(updated.openTasks.map(t => t.id)).toEqual(['26-4', '26-1', '26-2', '26-3']);
+    expect(updated.listEntries.flatMap(e => e.kind === 'task' ? [e.task.id] : [])).toEqual(['26-4', '26-1', '26-2', '26-3']);
   });
 
   it('highlights ONLY true graph predecessors and successors, ignoring unrelated tasks earlier or later in the list', () => {

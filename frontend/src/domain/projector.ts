@@ -350,8 +350,9 @@ export function projectEvents(
       const value = effectiveStartCache[pred];
       if (!latest || Date.parse(value) > Date.parse(latest)) latest = value;
     }
-    calculatedStartCache[raw.id] = latest;
-    effectiveStartCache[raw.id] = latest && Date.parse(latest) > Date.parse(raw.configuredStart) ? latest : raw.configuredStart;
+    const calculated = latest ? addCalendarDays(latest, 1) : null;
+    calculatedStartCache[raw.id] = calculated;
+    effectiveStartCache[raw.id] = calculated && Date.parse(calculated) > Date.parse(raw.configuredStart) ? calculated : raw.configuredStart;
   }
 
   function computeDates(taskId: string): { calculated: string | null; effective: string } {

@@ -668,6 +668,14 @@ export function GanttView({
       </svg>
 
       {/* Compact Narrow Gantt Nodes (showing ONLY the Task ID) */}
+      {/* Tasks outside the bounded calendar still contribute to the offscreen counters. */}
+      {openTasks.filter(task => !layout.bars[task.id]).map(task => {
+        const role = highlights[task.id];
+        const effectiveKey = task.effectiveDateKey < toDateKey(now) ? toDateKey(now) : task.effectiveDateKey;
+        return <span key={`offscreen-${task.id}`} hidden
+          data-dependency-highlight={role?.startsWith('predecessor-') ? 'predecessor' : role?.startsWith('successor-') ? 'successor' : undefined}
+          data-highlight-side={effectiveKey < windowStart ? 'before' : 'after'} />;
+      })}
       {layout.barList.map(({ task, x, y, width, height }) => {
         const role: HighlightRole = highlights[task.id] ?? null;
         const dropKey = `gantt-task:${task.id}`;
@@ -710,6 +718,7 @@ export function GanttView({
           <div
             key={task.id}
             data-gantt-node={task.id}
+            data-dependency-highlight={role?.startsWith('predecessor-') ? 'predecessor' : role?.startsWith('successor-') ? 'successor' : undefined}
             style={{
               left: x,
               top: y,
