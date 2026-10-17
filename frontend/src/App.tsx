@@ -142,7 +142,7 @@ export function App() {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [isMiniMode, setIsMiniMode] = useState<boolean>(false);
-  const [dockCorner, setDockCorner] = useState<string>('bottom-right');
+  const [dockCorner, setDockCorner] = useState<string>('bottom-left');
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
@@ -171,14 +171,25 @@ export function App() {
         setShowSettingsModal(true);
       } else if (s.bootMinimized) {
         setIsMiniMode(true);
+        eventBridge.enterMiniMode('', 4).then((resolved) => {
+          if (resolved) setDockCorner(resolved);
+        });
       }
     });
     const unsubMinimize = eventBridge.onWindowMinimized(() => {
       setIsMiniMode(true);
     });
+    const unsubRestore = eventBridge.onWindowRestored(() => {
+      setIsMiniMode(false);
+    });
+    const unsubCorner = eventBridge.onWindowCornerChanged((corner) => {
+      setDockCorner(corner);
+    });
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => {
       unsubMinimize();
+      unsubRestore();
+      unsubCorner();
       clearInterval(interval);
     };
   }, []);
@@ -191,20 +202,8 @@ export function App() {
   );
 
   useEffect(() => {
-    if (isMiniMode) {
-      eventBridge
-        .enterMiniMode(dockCorner, miniTasks.length)
-        .then((resolved) => {
-          if (resolved) setDockCorner(resolved);
-        });
-    }
-  }, [isMiniMode]);
-
-  useEffect(() => {
-    if (isMiniMode) {
-      eventBridge.updateMiniModeHeight(miniTasks.length);
-    }
-  }, [isMiniMode, miniTasks.length]);
+    eventBridge.updateMiniModeHeight(miniTasks.length);
+  }, [miniTasks.length]);
 
   const highlights = useMemo(
     () => computeDependencyHighlights(selectedTaskId, state.tasks),
@@ -774,18 +773,7 @@ export function App() {
 
   const handleEnterMiniMode = async () => {
     setIsMiniMode(true);
-  };
-
-  const handleDockCorner = async (corner: string) => {
-    setDockCorner(corner);
-    const resolved = await eventBridge.enterMiniMode(corner, miniTasks.length);
-    if (resolved) setDockCorner(resolved);
-  };
-
-  const handleSnapToNearestCorner = async () => {
-    const resolved = await eventBridge.snapMiniWindowToNearestCorner(
-      miniTasks.length
-    );
+    const resolved = await eventBridge.enterMiniMode('', miniTasks.length);
     if (resolved) setDockCorner(resolved);
   };
 
@@ -822,9 +810,6 @@ export function App() {
     return (
       <MiniCornerView
         tasks={miniTasks}
-        dockCorner={dockCorner}
-        onDockCorner={handleDockCorner}
-        onSnapToNearestCorner={handleSnapToNearestCorner}
         onSelectAndRestore={(taskId) => handleRestoreFromMiniMode(taskId)}
         onRestoreWindow={() => handleRestoreFromMiniMode()}
       />

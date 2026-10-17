@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -23,11 +24,12 @@ type DatabaseEntry struct {
 	Exists bool   `json:"exists"`
 }
 
-// AppSettings stores known databases, the currently active database, autostart flag, and dock corner in %APPDATA%\DoDrag\settings.json.
+// AppSettings stores known databases, the currently active database, autostart flag, and dock monitor/corner in %APPDATA%\DoDrag\settings.json.
 type AppSettings struct {
 	KnownDatabases     []DatabaseEntry `json:"knownDatabases"`
 	ActiveDatabasePath string          `json:"activeDatabasePath"`
 	Autostart          bool            `json:"autostart"`
+	DockMonitor        string          `json:"dockMonitor"`
 	DockCorner         string          `json:"dockCorner"`
 	BootMinimized      bool            `json:"bootMinimized,omitempty"`
 	DatabaseReady      bool            `json:"databaseReady,omitempty"`
@@ -37,6 +39,7 @@ type persistedSettings struct {
 	KnownDatabases     []DatabaseEntry `json:"knownDatabases"`
 	ActiveDatabasePath string          `json:"activeDatabasePath"`
 	Autostart          bool            `json:"autostart"`
+	DockMonitor        string          `json:"dockMonitor"`
 	DockCorner         string          `json:"dockCorner"`
 }
 
@@ -51,6 +54,7 @@ type App struct {
 	settings            AppSettings
 	hwnd                uintptr
 	isMiniMode          bool
+	lastMiniItemCount   int
 	savedStyle          uintptr
 	savedRect           winRect
 	bootMinimized       bool
@@ -61,13 +65,15 @@ type App struct {
 func NewApp() *App {
 	bootMin := false
 	for _, arg := range os.Args[1:] {
-		if strings.EqualFold(strings.TrimSpace(arg), "--minimized") {
+		trimmed := strings.TrimSpace(arg)
+		if strings.EqualFold(trimmed, "--minimized") || strings.EqualFold(trimmed, "--minimize") {
 			bootMin = true
 			break
 		}
 	}
 	return &App{
-		bootMinimized: bootMin,
+		bootMinimized:     bootMin,
+		lastMiniItemCount: 1,
 	}
 }
 
@@ -94,6 +100,7 @@ func (a *App) startup(ctx context.Context) {
 	a.openActiveDatabaseLocked()
 	a.mu.Unlock()
 
+	go registerTaskbarJumpList()
 	go a.watchNativeMinimize(ctx)
 }
 
@@ -101,11 +108,14 @@ func (a *App) ensureWindowHandleLocked() uintptr {
 	if a.hwnd == 0 {
 		a.hwnd = findAppWindowHandle()
 	}
+	if a.hwnd != 0 {
+		installWindowSubclassIfNeeded(a.hwnd, a)
+	}
 	return a.hwnd
 }
 
 func (a *App) watchNativeMinimize(ctx context.Context) {
-	ticker := time.NewTicker(160 * time.Millisecond)
+	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -115,29 +125,135 @@ func (a *App) watchNativeMinimize(ctx context.Context) {
 		case <-ticker.C:
 			a.mu.Lock()
 			hwnd := a.ensureWindowHandleLocked()
-			if hwnd != 0 && !a.isMiniMode {
-				if isWindowMinimizedNative(hwnd) {
-					if time.Now().Before(a.ignoreMinimizeUntil) {
-						procShowWindow.Call(hwnd, swRestore)
+			if hwnd != 0 {
+				if !a.isMiniMode {
+					if isWindowMinimizedNative(hwnd) {
+						if time.Now().Before(a.ignoreMinimizeUntil) {
+							procShowWindow.Call(hwnd, swRestore)
+							a.mu.Unlock()
+							continue
+						}
+						a.enterMiniModeLocked(a.settings.DockCorner, a.lastMiniItemCount)
 						a.mu.Unlock()
+						runtime.EventsEmit(ctx, "window:minimized", true)
 						continue
 					}
-					// User clicked the native Windows Minimize button -> switch to compact corner-docked mode
-					a.enterMiniModeLocked(a.settings.DockCorner, 4)
-					a.mu.Unlock()
-					runtime.EventsEmit(ctx, "window:minimized", true)
-					continue
-				}
-				// Continuously remember normal window bounds & style while in normal mode
-				if rect, ok := getWindowRectNative(hwnd); ok && (rect.Right-rect.Left) >= 600 && (rect.Bottom-rect.Top) >= 400 && rect.Left > -10000 && rect.Top > -10000 {
-					a.savedRect = rect
-				}
-				if style := getWindowStyleNative(hwnd); style != 0 && (style&wsMinimize) == 0 && (style&wsPopup) == 0 {
-					a.savedStyle = style
+					if rect, ok := getWindowRectNative(hwnd); ok && (rect.Right-rect.Left) >= 600 && (rect.Bottom-rect.Top) >= 400 && rect.Left > -10000 && rect.Top > -10000 {
+						if _, onMon := isRectOnAnyMonitor(rect); !onMon {
+							// Desktop/Monitor disappeared while running in normal mode -> move onto Monitor 1
+							a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, rect)
+						} else {
+							a.savedRect = rect
+						}
+					}
+					if style := getWindowStyleNative(hwnd); style != 0 && (style&wsMinimize) == 0 && (style&wsPopup) == 0 {
+						a.savedStyle = style
+					}
+				} else if !isDraggingMini {
+					// In mini mode: verify the target monitor still exists; if disconnected, switch to Monitor 1
+					mon, exists := resolveMonitorOrPrimary(a.settings.DockMonitor)
+					if a.settings.DockMonitor != "" && !exists {
+						logicalW, logicalH := computeMiniLogicalSize(a.lastMiniItemCount)
+						resolvedMon, resolvedCorner := applyMiniWindowBoundsNative(hwnd, mon.DeviceName, a.settings.DockCorner, logicalW, logicalH)
+						a.settings.DockMonitor = resolvedMon
+						a.settings.DockCorner = resolvedCorner
+						_ = a.saveSettingsLocked()
+					} else if rect, ok := getWindowRectNative(hwnd); ok {
+						if _, onMon := isRectOnAnyMonitor(rect); !onMon {
+							logicalW, logicalH := computeMiniLogicalSize(a.lastMiniItemCount)
+							resolvedMon, resolvedCorner := applyMiniWindowBoundsNative(hwnd, mon.DeviceName, a.settings.DockCorner, logicalW, logicalH)
+							a.settings.DockMonitor = resolvedMon
+							a.settings.DockCorner = resolvedCorner
+							_ = a.saveSettingsLocked()
+						}
+					}
 				}
 			}
 			a.mu.Unlock()
 		}
+	}
+}
+
+func (a *App) onDisplayChange() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	hwnd := a.ensureWindowHandleLocked()
+	if hwnd == 0 {
+		return
+	}
+	if a.isMiniMode {
+		logicalW, logicalH := computeMiniLogicalSize(a.lastMiniItemCount)
+		resolvedMon, resolvedCorner := applyMiniWindowBoundsNative(hwnd, a.settings.DockMonitor, a.settings.DockCorner, logicalW, logicalH)
+		a.settings.DockMonitor = resolvedMon
+		a.settings.DockCorner = resolvedCorner
+		_ = a.saveSettingsLocked()
+	} else if rect, ok := getWindowRectNative(hwnd); ok {
+		if _, onMon := isRectOnAnyMonitor(rect); !onMon {
+			a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, rect)
+		}
+	}
+}
+
+func (a *App) onMiniWindowSnapped(monitorName string, corner string) {
+	a.mu.Lock()
+	a.settings.DockMonitor = monitorName
+	a.settings.DockCorner = corner
+	_ = a.saveSettingsLocked()
+	ctx := a.ctx
+	a.mu.Unlock()
+
+	if ctx != nil {
+		runtime.EventsEmit(ctx, "window:cornerChanged", corner)
+	}
+}
+
+func (a *App) triggerMinimizeFromNative() {
+	a.mu.Lock()
+	if a.isMiniMode {
+		a.mu.Unlock()
+		return
+	}
+	a.enterMiniModeLocked(a.settings.DockCorner, a.lastMiniItemCount)
+	ctx := a.ctx
+	a.mu.Unlock()
+
+	if ctx != nil {
+		runtime.EventsEmit(ctx, "window:minimized", true)
+	}
+}
+
+func (a *App) triggerRestoreFromNative() {
+	a.mu.Lock()
+	if !a.isMiniMode {
+		hwnd := a.ensureWindowHandleLocked()
+		if hwnd != 0 {
+			a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, a.savedRect)
+		}
+		a.mu.Unlock()
+		return
+	}
+	a.exitMiniModeLocked()
+	ctx := a.ctx
+	a.mu.Unlock()
+
+	if ctx != nil {
+		runtime.EventsEmit(ctx, "window:restored", true)
+	}
+}
+
+func (a *App) onSecondInstanceLaunch(secondInstanceData options.SecondInstanceData) {
+	wantMinimize := false
+	for _, arg := range secondInstanceData.Args {
+		trimmed := strings.TrimSpace(arg)
+		if strings.EqualFold(trimmed, "--minimize") || strings.EqualFold(trimmed, "--minimized") {
+			wantMinimize = true
+			break
+		}
+	}
+	if wantMinimize {
+		a.triggerMinimizeFromNative()
+	} else {
+		a.triggerRestoreFromNative()
 	}
 }
 
@@ -153,6 +269,9 @@ func (a *App) ensureDemoDatabaseExistsLocked() {
 }
 
 func (a *App) loadOrInitSettingsLocked() {
+	monitors := getConnectedMonitors()
+	primaryMonName := monitors[0].DeviceName
+
 	raw, err := os.ReadFile(a.settingsPath)
 	if err == nil {
 		var loaded persistedSettings
@@ -176,20 +295,28 @@ func (a *App) loadOrInitSettingsLocked() {
 					},
 				}
 			}
+			// Default is bottom-left of Monitor 1 (Primary Monitor)
+			if loaded.DockMonitor == "" {
+				loaded.DockMonitor = primaryMonName
+				loaded.DockCorner = "bottom-left"
+			} else if _, exists := resolveMonitorOrPrimary(loaded.DockMonitor); !exists {
+				loaded.DockMonitor = primaryMonName
+			}
 			if loaded.DockCorner == "" {
-				loaded.DockCorner = "bottom-right"
+				loaded.DockCorner = "bottom-left"
 			}
 			a.settings = AppSettings{
 				KnownDatabases:     loaded.KnownDatabases,
 				ActiveDatabasePath: activePath,
 				Autostart:          loaded.Autostart,
+				DockMonitor:        loaded.DockMonitor,
 				DockCorner:         loaded.DockCorner,
 			}
 			return
 		}
 	}
 
-	// No valid settings.json yet: prepare Demo-Datenbank in KnownDatabases, but leave ActiveDatabasePath empty so Settings opens
+	// No valid settings.json yet: prepare Demo-Datenbank in KnownDatabases, default dock is bottom-left of Monitor 1
 	a.ensureDemoDatabaseExistsLocked()
 	a.settings = AppSettings{
 		KnownDatabases: []DatabaseEntry{
@@ -201,7 +328,8 @@ func (a *App) loadOrInitSettingsLocked() {
 		},
 		ActiveDatabasePath: "",
 		Autostart:          false,
-		DockCorner:         "bottom-right",
+		DockMonitor:        primaryMonName,
+		DockCorner:         "bottom-left",
 	}
 	_ = a.saveSettingsLocked()
 }
@@ -211,6 +339,7 @@ func (a *App) saveSettingsLocked() error {
 		KnownDatabases:     a.settings.KnownDatabases,
 		ActiveDatabasePath: a.settings.ActiveDatabasePath,
 		Autostart:          a.settings.Autostart,
+		DockMonitor:        a.settings.DockMonitor,
 		DockCorner:         a.settings.DockCorner,
 	}
 	data, err := json.MarshalIndent(toSave, "", "  ")
@@ -262,6 +391,7 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 	out := AppSettings{
 		ActiveDatabasePath: a.settings.ActiveDatabasePath,
 		Autostart:          a.settings.Autostart,
+		DockMonitor:        a.settings.DockMonitor,
 		DockCorner:         a.settings.DockCorner,
 		BootMinimized:      a.bootMinimized && a.store != nil,
 		DatabaseReady:      a.store != nil,
@@ -284,11 +414,14 @@ func computeMiniLogicalSize(itemCount int) (int, int) {
 		rows = 4
 	}
 	logicalW := 240
-	logicalH := 28 + rows*28 + 4
+	logicalH := 28 + rows*28 + 2
 	return logicalW, logicalH
 }
 
 func (a *App) enterMiniModeLocked(corner string, itemCount int) string {
+	if itemCount > 0 {
+		a.lastMiniItemCount = itemCount
+	}
 	hwnd := a.ensureWindowHandleLocked()
 	if !a.isMiniMode && hwnd != 0 && !isWindowMinimizedNative(hwnd) {
 		if rect, ok := getWindowRectNative(hwnd); ok && (rect.Right-rect.Left) >= 600 && (rect.Bottom-rect.Top) >= 400 && rect.Left > -10000 && rect.Top > -10000 {
@@ -307,9 +440,13 @@ func (a *App) enterMiniModeLocked(corner string, itemCount int) string {
 	if corner == "" {
 		corner = a.settings.DockCorner
 	}
-	logicalW, logicalH := computeMiniLogicalSize(itemCount)
-	resolvedCorner := applyMiniWindowBoundsNative(hwnd, corner, logicalW, logicalH)
+	if corner == "" {
+		corner = "bottom-left"
+	}
+	logicalW, logicalH := computeMiniLogicalSize(a.lastMiniItemCount)
+	resolvedMon, resolvedCorner := applyMiniWindowBoundsNative(hwnd, a.settings.DockMonitor, corner, logicalW, logicalH)
 	a.isMiniMode = true
+	a.settings.DockMonitor = resolvedMon
 	a.settings.DockCorner = resolvedCorner
 	_ = a.saveSettingsLocked()
 	return resolvedCorner
@@ -326,12 +463,15 @@ func (a *App) EnterMiniMode(corner string, itemCount int) (string, error) {
 func (a *App) UpdateMiniModeHeight(itemCount int) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.lastMiniItemCount = itemCount
 	if !a.isMiniMode {
 		return nil
 	}
 	hwnd := a.ensureWindowHandleLocked()
 	logicalW, logicalH := computeMiniLogicalSize(itemCount)
-	applyMiniWindowBoundsNative(hwnd, a.settings.DockCorner, logicalW, logicalH)
+	resolvedMon, resolvedCorner := applyMiniWindowBoundsNative(hwnd, a.settings.DockMonitor, a.settings.DockCorner, logicalW, logicalH)
+	a.settings.DockMonitor = resolvedMon
+	a.settings.DockCorner = resolvedCorner
 	return nil
 }
 
@@ -343,18 +483,27 @@ func (a *App) SnapMiniWindowToNearestCorner(itemCount int) (string, error) {
 		return a.settings.DockCorner, nil
 	}
 	hwnd := a.ensureWindowHandleLocked()
-	logicalW, logicalH := computeMiniLogicalSize(itemCount)
-	resolvedCorner := applyMiniWindowBoundsNative(hwnd, "nearest", logicalW, logicalH)
-	a.settings.DockCorner = resolvedCorner
-	_ = a.saveSettingsLocked()
-	return resolvedCorner, nil
+	if rect, ok := getWindowRectNative(hwnd); ok {
+		tx, ty, monName, cornerName := findNearestCornerAcrossMonitors(rect)
+		physW := rect.Right - rect.Left
+		physH := rect.Bottom - rect.Top
+		procSetWindowPos.Call(
+			hwnd,
+			hwndTopMost,
+			uintptr(tx),
+			uintptr(ty),
+			uintptr(physW),
+			uintptr(physH),
+			swpNoActivate|swpShowWindow,
+		)
+		a.settings.DockMonitor = monName
+		a.settings.DockCorner = cornerName
+		_ = a.saveSettingsLocked()
+	}
+	return a.settings.DockCorner, nil
 }
 
-// ExitMiniMode restores the full application window from compact corner-docked mode.
-func (a *App) ExitMiniMode() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
+func (a *App) exitMiniModeLocked() {
 	a.isMiniMode = false
 	a.bootMinimized = false
 	a.ignoreMinimizeUntil = time.Now().Add(800 * time.Millisecond)
@@ -365,8 +514,14 @@ func (a *App) ExitMiniMode() error {
 		runtime.WindowSetMinSize(a.ctx, 860, 560)
 	}
 
-	restoreNormalWindowBoundsNative(hwnd, a.savedStyle, a.savedRect)
+	a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, a.savedRect)
+}
 
+// ExitMiniMode restores the full application window from compact corner-docked mode.
+func (a *App) ExitMiniMode() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.exitMiniModeLocked()
 	return nil
 }
 

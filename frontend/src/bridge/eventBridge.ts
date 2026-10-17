@@ -441,7 +441,7 @@ export const eventBridge = {
     if (isWailsAvailable()) {
       return await window.go!.main!.App!.EnterMiniMode(corner, itemCount);
     }
-    return corner || 'bottom-right';
+    return corner || 'bottom-left';
   },
 
   async updateMiniModeHeight(itemCount: number): Promise<void> {
@@ -456,7 +456,7 @@ export const eventBridge = {
         itemCount
       );
     }
-    return 'bottom-right';
+    return 'bottom-left';
   },
 
   async exitMiniMode(): Promise<void> {
@@ -468,6 +468,22 @@ export const eventBridge = {
   onWindowMinimized(callback: () => void): () => void {
     if (window?.runtime?.EventsOn) {
       return window.runtime.EventsOn('window:minimized', callback);
+    }
+    return () => {};
+  },
+
+  onWindowRestored(callback: () => void): () => void {
+    if (window?.runtime?.EventsOn) {
+      return window.runtime.EventsOn('window:restored', callback);
+    }
+    return () => {};
+  },
+
+  onWindowCornerChanged(callback: (corner: string) => void): () => void {
+    if (window?.runtime?.EventsOn) {
+      return window.runtime.EventsOn('window:cornerChanged', (c: string) => {
+        if (typeof c === 'string' && c) callback(c);
+      });
     }
     return () => {};
   },
