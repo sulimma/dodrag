@@ -13,6 +13,7 @@ import { TaskTitle, TitleEditor } from './TaskTitle';
 import { taskInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
 import { TaskDragHandle } from './TaskDragHandle';
+import { arrowBase, ArrowMarkers } from './arrowGeometry';
 
 interface NetworkPlanViewProps {
   deletionPreview: string[];
@@ -135,11 +136,12 @@ function segmentIntersectsBox(
  * - If no intermediate node blocks the direct line, draws a single smooth vertical S-curve (or straight line).
  * - Only if an intermediate node sits directly in the way, routes cleanly through the gap beside that obstacle.
  */
-function buildCleanEdgePath(
+export function buildCleanEdgePath(
   startPt: { x: number; y: number },
   endPt: { x: number; y: number },
   intermediateObstacles: PositionedNode[]
 ): string {
+  endPt = arrowBase(endPt,{x:0,y:1});
   const padX = 8;
   const padY = 5;
 
@@ -161,7 +163,7 @@ function buildCleanEdgePath(
 
   if (blockingNodes.length === 0) {
     // Direct, clean vertical S-curve without any detours!
-    const dy = (endPt.y - startPt.y) * 0.42;
+    const dy = Math.max(8,Math.abs(endPt.y - startPt.y) * 0.42);
     return `M ${startPt.x} ${startPt.y} C ${startPt.x} ${
       startPt.y + dy
     }, ${endPt.x} ${endPt.y - dy}, ${endPt.x} ${endPt.y}`;
@@ -199,8 +201,9 @@ function buildCleanEdgePath(
     const tension = 0.2;
     const cp1x = p1.x + (p2.x - p0.x) * tension;
     const cp1y = p1.y + (p2.y - p0.y) * tension;
-    const cp2x = p2.x - (p3.x - p1.x) * tension;
-    const cp2y = p2.y - (p3.y - p1.y) * tension;
+    const last = i === waypoints.length - 2;
+    const cp2x = last ? p2.x : p2.x - (p3.x - p1.x) * tension;
+    const cp2y = last ? p2.y - Math.max(8,Math.abs(p2.y-p1.y)*tension) : p2.y - (p3.y - p1.y) * tension;
 
     d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
   }
@@ -596,52 +599,7 @@ export function NetworkPlanView({
         height={layout.canvasHeight}
         className="absolute inset-0 pointer-events-none z-10"
       >
-        <defs>
-          <marker
-            id="arrow-default"
-            viewBox="0 0 10 10"
-            refX="7"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8" />
-          </marker>
-          <marker
-            id="arrow-pred"
-            viewBox="0 0 10 10"
-            refX="7"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#d97706" />
-          </marker>
-          <marker
-            id="arrow-succ"
-            viewBox="0 0 10 10"
-            refX="7"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#9333ea" />
-          </marker>
-          <marker
-            id="arrow-selected"
-            viewBox="0 0 10 10"
-            refX="7"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#e11d48" />
-          </marker>
-        </defs>
+        <ArrowMarkers prefix="arrow" />
 
         {layout.routedEdges.map(({ from, to, pathD }) => {
           const edgeKey = `${from}->${to}`;

@@ -45,6 +45,29 @@ try {
     assert.equal(await page.locator('[data-deletion-preview="true"]').count(),0,'drop clears preview');
     await page.locator('button[title^="Rückgängig"]').click();
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='DEPENDENCY_REMOVED').every(event=>event.undone));
+    if(view!=='Liste') {
+      const geometry=await page.locator('g[data-edge-key="B->C"] path[marker-end]').evaluate(path=>{
+        const end=path.getPointAtLength(path.getTotalLength()),before=path.getPointAtLength(path.getTotalLength()-0.01);
+        const marker=document.querySelector(path.getAttribute('marker-end').slice(4,-1));
+        return {end:{x:end.x,y:end.y},tangent:{x:end.x-before.x,y:end.y-before.y},units:marker.getAttribute('markerUnits'),ref:marker.getAttribute('refX')};
+      });
+      assert.equal(geometry.units,'userSpaceOnUse');assert.equal(geometry.ref,'0');
+      if(view==='Netzplan') assert.ok(Math.abs(geometry.tangent.x)<0.001 && geometry.tangent.y>0);
+      else assert.ok(Math.abs(geometry.tangent.y)<0.001 && Math.abs(geometry.tangent.x)>0);
+    }
+    // Native normal text selection and inline input editing still work after Shift cleanup.
+    const title=source.getByText('Title A',{exact:true});
+    assert.equal(await title.evaluate(element=>getComputedStyle(element).userSelect),'text');
+    await title.dblclick();
+    const editor=source.locator('input');await editor.waitFor();
+    assert.equal(await editor.evaluate(element=>getComputedStyle(element).userSelect),'text');
+    await editor.press('Escape');
+    await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState!=='running'));
+    const handle=await source.locator('[data-drag-handle]').boundingBox();
+    await page.keyboard.down('Shift');await page.mouse.move(handle.x+3,handle.y+3);await page.mouse.down();
+    await page.mouse.move(handle.x+19,handle.y+3,{steps:8});await page.mouse.move(c.x+c.width*0.65,c.y+c.height*0.65,{steps:15});
+    await page.keyboard.press('Escape');await page.mouse.up();await page.keyboard.up('Shift');
+    await page.waitForFunction(()=>document.querySelectorAll('[data-deletion-preview="true"]').length===0);
     console.log(`PASS ${view}: real mouse drag, Shift ${shiftBefore?'before':'during'}, preview/release/drop/batch undo`);
     await page.close();
   }

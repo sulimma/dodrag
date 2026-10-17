@@ -13,6 +13,7 @@ import { TaskTitle, TitleEditor } from './TaskTitle';
 import { taskInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
 import { TaskDragHandle } from './TaskDragHandle';
+import { arrowBase, ArrowMarkers } from './arrowGeometry';
 
 interface GanttViewProps {
   deletionPreview: string[];
@@ -85,13 +86,18 @@ const NODE_HEIGHT = 26;
  * Builds an orthogonal path with rounded corners from `(startX, startY)`
  * via vertical lane `laneX` to `(endX, endY)`.
  */
-function buildChannelGanttPath(
+export function buildChannelGanttPath(
   startX: number,
   startY: number,
   laneX: number,
   endX: number,
-  endY: number
+  endY: number,
+  direction = 1
 ): string {
+  const base = arrowBase({x:endX,y:endY},{x:direction,y:0});
+  endX = base.x;
+  if (direction < 0) laneX = Math.max(laneX,endX+6);
+  else laneX = Math.min(laneX,endX-6);
   if (Math.abs(endY - startY) < 1.5) {
     return `M ${startX} ${startY} L ${endX} ${endY}`;
   }
@@ -99,17 +105,19 @@ function buildChannelGanttPath(
   const r = Math.min(
     5,
     Math.abs(endY - startY) / 2,
-    Math.max(2, Math.abs(laneX - startX) / 2),
-    Math.max(2, Math.abs(endX - laneX) / 2)
+    Math.abs(laneX - startX) / 2,
+    Math.abs(endX - laneX) / 2
   );
   const dirY = endY >= startY ? 1 : -1;
+  const dirStart = laneX >= startX ? 1 : -1;
+  const dirEnd = endX >= laneX ? 1 : -1;
 
   return [
     `M ${startX} ${startY}`,
-    `L ${laneX - r} ${startY}`,
+    `L ${laneX - dirStart*r} ${startY}`,
     `Q ${laneX} ${startY} ${laneX} ${startY + dirY * r}`,
     `L ${laneX} ${endY - dirY * r}`,
-    `Q ${laneX} ${endY} ${laneX + r} ${endY}`,
+    `Q ${laneX} ${endY} ${laneX + dirEnd*r} ${endY}`,
     `L ${endX} ${endY}`,
   ].join(' ');
 }
@@ -307,7 +315,8 @@ export function GanttView({
       const toBar = bars[to];
       const startX = fromBar.x + fromBar.width;
       const startY = startYByEdgeKey[key] ?? fromBar.cy;
-      const endX = toBar.colIndex === fromBar.colIndex ? toBar.x + toBar.width : toBar.x;
+      const enterRight = toBar.colIndex <= fromBar.colIndex;
+      const endX = enterRight ? toBar.x + toBar.width : toBar.x;
       const endY = endYByEdgeKey[key] ?? toBar.cy;
       const laneX =
         laneXByEdgeKey[key] ?? startX + Math.max(10, (endX - startX) / 2);
@@ -316,7 +325,7 @@ export function GanttView({
         from,
         to,
         edgeKey: key,
-        pathD: buildChannelGanttPath(startX, startY, laneX, endX, endY),
+        pathD: buildChannelGanttPath(startX, startY, laneX, endX, endY,enterRight?-1:1),
       };
     });
 
@@ -571,52 +580,7 @@ export function GanttView({
         height={layout.canvasHeight}
         className="absolute inset-0 pointer-events-none z-10"
       >
-        <defs>
-          <marker
-            id="gantt-arrow-default"
-            viewBox="0 0 10 10"
-            refX="7"
-            refY="5"
-            markerWidth="5.5"
-            markerHeight="5.5"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8" />
-          </marker>
-          <marker
-            id="gantt-arrow-pred"
-            viewBox="0 0 10 10"
-            refX="7"
-            refY="5"
-            markerWidth="5.5"
-            markerHeight="5.5"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#d97706" />
-          </marker>
-          <marker
-            id="gantt-arrow-succ"
-            viewBox="0 0 10 10"
-            refX="7"
-            refY="5"
-            markerWidth="5.5"
-            markerHeight="5.5"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#9333ea" />
-          </marker>
-          <marker
-            id="gantt-arrow-selected"
-            viewBox="0 0 10 10"
-            refX="7"
-            refY="5"
-            markerWidth="5.5"
-            markerHeight="5.5"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#e11d48" />
-          </marker>
-        </defs>
+        <ArrowMarkers prefix="gantt-arrow" />
 
         {layout.routedEdges.map(({ from, to, edgeKey, pathD }) => {
           const fromRole = highlights[from];
