@@ -148,6 +148,24 @@ export function App() {
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
   const inlineEditInputRef = useRef<HTMLInputElement | null>(null);
   const inlineDateInputRef = useRef<HTMLInputElement | null>(null);
+  const mutationBusy = useRef(false);
+  const confirmedEvents = useRef<StoredEvent[]>([]);
+  const editGroup = useRef('');
+  const mutate = async (operation: () => Promise<StoredEvent[]>): Promise<StoredEvent[] | null> => {
+    if (mutationBusy.current) return null;
+    mutationBusy.current = true;
+    const database = appSettings?.activeDatabasePath;
+    try {
+      const updated = await operation();
+      if (database !== appSettings?.activeDatabasePath) throw new Error('Datenbank wurde gewechselt');
+      confirmedEvents.current = updated;
+      setEvents(updated);
+      return updated;
+    } catch (error) {
+      pushToast(String(error), 'warning');
+      return null;
+    } finally { mutationBusy.current = false; }
+  };
 
   const pushToast = (
     message: string,
@@ -161,7 +179,7 @@ export function App() {
   };
 
   useEffect(() => {
-    eventBridge.getEvents().then(setEvents);
+    eventBridge.getEvents().then(updated => { confirmedEvents.current = updated; setEvents(updated); }).catch(error => pushToast(String(error), 'warning'));
     eventBridge.getSettings().then((s) => {
       setAppSettings(s);
       if (s.dockCorner) {
@@ -447,20 +465,22 @@ export function App() {
     const trimmed = newTaskTitle.trim();
     if (!trimmed) return;
 
-    const taskId = state.nextTaskId;
-    setNewTaskTitle('');
+    if (mutationBusy.current) return;
+    const taskId = projectEvents(confirmedEvents.current, new Date()).nextTaskId;
     setLastMovedKey(`task:${taskId}`);
-    const updated = await eventBridge.appendEvent('TASK_CREATED', {
+    const updated = await mutate(() => eventBridge.appendEvent('TASK_CREATED', {
       taskId,
       title: trimmed,
       configuredStart: now.toISOString(),
       createdAt: now.toISOString(),
-    });
-    setEvents(updated);
+    }));
+    if (!updated) return;
+    setNewTaskTitle(current => current.trim() === trimmed ? '' : current);
     setSelectedTaskId(taskId);
   };
 
   const startInlineEdit = (task: TaskState) => {
+    editGroup.current = crypto.randomUUID();
     setEditingDateTaskId(null);
     setEditingTaskId(task.id);
     setEditingTitle(task.title);
@@ -471,17 +491,17 @@ export function App() {
     if (!editingTaskId) return;
     const task = state.tasks[editingTaskId];
     const trimmed = editingTitle.trim();
-    setEditingTaskId(null);
-    if (!task || !trimmed || trimmed === task.title) return;
+    if (!task || !trimmed || trimmed === task.title) { setEditingTaskId(null); return; }
 
-    const updated = await eventBridge.appendEvent('TASK_RENAMED', {
+    const updated = await mutate(() => eventBridge.appendEvent('TASK_RENAMED', {
       taskId: task.id,
       title: trimmed,
-    });
-    setEvents(updated);
+    }, editGroup.current));
+    if (updated) setEditingTaskId(null);
   };
 
   const startInlineDateEdit = (task: TaskState) => {
+    editGroup.current = crypto.randomUUID();
     setEditingTaskId(null);
     setEditingDateTaskId(task.id);
     const { isoText } = formatIso8601Display(task.configuredStart);
@@ -493,7 +513,6 @@ export function App() {
     if (!editingDateTaskId) return;
     const task = state.tasks[editingDateTaskId];
     const currentInput = editingDateValue;
-    setEditingDateTaskId(null);
     if (!task) return;
 
     const parsedIso = parseUserDateInputToIso(currentInput);
@@ -504,14 +523,14 @@ export function App() {
 
     const prevIsoText = formatIso8601Display(task.configuredStart).isoText;
     const nextIsoText = formatIso8601Display(parsedIso).isoText;
-    if (prevIsoText === nextIsoText) return;
+    if (prevIsoText === nextIsoText) { setEditingDateTaskId(null); return; }
 
     setLastMovedKey(`task:${task.id}`);
-    const updated = await eventBridge.appendEvent('TASK_START_DATE_SET', {
+    const updated = await mutate(() => eventBridge.appendEvent('TASK_START_DATE_SET', {
       taskId: task.id,
       configuredStart: parsedIso,
-    });
-    setEvents(updated);
+    }, editGroup.current));
+    if (updated) setEditingDateTaskId(null);
   };
 
   const handleToggleActive = async (task: TaskState) => {
@@ -523,11 +542,10 @@ export function App() {
       return;
     }
     const nextActive = !task.isActive;
-    const updated = await eventBridge.appendEvent('TASK_ACTIVE_SET', {
+    await mutate(() => eventBridge.appendEvent('TASK_ACTIVE_SET', {
       taskId: task.id,
       isActive: nextActive,
-    });
-    setEvents(updated);
+    }));
   };
 
   const handleSetConfiguredDate = async (
@@ -536,11 +554,12 @@ export function App() {
     humanLabel: string
   ) => {
     setLastMovedKey(`task:${taskId}`);
-    const updated = await eventBridge.appendEvent('TASK_START_DATE_SET', {
+    if (!state.tasks[taskId]) return;
+    const updated = await mutate(() => eventBridge.appendEvent('TASK_START_DATE_SET', {
       taskId,
       configuredStart: isoDate,
-    });
-    setEvents(updated);
+    }));
+    if (!updated) return;
     pushToast(`Startdatum von ${taskId} → ${humanLabel}`, 'info');
   };
 
@@ -573,11 +592,11 @@ export function App() {
     }
 
     setLastMovedKey(`task:${draggedId}`);
-    const updated = await eventBridge.appendEvent('DEPENDENCY_ADDED', {
+    const updated = await mutate(() => eventBridge.appendEvent('DEPENDENCY_ADDED', {
       taskId: draggedId,
       predecessorId: targetTaskId,
-    });
-    setEvents(updated);
+    }));
+    if (!updated) return;
     setSelectedTaskId(draggedId);
   };
 
@@ -586,27 +605,20 @@ export function App() {
     predecessorId: string
   ) => {
     setLastMovedKey(`task:${taskId}`);
-    const updated = await eventBridge.appendEvent('DEPENDENCY_REMOVED', {
+    await mutate(() => eventBridge.appendEvent('DEPENDENCY_REMOVED', {
       taskId,
       predecessorId,
-    });
-    setEvents(updated);
+    }));
   };
 
   const handleRemoveSelectedEdges = async (edgeKeysToRemove: string[]) => {
     if (edgeKeysToRemove.length === 0) return;
-    let latestEvents = events;
-    for (const key of edgeKeysToRemove) {
+    const commands = edgeKeysToRemove.map(key => {
       const [from, to] = key.split('->');
-      if (from && to) {
-        setLastMovedKey(`task:${to}`);
-        latestEvents = await eventBridge.appendEvent('DEPENDENCY_REMOVED', {
-          taskId: to,
-          predecessorId: from,
-        });
-      }
-    }
-    setEvents(latestEvents);
+      return { type: 'DEPENDENCY_REMOVED' as const, payload: { taskId: to, predecessorId: from } };
+    });
+    const updated = await mutate(() => eventBridge.appendBatch(commands));
+    if (!updated) return;
     clearEdgeSelection();
     pushToast(
       edgeKeysToRemove.length === 1
@@ -657,11 +669,11 @@ export function App() {
   };
 
   const handleCompleteTask = async (taskId: string) => {
-    const updated = await eventBridge.appendEvent('TASK_COMPLETED', {
+    const updated = await mutate(() => eventBridge.appendEvent('TASK_COMPLETED', {
       taskId,
       completedAt: new Date().toISOString(),
-    });
-    setEvents(updated);
+    }));
+    if (!updated) return;
     if (selectedTaskId === taskId) {
       setSelectedTaskId(null);
     }
@@ -669,22 +681,19 @@ export function App() {
 
   const handleReopenTask = async (taskId: string) => {
     setLastMovedKey(`task:${taskId}`);
-    const updated = await eventBridge.appendEvent('TASK_REOPENED', {
+    await mutate(() => eventBridge.appendEvent('TASK_REOPENED', {
       taskId,
-    });
-    setEvents(updated);
+    }));
   };
 
   const handleUndo = async () => {
     if (!state.canUndo) return;
-    const updated = await eventBridge.undo();
-    setEvents(updated);
+    await mutate(() => eventBridge.undo());
   };
 
   const handleRedo = async () => {
     if (!state.canRedo) return;
-    const updated = await eventBridge.redo();
-    setEvents(updated);
+    await mutate(() => eventBridge.redo());
   };
 
   const handleResetDemo = async () => {

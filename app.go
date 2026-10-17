@@ -804,6 +804,15 @@ func (a *App) AppendEvent(id string, eventType string, payloadJSON string) ([]ev
 	return a.store.AppendEvent(id, eventType, payloadJSON)
 }
 
+func (a *App) AppendBatch(commands []eventstore.Command) ([]eventstore.Event, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.store == nil {
+		return nil, errors.New("keine Datenbank geoeffnet")
+	}
+	return a.store.AppendBatch(commands)
+}
+
 // Undo reverts the most recent active event.
 func (a *App) Undo() ([]eventstore.Event, error) {
 	a.mu.Lock()
@@ -833,4 +842,3 @@ func (a *App) ResetDemoData() ([]eventstore.Event, error) {
 	}
 	return a.store.ResetDemoData()
 }
-

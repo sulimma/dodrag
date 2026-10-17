@@ -17,11 +17,13 @@ type Event struct {
 	Type      string          `json:"type"`
 	Payload   json.RawMessage `json:"payload"`
 	Undone    bool            `json:"undone"`
+	GroupID   string          `json:"groupId,omitempty"`
 }
 
 // Store manages the SQLite event log.
 type Store struct {
-	db *sql.DB
+	db      *sql.DB
+	groupID string
 }
 
 // NewStore opens or creates the SQLite database at dbPath, initializes the schema, and seeds demo data if empty.
@@ -53,6 +55,36 @@ func NewStoreWithOptions(dbPath string, seedDemo bool) (*Store, error) {
 	}
 
 	s := &Store{db: db}
+	rows, err := db.Query(`PRAGMA table_info(events)`)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	hasGroup := false
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, kind string
+		var defaultValue interface{}
+		if err := rows.Scan(&cid, &name, &kind, &notnull, &defaultValue, &pk); err != nil {
+			rows.Close()
+			db.Close()
+			return nil, err
+		}
+		if name == "group_id" {
+			hasGroup = true
+		}
+	}
+	rows.Close()
+	if !hasGroup {
+		if _, err := db.Exec(`ALTER TABLE events ADD COLUMN group_id TEXT NOT NULL DEFAULT ''`); err != nil {
+			db.Close()
+			return nil, err
+		}
+	}
+	if _, err := s.GetEvents(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("validate event store: %w", err)
+	}
 	if seedDemo {
 		if err := s.seedIfEmpty(); err != nil {
 			_ = db.Close()
@@ -73,7 +105,7 @@ func (s *Store) Close() error {
 
 // GetEvents returns all events ordered by sequence number ascending.
 func (s *Store) GetEvents() ([]Event, error) {
-	rows, err := s.db.Query(`SELECT seq, id, timestamp, type, payload, undone FROM events ORDER BY seq ASC`)
+	rows, err := s.db.Query(`SELECT seq, id, timestamp, type, payload, undone, group_id FROM events ORDER BY seq ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("query events: %w", err)
 	}
@@ -84,85 +116,29 @@ func (s *Store) GetEvents() ([]Event, error) {
 		var ev Event
 		var payloadStr string
 		var undoneInt int
-		if err := rows.Scan(&ev.Seq, &ev.ID, &ev.Timestamp, &ev.Type, &payloadStr, &undoneInt); err != nil {
+		if err := rows.Scan(&ev.Seq, &ev.ID, &ev.Timestamp, &ev.Type, &payloadStr, &undoneInt, &ev.GroupID); err != nil {
 			return nil, fmt.Errorf("scan event: %w", err)
 		}
 		ev.Payload = json.RawMessage(payloadStr)
-		ev.Undone = undoneInt != 0
+		if undoneInt != 0 && undoneInt != 1 {
+			return nil, fmt.Errorf("invalid undone flag at %d", ev.Seq)
+		}
+		ev.Undone = undoneInt == 1
+		if err := checkID(ev.ID); err != nil {
+			return nil, err
+		}
+		if _, err := parseEventTime(ev.Timestamp); err != nil {
+			return nil, err
+		}
+		if _, err := validatePayload(ev.Type, ev.Payload); err != nil {
+			return nil, fmt.Errorf("event %d: %w", ev.Seq, err)
+		}
 		events = append(events, ev)
 	}
 	if events == nil {
 		events = []Event{}
 	}
 	return events, rows.Err()
-}
-
-// AppendEvent inserts a new active event or coalesces it with the latest active event
-// if the same task and event type (e.g. TASK_RENAMED, TASK_START_DATE_SET, TASK_ACTIVE_SET)
-// was already modified within the last 60 seconds.
-func (s *Store) AppendEvent(id string, eventType string, payloadJSON string) ([]Event, error) {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	// Remove undone future events when a new action occurs
-	if _, err := tx.Exec(`DELETE FROM events WHERE undone = 1`); err != nil {
-		return nil, err
-	}
-
-	now := time.Now().UTC()
-	ts := now.Format(time.RFC3339Nano)
-
-	coalesced := false
-	if isCoalescableEventType(eventType) {
-		var incomingPayload map[string]interface{}
-		if err := json.Unmarshal([]byte(payloadJSON), &incomingPayload); err == nil {
-			incomingTaskID, _ := incomingPayload["taskId"].(string)
-			if incomingTaskID != "" {
-				var lastSeq int64
-				var lastType string
-				var lastTS string
-				var lastPayloadStr string
-				rowErr := tx.QueryRow(
-					`SELECT seq, type, timestamp, payload FROM events WHERE undone = 0 ORDER BY seq DESC LIMIT 1`,
-				).Scan(&lastSeq, &lastType, &lastTS, &lastPayloadStr)
-
-				if rowErr == nil && lastType == eventType {
-					if parsedTS, pErr := parseEventTime(lastTS); pErr == nil && now.Sub(parsedTS) <= 60*time.Second {
-						var prevPayload map[string]interface{}
-						if json.Unmarshal([]byte(lastPayloadStr), &prevPayload) == nil {
-							prevTaskID, _ := prevPayload["taskId"].(string)
-							if prevTaskID == incomingTaskID {
-								if _, uErr := tx.Exec(
-									`UPDATE events SET payload = ?, timestamp = ? WHERE seq = ?`,
-									payloadJSON, ts, lastSeq,
-								); uErr != nil {
-									return nil, uErr
-								}
-								coalesced = true
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	if !coalesced {
-		if _, err := tx.Exec(
-			`INSERT INTO events (id, timestamp, type, payload, undone) VALUES (?, ?, ?, ?, 0)`,
-			id, ts, eventType, payloadJSON,
-		); err != nil {
-			return nil, err
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return s.GetEvents()
 }
 
 func isCoalescableEventType(eventType string) bool {
@@ -183,12 +159,12 @@ func parseEventTime(ts string) (time.Time, error) {
 
 // Undo marks the latest active event as undone.
 func (s *Store) Undo() ([]Event, error) {
+	s.groupID = ""
 	_, err := s.db.Exec(`
 		UPDATE events
 		SET undone = 1
-		WHERE seq = (
-			SELECT seq FROM events WHERE undone = 0 ORDER BY seq DESC LIMIT 1
-		)
+		WHERE seq = (SELECT seq FROM events WHERE undone = 0 ORDER BY seq DESC LIMIT 1)
+		OR (group_id <> '' AND group_id = (SELECT group_id FROM events WHERE undone = 0 ORDER BY seq DESC LIMIT 1))
 	`)
 	if err != nil {
 		return nil, err
@@ -198,12 +174,12 @@ func (s *Store) Undo() ([]Event, error) {
 
 // Redo restores the earliest undone event.
 func (s *Store) Redo() ([]Event, error) {
+	s.groupID = ""
 	_, err := s.db.Exec(`
 		UPDATE events
 		SET undone = 0
-		WHERE seq = (
-			SELECT seq FROM events WHERE undone = 1 ORDER BY seq ASC LIMIT 1
-		)
+		WHERE seq = (SELECT seq FROM events WHERE undone = 1 ORDER BY seq ASC LIMIT 1)
+		OR (group_id <> '' AND group_id = (SELECT group_id FROM events WHERE undone = 1 ORDER BY seq ASC LIMIT 1))
 	`)
 	if err != nil {
 		return nil, err

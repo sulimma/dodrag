@@ -1,4 +1,6 @@
 import { EventType, StoredEvent } from '../domain/types';
+import { EventCommand, parseCommand, parseStoredEvent } from '../domain/eventSchema';
+import { applyCommand, replayCommands } from '../domain/commands';
 
 export interface DatabaseEntry {
   name: string;
@@ -25,6 +27,7 @@ declare global {
       main?: {
         App?: {
           GetEvents: () => Promise<any[]>;
+          AppendBatch: (commands: Array<EventCommand & { id: string; groupId?: string }>) => Promise<any[]>;
           AppendEvent: (
             id: string,
             eventType: string,
@@ -66,17 +69,10 @@ function isWailsAvailable(): boolean {
 }
 
 function normalizeEvents(rawList: any[]): StoredEvent[] {
-  return (rawList || []).map((item, idx) => ({
-    seq: typeof item.seq === 'number' ? item.seq : idx + 1,
-    id: String(item.id),
-    timestamp: String(item.timestamp),
-    type: item.type as EventType,
-    payload:
-      typeof item.payload === 'string'
-        ? JSON.parse(item.payload)
-        : item.payload || {},
-    undone: Boolean(item.undone),
-  }));
+  if (!Array.isArray(rawList)) throw new Error('Event history must be an array');
+  const events = rawList.map(item => parseStoredEvent({ ...item, payload: typeof item.payload === 'string' ? JSON.parse(item.payload) : item.payload }));
+  replayCommands(events);
+  return events;
 }
 
 function createInitialBrowserDemoEvents(): StoredEvent[] {
@@ -184,27 +180,19 @@ function createInitialBrowserDemoEvents(): StoredEvent[] {
 }
 
 function loadBrowserEvents(): StoredEvent[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (!raw) {
-      const seeded = createInitialBrowserDemoEvents();
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(seeded));
-      return seeded;
-    }
-    return normalizeEvents(JSON.parse(raw));
-  } catch {
-    return createInitialBrowserDemoEvents();
+  const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+  if (raw === null) {
+    return saveBrowserEvents(createInitialBrowserDemoEvents());
   }
+  return normalizeEvents(JSON.parse(raw));
 }
 
 function saveBrowserEvents(events: StoredEvent[]): StoredEvent[] {
-  try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(events));
-  } catch {
-    // ignore storage errors
-  }
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(events));
   return events;
 }
+
+let browserGroup = '';
 
 export const eventBridge = {
   isNativeWails(): boolean {
@@ -221,89 +209,60 @@ export const eventBridge = {
 
   async appendEvent(
     type: EventType,
-    payload: Record<string, any>
+    payload: Record<string, any>,
+    groupId = ''
   ): Promise<StoredEvent[]> {
-    const id = `ev-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return this.appendBatch([parseCommand({ type, payload })], groupId);
+  },
+
+  async appendBatch(commands: EventCommand[], groupId = ''): Promise<StoredEvent[]> {
+    const checked = commands.map(parseCommand);
+    const identified = checked.map(command => ({ ...command, groupId, id: `ev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}` }));
     if (isWailsAvailable()) {
-      const res = await window.go!.main!.App!.AppendEvent(
-        id,
-        type,
-        JSON.stringify(payload)
-      );
+      const res = await window.go!.main!.App!.AppendBatch(identified);
       return normalizeEvents(res);
     }
-
-    const current = loadBrowserEvents().filter((e) => !e.undone);
-    const nowMs = Date.now();
-    const nowIso = new Date(nowMs).toISOString();
-
-    const coalescableTypes: EventType[] = [
-      'TASK_RENAMED',
-      'TASK_START_DATE_SET',
-      'TASK_ACTIVE_SET',
-    ];
-
-    if (
-      coalescableTypes.includes(type) &&
-      current.length > 0 &&
-      payload?.taskId
-    ) {
+    const history = loadBrowserEvents();
+    const tasks = replayCommands(history);
+    const effective = identified.filter(command => applyCommand(tasks, command));
+    if (!effective.length) return history;
+    const current = history.filter(event => !event.undone);
+    const storedGroup = effective.length > 1 ? `batch-${effective[0].id}` : groupId && browserGroup === groupId ? current[current.length - 1]?.groupId : `edit-${effective[0].id}`;
+    let seq = history.reduce((max, event) => Math.max(max, event.seq), 0);
+    for (const command of effective) {
       const last = current[current.length - 1];
-      const lastMs = new Date(last.timestamp).getTime();
-      if (
-        last.type === type &&
-        last.payload?.taskId === payload.taskId &&
-        nowMs - lastMs <= 60_000
-      ) {
-        const updatedLast: StoredEvent = {
-          ...last,
-          timestamp: nowIso,
-          payload,
-        };
-        return saveBrowserEvents([...current.slice(0, -1), updatedLast]);
-      }
+      const timestamp = new Date().toISOString();
+      if (effective.length === 1 && groupId && browserGroup === groupId && last && last.type === command.type && last.payload.taskId === command.payload.taskId && ['TASK_RENAMED', 'TASK_START_DATE_SET', 'TASK_ACTIVE_SET'].includes(command.type)) {
+        current[current.length - 1] = { ...last, payload: command.payload, timestamp };
+      } else current.push({ ...command, groupId: storedGroup, seq: ++seq, timestamp, undone: false });
     }
-
-    const nextSeq = current.length > 0 ? current[current.length - 1].seq + 1 : 1;
-    const nextEvent: StoredEvent = {
-      seq: nextSeq,
-      id,
-      timestamp: nowIso,
-      type,
-      payload,
-      undone: false,
-    };
-    return saveBrowserEvents([...current, nextEvent]);
+    const saved = saveBrowserEvents(current);
+    browserGroup = groupId;
+    return saved;
   },
 
   async undo(): Promise<StoredEvent[]> {
+    browserGroup = '';
     if (isWailsAvailable()) {
       const res = await window.go!.main!.App!.Undo();
       return normalizeEvents(res);
     }
     const events = loadBrowserEvents();
-    for (let i = events.length - 1; i >= 0; i--) {
-      if (!events[i].undone) {
-        events[i] = { ...events[i], undone: true };
-        break;
-      }
-    }
-    return saveBrowserEvents([...events]);
+    const latest = [...events].reverse().find(event => !event.undone);
+    if (!latest) return events;
+    return saveBrowserEvents(events.map(event => event.seq === latest.seq || latest.groupId && event.groupId === latest.groupId ? { ...event, undone: true } : event));
   },
 
   async redo(): Promise<StoredEvent[]> {
+    browserGroup = '';
     if (isWailsAvailable()) {
       const res = await window.go!.main!.App!.Redo();
       return normalizeEvents(res);
     }
     const events = loadBrowserEvents();
-    for (let i = 0; i < events.length; i++) {
-      if (events[i].undone) {
-        events[i] = { ...events[i], undone: false };
-        break;
-      }
-    }
-    return saveBrowserEvents([...events]);
+    const earliest = events.find(event => event.undone);
+    if (!earliest) return events;
+    return saveBrowserEvents(events.map(event => event.seq === earliest.seq || earliest.groupId && event.groupId === earliest.groupId ? { ...event, undone: false } : event));
   },
 
   async resetDemoData(): Promise<StoredEvent[]> {
@@ -488,5 +447,3 @@ export const eventBridge = {
     return () => {};
   },
 };
-
-

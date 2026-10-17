@@ -1,12 +1,5 @@
-export type EventType =
-  | 'TASK_CREATED'
-  | 'TASK_RENAMED'
-  | 'TASK_START_DATE_SET'
-  | 'DEPENDENCY_ADDED'
-  | 'DEPENDENCY_REMOVED'
-  | 'TASK_ACTIVE_SET'
-  | 'TASK_COMPLETED'
-  | 'TASK_REOPENED';
+import type { EventCommand } from './eventSchema';
+export type EventType = EventCommand['type'];
 
 export interface StoredEvent {
   seq: number;
@@ -15,6 +8,7 @@ export interface StoredEvent {
   type: EventType;
   payload: Record<string, any>;
   undone: boolean;
+  groupId?: string;
 }
 
 export interface TaskState {

@@ -52,13 +52,13 @@ func TestSQLiteEventStore(t *testing.T) {
 		t.Fatalf("expected last event to be active after Redo")
 	}
 
-	// Coalesce test: another TASK_RENAMED on the same taskId within 60s should update the existing event instead of adding a new row
+	// A standalone edit after redo must not coalesce with an earlier edit.
 	events, err = store.AppendEvent("test-ev-2", "TASK_RENAMED", `{"taskId":"26-101","title":"Zweite Änderung innerhalb 1 Minute"}`)
 	if err != nil {
 		t.Fatalf("AppendEvent coalesced failed: %v", err)
 	}
-	if len(events) != initialCount+1 {
-		t.Fatalf("expected coalesced event count to remain %d, got %d", initialCount+1, len(events))
+	if len(events) != initialCount+2 {
+		t.Fatalf("expected separate edit count %d, got %d", initialCount+2, len(events))
 	}
 
 	// Empty database creation test (without demo seed)
@@ -76,4 +76,3 @@ func TestSQLiteEventStore(t *testing.T) {
 		t.Fatalf("expected 0 events in custom empty database, got %d", len(emptyEvents))
 	}
 }
-
