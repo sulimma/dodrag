@@ -1,6 +1,7 @@
 import React from 'react';
-import { GitBranch, Maximize2 } from 'lucide-react';
+import { Maximize2 } from 'lucide-react';
 import { TaskState } from '../domain/types';
+import appIcon from '../assets/app-icon.png';
 
 interface MiniCornerViewProps {
   tasks: TaskState[];
@@ -27,9 +28,7 @@ export function MiniCornerView({
         className="h-7 px-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between shrink-0 cursor-move"
       >
         <div className="flex items-center gap-1.5 min-w-0 pointer-events-none">
-          <div className="w-4 h-4 rounded bg-sky-600 flex items-center justify-center shrink-0">
-            <GitBranch className="w-2.5 h-2.5 text-white" />
-          </div>
+          <img src={appIcon} alt="" draggable={false} className="w-4 h-4 shrink-0" />
           <span className="text-[11px] font-bold text-slate-700 truncate">
             DoDrag ({tasks.length})
           </span>

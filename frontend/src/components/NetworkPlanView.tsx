@@ -29,6 +29,7 @@ interface NetworkPlanViewProps {
     orderedEdgeKeys: string[]
   ) => void;
   onClearEdgeSelection: () => void;
+  onClearTaskSelection: () => void;
   highlights: Record<string, HighlightRole>;
   draggedTaskId: string | null;
   isShiftDrag: boolean;
@@ -89,126 +90,44 @@ const CANVAS_PAD_X = 16;
 const CANVAS_PAD_Y = 18;
 
 /**
- * Checks if the line segment (x1, y1) -> (x2, y2) intersects the padded rectangle [left, right] x [top, bottom].
- */
-function segmentIntersectsBox(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  left: number,
-  top: number,
-  right: number,
-  bottom: number
-): boolean {
-  // Sample along the segment between top and bottom Y of the box
-  const minY = Math.min(y1, y2);
-  const maxY = Math.max(y1, y2);
-  if (maxY < top || minY > bottom) return false;
-
-  const dy = y2 - y1;
-  if (Math.abs(dy) < 1e-6) {
-    const minX = Math.min(x1, x2);
-    const maxX = Math.max(x1, x2);
-    return maxX >= left && minX <= right && y1 >= top && y1 <= bottom;
-  }
-
-  // Evaluate X at the top, center, and bottom of the box
-  const checkYs = [
-    Math.max(minY, top),
-    (Math.max(minY, top) + Math.min(maxY, bottom)) / 2,
-    Math.min(maxY, bottom),
-  ];
-
-  for (const y of checkYs) {
-    const t = (y - y1) / dy;
-    if (t >= 0 && t <= 1) {
-      const x = x1 + t * (x2 - x1);
-      if (x >= left && x <= right) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-/**
- * Builds a clean, direct SVG curve from startPt to endPt.
- * - If no intermediate node blocks the direct line, draws a single smooth vertical S-curve (or straight line).
- * - Only if an intermediate node sits directly in the way, routes cleanly through the gap beside that obstacle.
+ * One cubic Bézier with a vertical target tangent and a small bow for aligned
+ * endpoints. Obstacles may adjust its curvature, but never add waypoints.
  */
 export function buildCleanEdgePath(
   startPt: { x: number; y: number },
   endPt: { x: number; y: number },
   intermediateObstacles: PositionedNode[]
 ): string {
-  endPt = arrowBase(endPt,{x:0,y:1});
-  const padX = 8;
-  const padY = 5;
-
-  // Check if any intermediate node actually blocks the direct path
-  const blockingNodes = intermediateObstacles
-    .filter((obs) =>
-      segmentIntersectsBox(
-        startPt.x,
-        startPt.y,
-        endPt.x,
-        endPt.y,
-        obs.x - padX,
-        obs.y - padY,
-        obs.x + obs.width + padX,
-        obs.y + obs.height + padY
-      )
-    )
-    .sort((a, b) => a.cy - b.cy);
-
-  if (blockingNodes.length === 0) {
-    // Direct, clean vertical S-curve without any detours!
-    const dy = Math.max(8,Math.abs(endPt.y - startPt.y) * 0.42);
-    return `M ${startPt.x} ${startPt.y} C ${startPt.x} ${
-      startPt.y + dy
-    }, ${endPt.x} ${endPt.y - dy}, ${endPt.x} ${endPt.y}`;
+  endPt = arrowBase(endPt, { x: 0, y: 1 });
+  const dx = endPt.x - startPt.x;
+  // A 36-unit control offset bows a vertical edge by at most 16 SVG units.
+  const startControlX = startPt.x + (dx < 0 ? -1 : 1) * Math.max(0, 36 - Math.abs(dx));
+  let bestPath = '';
+  let bestScore = Infinity;
+  for (const factor of [0.42, 0.28, 0.56]) {
+    const dy = Math.max(8, Math.abs(endPt.y - startPt.y) * factor);
+    let score = factor === 0.42 ? 0 : 0.25;
+    // ponytail: 24 samples are a soft collision heuristic, not clearance proof.
+    // Crossings are allowed; use curve/rectangle intersection if that changes.
+    for (let i = 1; intermediateObstacles.length > 0 && i < 24; i++) {
+      const t = i / 24;
+      const u = 1 - t;
+      const x = u ** 3 * startPt.x + 3 * u * u * t * startControlX
+        + (3 * u * t * t + t ** 3) * endPt.x;
+      const y = u ** 3 * startPt.y + 3 * u * u * t * (startPt.y + dy)
+        + 3 * u * t * t * (endPt.y - dy) + t ** 3 * endPt.y;
+      if (intermediateObstacles.some((obs) =>
+        x >= obs.x - 8 && x <= obs.x + obs.width + 8
+        && y >= obs.y - 5 && y <= obs.y + obs.height + 5
+      )) score++;
+    }
+    if (score < bestScore) {
+      bestScore = score;
+      bestPath = `M ${startPt.x} ${startPt.y} C ${startControlX} ${startPt.y + dy}, ${endPt.x} ${endPt.y - dy}, ${endPt.x} ${endPt.y}`;
+    }
+    if (bestScore === 0) break;
   }
-
-  // Only when an intermediate node actually sits in the way: route around its nearest side
-  const waypoints: Array<{ x: number; y: number }> = [startPt];
-
-  for (const obs of blockingNodes) {
-    const prevPt = waypoints[waypoints.length - 1];
-    const t = (obs.cy - prevPt.y) / Math.max(1, endPt.y - prevPt.y);
-    const lineXAtObs = prevPt.x + t * (endPt.x - prevPt.x);
-
-    const leftPassX = obs.x - 10;
-    const rightPassX = obs.x + obs.width + 10;
-
-    const passX =
-      Math.abs(lineXAtObs - leftPassX) <= Math.abs(rightPassX - lineXAtObs)
-        ? leftPassX
-        : rightPassX;
-
-    waypoints.push({ x: passX, y: obs.cy });
-  }
-
-  waypoints.push(endPt);
-
-  // Smooth cubic spline through waypoints
-  let d = `M ${waypoints[0].x} ${waypoints[0].y}`;
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const p0 = waypoints[Math.max(0, i - 1)];
-    const p1 = waypoints[i];
-    const p2 = waypoints[i + 1];
-    const p3 = waypoints[Math.min(waypoints.length - 1, i + 2)];
-
-    const tension = 0.2;
-    const cp1x = p1.x + (p2.x - p0.x) * tension;
-    const cp1y = p1.y + (p2.y - p0.y) * tension;
-    const last = i === waypoints.length - 2;
-    const cp2x = last ? p2.x : p2.x - (p3.x - p1.x) * tension;
-    const cp2y = last ? p2.y - Math.max(8,Math.abs(p2.y-p1.y)*tension) : p2.y - (p3.y - p1.y) * tension;
-
-    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
-  }
-  return d;
+  return bestPath;
 }
 
 export function NetworkPlanView({
@@ -218,6 +137,7 @@ export function NetworkPlanView({
   selectedEdgeKeys,
   onSelectEdge,
   onClearEdgeSelection,
+  onClearTaskSelection,
   highlights,
   draggedTaskId,
   isShiftDrag,
@@ -548,7 +468,9 @@ export function NetworkPlanView({
       style={{
         height: layout.canvasHeight,
       }}
-      onClick={() => {
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest('[data-task-drag], [data-edge-key], button, input, textarea, [contenteditable="true"]')) return;
+        onClearTaskSelection();
         if (selectedEdgeKeys.length > 0) onClearEdgeSelection();
       }}
     >

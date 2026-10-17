@@ -7,7 +7,6 @@ import {
   Clock,
   CornerDownRight,
   Flame,
-  GitBranch,
   GripVertical,
   HelpCircle,
   Link2Off,
@@ -44,6 +43,7 @@ import { taskInteractions } from './components/taskInteractions';
 import { dependencyPathEdges, previewPathKeys } from './domain/dependencyPaths';
 import { TaskDragHandle } from './components/TaskDragHandle';
 import { DependencyHighlightIndicators } from './components/DependencyHighlightIndicators';
+import appIcon from './assets/app-icon.png';
 
 interface ContextMenuState {
   x: number;
@@ -323,8 +323,27 @@ export function App() {
         }
       }
 
-      if (isInputFocused) return;
+      const isTextEntryFocused = target && (
+        target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      );
+      if (
+        !isTextEntryFocused &&
+        (e.key === 'Home' || e.key === 'End' || e.key === 'PageUp' || e.key === 'PageDown')
+      ) {
+        const scrollArea = listScrollRef.current;
+        if (!scrollArea) return;
+        e.preventDefault();
+        const top = e.key === 'Home'
+          ? 0
+          : e.key === 'End'
+            ? scrollArea.scrollHeight - scrollArea.clientHeight
+            : scrollArea.scrollTop + (e.key === 'PageUp' ? -1 : 1) * scrollArea.clientHeight;
+        scrollArea.scrollTo({ top, behavior: e.key === 'PageUp' || e.key === 'PageDown' ? 'smooth' : 'auto' });
+        return;
+      }
+
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (isInputFocused && !target?.closest('[data-edge-key]')) return;
 
       if (e.key === 'Escape') {
         setSelectedTaskId(null);
@@ -334,10 +353,11 @@ export function App() {
         return;
       }
 
-      // Delete or Backspace on selected edges / predecessor labels removes all selected dependencies
+      // Delete/Backspace on a focused edge, otherwise remove any selected dependencies.
       if (
         (e.key === 'Delete' || e.key === 'Backspace') &&
-        selectedEdgeKeys.length > 0
+        selectedEdgeKeys.length > 0 &&
+        (target?.closest('[data-edge-key]') || !isInputFocused)
       ) {
         e.preventDefault();
         handleRemoveSelectedEdges(selectedEdgeKeys);
@@ -795,9 +815,7 @@ export function App() {
       <header className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white/90 backdrop-blur-md z-20 shadow-sm shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-sm shadow-sky-500/20">
-              <GitBranch className="w-4 h-4 text-white" />
-            </div>
+            <img src={appIcon} alt="" draggable={false} className="w-8 h-8 shrink-0" />
             <h1 className="text-base font-bold tracking-tight text-slate-900">
               DoDrag
             </h1>
@@ -928,10 +946,9 @@ export function App() {
           ref={listScrollRef}
           className="flex-1 overflow-y-auto overflow-x-auto px-6 py-5"
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setSelectedTaskId(null);
-              clearEdgeSelection();
-            }
+            if ((e.target as HTMLElement).closest('[data-task-drag], [data-edge-key], button, input, textarea, [contenteditable="true"]')) return;
+            setSelectedTaskId(null);
+            clearEdgeSelection();
           }}
         >
           {viewMode === 'list' ? (
@@ -1135,13 +1152,14 @@ export function App() {
               })}
             </SmoothFlipList>
           ) : viewMode === 'network' ? (
-            <NetworkPlanView
+              <NetworkPlanView
               openTasks={state.openTasks}
               now={now}
               selectedTaskId={selectedTaskId}
               selectedEdgeKeys={selectedEdgeKeys}
               onSelectEdge={handleSelectEdgeWithModifiers}
               onClearEdgeSelection={clearEdgeSelection}
+              onClearTaskSelection={() => setSelectedTaskId(null)}
               highlights={highlights}
               draggedTaskId={draggedTaskId}
               isShiftDrag={isShiftDrag}
@@ -1189,6 +1207,7 @@ export function App() {
               selectedEdgeKeys={selectedEdgeKeys}
               onSelectEdge={handleSelectEdgeWithModifiers}
               onClearEdgeSelection={clearEdgeSelection}
+              onClearTaskSelection={() => setSelectedTaskId(null)}
               highlights={highlights}
               draggedTaskId={draggedTaskId}
               isShiftDrag={isShiftDrag}
@@ -1500,7 +1519,7 @@ export function App() {
               animate={{ scale: 1 }}
               exit={{ scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-2xl bg-white border border-slate-200 p-5 shadow-2xl space-y-4"
+              className="w-full max-w-xl rounded-2xl bg-white border border-slate-200 p-5 shadow-2xl space-y-4"
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="text-sm font-bold text-slate-900">
@@ -1514,6 +1533,24 @@ export function App() {
                 </button>
               </div>
               <div className="space-y-2 text-xs text-slate-600">
+                <div className="flex justify-between py-1 border-b border-slate-100">
+                  <span>Abhängigkeit hinzufügen (Vorgänger → abhängiger Task)</span>
+                  <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">
+                    Vorgänger auf abhängigen Task ziehen
+                  </kbd>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-100">
+                  <span>Abhängigkeit(en) zwischen Tasks lösen</span>
+                  <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">
+                    Shift+Task-Ziehen auf anderen Task
+                  </kbd>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-100">
+                  <span>Markierte Abhängigkeit(en) löschen</span>
+                  <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">
+                    Klick / Strg- / Shift+Klick → Entf / Backspace
+                  </kbd>
+                </div>
                 <div className="flex justify-between py-1 border-b border-slate-100">
                   <span>Task aktivieren / deaktivieren (ohne Vorgänger)</span>
                   <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">
@@ -1545,9 +1582,21 @@ export function App() {
                   </kbd>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span>Navigation durch Tasks</span>
+                  <span>Tasks auswählen / Auswahl aufheben</span>
                   <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">
                     ↑ / ↓ / Esc
+                  </kbd>
+                </div>
+                <div className="flex justify-between py-1 border-t border-slate-100">
+                  <span>Ansicht zum Anfang / Ende scrollen</span>
+                  <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">
+                    Pos1 / Ende
+                  </kbd>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span>Seitenweise scrollen</span>
+                  <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">
+                    Bild ↑ / Bild ↓
                   </kbd>
                 </div>
               </div>

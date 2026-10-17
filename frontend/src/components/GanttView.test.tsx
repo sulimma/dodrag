@@ -36,7 +36,7 @@ it('places incoming edges from further left lower, then orders equal-column sour
     draggedTaskId: null, isShiftDrag: false, activeDropTargetKey: null,
     titleEditor: { taskId: null, value: '', onChange: noop, onStart: noop, onCommit: noop, onCancel: noop },
     dateEditor: { taskId: null, value: '', onChange: noop, onStart: noop, onCommit: noop, onCancel: noop },
-    onSelectEdge: noop, onClearEdgeSelection: noop, onShiftKeyChange: noop,
+    onSelectEdge: noop, onClearEdgeSelection: noop, onClearTaskSelection: noop, onShiftKeyChange: noop,
     setActiveDropTargetKey: noop, setDraggedTaskId: noop, onSelectTask: noop,
     onContextMenuTask: noop, onDragStartTask: noop, onDragEndTask: noop,
     onAddPredecessor: noop, onRemoveDependencyBetween: noop,

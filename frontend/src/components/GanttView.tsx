@@ -28,6 +28,7 @@ interface GanttViewProps {
     orderedEdgeKeys: string[]
   ) => void;
   onClearEdgeSelection: () => void;
+  onClearTaskSelection: () => void;
   highlights: Record<string, HighlightRole>;
   draggedTaskId: string | null;
   isShiftDrag: boolean;
@@ -129,6 +130,7 @@ export function GanttView({
   selectedEdgeKeys,
   onSelectEdge,
   onClearEdgeSelection,
+  onClearTaskSelection,
   highlights,
   draggedTaskId,
   isShiftDrag,
@@ -381,7 +383,9 @@ export function GanttView({
         width: layout.canvasWidth,
         minHeight: layout.canvasHeight,
       }}
-      onClick={() => {
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest('[data-task-drag], [data-edge-key], button, input, textarea, [contenteditable="true"]')) return;
+        onClearTaskSelection();
         if (selectedEdgeKeys.length > 0) onClearEdgeSelection();
       }}
       onDragOver={event => {
@@ -538,6 +542,7 @@ export function GanttView({
                   ? 'border-indigo-300/90 bg-indigo-100/45'
                   : 'border-slate-300/90 bg-slate-100/75'
               }`}
+              onClick={() => onClearTaskSelection()}
             >
               <div className="flex items-center justify-between w-full gap-1">
                 <span
@@ -577,7 +582,8 @@ export function GanttView({
             left: LEFT_LIST_WIDTH,
             width: layout.canvasWidth - LEFT_LIST_WIDTH,
           }}
-          className="absolute border-b border-slate-200/55 pointer-events-none"
+          className="absolute border-b border-slate-200/55"
+          onClick={() => onClearTaskSelection()}
         />
       ))}
 

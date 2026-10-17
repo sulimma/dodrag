@@ -38,6 +38,9 @@ try {
         $env:GOTOOLCHAIN = "go1.23.12"
         $buildVersion = "0.1.1"
         $buildTime = (Get-Date).ToUniversalTime().ToString("o")
+        Copy-Item -LiteralPath "frontend\src\assets\app-icon.png" -Destination "build\appicon.png" -Force
+        # Wails only generates ICO files when missing; never package an older cached icon.
+        if (Test-Path -LiteralPath "build\windows\icon.ico") { Remove-Item -LiteralPath "build\windows\icon.ico" -Force }
         go run github.com/wailsapp/wails/v2/cmd/wails@v2.9.2 build -s -ldflags "-X main.buildVersion=$buildVersion -X main.buildTime=$buildTime" -o dodrag.exe
         Assert-NativeSuccess "Wails packaging"
     } finally { $env:GOTOOLCHAIN = $oldToolchain }
