@@ -30,8 +30,12 @@ export function MiniCornerView({
     <div className="h-screen w-screen bg-white border border-slate-300 shadow-lg flex flex-col select-none overflow-hidden">
       {/* Ultra-compact draggable title strip (28px) with corner-dock controls */}
       <div
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-        onMouseUp={() => onSnapToNearestCorner()}
+        style={
+          {
+            WebkitAppRegion: 'drag',
+            '--wails-draggable': 'drag',
+          } as React.CSSProperties
+        }
         className="h-7 px-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between shrink-0 cursor-move"
       >
         <div className="flex items-center gap-1.5 min-w-0">
@@ -44,7 +48,14 @@ export function MiniCornerView({
         </div>
 
         <div
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          style={
+            {
+              WebkitAppRegion: 'no-drag',
+              '--wails-draggable': 'no-drag',
+            } as React.CSSProperties
+          }
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
           className="flex items-center gap-0.5 shrink-0"
         >
           {CORNERS.map((c) => {

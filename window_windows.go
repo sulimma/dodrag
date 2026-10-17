@@ -22,21 +22,25 @@ var (
 	procIsIconic                 = user32.NewProc("IsIconic")
 	procShowWindow               = user32.NewProc("ShowWindow")
 	procSetForegroundWindow      = user32.NewProc("SetForegroundWindow")
+	procGetClassNameW            = user32.NewProc("GetClassNameW")
 )
 
 const (
-	gwlStyle        = ^uintptr(15) // -16
-	wsCaption       = 0x00C00000
-	wsThickFrame    = 0x00040000
-	wsMinimizeBox   = 0x00020000
-	wsMaximizeBox   = 0x00010000
-	wsSysMenu       = 0x00080000
-	wsPopup         = 0x80000000
-	wsVisible       = 0x10000000
-	spiGetWorkArea  = 0x0030
-	swpFrameChanged = 0x0020
-	swpShowWindow   = 0x0040
-	swRestore       = 9
+	gwlStyle           = ^uintptr(15) // -16
+	wsCaption          = 0x00C00000
+	wsThickFrame       = 0x00040000
+	wsMinimizeBox      = 0x00020000
+	wsMaximizeBox      = 0x00010000
+	wsSysMenu          = 0x00080000
+	wsPopup            = 0x80000000
+	wsVisible          = 0x10000000
+	wsMinimize         = 0x20000000
+	wsMaximize         = 0x01000000
+	wsOverlappedWindow = wsCaption | wsSysMenu | wsThickFrame | wsMinimizeBox | wsMaximizeBox
+	spiGetWorkArea     = 0x0030
+	swpFrameChanged    = 0x0020
+	swpShowWindow      = 0x0040
+	swRestore          = 9
 )
 
 var (
@@ -59,14 +63,11 @@ func findAppWindowHandle() uintptr {
 		var pid uint32
 		procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
 		if pid == currentPID {
-			vis, _, _ := procIsWindowVisible.Call(hwnd)
-			if vis != 0 {
-				var r winRect
-				procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&r)))
-				if (r.Right-r.Left) > 50 && (r.Bottom-r.Top) > 30 {
-					foundHWND = hwnd
-					return 0 // stop enumeration
-				}
+			var classBuf [64]uint16
+			n, _, _ := procGetClassNameW.Call(hwnd, uintptr(unsafe.Pointer(&classBuf[0])), uintptr(len(classBuf)))
+			if n > 0 && syscall.UTF16ToString(classBuf[:n]) == "wailsWindow" {
+				foundHWND = hwnd
+				return 0 // stop enumeration
 			}
 		}
 		return 1 // continue
@@ -186,7 +187,7 @@ func applyMiniWindowBoundsNative(hwnd uintptr, corner string, logicalW int, logi
 	// Switch to frameless compact popup style so no native titlebar wastes space
 	style := getWindowStyleNative(hwnd)
 	if style != 0 {
-		framelessStyle := (style &^ (wsCaption | wsThickFrame | wsMinimizeBox | wsMaximizeBox | wsSysMenu)) | wsPopup | wsVisible
+		framelessStyle := (style &^ (wsCaption | wsThickFrame | wsMinimizeBox | wsMaximizeBox | wsSysMenu | wsMinimize | wsMaximize)) | wsPopup | wsVisible
 		procSetWindowLongPtrW.Call(hwnd, gwlStyle, framelessStyle)
 	}
 
@@ -212,18 +213,28 @@ func restoreNormalWindowBoundsNative(hwnd uintptr, savedStyle uintptr, savedRect
 		procShowWindow.Call(hwnd, swRestore)
 	}
 
+	restoredStyle := uintptr(wsOverlappedWindow | wsVisible)
 	if savedStyle != 0 {
-		procSetWindowLongPtrW.Call(hwnd, gwlStyle, savedStyle|wsVisible)
+		restoredStyle = (savedStyle &^ (wsPopup | wsMinimize | wsMaximize)) | wsOverlappedWindow | wsVisible
 	}
+	procSetWindowLongPtrW.Call(hwnd, gwlStyle, restoredStyle)
 
 	w := savedRect.Right - savedRect.Left
 	h := savedRect.Bottom - savedRect.Top
-	if w < 600 || h < 400 {
+	if w < 600 || h < 400 || savedRect.Left < -10000 || savedRect.Top < -10000 {
 		work := getPrimaryWorkArea()
-		w = 1180
-		h = 820
-		savedRect.Left = (work.Left + work.Right - w) / 2
-		savedRect.Top = (work.Top + work.Bottom - h) / 2
+		dpi := getWindowDPI(hwnd)
+		scale := float64(dpi) / 96.0
+		w = int32(1180.0 * scale)
+		h = int32(820.0 * scale)
+		if w > (work.Right - work.Left) {
+			w = work.Right - work.Left
+		}
+		if h > (work.Bottom - work.Top) {
+			h = work.Bottom - work.Top
+		}
+		savedRect.Left = work.Left + (work.Right-work.Left-w)/2
+		savedRect.Top = work.Top + (work.Bottom-work.Top-h)/2
 	}
 
 	procSetWindowPos.Call(

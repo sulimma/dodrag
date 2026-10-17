@@ -774,11 +774,6 @@ export function App() {
 
   const handleEnterMiniMode = async () => {
     setIsMiniMode(true);
-    const resolved = await eventBridge.enterMiniMode(
-      dockCorner,
-      miniTasks.length
-    );
-    if (resolved) setDockCorner(resolved);
   };
 
   const handleDockCorner = async (corner: string) => {
@@ -795,12 +790,12 @@ export function App() {
   };
 
   const handleRestoreFromMiniMode = async (selectTaskId?: string) => {
-    await eventBridge.exitMiniMode();
     setIsMiniMode(false);
     if (selectTaskId) {
       setSelectedTaskId(selectTaskId);
       clearEdgeSelection();
     }
+    await eventBridge.exitMiniMode();
   };
 
   // Drag handlers

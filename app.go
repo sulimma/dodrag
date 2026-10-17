@@ -42,18 +42,19 @@ type persistedSettings struct {
 
 // App struct binds Go methods to the Wails frontend.
 type App struct {
-	ctx           context.Context
-	mu            sync.Mutex
-	store         *eventstore.Store
-	appDir        string
-	settingsPath  string
-	demoDBPath    string
-	settings      AppSettings
-	hwnd          uintptr
-	isMiniMode    bool
-	savedStyle    uintptr
-	savedRect     winRect
-	bootMinimized bool
+	ctx                 context.Context
+	mu                  sync.Mutex
+	store               *eventstore.Store
+	appDir              string
+	settingsPath        string
+	demoDBPath          string
+	settings            AppSettings
+	hwnd                uintptr
+	isMiniMode          bool
+	savedStyle          uintptr
+	savedRect           winRect
+	bootMinimized       bool
+	ignoreMinimizeUntil time.Time
 }
 
 // NewApp creates a new App application struct.
@@ -114,12 +115,26 @@ func (a *App) watchNativeMinimize(ctx context.Context) {
 		case <-ticker.C:
 			a.mu.Lock()
 			hwnd := a.ensureWindowHandleLocked()
-			if hwnd != 0 && !a.isMiniMode && isWindowMinimizedNative(hwnd) {
-				// User clicked the native Windows Minimize button -> switch to compact corner-docked mode
-				a.enterMiniModeLocked(a.settings.DockCorner, 4)
-				a.mu.Unlock()
-				runtime.EventsEmit(ctx, "window:minimized", true)
-				continue
+			if hwnd != 0 && !a.isMiniMode {
+				if isWindowMinimizedNative(hwnd) {
+					if time.Now().Before(a.ignoreMinimizeUntil) {
+						procShowWindow.Call(hwnd, swRestore)
+						a.mu.Unlock()
+						continue
+					}
+					// User clicked the native Windows Minimize button -> switch to compact corner-docked mode
+					a.enterMiniModeLocked(a.settings.DockCorner, 4)
+					a.mu.Unlock()
+					runtime.EventsEmit(ctx, "window:minimized", true)
+					continue
+				}
+				// Continuously remember normal window bounds & style while in normal mode
+				if rect, ok := getWindowRectNative(hwnd); ok && (rect.Right-rect.Left) >= 600 && (rect.Bottom-rect.Top) >= 400 && rect.Left > -10000 && rect.Top > -10000 {
+					a.savedRect = rect
+				}
+				if style := getWindowStyleNative(hwnd); style != 0 && (style&wsMinimize) == 0 && (style&wsPopup) == 0 {
+					a.savedStyle = style
+				}
 			}
 			a.mu.Unlock()
 		}
@@ -275,11 +290,11 @@ func computeMiniLogicalSize(itemCount int) (int, int) {
 
 func (a *App) enterMiniModeLocked(corner string, itemCount int) string {
 	hwnd := a.ensureWindowHandleLocked()
-	if !a.isMiniMode && hwnd != 0 {
-		if rect, ok := getWindowRectNative(hwnd); ok && (rect.Right-rect.Left) > 400 {
+	if !a.isMiniMode && hwnd != 0 && !isWindowMinimizedNative(hwnd) {
+		if rect, ok := getWindowRectNative(hwnd); ok && (rect.Right-rect.Left) >= 600 && (rect.Bottom-rect.Top) >= 400 && rect.Left > -10000 && rect.Top > -10000 {
 			a.savedRect = rect
 		}
-		if style := getWindowStyleNative(hwnd); style != 0 {
+		if style := getWindowStyleNative(hwnd); style != 0 && (style&wsMinimize) == 0 && (style&wsPopup) == 0 {
 			a.savedStyle = style
 		}
 	}
@@ -324,6 +339,9 @@ func (a *App) UpdateMiniModeHeight(itemCount int) error {
 func (a *App) SnapMiniWindowToNearestCorner(itemCount int) (string, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if !a.isMiniMode {
+		return a.settings.DockCorner, nil
+	}
 	hwnd := a.ensureWindowHandleLocked()
 	logicalW, logicalH := computeMiniLogicalSize(itemCount)
 	resolvedCorner := applyMiniWindowBoundsNative(hwnd, "nearest", logicalW, logicalH)
@@ -339,6 +357,7 @@ func (a *App) ExitMiniMode() error {
 
 	a.isMiniMode = false
 	a.bootMinimized = false
+	a.ignoreMinimizeUntil = time.Now().Add(800 * time.Millisecond)
 	hwnd := a.ensureWindowHandleLocked()
 
 	if a.ctx != nil {
@@ -347,6 +366,7 @@ func (a *App) ExitMiniMode() error {
 	}
 
 	restoreNormalWindowBoundsNative(hwnd, a.savedStyle, a.savedRect)
+
 	return nil
 }
 
