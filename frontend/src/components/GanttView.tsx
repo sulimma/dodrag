@@ -11,8 +11,11 @@ import {
 import { HighlightRole, ListEntry, TaskState } from '../domain/types';
 import { TaskTitle, TitleEditor } from './TaskTitle';
 import { taskInteractions } from './taskInteractions';
+import { edgesWithPreview } from '../domain/dependencyPaths';
+import { TaskDragHandle } from './TaskDragHandle';
 
 interface GanttViewProps {
+  deletionPreview: string[];
   titleEditor: TitleEditor;
   openTasks: TaskState[];
   listEntries: ListEntry[];
@@ -135,6 +138,7 @@ export function GanttView({
   onSetConfiguredDate,
   onToggleActive,
   titleEditor,
+  deletionPreview,
 }: GanttViewProps) {
   const [windowStart, setWindowStart] = useState(() => toDateKey(now));
   const layout = useMemo(() => {
@@ -212,7 +216,7 @@ export function GanttView({
     });
 
     // Compute transitive-reduced edges & assign non-overlapping vertical arrow lanes + exit/entry Y ports
-    const reducedEdges = computeTransitiveReductionEdges(openTasks).filter(
+    const reducedEdges = edgesWithPreview(computeTransitiveReductionEdges(openTasks),openTasks,deletionPreview).filter(
       (e) => Boolean(bars[e.from] && bars[e.to])
     );
 
@@ -343,7 +347,7 @@ export function GanttView({
       canvasWidth,
       canvasHeight,
     };
-  }, [openTasks, listEntries, now, windowStart]);
+  }, [openTasks, listEntries, now, windowStart, deletionPreview.join('|')]);
 
   const navigate = (days: number) => {
     const [y,m,d] = windowStart.split('-').map(Number);
@@ -393,7 +397,7 @@ export function GanttView({
           const isBeingDragged = draggedTaskId === task.id;
 
           let rowBgClasses = 'bg-white hover:bg-slate-50/90';
-          if (isDropTarget) {
+          if (isDropTarget && !isShiftDrag) {
             rowBgClasses = isShiftDrag
               ? 'bg-rose-50 ring-1 ring-inset ring-rose-400'
               : 'bg-amber-50 ring-1 ring-inset ring-amber-400';
@@ -425,7 +429,7 @@ export function GanttView({
                 isBeingDragged ? 'opacity-35' : ''
               } ${task.isDeemphasized && !role ? 'opacity-65' : ''}`}
             >
-              <GripVertical className="w-3.5 h-3.5 text-slate-400 shrink-0 cursor-grab" />
+              <TaskDragHandle />
               {task.predecessorIds.length === 0 && (
                 <button
                   type="button"
@@ -617,7 +621,8 @@ export function GanttView({
         {layout.routedEdges.map(({ from, to, edgeKey, pathD }) => {
           const fromRole = highlights[from];
           const toRole = highlights[to];
-          const isEdgeSelected = selectedEdgeKeys.includes(edgeKey);
+          const isPreview = deletionPreview.includes(edgeKey);
+          const isEdgeSelected = !draggedTaskId && selectedEdgeKeys.includes(edgeKey);
 
           let strokeColor = '#94a3b8';
           let strokeWidth = 1.65;
@@ -637,7 +642,7 @@ export function GanttView({
             (toRole === 'successor-direct' ||
               toRole === 'successor-transitive');
 
-          if (isEdgeSelected) {
+          if (isPreview || isEdgeSelected) {
             strokeColor = '#e11d48';
             strokeWidth = 2.6;
             marker = 'url(#gantt-arrow-selected)';
@@ -654,6 +659,8 @@ export function GanttView({
           return (
             <g
               key={edgeKey}
+              data-edge-key={edgeKey}
+              data-deletion-preview={isPreview || undefined}
               className="group pointer-events-auto cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
@@ -701,7 +708,7 @@ export function GanttView({
         let containerClasses =
           'bg-white border-slate-300 text-slate-700 shadow-xs hover:border-slate-400';
 
-        if (isDropTarget) {
+        if (isDropTarget && !isShiftDrag) {
           containerClasses = isShiftDrag
             ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-400/35 shadow-md'
             : 'bg-amber-50 border-amber-400 text-amber-950 ring-2 ring-amber-400/30 shadow-md';

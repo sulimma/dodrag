@@ -40,6 +40,8 @@ import { normalizeUserDate } from './domain/dates';
 import { normalizeTitleInput } from './domain/input';
 import { TaskTitle, TitleEditor } from './components/TaskTitle';
 import { taskInteractions } from './components/taskInteractions';
+import { dependencyPathEdges, previewPathKeys } from './domain/dependencyPaths';
+import { TaskDragHandle } from './components/TaskDragHandle';
 
 interface ContextMenuState {
   x: number;
@@ -132,6 +134,7 @@ export function App() {
   const editGroup = useRef('');
   const databaseIdentity = useRef('');
   const editDatabase = useRef('');
+  const dragIdentity = useRef<{database:string;taskId:string}|null>(null);
   const mutate = async (operation: () => Promise<StoredEvent[]>): Promise<StoredEvent[] | null> => {
     if (mutationBusy.current) return null;
     mutationBusy.current = true;
@@ -200,6 +203,7 @@ export function App() {
     () => computeDependencyHighlights(selectedTaskId, state.tasks),
     [selectedTaskId, state.tasks]
   );
+  const deletionPreview = previewPathKeys(state.tasks, draggedTaskId, activeDropTargetKey, isShiftDrag);
 
   // Ordered predecessor chip keys (`predId->taskId`) in List View for Windows-style Shift+Click range selection
   const listOrderedEdgeKeys = useMemo(() => {
@@ -606,35 +610,12 @@ export function App() {
     draggedId: string,
     targetTaskId: string
   ) => {
-    if (draggedId === targetTaskId) return;
-    const draggedTask = state.tasks[draggedId];
-    const targetTask = state.tasks[targetTaskId];
-    if (!draggedTask || !targetTask) return;
-
-    const targetRole = highlights[targetTaskId];
-
-    if (
-      targetRole === 'predecessor-direct' ||
-      draggedTask.allPredecessorIds.includes(targetTaskId)
-    ) {
-      await handleRemovePredecessor(draggedId, targetTaskId);
-      pushToast(`Kante ${targetTaskId} → ${draggedId} gelöscht`, 'info');
-      return;
-    }
-
-    if (
-      targetRole === 'successor-direct' ||
-      targetTask.allPredecessorIds.includes(draggedId)
-    ) {
-      await handleRemovePredecessor(targetTaskId, draggedId);
-      pushToast(`Kante ${draggedId} → ${targetTaskId} gelöscht`, 'info');
-      return;
-    }
-
-    pushToast(
-      `Keine direkte Kante zwischen ${draggedId} und ${targetTaskId}`,
-      'warning'
-    );
+    if (dragIdentity.current?.database !== databaseIdentity.current || dragIdentity.current.taskId !== draggedId) return;
+    const current = projectEvents(confirmedEvents.current, new Date());
+    const edges = dependencyPathEdges(current.tasks,draggedId,targetTaskId);
+    if (!edges.length) return;
+    const updated = await mutate(() => eventBridge.appendBatch(edges.map(edge => ({type:'DEPENDENCY_REMOVED' as const,payload:{taskId:edge.to,predecessorId:edge.from}}))));
+    if (updated) pushToast(`${edges.length} Kanten an ${draggedId} geloescht`, 'info');
   };
 
   const handleCompleteTask = async (taskId: string) => {
@@ -671,6 +652,7 @@ export function App() {
   };
 
   const changeDatabase = async (operation: () => Promise<AppSettings>) => {
+    if (dragIdentity.current) throw new Error('Datenbankwechsel erst nach Ende des Ziehens');
     if (mutationBusy.current) throw new Error('Eine Aenderung wird noch gespeichert');
     mutationBusy.current = true;
     try {
@@ -757,6 +739,8 @@ export function App() {
 
   // Drag handlers
   const onDragStartTask = (e: React.DragEvent, taskId: string) => {
+    if (mutationBusy.current || !state.tasks[taskId]) { e.preventDefault(); return; }
+    dragIdentity.current = {database:databaseIdentity.current,taskId};
     setDraggedTaskId(taskId);
     e.dataTransfer.setData('text/plain', taskId);
     e.dataTransfer.effectAllowed = 'all';
@@ -770,10 +754,30 @@ export function App() {
   };
 
   const onDragEndTask = () => {
+    dragIdentity.current = null;
+    document.querySelectorAll('[data-shift-drag]').forEach(element => element.removeAttribute('data-shift-drag'));
     setDraggedTaskId(null);
     setIsShiftDrag(false);
     setActiveDropTargetKey(null);
   };
+
+  useEffect(() => {
+    const stop = () => onDragEndTask();
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') stop();
+      if (event.key === 'Shift') {
+        const held = event.type === 'keydown';
+        setIsShiftDrag(held);
+        document.querySelectorAll('[data-task-drag]').forEach(element => {
+          if (held) element.setAttribute('data-shift-drag','true');
+          else element.removeAttribute('data-shift-drag');
+        });
+      }
+    };
+    window.addEventListener('keydown',key,true);window.addEventListener('keyup',key,true);
+    window.addEventListener('blur',stop);window.addEventListener('dragend',stop);
+    return () => { window.removeEventListener('keydown',key,true);window.removeEventListener('keyup',key,true);window.removeEventListener('blur',stop);window.removeEventListener('dragend',stop); };
+  }, []);
 
   const titleEditor: TitleEditor = { taskId: editingTaskId, value: editingTitle, onChange: value => setEditingTitle(normalizeTitleInput(value)), onStart: startInlineEdit, onCommit: commitInlineEdit, onCancel: () => setEditingTaskId(null) };
 
@@ -992,7 +996,7 @@ export function App() {
                 let containerClasses =
                   'bg-white border-slate-200/90 shadow-sm hover:border-slate-300';
 
-                if (isDropTarget) {
+                if (isDropTarget && !isShiftDrag) {
                   containerClasses = isShiftDrag
                     ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-400/35 shadow-md'
                     : 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/30 shadow-md';
@@ -1040,7 +1044,7 @@ export function App() {
                         title="Ziehen auf Task (= Vorgänger setzen), Shift-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts"
                         className="text-slate-400 group-hover:text-slate-600 cursor-grab active:cursor-grabbing"
                       >
-                        <GripVertical className="w-4 h-4" />
+                        <TaskDragHandle />
                       </div>
 
                       {task.predecessorIds.length === 0 && (
@@ -1084,13 +1088,15 @@ export function App() {
                     <div className="flex items-center gap-2 shrink-0">
                       {task.predecessorIds.length > 0 && (
                         <div className="flex items-center gap-1">
-                          {task.predecessorIds.map((predId) => {
+                          {task.allPredecessorIds.filter(predId => task.predecessorIds.includes(predId) || deletionPreview.includes(`${predId}->${task.id}`)).map((predId) => {
                             const edgeKey = `${predId}->${task.id}`;
                             const isChipSelected =
-                              selectedEdgeKeys.includes(edgeKey);
+                              draggedTaskId ? deletionPreview.includes(edgeKey) : selectedEdgeKeys.includes(edgeKey);
                             return (
                               <button
                                 key={predId}
+                                data-edge-key={edgeKey}
+                                data-deletion-preview={deletionPreview.includes(edgeKey) || undefined}
                                 type="button"
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
@@ -1222,6 +1228,7 @@ export function App() {
               onSetConfiguredDate={handleSetConfiguredDate}
               onToggleActive={handleToggleActive}
               titleEditor={titleEditor}
+              deletionPreview={deletionPreview}
             />
           ) : (
             <GanttView
@@ -1267,6 +1274,7 @@ export function App() {
               onSetConfiguredDate={handleSetConfiguredDate}
               onToggleActive={handleToggleActive}
               titleEditor={titleEditor}
+              deletionPreview={deletionPreview}
             />
           )}
         </main>

@@ -11,8 +11,11 @@ import { HighlightRole, TaskState } from '../domain/types';
 import { DateLayerLine } from './DateLayerLine';
 import { TaskTitle, TitleEditor } from './TaskTitle';
 import { taskInteractions } from './taskInteractions';
+import { edgesWithPreview } from '../domain/dependencyPaths';
+import { TaskDragHandle } from './TaskDragHandle';
 
 interface NetworkPlanViewProps {
+  deletionPreview: string[];
   titleEditor: TitleEditor;
   openTasks: TaskState[];
   now: Date;
@@ -227,6 +230,7 @@ export function NetworkPlanView({
   onSetConfiguredDate,
   onToggleActive,
   titleEditor,
+  deletionPreview,
 }: NetworkPlanViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(840);
@@ -469,7 +473,7 @@ export function NetworkPlanView({
     const allNodes = Object.values(nodes);
     const routedEdges: RoutedEdge[] = [];
 
-    for (const edge of reducedEdges) {
+    for (const edge of edgesWithPreview(reducedEdges,openTasks,deletionPreview)) {
       const fromNode = nodes[edge.from];
       const toNode = nodes[edge.to];
       if (!fromNode || !toNode) continue;
@@ -530,7 +534,7 @@ export function NetworkPlanView({
       canvasWidth,
       canvasHeight,
     };
-  }, [openTasks, now, containerWidth]);
+  }, [openTasks, now, containerWidth, deletionPreview.join('|')]);
 
   return (
     <div
@@ -643,7 +647,8 @@ export function NetworkPlanView({
           const edgeKey = `${from}->${to}`;
           const fromRole = highlights[from];
           const toRole = highlights[to];
-          const isEdgeSelected = selectedEdgeKeys.includes(edgeKey);
+          const isPreview = deletionPreview.includes(edgeKey);
+          const isEdgeSelected = !draggedTaskId && selectedEdgeKeys.includes(edgeKey);
 
           let strokeColor = '#94a3b8';
           let strokeWidth = 1.85;
@@ -663,7 +668,7 @@ export function NetworkPlanView({
             (toRole === 'successor-direct' ||
               toRole === 'successor-transitive');
 
-          if (isEdgeSelected) {
+          if (isPreview || isEdgeSelected) {
             strokeColor = '#e11d48'; // Rose-600
             strokeWidth = 2.8;
             marker = 'url(#arrow-selected)';
@@ -680,6 +685,8 @@ export function NetworkPlanView({
           return (
             <g
               key={edgeKey}
+              data-edge-key={edgeKey}
+              data-deletion-preview={isPreview || undefined}
               className="group pointer-events-auto cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
@@ -728,7 +735,7 @@ export function NetworkPlanView({
         let containerClasses =
           'bg-white border-slate-200/90 shadow-sm hover:border-slate-300';
 
-        if (isDropTarget) {
+        if (isDropTarget && !isShiftDrag) {
           containerClasses = isShiftDrag
             ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-400/35 shadow-md'
             : 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/30 shadow-md';
@@ -771,7 +778,7 @@ export function NetworkPlanView({
           >
             <div className="flex items-center justify-between gap-1.5">
               <div className="flex items-center gap-1.5 min-w-0">
-                <GripVertical className="w-3.5 h-3.5 text-slate-400 shrink-0 cursor-grab" />
+                <TaskDragHandle />
                 {task.predecessorIds.length === 0 && (
                   <button
                     type="button"
