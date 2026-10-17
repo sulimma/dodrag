@@ -12,10 +12,15 @@ export interface AppSettings {
   activeDatabasePath: string;
   firstRunCompleted: boolean;
   autostart: boolean;
+  dockCorner?: string;
+  bootMinimized?: boolean;
 }
 
 declare global {
   interface Window {
+    runtime?: {
+      EventsOn?: (eventName: string, callback: (...data: any[]) => void) => () => void;
+    };
     go?: {
       main?: {
         App?: {
@@ -39,6 +44,15 @@ declare global {
           OpenExistingDatabaseDialog: () => Promise<AppSettings>;
           SwitchDatabase: (dbPath: string) => Promise<AppSettings>;
           DeleteDatabase: (dbPath: string) => Promise<AppSettings>;
+          EnterMiniMode: (
+            corner: string,
+            itemCount: number
+          ) => Promise<string>;
+          UpdateMiniModeHeight: (itemCount: number) => Promise<void>;
+          SnapMiniWindowToNearestCorner: (
+            itemCount: number
+          ) => Promise<string>;
+          ExitMiniMode: () => Promise<void>;
         };
       };
     };
@@ -303,7 +317,7 @@ export const eventBridge = {
   },
 
   async getSettings(): Promise<AppSettings> {
-    if (isWailsAvailable() && window.go!.main!.App!.GetSettings) {
+    if (isWailsAvailable()) {
       return await window.go!.main!.App!.GetSettings();
     }
     try {
@@ -328,7 +342,7 @@ export const eventBridge = {
   },
 
   async setAutostart(enabled: boolean): Promise<AppSettings> {
-    if (isWailsAvailable() && window.go!.main!.App!.SetAutostart) {
+    if (isWailsAvailable()) {
       return await window.go!.main!.App!.SetAutostart(enabled);
     }
     const current = await this.getSettings();
@@ -338,7 +352,7 @@ export const eventBridge = {
   },
 
   async completeFirstRun(): Promise<AppSettings> {
-    if (isWailsAvailable() && window.go!.main!.App!.CompleteFirstRun) {
+    if (isWailsAvailable()) {
       return await window.go!.main!.App!.CompleteFirstRun();
     }
     const current = await this.getSettings();
@@ -348,7 +362,7 @@ export const eventBridge = {
   },
 
   async selectFolderDialog(): Promise<string> {
-    if (isWailsAvailable() && window.go!.main!.App!.SelectFolderDialog) {
+    if (isWailsAvailable()) {
       return await window.go!.main!.App!.SelectFolderDialog();
     }
     return '';
@@ -358,7 +372,7 @@ export const eventBridge = {
     folderPath: string,
     dbName: string
   ): Promise<AppSettings> {
-    if (isWailsAvailable() && window.go!.main!.App!.CreateDatabase) {
+    if (isWailsAvailable()) {
       return await window.go!.main!.App!.CreateDatabase(folderPath, dbName);
     }
     const current = await this.getSettings();
@@ -380,17 +394,14 @@ export const eventBridge = {
   },
 
   async openExistingDatabaseDialog(): Promise<AppSettings> {
-    if (
-      isWailsAvailable() &&
-      window.go!.main!.App!.OpenExistingDatabaseDialog
-    ) {
+    if (isWailsAvailable()) {
       return await window.go!.main!.App!.OpenExistingDatabaseDialog();
     }
     return await this.getSettings();
   },
 
   async switchDatabase(dbPath: string): Promise<AppSettings> {
-    if (isWailsAvailable() && window.go!.main!.App!.SwitchDatabase) {
+    if (isWailsAvailable()) {
       return await window.go!.main!.App!.SwitchDatabase(dbPath);
     }
     const current = await this.getSettings();
@@ -404,7 +415,7 @@ export const eventBridge = {
   },
 
   async deleteDatabase(dbPath: string): Promise<AppSettings> {
-    if (isWailsAvailable() && window.go!.main!.App!.DeleteDatabase) {
+    if (isWailsAvailable()) {
       return await window.go!.main!.App!.DeleteDatabase(dbPath);
     }
     const current = await this.getSettings();
@@ -431,5 +442,41 @@ export const eventBridge = {
     localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(next));
     return next;
   },
+
+  async enterMiniMode(corner: string, itemCount: number): Promise<string> {
+    if (isWailsAvailable()) {
+      return await window.go!.main!.App!.EnterMiniMode(corner, itemCount);
+    }
+    return corner || 'bottom-right';
+  },
+
+  async updateMiniModeHeight(itemCount: number): Promise<void> {
+    if (isWailsAvailable()) {
+      await window.go!.main!.App!.UpdateMiniModeHeight(itemCount);
+    }
+  },
+
+  async snapMiniWindowToNearestCorner(itemCount: number): Promise<string> {
+    if (isWailsAvailable()) {
+      return await window.go!.main!.App!.SnapMiniWindowToNearestCorner(
+        itemCount
+      );
+    }
+    return 'bottom-right';
+  },
+
+  async exitMiniMode(): Promise<void> {
+    if (isWailsAvailable()) {
+      await window.go!.main!.App!.ExitMiniMode();
+    }
+  },
+
+  onWindowMinimized(callback: () => void): () => void {
+    if (window?.runtime?.EventsOn) {
+      return window.runtime.EventsOn('window:minimized', callback);
+    }
+    return () => {};
+  },
 };
+
 

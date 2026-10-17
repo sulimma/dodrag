@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeDependencyHighlights,
+  computeMiniWindowTasks,
   computeTransitiveReductionEdges,
   projectEvents,
   toDateKey,
@@ -351,4 +352,90 @@ describe('DoDrag Event-Sourcing Projector & Topological Sort', () => {
     expect(satEntry!.isWeekend).toBe(true);
     expect(satEntry!.label).toContain('2026-10-17');
   });
+
+  it('computes mini window tasks: only today tasks without predecessors, or all tasks without predecessors if today has none', () => {
+    const tomorrowIso = '2026-10-17T09:00:00.000Z';
+    const nextWeekIso = '2026-10-20T09:00:00.000Z';
+
+    // Case 1: Today has tasks without predecessors -> only today's startable tasks are returned (active first)
+    const eventsWithToday: StoredEvent[] = [
+      {
+        seq: 1,
+        id: 'm1',
+        timestamp: todayIso,
+        type: 'TASK_CREATED',
+        payload: { taskId: '26-1', title: 'Heute Startbar Normal', configuredStart: todayIso },
+        undone: false,
+      },
+      {
+        seq: 2,
+        id: 'm2',
+        timestamp: todayIso,
+        type: 'TASK_CREATED',
+        payload: { taskId: '26-2', title: 'Heute Aktiv', configuredStart: todayIso },
+        undone: false,
+      },
+      {
+        seq: 3,
+        id: 'm3',
+        timestamp: todayIso,
+        type: 'TASK_ACTIVE_SET',
+        payload: { taskId: '26-2', isActive: true },
+        undone: false,
+      },
+      {
+        seq: 4,
+        id: 'm4',
+        timestamp: todayIso,
+        type: 'TASK_CREATED',
+        payload: { taskId: '26-3', title: 'Morgen ohne Vorgänger', configuredStart: tomorrowIso },
+        undone: false,
+      },
+    ];
+
+    const state1 = projectEvents(eventsWithToday, fixedNow);
+    const mini1 = computeMiniWindowTasks(state1.openTasks, fixedNow);
+    expect(mini1.map((t) => t.id)).toEqual(['26-2', '26-1']);
+
+    // Case 2: Today has NO tasks -> all tasks without predecessors across future days are returned
+    const eventsWithoutToday: StoredEvent[] = [
+      {
+        seq: 1,
+        id: 'f1',
+        timestamp: todayIso,
+        type: 'TASK_CREATED',
+        payload: { taskId: '26-10', title: 'Morgen ohne Vorgänger', configuredStart: tomorrowIso },
+        undone: false,
+      },
+      {
+        seq: 2,
+        id: 'f2',
+        timestamp: todayIso,
+        type: 'TASK_CREATED',
+        payload: { taskId: '26-11', title: 'Nächste Woche ohne Vorgänger', configuredStart: nextWeekIso },
+        undone: false,
+      },
+      {
+        seq: 3,
+        id: 'f3',
+        timestamp: todayIso,
+        type: 'TASK_CREATED',
+        payload: { taskId: '26-12', title: 'Blockierter Task', configuredStart: tomorrowIso },
+        undone: false,
+      },
+      {
+        seq: 4,
+        id: 'f4',
+        timestamp: todayIso,
+        type: 'DEPENDENCY_ADDED',
+        payload: { taskId: '26-12', predecessorId: '26-10' },
+        undone: false,
+      },
+    ];
+
+    const state2 = projectEvents(eventsWithoutToday, fixedNow);
+    const mini2 = computeMiniWindowTasks(state2.openTasks, fixedNow);
+    expect(mini2.map((t) => t.id)).toEqual(['26-10', '26-11']);
+  });
 });
+

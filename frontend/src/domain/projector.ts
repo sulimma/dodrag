@@ -810,3 +810,36 @@ export function calculateQuickResubmitDate(
     }
   }
 }
+
+/**
+ * Returns the tasks to display in the compact corner-docked minimized window:
+ * - Only tasks that can currently be worked on (no open predecessors: predecessorIds.length === 0).
+ * - Specifically: tasks from Today without predecessors; if there are none on Today, all open tasks without predecessors.
+ * - Active tasks (isActive) are sorted to the top, followed by effectiveDateKey ascending and newest creationOrder first.
+ */
+export function computeMiniWindowTasks(
+  openTasks: TaskState[],
+  now: Date = new Date()
+): TaskState[] {
+  const todayKey = toDateKey(now);
+  const withoutPreds = openTasks.filter(
+    (t) => !t.completed && t.predecessorIds.length === 0
+  );
+
+  const todayStartable = withoutPreds.filter(
+    (t) => t.effectiveDateKey <= todayKey
+  );
+
+  const pool = todayStartable.length > 0 ? todayStartable : withoutPreds;
+
+  return [...pool].sort((a, b) => {
+    if (a.isActive !== b.isActive) {
+      return a.isActive ? -1 : 1;
+    }
+    if (a.effectiveDateKey !== b.effectiveDateKey) {
+      return a.effectiveDateKey.localeCompare(b.effectiveDateKey);
+    }
+    return b.creationOrder - a.creationOrder;
+  });
+}
+

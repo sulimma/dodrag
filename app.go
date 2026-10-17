@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -22,35 +23,49 @@ type DatabaseEntry struct {
 	Exists bool   `json:"exists"`
 }
 
-// AppSettings stores known databases, the currently active database, first-run status, and autostart flag in %APPDATA%\DoDrag\settings.json.
+// AppSettings stores known databases, the currently active database, first-run status, autostart flag, and dock corner in %APPDATA%\DoDrag\settings.json.
 type AppSettings struct {
 	KnownDatabases     []DatabaseEntry `json:"knownDatabases"`
 	ActiveDatabasePath string          `json:"activeDatabasePath"`
 	FirstRunCompleted  bool            `json:"firstRunCompleted"`
 	Autostart          bool            `json:"autostart"`
+	DockCorner         string          `json:"dockCorner"`
+	BootMinimized      bool            `json:"bootMinimized"`
 }
 
 // App struct binds Go methods to the Wails frontend.
 type App struct {
-	ctx          context.Context
-	mu           sync.Mutex
-	store        *eventstore.Store
-	appDir       string
-	settingsPath string
-	demoDBPath   string
-	settings     AppSettings
+	ctx           context.Context
+	mu            sync.Mutex
+	store         *eventstore.Store
+	appDir        string
+	settingsPath  string
+	demoDBPath    string
+	settings      AppSettings
+	hwnd          uintptr
+	isMiniMode    bool
+	savedStyle    uintptr
+	savedRect     winRect
+	bootMinimized bool
 }
 
 // NewApp creates a new App application struct.
 func NewApp() *App {
-	return &App{}
+	bootMin := false
+	for _, arg := range os.Args[1:] {
+		if strings.EqualFold(strings.TrimSpace(arg), "--minimized") {
+			bootMin = true
+			break
+		}
+	}
+	return &App{
+		bootMinimized: bootMin,
+	}
 }
 
 // startup is called when the app starts.
 func (a *App) startup(ctx context.Context) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	a.ctx = ctx
 
 	appDir := "."
@@ -69,6 +84,39 @@ func (a *App) startup(ctx context.Context) {
 		_ = syncWindowsAutostart(true)
 	}
 	a.openActiveDatabaseLocked()
+	a.mu.Unlock()
+
+	go a.watchNativeMinimize(ctx)
+}
+
+func (a *App) ensureWindowHandleLocked() uintptr {
+	if a.hwnd == 0 {
+		a.hwnd = findAppWindowHandle()
+	}
+	return a.hwnd
+}
+
+func (a *App) watchNativeMinimize(ctx context.Context) {
+	ticker := time.NewTicker(160 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.mu.Lock()
+			hwnd := a.ensureWindowHandleLocked()
+			if hwnd != 0 && !a.isMiniMode && isWindowMinimizedNative(hwnd) {
+				// User clicked the native Windows Minimize button -> switch to compact corner-docked mode
+				a.enterMiniModeLocked(a.settings.DockCorner, 4)
+				a.mu.Unlock()
+				runtime.EventsEmit(ctx, "window:minimized", true)
+				continue
+			}
+			a.mu.Unlock()
+		}
+	}
 }
 
 func (a *App) loadOrInitSettingsLocked() {
@@ -92,6 +140,9 @@ func (a *App) loadOrInitSettingsLocked() {
 			if loaded.ActiveDatabasePath == "" || loaded.ActiveDatabasePath == "." {
 				loaded.ActiveDatabasePath = loaded.KnownDatabases[0].Path
 			}
+			if loaded.DockCorner == "" {
+				loaded.DockCorner = "bottom-right"
+			}
 			a.settings = loaded
 			return
 		}
@@ -109,6 +160,7 @@ func (a *App) loadOrInitSettingsLocked() {
 		ActiveDatabasePath: a.demoDBPath,
 		FirstRunCompleted:  false,
 		Autostart:          false,
+		DockCorner:         "bottom-right",
 	}
 	_ = a.saveSettingsLocked()
 }
@@ -155,6 +207,8 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 		ActiveDatabasePath: a.settings.ActiveDatabasePath,
 		FirstRunCompleted:  a.settings.FirstRunCompleted,
 		Autostart:          a.settings.Autostart,
+		DockCorner:         a.settings.DockCorner,
+		BootMinimized:      a.bootMinimized,
 		KnownDatabases:     make([]DatabaseEntry, len(a.settings.KnownDatabases)),
 	}
 	for i, entry := range a.settings.KnownDatabases {
@@ -163,6 +217,96 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 		out.KnownDatabases[i] = entry
 	}
 	return out
+}
+
+func computeMiniLogicalSize(itemCount int) (int, int) {
+	rows := itemCount
+	if rows < 1 {
+		rows = 1
+	}
+	if rows > 4 {
+		rows = 4
+	}
+	logicalW := 240
+	logicalH := 28 + rows*28 + 4
+	return logicalW, logicalH
+}
+
+func (a *App) enterMiniModeLocked(corner string, itemCount int) string {
+	hwnd := a.ensureWindowHandleLocked()
+	if !a.isMiniMode && hwnd != 0 {
+		if rect, ok := getWindowRectNative(hwnd); ok && (rect.Right-rect.Left) > 400 {
+			a.savedRect = rect
+		}
+		if style := getWindowStyleNative(hwnd); style != 0 {
+			a.savedStyle = style
+		}
+	}
+
+	if a.ctx != nil {
+		runtime.WindowSetMinSize(a.ctx, 180, 48)
+		runtime.WindowSetAlwaysOnTop(a.ctx, true)
+	}
+
+	if corner == "" {
+		corner = a.settings.DockCorner
+	}
+	logicalW, logicalH := computeMiniLogicalSize(itemCount)
+	resolvedCorner := applyMiniWindowBoundsNative(hwnd, corner, logicalW, logicalH)
+	a.isMiniMode = true
+	a.settings.DockCorner = resolvedCorner
+	_ = a.saveSettingsLocked()
+	return resolvedCorner
+}
+
+// EnterMiniMode switches the window into the compact corner-docked task view.
+func (a *App) EnterMiniMode(corner string, itemCount int) (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.enterMiniModeLocked(corner, itemCount), nil
+}
+
+// UpdateMiniModeHeight adjusts the compact window height (up to 4 items) while staying docked in the current corner.
+func (a *App) UpdateMiniModeHeight(itemCount int) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.isMiniMode {
+		return nil
+	}
+	hwnd := a.ensureWindowHandleLocked()
+	logicalW, logicalH := computeMiniLogicalSize(itemCount)
+	applyMiniWindowBoundsNative(hwnd, a.settings.DockCorner, logicalW, logicalH)
+	return nil
+}
+
+// SnapMiniWindowToNearestCorner snaps the compact window to whichever screen corner is closest after dragging.
+func (a *App) SnapMiniWindowToNearestCorner(itemCount int) (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	hwnd := a.ensureWindowHandleLocked()
+	logicalW, logicalH := computeMiniLogicalSize(itemCount)
+	resolvedCorner := applyMiniWindowBoundsNative(hwnd, "nearest", logicalW, logicalH)
+	a.settings.DockCorner = resolvedCorner
+	_ = a.saveSettingsLocked()
+	return resolvedCorner, nil
+}
+
+// ExitMiniMode restores the full application window from compact corner-docked mode.
+func (a *App) ExitMiniMode() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.isMiniMode = false
+	a.bootMinimized = false
+	hwnd := a.ensureWindowHandleLocked()
+
+	if a.ctx != nil {
+		runtime.WindowSetAlwaysOnTop(a.ctx, false)
+		runtime.WindowSetMinSize(a.ctx, 860, 560)
+	}
+
+	restoreNormalWindowBoundsNative(hwnd, a.savedStyle, a.savedRect)
+	return nil
 }
 
 // shutdown is called when the app terminates.

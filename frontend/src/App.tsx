@@ -12,6 +12,7 @@ import {
   HelpCircle,
   Link2Off,
   List,
+  Minimize2,
   Network,
   Plus,
   Redo2,
@@ -23,12 +24,14 @@ import {
 import { AppSettings, eventBridge } from './bridge/eventBridge';
 import { DateLayerLine } from './components/DateLayerLine';
 import { GanttView } from './components/GanttView';
+import { MiniCornerView } from './components/MiniCornerView';
 import { NetworkPlanView } from './components/NetworkPlanView';
 import { SettingsModal } from './components/SettingsModal';
 import { SmoothFlipList } from './components/SmoothFlipList';
 import {
   calculateQuickResubmitDate,
   computeDependencyHighlights,
+  computeMiniWindowTasks,
   formatIso8601Display,
   projectEvents,
   QuickResubmitTargetId,
@@ -139,6 +142,8 @@ export function App() {
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [isFirstRunDialog, setIsFirstRunDialog] = useState<boolean>(false);
+  const [isMiniMode, setIsMiniMode] = useState<boolean>(false);
+  const [dockCorner, setDockCorner] = useState<string>('bottom-right');
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
@@ -160,16 +165,48 @@ export function App() {
     eventBridge.getEvents().then(setEvents);
     eventBridge.getSettings().then((s) => {
       setAppSettings(s);
-      if (!s.firstRunCompleted) {
+      if (s.dockCorner) {
+        setDockCorner(s.dockCorner);
+      }
+      if (s.bootMinimized) {
+        setIsMiniMode(true);
+      } else if (!s.firstRunCompleted) {
         setIsFirstRunDialog(true);
         setShowSettingsModal(true);
       }
     });
+    const unsubMinimize = eventBridge.onWindowMinimized(() => {
+      setIsMiniMode(true);
+    });
     const interval = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(interval);
+    return () => {
+      unsubMinimize();
+      clearInterval(interval);
+    };
   }, []);
 
   const state = useMemo(() => projectEvents(events, now), [events, now]);
+
+  const miniTasks = useMemo(
+    () => computeMiniWindowTasks(state.openTasks, now),
+    [state.openTasks, now]
+  );
+
+  useEffect(() => {
+    if (isMiniMode) {
+      eventBridge
+        .enterMiniMode(dockCorner, miniTasks.length)
+        .then((resolved) => {
+          if (resolved) setDockCorner(resolved);
+        });
+    }
+  }, [isMiniMode]);
+
+  useEffect(() => {
+    if (isMiniMode) {
+      eventBridge.updateMiniModeHeight(miniTasks.length);
+    }
+  }, [isMiniMode, miniTasks.length]);
 
   const highlights = useMemo(
     () => computeDependencyHighlights(selectedTaskId, state.tasks),
@@ -741,6 +778,37 @@ export function App() {
     );
   };
 
+  const handleEnterMiniMode = async () => {
+    setIsMiniMode(true);
+    const resolved = await eventBridge.enterMiniMode(
+      dockCorner,
+      miniTasks.length
+    );
+    if (resolved) setDockCorner(resolved);
+  };
+
+  const handleDockCorner = async (corner: string) => {
+    setDockCorner(corner);
+    const resolved = await eventBridge.enterMiniMode(corner, miniTasks.length);
+    if (resolved) setDockCorner(resolved);
+  };
+
+  const handleSnapToNearestCorner = async () => {
+    const resolved = await eventBridge.snapMiniWindowToNearestCorner(
+      miniTasks.length
+    );
+    if (resolved) setDockCorner(resolved);
+  };
+
+  const handleRestoreFromMiniMode = async (selectTaskId?: string) => {
+    await eventBridge.exitMiniMode();
+    setIsMiniMode(false);
+    if (selectTaskId) {
+      setSelectedTaskId(selectTaskId);
+      clearEdgeSelection();
+    }
+  };
+
   // Drag handlers
   const onDragStartTask = (e: React.DragEvent, taskId: string) => {
     setDraggedTaskId(taskId);
@@ -760,6 +828,19 @@ export function App() {
     setIsShiftDrag(false);
     setActiveDropTargetKey(null);
   };
+
+  if (isMiniMode) {
+    return (
+      <MiniCornerView
+        tasks={miniTasks}
+        dockCorner={dockCorner}
+        onDockCorner={handleDockCorner}
+        onSnapToNearestCorner={handleSnapToNearestCorner}
+        onSelectAndRestore={(taskId) => handleRestoreFromMiniMode(taskId)}
+        onRestoreWindow={() => handleRestoreFromMiniMode()}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-100/80 text-slate-800 select-none overflow-hidden">
@@ -881,6 +962,14 @@ export function App() {
             className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
           >
             <Settings className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={handleEnterMiniMode}
+            title="Minimieren (Kompaktansicht in Bildschirmecke)"
+            className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
+          >
+            <Minimize2 className="w-4 h-4" />
           </button>
 
           <button
