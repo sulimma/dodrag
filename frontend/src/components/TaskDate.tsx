@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { TaskState } from '../domain/types';
+import type { TaskState } from '../domain/types';
 import { formatIso8601Display, toDateKey } from '../domain/projector';
-import { InlineEditor } from './inlineEditor';
+import type { InlineEditor } from './inlineEditor';
 
+// Renders a configured task date and its inline editor.
 export function TaskDate({
   task,
   editor,

@@ -1,4 +1,4 @@
-import { HighlightRole, TaskState } from '../domain/types';
+import type { HighlightRole, TaskState } from '../domain/types';
 
 // Shift shows affected edges, not a destructive card tint. Preserve role precedence across layouts.
 export function taskAppearanceRole(

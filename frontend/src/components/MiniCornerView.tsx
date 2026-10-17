@@ -1,6 +1,6 @@
 import React from 'react';
 import { Maximize2 } from 'lucide-react';
-import { TaskState } from '../domain/types';
+import type { TaskState } from '../domain/types';
 import appIcon from '../assets/app-icon.png';
 
 interface MiniCornerViewProps {
@@ -9,6 +9,7 @@ interface MiniCornerViewProps {
   onRestoreWindow: () => void;
 }
 
+// Shows a compact task list and restores the main window on interaction.
 export function MiniCornerView({
   tasks,
   onSelectAndRestore,

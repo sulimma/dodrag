@@ -1,4 +1,4 @@
-import { TaskState } from '../domain/types';
+import type { TaskState } from '../domain/types';
 
 export interface InlineEditor {
   taskId: string | null;

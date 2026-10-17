@@ -1,5 +1,5 @@
 import { eventBridge } from '../bridge/eventBridge';
-import { TaskState } from '../domain/types';
+import type { TaskState } from '../domain/types';
 import {
   computeDependencyHighlights,
   formatIso8601Display,
@@ -9,8 +9,9 @@ import { normalizeUserDate } from '../domain/dates';
 import { dependencyPathEdges } from '../domain/dependencyPaths';
 import { useDatabaseSnapshot } from './useDatabaseSnapshot';
 import { useTaskSelection } from './useTaskSelection';
-import { DragIdentity } from './useTaskDrag';
-import { PushToast } from './useToasts';
+import type { DragIdentity } from './useTaskDrag';
+import type { PushToast } from './useToasts';
+// Applies task commands and coordinates their selection and drag effects.
 export function useTaskMutations(
   database: Pick<
     ReturnType<typeof useDatabaseSnapshot>,

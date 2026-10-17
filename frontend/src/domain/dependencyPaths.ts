@@ -1,4 +1,4 @@
-import { TaskState } from './types';
+import type { TaskState } from './types';
 export interface DependencyEdge { from: string; to: string }
 export const edgeKey = (edge: DependencyEdge) => `${edge.from}->${edge.to}`;
 

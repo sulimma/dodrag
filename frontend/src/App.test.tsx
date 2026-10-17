@@ -327,6 +327,62 @@ it.each(['Liste', 'Netzplan', 'Gantt'])('preserves selection and context parity 
   });
 });
 
+it('documents the implemented drag direction, scoped Shift removal, and active shortcuts', async () => {
+  await mount();
+  click(button('Tastenkürzel & Bedienung (?)'));
+  expect(element.textContent).toContain('Abhängigen Task auf seinen Vorgänger ziehen (A auf B: B → A)');
+  expect(element.textContent).toContain('Shift: an der gezogenen Aufgabe gespeicherte Kanten Richtung Ziel lösen (Vorgänger und Nachfolger, kein ganzer Pfad)');
+  expect(element.textContent).toContain('F2 / E / Enter / Doppelklick');
+  expect(element.textContent).toContain('N: Eingabe für neuen Task fokussieren');
+  expect(element.textContent).toContain('Enter (Eingabe): Task anlegen');
+  expect(element.textContent).toContain('Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z');
+  expect(element.textContent).toContain('Task-Kürzel gelten bei Auswahl außerhalb von Eingabefeldern und Bedienelementen.');
+  expect(element.textContent).toContain('In Modals und der Mini-Ansicht gibt es keine Task-Kürzel.');
+  expect(element.textContent).toContain('Escape schließt Hilfe, Kontextmenü oder Editor.');
+});
+
+it('places multiple predecessor actions after completion and preserves their handler arguments', async () => {
+  const tasks = ['26-101', '26-102', '26-103', '26-104', '26-105'];
+  const events: StoredEvent[] = tasks.map((taskId, index) => ({
+    seq: index + 1, id: `created-${taskId}`, timestamp: date, undone: false,
+    type: 'TASK_CREATED', payload: { taskId, title: taskId, configuredStart: date, createdAt: date },
+  }));
+  for (const predecessorId of tasks.slice(0, -1)) {
+    events.push({
+      seq: events.length + 1, id: `dependency-${predecessorId}`, timestamp: date, undone: false,
+      type: 'DEPENDENCY_ADDED', payload: { taskId: '26-105', predecessorId },
+    });
+  }
+  vi.mocked(api.GetEvents).mockResolvedValue(events);
+  await mount();
+  act(() => element.querySelector('[data-task-drag="26-105"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  const menu = element.querySelector('.fixed.z-50.w-64')!;
+  const labels = [...menu.querySelectorAll('button')].map(button => button.textContent?.trim());
+  const completedIndex = labels.findIndex(label => label?.includes('Als erledigt markieren'));
+  expect(completedIndex).toBeGreaterThan(-1);
+  expect(labels.slice(completedIndex + 1)).toEqual([
+    'Vorgänger 26-101 lösen', 'Vorgänger 26-102 lösen',
+    'Vorgänger 26-103 lösen', 'Vorgänger 26-104 lösen',
+  ]);
+  await act(async () => click([...menu.querySelectorAll('button')].find(button => button.textContent?.includes('Vorgänger 26-103 lösen'))!));
+  expect(api.AppendBatch).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
+    type: 'DEPENDENCY_REMOVED', payload: { taskId: '26-105', predecessorId: '26-103' },
+  });
+});
+
+it.each(['Liste', 'Netzplan', 'Gantt'])('adds the target as predecessor when dragging onto a task in %s', async view => {
+  await mount();
+  await chooseView(view);
+  const source = element.querySelector('[data-task-drag="26-101"]')!;
+  const target = element.querySelector('[data-task-drag="26-102"]')!;
+  dragEvent(source, 'dragstart');
+  await act(async () => dragEvent(target, 'drop'));
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
+    type: 'DEPENDENCY_ADDED', payload: { taskId: '26-101', predecessorId: '26-102' },
+  });
+});
+
 it.each(['Liste', 'Netzplan', 'Gantt'])('selects the drag source on Shift dragover and removes source edges in %s', async view => {
   const linked: StoredEvent[] = [...history, {
     seq: 3, id: 'dependency', timestamp: date, undone: false,

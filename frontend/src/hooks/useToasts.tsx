@@ -8,6 +8,7 @@ export type PushToast = (
   message: string,
   tone?: ToastNotification['tone']
 ) => void;
+// Owns transient notifications and their automatic dismissal.
 export function useToasts() {
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const pushToast = (

@@ -4,8 +4,8 @@ import {
   calculateQuickResubmitDate,
   QuickResubmitTargetId,
 } from '../domain/projector';
-import { TaskState } from '../domain/types';
-import { TaskViewInteractions } from './taskInteractions';
+import type { TaskState } from '../domain/types';
+import type { TaskViewInteractions } from './taskInteractions';
 const RESUBMIT_TARGETS: Array<{
   id: QuickResubmitTargetId;
   label: string;

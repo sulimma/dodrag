@@ -5,13 +5,13 @@ import { ListView } from './components/ListView';
 import { NetworkPlanView } from './components/NetworkPlanView';
 import { MiniCornerView } from './components/MiniCornerView';
 import { SettingsModal } from './components/SettingsModal';
-import { AppToolbar, ViewMode } from './components/AppToolbar';
+import { AppToolbar, type ViewMode } from './components/AppToolbar';
 import { TaskSidebar } from './components/TaskSidebar';
 import { TaskContextMenu } from './components/TaskContextMenu';
 import { ShortcutHelp } from './components/ShortcutHelp';
 import { Toasts } from './components/Toasts';
 import { DependencyHighlightIndicators } from './components/DependencyHighlightIndicators';
-import { TaskViewInteractions } from './components/taskInteractions';
+import type { TaskViewInteractions } from './components/taskInteractions';
 import {
   computeDependencyHighlights,
   computeMiniWindowTasks,
@@ -23,10 +23,12 @@ import { useToasts } from './hooks/useToasts';
 import { useDatabaseSnapshot } from './hooks/useDatabaseSnapshot';
 import { useInlineEditors } from './hooks/useInlineEditors';
 import { useTaskSelection } from './hooks/useTaskSelection';
-import { DragIdentity, useTaskDrag } from './hooks/useTaskDrag';
+import { useTaskDrag } from './hooks/useTaskDrag';
+import type { DragIdentity } from './hooks/useTaskDrag';
 import { useTaskMutations } from './hooks/useTaskMutations';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 
+// Coordinates app state, shared task interactions, and the active view.
 export function App() {
   const [now, setNow] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('list');

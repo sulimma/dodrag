@@ -1,7 +1,7 @@
 import React from 'react';
 import { Flame, Link2Off, CheckCircle2 } from 'lucide-react';
-import { TaskState } from '../domain/types';
-import { ContextMenuState } from '../hooks/useTaskSelection';
+import type { TaskState } from '../domain/types';
+import type { ContextMenuState } from '../hooks/useTaskSelection';
 interface TaskContextMenuProps {
   contextMenu: ContextMenuState;
   task: TaskState;
@@ -12,6 +12,7 @@ interface TaskContextMenuProps {
   onRemovePredecessor: (id: string, predecessor: string) => void;
   onCompleteTask: (id: string) => void;
 }
+// Presents task actions and routes context-menu choices to their handlers.
 export function TaskContextMenu({
   contextMenu,
   task,
@@ -82,6 +83,25 @@ export function TaskContextMenu({
         <span>Startdatum auf Heute setzen</span>
       </button>
 
+      <div className="border-t border-slate-100 mt-1 pt-1">
+        <button
+          onClick={() => {
+            const tId = contextMenu.taskId;
+            onClose();
+            onCompleteTask(tId);
+          }}
+          className="w-full px-3 py-2 text-left hover:bg-emerald-50 text-emerald-700 flex items-center justify-between"
+        >
+          <span className="flex items-center gap-2">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Als erledigt markieren
+          </span>
+          <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600">
+            Del
+          </kbd>
+        </button>
+      </div>
+
       {task.predecessorIds.length > 0 && (
         <div className="border-t border-slate-100 mt-1 pt-1">
           <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-slate-400">
@@ -103,25 +123,6 @@ export function TaskContextMenu({
           ))}
         </div>
       )}
-
-      <div className="border-t border-slate-100 mt-1 pt-1">
-        <button
-          onClick={() => {
-            const tId = contextMenu.taskId;
-            onClose();
-            onCompleteTask(tId);
-          }}
-          className="w-full px-3 py-2 text-left hover:bg-emerald-50 text-emerald-700 flex items-center justify-between"
-        >
-          <span className="flex items-center gap-2">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Als erledigt markieren
-          </span>
-          <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600">
-            Del
-          </kbd>
-        </button>
-      </div>
     </div>
   );
 }

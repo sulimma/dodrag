@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ModifierKeys } from '../components/taskInteractions';
+import type { ModifierKeys } from '../components/taskInteractions';
 export interface ContextMenuState {
   x: number;
   y: number;
   taskId: string;
 }
+// Owns selected tasks, selected edges, and the active task context menu.
 export function useTaskSelection() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedEdgeKeys, setSelectedEdgeKeys] = useState<string[]>([]);

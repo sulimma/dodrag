@@ -1,6 +1,7 @@
 import React, { RefObject, useLayoutEffect, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from 'lucide-react';
 
+// Counts highlighted dependencies currently outside the scroll viewport.
 export function DependencyHighlightIndicators({ scrollRef, contentKey, horizontal }: {
   scrollRef: RefObject<HTMLElement>;
   contentKey: unknown;

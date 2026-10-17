@@ -1,5 +1,5 @@
 import React from 'react';
-import { HighlightRole, TaskState } from '../domain/types';
+import type { HighlightRole, TaskState } from '../domain/types';
 
 export interface ModifierKeys {
   ctrlKey: boolean;
@@ -36,6 +36,7 @@ export interface TaskViewInteractions extends TaskInteractions {
   onSetConfiguredDate: (id: string, date: string, label: string) => void;
   onToggleActive: (task: TaskState) => void;
 }
+// Builds the common task DOM handlers shared by all task views.
 export function taskInteractions(
   id: string,
   key: string,

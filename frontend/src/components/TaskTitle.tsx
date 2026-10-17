@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { TaskState } from '../domain/types';
-import { InlineEditor } from './inlineEditor';
+import type { TaskState } from '../domain/types';
+import type { InlineEditor } from './inlineEditor';
+// Renders a task title as text or its active inline editor.
 export function TaskTitle({
   task,
   editor,

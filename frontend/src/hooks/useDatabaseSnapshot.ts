@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
-import { AppSettings, eventBridge } from '../bridge/eventBridge';
-import { StoredEvent } from '../domain/types';
-import { PushToast } from './useToasts';
-import { DragIdentity } from './useTaskDrag';
+import { eventBridge } from '../bridge/eventBridge';
+import type { AppSettings } from '../bridge/eventBridge';
+import type { StoredEvent } from '../domain/types';
+import type { PushToast } from './useToasts';
+import type { DragIdentity } from './useTaskDrag';
+// Loads confirmed event snapshots and serializes mutations/database changes.
 export function useDatabaseSnapshot(
   pushToast: PushToast,
   dragIdentity: React.MutableRefObject<DragIdentity | null>,

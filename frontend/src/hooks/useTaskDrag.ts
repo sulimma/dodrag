@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { TaskState } from '../domain/types';
+import type { TaskState } from '../domain/types';
 import { useDatabaseSnapshot } from './useDatabaseSnapshot';
 import { useTaskSelection } from './useTaskSelection';
 export interface DragIdentity {
   database: string;
   taskId: string;
 }
+// Owns task-drag state and guards native drags against pending mutations.
 export function useTaskDrag(
   database: Pick<
     ReturnType<typeof useDatabaseSnapshot>,

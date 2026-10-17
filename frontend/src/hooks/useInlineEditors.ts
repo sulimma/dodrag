@@ -1,11 +1,12 @@
 import { useRef, useState } from 'react';
 import { eventBridge } from '../bridge/eventBridge';
-import { TaskState } from '../domain/types';
+import type { TaskState } from '../domain/types';
 import { formatIso8601Display } from '../domain/projector';
 import { normalizeUserDate } from '../domain/dates';
 import { normalizeTitleInput } from '../domain/input';
-import { InlineEditor } from '../components/inlineEditor';
+import type { InlineEditor } from '../components/inlineEditor';
 import { useDatabaseSnapshot } from './useDatabaseSnapshot';
+// Owns title/date drafts and commits them through the confirmed snapshot.
 export function useInlineEditors(
   database: Pick<
     ReturnType<typeof useDatabaseSnapshot>,

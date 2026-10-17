@@ -1,5 +1,5 @@
 import { EventCommand, parseStoredEvent } from './eventSchema';
-import { StoredEvent } from './types';
+import type { StoredEvent } from './types';
 
 export interface ReplayTask {
   readonly id: string;

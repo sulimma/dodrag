@@ -1,6 +1,7 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ToastNotification } from '../hooks/useToasts';
+import type { ToastNotification } from '../hooks/useToasts';
+// Renders transient status notifications above the current view.
 export function Toasts({ toasts }: { toasts: ToastNotification[] }) {
   return (
     <div className="fixed bottom-4 left-6 z-50 flex flex-col gap-2 pointer-events-none">

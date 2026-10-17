@@ -29,6 +29,7 @@ interface AppToolbarProps {
   onMiniMode: () => void;
   onHelp: () => void;
 }
+// Presents view controls, task creation, history actions, and app settings.
 export function AppToolbar({
   viewMode,
   setViewMode,

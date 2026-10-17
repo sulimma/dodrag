@@ -10,7 +10,7 @@ import {
   AlertTriangle,
   X,
 } from 'lucide-react';
-import { AppSettings, DatabaseEntry } from '../bridge/eventBridge';
+import type { AppSettings, DatabaseEntry } from '../bridge/eventBridge';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -33,6 +33,7 @@ export function formatBuildTime(raw?: string): string {
   return `${pad(parsed.getDate())}.${pad(parsed.getMonth() + 1)}.${parsed.getFullYear()} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
 }
 
+// Manages database selection, creation, deletion, and application settings.
 export function SettingsModal({
   settings,
   onClose,

@@ -6,13 +6,14 @@ import {
   formatDateHeading,
   toDateKey,
 } from '../domain/projector';
-import { HighlightRole, TaskState } from '../domain/types';
+import type { HighlightRole, TaskState } from '../domain/types';
 import { DateLayerLine } from './DateLayerLine';
 import { TaskTitle } from './TaskTitle';
-import { InlineEditor } from './inlineEditor';
+import type { InlineEditor } from './inlineEditor';
 import { taskAppearanceRole } from './taskAppearance';
 import { TaskDate } from './TaskDate';
-import { taskInteractions, TaskViewInteractions } from './taskInteractions';
+import { taskInteractions } from './taskInteractions';
+import type { TaskViewInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
 import { stableTopology } from '../domain/topology';
 import { TaskDragHandle } from './TaskDragHandle';
@@ -104,6 +105,7 @@ export function buildCleanEdgePath(
   return bestPath;
 }
 
+// Renders tasks by dependency topology and routes their drag interactions.
 export function NetworkPlanView(props: NetworkPlanViewProps) {
   const {
     openTasks,

@@ -3,7 +3,7 @@ import { projectEvents } from '../domain/projector';
 import { useTaskSelection } from './useTaskSelection';
 import { useTaskDrag } from './useTaskDrag';
 import { useTaskMutations } from './useTaskMutations';
-import { InlineEditor } from '../components/inlineEditor';
+import type { InlineEditor } from '../components/inlineEditor';
 interface ShortcutContext {
   selection: Pick<
     ReturnType<typeof useTaskSelection>,
@@ -33,6 +33,7 @@ interface ShortcutContext {
   newTaskInputRef: React.RefObject<HTMLInputElement>;
   startInlineEdit: InlineEditor['onStart'];
 }
+// Routes global keyboard input while respecting editors and overlays.
 export function useGlobalShortcuts({
   selection,
   drag,

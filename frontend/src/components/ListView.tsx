@@ -1,13 +1,14 @@
 import React from 'react';
 import { Flame, CornerDownRight } from 'lucide-react';
-import { HighlightRole, ListEntry } from '../domain/types';
+import type { HighlightRole, ListEntry } from '../domain/types';
 import { DateLayerLine } from './DateLayerLine';
 import { SmoothFlipList } from './SmoothFlipList';
 import { TaskTitle } from './TaskTitle';
-import { InlineEditor } from './inlineEditor';
+import type { InlineEditor } from './inlineEditor';
 import { TaskDate } from './TaskDate';
 import { TaskDragHandle } from './TaskDragHandle';
-import { taskInteractions, TaskViewInteractions } from './taskInteractions';
+import { taskInteractions } from './taskInteractions';
+import type { TaskViewInteractions } from './taskInteractions';
 import { taskAppearanceRole } from './taskAppearance';
 interface ListViewProps extends TaskViewInteractions {
   listEntries: ListEntry[];
@@ -15,6 +16,7 @@ interface ListViewProps extends TaskViewInteractions {
   titleEditor: InlineEditor;
   dateEditor: InlineEditor;
 }
+// Renders the date-layered task list and its shared drag interactions.
 export function ListView(props: ListViewProps) {
   const {
     listEntries,

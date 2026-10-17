@@ -1,5 +1,6 @@
-import { EventType, StoredEvent } from '../domain/types';
-import { EventCommand, parseCommand, parseStoredEvent } from '../domain/eventSchema';
+import type { EventType, StoredEvent } from '../domain/types';
+import { parseCommand, parseStoredEvent } from '../domain/eventSchema';
+import type { EventCommand } from '../domain/eventSchema';
 import { applyCommand, copyReplayTasks, replayCommands } from '../domain/commands';
 
 export interface DatabaseEntry {
@@ -28,15 +29,15 @@ declare global {
     go?: {
       main?: {
         App?: {
-           GetEvents: () => Promise<unknown>;
-           AppendBatch: (commands: Array<EventCommand & { id: string; groupId?: string }>) => Promise<unknown>;
+          GetEvents: () => Promise<unknown>;
+          AppendBatch: (commands: Array<EventCommand & { id: string; groupId?: string }>) => Promise<unknown>;
           AppendEvent: (
             id: string,
             eventType: string,
             payloadJSON: string
-           ) => Promise<unknown>;
-           Undo: () => Promise<unknown>;
-           Redo: () => Promise<unknown>;
+          ) => Promise<unknown>;
+          Undo: () => Promise<unknown>;
+          Redo: () => Promise<unknown>;
           GetSettings: () => Promise<AppSettings>;
           SetAutostart: (enabled: boolean) => Promise<AppSettings>;
           SelectFolderDialog: () => Promise<string>;
@@ -303,6 +304,7 @@ export const eventBridge = {
     {
       const raw = localStorage.getItem(LOCAL_SETTINGS_KEY);
       if (raw !== null) {
+        // TODO: Browserbetrieb ist kein Produktziel; vor Produktnutzung die fehlende Settings-Formprüfung ergänzen, da syntaktisch gültiges JSON mit ungültiger Settings-Form den Dialog abstürzen lassen kann.
         const parsed: AppSettings = JSON.parse(raw);
         return {
           ...parsed,

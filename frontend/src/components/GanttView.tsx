@@ -7,11 +7,12 @@ import {
   formatDateHeading,
   toDateKey,
 } from '../domain/projector';
-import { HighlightRole, ListEntry, TaskState } from '../domain/types';
+import type { HighlightRole, ListEntry, TaskState } from '../domain/types';
 import { TaskTitle } from './TaskTitle';
-import { InlineEditor } from './inlineEditor';
+import type { InlineEditor } from './inlineEditor';
 import { taskAppearanceRole } from './taskAppearance';
-import { taskInteractions, TaskViewInteractions } from './taskInteractions';
+import { taskInteractions } from './taskInteractions';
+import type { TaskViewInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
 import { TaskDragHandle } from './TaskDragHandle';
 import { arrowBase, ArrowMarkers } from './arrowGeometry';
@@ -95,6 +96,7 @@ export function buildChannelGanttPath(
   ].join(' ');
 }
 
+// Renders task dates and dependencies on a horizontal timeline.
 export function GanttView(props: GanttViewProps) {
   const {
     openTasks,
