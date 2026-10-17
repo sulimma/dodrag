@@ -8,48 +8,21 @@ import {
 } from '../domain/projector';
 import { HighlightRole, TaskState } from '../domain/types';
 import { DateLayerLine } from './DateLayerLine';
-import { TaskTitle, TitleEditor } from './TaskTitle';
+import { TaskTitle } from './TaskTitle';
+import { InlineEditor } from './inlineEditor';
+import { taskAppearanceRole } from './taskAppearance';
 import { TaskDate } from './TaskDate';
-import { taskInteractions } from './taskInteractions';
+import { taskInteractions, TaskViewInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
 import { stableTopology } from '../domain/topology';
 import { TaskDragHandle } from './TaskDragHandle';
 import { arrowBase, ArrowMarkers } from './arrowGeometry';
 
-interface NetworkPlanViewProps {
-  deletionPreview: string[];
-  titleEditor: TitleEditor;
-  dateEditor: TitleEditor;
+interface NetworkPlanViewProps extends TaskViewInteractions {
+  titleEditor: InlineEditor;
+  dateEditor: InlineEditor;
   openTasks: TaskState[];
   now: Date;
-  selectedTaskId: string | null;
-  selectedEdgeKeys: string[];
-  onSelectEdge: (
-    edgeKey: string,
-    e: React.MouseEvent,
-    orderedEdgeKeys: string[]
-  ) => void;
-  onClearEdgeSelection: () => void;
-  onClearTaskSelection: () => void;
-  highlights: Record<string, HighlightRole>;
-  draggedTaskId: string | null;
-  isShiftDrag: boolean;
-  onShiftKeyChange: (shift: boolean) => void;
-  activeDropTargetKey: string | null;
-  setActiveDropTargetKey: (key: string | null) => void;
-  setDraggedTaskId: (id: string | null) => void;
-  onSelectTask: (taskId: string) => void;
-  onContextMenuTask: (e: React.MouseEvent, taskId: string) => void;
-  onDragStartTask: (e: React.DragEvent, taskId: string) => void;
-  onDragEndTask: () => void;
-  onAddPredecessor: (draggedId: string, targetTaskId: string) => void;
-  onRemoveDependencyBetween: (draggedId: string, targetTaskId: string) => void;
-  onSetConfiguredDate: (
-    taskId: string,
-    isoDate: string,
-    humanLabel: string
-  ) => void;
-  onToggleActive: (task: TaskState) => void;
 }
 
 interface PositionedNode {
@@ -131,33 +104,28 @@ export function buildCleanEdgePath(
   return bestPath;
 }
 
-export function NetworkPlanView({
-  openTasks,
-  now,
-  selectedTaskId,
-  selectedEdgeKeys,
-  onSelectEdge,
-  onClearEdgeSelection,
-  onClearTaskSelection,
-  highlights,
-  draggedTaskId,
-  isShiftDrag,
-  onShiftKeyChange,
-  activeDropTargetKey,
-  setActiveDropTargetKey,
-  setDraggedTaskId,
-  onSelectTask,
-  onContextMenuTask,
-  onDragStartTask,
-  onDragEndTask,
-  onAddPredecessor,
-  onRemoveDependencyBetween,
-  onSetConfiguredDate,
-  onToggleActive,
-  titleEditor,
-  dateEditor,
-  deletionPreview,
-}: NetworkPlanViewProps) {
+export function NetworkPlanView(props: NetworkPlanViewProps) {
+  const {
+    openTasks,
+    now,
+    selectedTaskId,
+    selectedEdgeKeys,
+    onSelectEdge,
+    onClearEdgeSelection,
+    onClearTaskSelection,
+    highlights,
+    draggedTaskId,
+    isShiftDrag,
+    onShiftKeyChange,
+    activeDropTargetKey,
+    setActiveDropTargetKey,
+    setDraggedTaskId,
+    onSetConfiguredDate,
+    onToggleActive,
+    titleEditor,
+    dateEditor,
+    deletionPreview,
+  } = props;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(840);
 
@@ -616,32 +584,26 @@ export function NetworkPlanView({
           activeDropTargetKey === dropKey && draggedTaskId !== task.id;
         const isBeingDragged = draggedTaskId === task.id;
 
+        const appearance = taskAppearanceRole(task, role, isDropTarget, isShiftDrag);
+
         let containerClasses =
           'bg-white border-slate-200/90 shadow-sm hover:border-slate-300';
 
-        if (isDropTarget && !isShiftDrag) {
-          containerClasses = isShiftDrag
-            ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-400/35 shadow-md'
-            : 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/30 shadow-md';
-        } else if (role === 'selected') {
+        if (appearance === 'drop') {
+          containerClasses = 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/30 shadow-md';
+        } else if (appearance === 'selected') {
           containerClasses =
             'bg-sky-100/95 border-sky-500 ring-2 ring-sky-400/35 shadow-sm';
-        } else if (
-          role === 'predecessor-direct' ||
-          role === 'predecessor-transitive'
-        ) {
+        } else if (appearance === 'predecessor') {
           containerClasses =
             'bg-amber-100/90 border-amber-500 ring-2 ring-amber-400/30 shadow-sm';
-        } else if (
-          role === 'successor-direct' ||
-          role === 'successor-transitive'
-        ) {
+        } else if (appearance === 'successor') {
           containerClasses =
             'bg-purple-100/90 border-purple-500 ring-2 ring-purple-400/30 shadow-sm';
-        } else if (task.isActive) {
+        } else if (appearance === 'active') {
           containerClasses =
             'bg-emerald-100/95 border-emerald-500 ring-2 ring-emerald-500/25 shadow-sm';
-        } else if (task.isDeemphasized) {
+        } else if (appearance === 'deemphasized') {
           containerClasses =
             'bg-white/75 border-slate-200/70 opacity-80 hover:opacity-100';
         }
@@ -656,7 +618,7 @@ export function NetworkPlanView({
               width,
               height,
             }}
-            {...taskInteractions(task.id, dropKey, {onSelectTask,onDragStartTask,onDragEndTask,onShiftKeyChange,isShiftDrag,draggedTaskId,setDraggedTaskId,setActiveDropTargetKey,onAddPredecessor,onRemoveDependencyBetween,onContextMenuTask})}
+            {...taskInteractions(task.id, dropKey, props)}
             draggable={titleEditor.taskId !== task.id && dateEditor.taskId !== task.id}
             className={`absolute z-20 rounded-xl border px-2.5 py-2 flex flex-col justify-between cursor-pointer transition-colors ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''

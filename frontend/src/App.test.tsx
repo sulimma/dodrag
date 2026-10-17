@@ -295,3 +295,129 @@ it('editor Escape cancels once without clearing the underlying selected task', a
   await act(async () => key('Delete'));
   expect(api.AppendBatch).toHaveBeenCalledTimes(1);
 });
+
+function dragEvent(target: Element, kind: string, shiftKey = false) {
+  const event = new MouseEvent(kind, { bubbles: true, cancelable: true, shiftKey });
+  Object.defineProperty(event, 'dataTransfer', {
+    value: { setData: vi.fn(), getData: () => '26-101', effectAllowed: '', dropEffect: '' },
+  });
+  act(() => target.dispatchEvent(event));
+  return event;
+}
+
+async function chooseView(view: string) {
+  if (view !== 'Liste') click(textButton(view));
+}
+
+it.each(['Liste', 'Netzplan', 'Gantt'])('preserves selection and context parity in %s', async view => {
+  await mount();
+  await chooseView(view);
+  const row = () => element.querySelector('[data-task-drag="26-101"]')!;
+  click(row());
+  click(row());
+  await act(async () => key('Delete'));
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+  act(() => row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  expect(element.textContent).toContain('Als erledigt markieren');
+  key('Escape');
+  await act(async () => key('Delete'));
+  expect(api.AppendBatch).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
+    type: 'TASK_COMPLETED', payload: { taskId: '26-101' },
+  });
+});
+
+it.each(['Liste', 'Netzplan', 'Gantt'])('selects the drag source on Shift dragover and removes source edges in %s', async view => {
+  const linked: StoredEvent[] = [...history, {
+    seq: 3, id: 'dependency', timestamp: date, undone: false,
+    type: 'DEPENDENCY_ADDED', payload: { taskId: '26-102', predecessorId: '26-101' },
+  }];
+  vi.mocked(api.GetEvents).mockResolvedValue(linked);
+  await mount();
+  await chooseView(view);
+  const source = element.querySelector('[data-task-drag="26-101"]')!;
+  const target = element.querySelector('[data-task-drag="26-102"]')!;
+  click(target);
+  dragEvent(source, 'dragstart');
+  dragEvent(target, 'dragover', true);
+  expect(source.className).toContain('bg-sky-');
+  expect(element.querySelector('[data-edge-key="26-101->26-102"][data-deletion-preview="true"]')).not.toBeNull();
+  await act(async () => dragEvent(target, 'drop', true));
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0]).toHaveLength(1);
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
+    type: 'DEPENDENCY_REMOVED', payload: { taskId: '26-102', predecessorId: '26-101' },
+  });
+});
+
+it('preserves an editor group across retries but starts a new group after cancellation', async () => {
+  await mount();
+  vi.mocked(api.AppendBatch).mockRejectedValueOnce(new Error('Retry'));
+  editTitle('Alpha');
+  type(input('Titel 26-101'), 'First');
+  await act(async () => key('Enter', input('Titel 26-101')));
+  await act(async () => key('Enter', input('Titel 26-101')));
+  editTitle('Alpha');
+  key('Escape', input('Titel 26-101'));
+  editTitle('Alpha');
+  type(input('Titel 26-101'), 'Second');
+  await act(async () => key('Enter', input('Titel 26-101')));
+  const groups = vi.mocked(api.AppendBatch).mock.calls.map(([commands]) => commands[0].groupId);
+  expect(groups[0]).toBeTruthy();
+  expect(groups[1]).toBe(groups[0]);
+  expect(groups[2]).not.toBe(groups[0]);
+});
+
+it.each(['save', 'drag'])('blocks database switches during a pending %s', async pending => {
+  await mount();
+  const response = deferred<StoredEvent[]>();
+  if (pending === 'save') {
+    vi.mocked(api.AppendBatch).mockReturnValueOnce(response.promise);
+    editTitle('Alpha');
+    type(input('Titel 26-101'), 'Pending');
+    key('Enter', input('Titel 26-101'));
+  } else {
+    dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragstart');
+  }
+  await openSettings();
+  await act(async () => click(textButton('Verwenden')));
+  expect(api.SwitchDatabase).not.toHaveBeenCalled();
+  expect(activeSettings.activeDatabasePath).toBe('A.db');
+  if (pending === 'save') await act(async () => response.resolve(history));
+  else dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragend');
+  await act(async () => click(textButton('Verwenden')));
+  expect(api.SwitchDatabase).toHaveBeenCalledTimes(1);
+});
+
+it('keeps a newer selection when a task completion response arrives', async () => {
+  await mount();
+  const response = deferred<StoredEvent[]>();
+  vi.mocked(api.AppendBatch).mockReturnValueOnce(response.promise);
+  click(element.querySelector('[data-task-drag="26-101"]')!);
+  key('Delete');
+  click(element.querySelector('[data-task-drag="26-102"]')!);
+  await act(async () => response.resolve(history));
+  await act(async () => key('Delete'));
+  expect(vi.mocked(api.AppendBatch).mock.calls[1][0][0]).toMatchObject({
+    type: 'TASK_COMPLETED', payload: { taskId: '26-102' },
+  });
+});
+
+it.each(['Liste', 'Netzplan', 'Gantt'])('clears edge selection on task context and selects focused edges in %s', async view => {
+  vi.mocked(api.GetEvents).mockResolvedValue([...history, {
+    seq: 3, id: 'dependency', timestamp: date, undone: false,
+    type: 'DEPENDENCY_ADDED', payload: { taskId: '26-102', predecessorId: '26-101' },
+  }]);
+  await mount();
+  await chooseView(view);
+  const edge = () => element.querySelector('[data-edge-key="26-101->26-102"]')!;
+  click(edge());
+  act(() => element.querySelector('[data-task-drag="26-101"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+  key('Escape');
+  key('Backspace');
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+  click(edge());
+  await act(async () => key('Backspace', edge()));
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
+    type: 'DEPENDENCY_REMOVED', payload: { taskId: '26-102', predecessorId: '26-101' },
+  });
+});

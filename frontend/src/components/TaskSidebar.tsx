@@ -1,0 +1,222 @@
+import React from 'react';
+import { Calendar, CalendarClock, Clock, CheckCircle2 } from 'lucide-react';
+import {
+  calculateQuickResubmitDate,
+  QuickResubmitTargetId,
+} from '../domain/projector';
+import { TaskState } from '../domain/types';
+import { TaskViewInteractions } from './taskInteractions';
+const RESUBMIT_TARGETS: Array<{
+  id: QuickResubmitTargetId;
+  label: string;
+  sublabel: string;
+  icon: React.ReactNode;
+}> = [
+  {
+    id: 'plus_2h',
+    label: '+2 Stunden',
+    sublabel: 'Zwei Stunden nach dem Tasktermin',
+    icon: <Clock className="w-4 h-4 text-sky-600" />,
+  },
+  {
+    id: 'plus_1d',
+    label: '+1 Tag',
+    sublabel: 'Folgetag des Tasktermins um 09:00',
+    icon: <CalendarClock className="w-4 h-4 text-teal-600" />,
+  },
+  {
+    id: 'next_week',
+    label: 'nächste Woche',
+    sublabel: 'Nächster Montag 09:00',
+    icon: <Calendar className="w-4 h-4 text-indigo-600" />,
+  },
+  {
+    id: 'plus_7d',
+    label: '+7 Tage',
+    sublabel: 'Exakt eine Woche später',
+    icon: <Calendar className="w-4 h-4 text-violet-600" />,
+  },
+  {
+    id: 'next_month',
+    label: 'nächsten Monat',
+    sublabel: 'Erster Tag des Folgemonats',
+    icon: <Calendar className="w-4 h-4 text-fuchsia-600" />,
+  },
+];
+interface TaskSidebarProps {
+  tasks: Record<string, TaskState>;
+  completedTasks: TaskState[];
+  interactions: Pick<
+    TaskViewInteractions,
+    | 'selectedTaskId'
+    | 'activeDropTargetKey'
+    | 'draggedTaskId'
+    | 'setActiveDropTargetKey'
+    | 'setDraggedTaskId'
+    | 'onSetConfiguredDate'
+  >;
+  onCompleteTask: (id: string) => void;
+  onReopenTask: (id: string) => void;
+}
+export function TaskSidebar({
+  tasks,
+  completedTasks,
+  interactions,
+  onCompleteTask,
+  onReopenTask,
+}: TaskSidebarProps) {
+  const {
+    selectedTaskId,
+    activeDropTargetKey,
+    draggedTaskId,
+    setActiveDropTargetKey,
+    setDraggedTaskId,
+    onSetConfiguredDate,
+  } = interactions;
+  return (
+    <aside className="w-80 border-l border-slate-200 bg-white/90 p-4 flex flex-col gap-4 shrink-0 overflow-hidden">
+      <div className="space-y-2 shrink-0">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 px-1">
+          Wiedervorlage
+        </h2>
+
+        <div className="space-y-1.5">
+          {RESUBMIT_TARGETS.map((target) => {
+            const targetKey = `resubmit:${target.id}`;
+            const isOver = activeDropTargetKey === targetKey;
+            return (
+              <div
+                key={target.id}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (activeDropTargetKey !== targetKey) {
+                    setActiveDropTargetKey(targetKey);
+                  }
+                }}
+                onDragLeave={() => {
+                  if (activeDropTargetKey === targetKey) {
+                    setActiveDropTargetKey(null);
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const tId =
+                    draggedTaskId || e.dataTransfer.getData('text/plain');
+                  setActiveDropTargetKey(null);
+                  setDraggedTaskId(null);
+                  if (tId && tasks[tId]) {
+                    const targetIso = calculateQuickResubmitDate(
+                      target.id,
+                      tasks[tId]
+                    );
+                    onSetConfiguredDate(tId, targetIso, target.label);
+                  }
+                }}
+                onClick={() => {
+                  if (selectedTaskId && tasks[selectedTaskId]) {
+                    const targetIso = calculateQuickResubmitDate(
+                      target.id,
+                      tasks[selectedTaskId]
+                    );
+                    onSetConfiguredDate(
+                      selectedTaskId,
+                      targetIso,
+                      target.label
+                    );
+                  }
+                }}
+                className={`p-2.5 rounded-xl border transition-colors cursor-pointer flex items-center justify-between ${
+                  isOver
+                    ? 'bg-sky-50 border-sky-400 shadow-sm'
+                    : 'bg-slate-50/80 border-slate-200 hover:border-slate-300 hover:bg-slate-100/70'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-white border border-slate-200 shadow-2xs">
+                    {target.icon}
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold text-slate-800">
+                      {target.label}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {target.sublabel}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Permanent "Erledigte Tasks" List acting directly as the Drop Target to complete tasks */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (activeDropTargetKey !== 'completed-list-dropzone') {
+            setActiveDropTargetKey('completed-list-dropzone');
+          }
+        }}
+        onDragLeave={() => {
+          if (activeDropTargetKey === 'completed-list-dropzone') {
+            setActiveDropTargetKey(null);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const tId = draggedTaskId || e.dataTransfer.getData('text/plain');
+          setActiveDropTargetKey(null);
+          setDraggedTaskId(null);
+          if (tId) {
+            onCompleteTask(tId);
+          }
+        }}
+        className={`flex-1 min-h-0 flex flex-col rounded-xl border-2 transition-colors overflow-hidden ${
+          activeDropTargetKey === 'completed-list-dropzone'
+            ? 'bg-emerald-50/90 border-emerald-500 shadow-sm'
+            : 'bg-slate-50/70 border-slate-200/90'
+        }`}
+      >
+        <div className="px-3 py-2.5 border-b border-slate-200/80 bg-white/70 flex items-center justify-between shrink-0">
+          <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            Erledigte Tasks ({completedTasks.length})
+          </span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+          {completedTasks.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-[11px] text-slate-400 text-center px-3">
+              Tasks hierher ziehen, um sie als erledigt abzulegen
+            </div>
+          ) : (
+            completedTasks.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs"
+              >
+                <div className="truncate min-w-0">
+                  <span className="font-mono text-[11px] text-slate-400 mr-1.5">
+                    {t.id}
+                  </span>
+                  <span className="line-through text-slate-500">{t.title}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onReopenTask(t.id)}
+                  title="Task wieder öffnen"
+                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[10px] text-slate-600 shrink-0"
+                >
+                  Öffnen
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </aside>
+  );
+}

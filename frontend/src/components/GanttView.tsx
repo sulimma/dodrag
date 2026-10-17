@@ -8,46 +8,19 @@ import {
   toDateKey,
 } from '../domain/projector';
 import { HighlightRole, ListEntry, TaskState } from '../domain/types';
-import { TaskTitle, TitleEditor } from './TaskTitle';
-import { taskInteractions } from './taskInteractions';
+import { TaskTitle } from './TaskTitle';
+import { InlineEditor } from './inlineEditor';
+import { taskAppearanceRole } from './taskAppearance';
+import { taskInteractions, TaskViewInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
 import { TaskDragHandle } from './TaskDragHandle';
 import { arrowBase, ArrowMarkers } from './arrowGeometry';
 
-interface GanttViewProps {
-  deletionPreview: string[];
-  titleEditor: TitleEditor;
-  openTasks: TaskState[];
+interface GanttViewProps extends TaskViewInteractions {
+  titleEditor: InlineEditor;
   listEntries: ListEntry[];
+  openTasks: TaskState[];
   now: Date;
-  selectedTaskId: string | null;
-  selectedEdgeKeys: string[];
-  onSelectEdge: (
-    edgeKey: string,
-    e: React.MouseEvent,
-    orderedEdgeKeys: string[]
-  ) => void;
-  onClearEdgeSelection: () => void;
-  onClearTaskSelection: () => void;
-  highlights: Record<string, HighlightRole>;
-  draggedTaskId: string | null;
-  isShiftDrag: boolean;
-  onShiftKeyChange: (shift: boolean) => void;
-  activeDropTargetKey: string | null;
-  setActiveDropTargetKey: (key: string | null) => void;
-  setDraggedTaskId: (id: string | null) => void;
-  onSelectTask: (taskId: string) => void;
-  onContextMenuTask: (e: React.MouseEvent, taskId: string) => void;
-  onDragStartTask: (e: React.DragEvent, taskId: string) => void;
-  onDragEndTask: () => void;
-  onAddPredecessor: (draggedId: string, targetTaskId: string) => void;
-  onRemoveDependencyBetween: (draggedId: string, targetTaskId: string) => void;
-  onSetConfiguredDate: (
-    taskId: string,
-    isoDate: string,
-    humanLabel: string
-  ) => void;
-  onToggleActive: (task: TaskState) => void;
 }
 
 interface CalendarDayCol {
@@ -122,33 +95,28 @@ export function buildChannelGanttPath(
   ].join(' ');
 }
 
-export function GanttView({
-  openTasks,
-  listEntries,
-  now,
-  selectedTaskId,
-  selectedEdgeKeys,
-  onSelectEdge,
-  onClearEdgeSelection,
-  onClearTaskSelection,
-  highlights,
-  draggedTaskId,
-  isShiftDrag,
-  onShiftKeyChange,
-  activeDropTargetKey,
-  setActiveDropTargetKey,
-  setDraggedTaskId,
-  onSelectTask,
-  onContextMenuTask,
-  onDragStartTask,
-  onDragEndTask,
-  onAddPredecessor,
-  onRemoveDependencyBetween,
-  onSetConfiguredDate,
-  onToggleActive,
-  titleEditor,
-  deletionPreview,
-}: GanttViewProps) {
+export function GanttView(props: GanttViewProps) {
+  const {
+    openTasks,
+    listEntries,
+    now,
+    selectedTaskId,
+    selectedEdgeKeys,
+    onSelectEdge,
+    onClearEdgeSelection,
+    onClearTaskSelection,
+    highlights,
+    draggedTaskId,
+    isShiftDrag,
+    onShiftKeyChange,
+    activeDropTargetKey,
+    setActiveDropTargetKey,
+    setDraggedTaskId,
+    onSetConfiguredDate,
+    onToggleActive,
+    titleEditor,
+    deletionPreview,
+  } = props;
   const [windowStart, setWindowStart] = useState(() => toDateKey(now));
   const layout = useMemo(() => {
     const todayKey = toDateKey(now);
@@ -405,7 +373,7 @@ export function GanttView({
         if (!day || !draggedTaskId) return;
         event.preventDefault();
         onSetConfiguredDate(draggedTaskId, day.isoDate, day.dateKey);
-        onDragEndTask();
+        props.onDragEndTask();
       }}
     >
       {/* Left Task List Column (written-out task names stacked vertically) */}
@@ -436,24 +404,18 @@ export function GanttView({
             activeDropTargetKey === dropKey && draggedTaskId !== task.id;
           const isBeingDragged = draggedTaskId === task.id;
 
+          const appearance = taskAppearanceRole(task, role, isDropTarget, isShiftDrag);
+
           let rowBgClasses = 'bg-white hover:bg-slate-50/90';
-          if (isDropTarget && !isShiftDrag) {
-            rowBgClasses = isShiftDrag
-              ? 'bg-rose-50 ring-1 ring-inset ring-rose-400'
-              : 'bg-amber-50 ring-1 ring-inset ring-amber-400';
-          } else if (role === 'selected') {
+          if (appearance === 'drop') {
+            rowBgClasses = 'bg-amber-50 ring-1 ring-inset ring-amber-400';
+          } else if (appearance === 'selected') {
             rowBgClasses = 'bg-sky-100/85';
-          } else if (
-            role === 'predecessor-direct' ||
-            role === 'predecessor-transitive'
-          ) {
+          } else if (appearance === 'predecessor') {
             rowBgClasses = 'bg-amber-100/75';
-          } else if (
-            role === 'successor-direct' ||
-            role === 'successor-transitive'
-          ) {
+          } else if (appearance === 'successor') {
             rowBgClasses = 'bg-purple-100/75';
-          } else if (task.isActive) {
+          } else if (appearance === 'active') {
             rowBgClasses = 'bg-emerald-50/90';
           }
 
@@ -464,7 +426,7 @@ export function GanttView({
                 top: HEADER_HEIGHT + rowIndex * ROW_HEIGHT,
                 height: ROW_HEIGHT,
               }}
-              {...taskInteractions(task.id, dropKey, {onSelectTask,onDragStartTask,onDragEndTask,onShiftKeyChange,isShiftDrag,draggedTaskId,setDraggedTaskId,setActiveDropTargetKey,onAddPredecessor,onRemoveDependencyBetween,onContextMenuTask})}
+              {...taskInteractions(task.id, dropKey, props)}
               draggable={titleEditor.taskId !== task.id}
               className={`absolute left-0 right-0 px-2.5 border-b border-slate-200/60 flex items-center gap-1.5 cursor-pointer transition-colors ${rowBgClasses} ${
                 isBeingDragged ? 'opacity-35' : ''
@@ -690,32 +652,26 @@ export function GanttView({
         const isBeingDragged = draggedTaskId === task.id;
         const configuredDate = toDateKey(new Date(task.configuredStart));
 
+        const appearance = taskAppearanceRole(task, role, isDropTarget, isShiftDrag);
+
         let containerClasses =
           'bg-white border-slate-300 text-slate-700 shadow-xs hover:border-slate-400';
 
-        if (isDropTarget && !isShiftDrag) {
-          containerClasses = isShiftDrag
-            ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-400/35 shadow-md'
-            : 'bg-amber-50 border-amber-400 text-amber-950 ring-2 ring-amber-400/30 shadow-md';
-        } else if (role === 'selected') {
+        if (appearance === 'drop') {
+          containerClasses = 'bg-amber-50 border-amber-400 text-amber-950 ring-2 ring-amber-400/30 shadow-md';
+        } else if (appearance === 'selected') {
           containerClasses =
             'bg-sky-100 border-sky-500 text-sky-950 font-semibold ring-2 ring-sky-400/35 shadow-sm';
-        } else if (
-          role === 'predecessor-direct' ||
-          role === 'predecessor-transitive'
-        ) {
+        } else if (appearance === 'predecessor') {
           containerClasses =
             'bg-amber-100 border-amber-500 text-amber-950 font-semibold ring-2 ring-amber-400/30 shadow-sm';
-        } else if (
-          role === 'successor-direct' ||
-          role === 'successor-transitive'
-        ) {
+        } else if (appearance === 'successor') {
           containerClasses =
             'bg-purple-100 border-purple-500 text-purple-950 font-semibold ring-2 ring-purple-400/30 shadow-sm';
-        } else if (task.isActive) {
+        } else if (appearance === 'active') {
           containerClasses =
             'bg-emerald-100 border-emerald-500 text-emerald-950 font-semibold ring-2 ring-emerald-500/25 shadow-sm';
-        } else if (task.isDeemphasized) {
+        } else if (appearance === 'deemphasized') {
           containerClasses =
             'bg-white/80 border-slate-200/80 text-slate-600 opacity-80 hover:opacity-100';
         }
@@ -732,7 +688,7 @@ export function GanttView({
               height,
             }}
             title={`${task.id}: ${task.title} (${configuredDate}). Auf Datum ziehen: Startdatum setzen; auf Task ziehen: Vorgänger setzen; Shift: Kanten lösen.`}
-            {...taskInteractions(task.id, dropKey, {onSelectTask,onDragStartTask,onDragEndTask,onShiftKeyChange,isShiftDrag,draggedTaskId,setDraggedTaskId,setActiveDropTargetKey,onAddPredecessor,onRemoveDependencyBetween,onContextMenuTask})}
+            {...taskInteractions(task.id, dropKey, props)}
             className={`absolute z-20 rounded-lg border px-1 flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors font-mono text-[11px] ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''
             }`}
