@@ -1,5 +1,7 @@
 # DoDrag
 
+<p align="center"><img src="frontend/src/assets/app-icon.png" alt="DoDrag logo" width="220"></p>
+
 **A small-task manager built around one question: what can I work on now?**
 
 DoDrag keeps everyday TODO management lightweight. Its compact working view shows only tasks you can actually start; use the full list, network, and Gantt views when you need to plan ahead. In the focused view, work with open prerequisites stays out of the way until those prerequisites are done. When something cannot be done yet, drag it to a quick resubmission target and get back to the task at hand.
@@ -45,6 +47,17 @@ The compact, corner-docked view stays out of the way and shows only work that ca
 ## Getting started
 
 DoDrag is a Windows desktop application built with [Wails](https://wails.io/), Go, and React. To build it from source, install Go, Node.js/npm, and the Wails prerequisites for Windows, then run this repository's PowerShell build script:
+
+#### Download a release
+
+Download the executable for your Windows processor from the [DoDrag v0.1.2 release](https://github.com/sulimma/dodrag/releases/tag/v0.1.2):
+
+- **Most Windows PCs (Intel/AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.2/dodrag-windows-amd64.exe)
+- **Windows on ARM (ARM64):** [`dodrag-windows-arm64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.2/dodrag-windows-arm64.exe)
+
+Save the matching `.exe` and open it to run DoDrag; no installer is required.
+
+#### Build from source
 
 ```powershell
 ./build.ps1
