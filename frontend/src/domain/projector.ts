@@ -614,7 +614,7 @@ export function calculateQuickResubmitDate(
  * Returns the tasks to display in the compact corner-docked minimized window:
  * - Only tasks that can currently be worked on (no open predecessors: predecessorIds.length === 0).
  * - Specifically: tasks from Today without predecessors; if there are none on Today, all open tasks without predecessors.
- * - Tasks are sorted by effective timestamp, then task ID, like the main list.
+ * - Active tasks come first; within each group, sort by effective timestamp, then task ID.
  */
 export function computeMiniWindowTasks(
   openTasks: TaskState[],
@@ -631,5 +631,5 @@ export function computeMiniWindowTasks(
 
   const pool = todayStartable.length > 0 ? todayStartable : withoutPreds;
 
-  return [...pool].sort(compareTaskDates);
+  return [...pool].sort((a, b) => Number(b.isActive) - Number(a.isActive) || compareTaskDates(a, b));
 }

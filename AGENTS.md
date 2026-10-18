@@ -4,8 +4,8 @@ Diese Hinweise beruhen auf tatsaechlichen Build-/Testerfahrungen vom 2026-10-17.
 
 ## Versionierung
 
-- Dieses Projekt verwendet SemVer (`MAJOR.MINOR.PATCH`). Aktueller Stand: `0.1.1`. Solange `MAJOR` 0 ist, ist die API als instabil zu behandeln.
-- Version und Build-Zeitpunkt werden zur Buildzeit per `-ldflags "-X main.buildVersion=... -X main.buildTime=..."` in `app.go` gesetzt und ueber `GetSettings` an das Frontend geliefert. `build.ps1` setzt beide Werte beim Wails-Packaging. `main.buildVersion` faellt ohne ldflags auf `0.1.1` zurueck, `main.buildTime` bleibt dann leer. Der Settings-Dialog zeigt beides im Footer an; ohne ldflags also Version ohne Zeitpunkt.
+- Dieses Projekt verwendet SemVer (`MAJOR.MINOR.PATCH`). Aktueller Stand: `0.1.2`. Solange `MAJOR` 0 ist, ist die API als instabil zu behandeln.
+- Version und Build-Zeitpunkt werden zur Buildzeit per `-ldflags "-X main.buildVersion=... -X main.buildTime=..."` in `app.go` gesetzt und ueber `GetSettings` an das Frontend geliefert. `build.ps1` setzt beide Werte beim Wails-Packaging. `main.buildVersion` faellt ohne ldflags auf `0.1.2` zurueck, `main.buildTime` bleibt dann leer. Der Settings-Dialog zeigt beides im Footer an; ohne ldflags also Version ohne Zeitpunkt.
 
 ## Workspace und lokale Dependencies
 
@@ -19,12 +19,13 @@ Diese Hinweise beruhen auf tatsaechlichen Build-/Testerfahrungen vom 2026-10-17.
 
 ## Build und Go-Toolchain
 
+- Nach jeder Aenderung an der App immer `build.ps1` ausfuehren und eine aktuelle `dodrag.exe` im Projektstamm bereitstellen, damit der Nutzer direkt im Workspace testen kann. Reine Quellcodeaenderungen oder Frontendtests reichen nicht als Abschluss. Bei Build- oder Kopierfehlern ausdruecklich melden, dass die Test-EXE nicht aktualisiert wurde; keine alte EXE als neuen Build ausgeben.
 - Wails ist auf Version 2.9.2. Dessen CLI-Abhaengigkeit `x/tools` war hier mit Go 1.27 inkompatibel. Echtes Wails-Packaging gelang mit `GOTOOLCHAIN=go1.23.12`; `build.ps1` setzt diese Version nur fuer den Packaging-Schritt und stellt die vorherige Umgebung wieder her. Ein erstmaliger Toolchain-Download kann Netzwerkzugriff benoetigen.
 - Ein direkter `go build` ersetzt das Wails-Packaging nicht: Er bindet die erforderlichen Windows-Ressourcen und das Per-Monitor-DPI-Manifest nicht automatisch ein. Fuer die verteilbare EXE den Wails-Schritt in `build.ps1` verwenden.
 - `main.go` bettet `frontend/dist` per `go:embed` ein. Dieses Verzeichnis ist nicht versioniert. In einem frischen Checkout muss zuerst das Frontend gebaut werden, bevor Go-Befehle fuer das Hauptpaket erfolgreich sein koennen.
 - Unter Windows PowerShell 5.1 stoppt `$ErrorActionPreference = "Stop"` nicht bei einem nativen npm-/go-Fehlercode. Nach jedem nativen Build-/Testprozess `$LASTEXITCODE` pruefen. `build.ps1` verwendet dafuer `Assert-NativeSuccess`. Keine alten Artefakte nach einem Fehler als erfolgreichen Neubuild behandeln.
 - Das Buildskript startet keine App und beendet keine Benutzerprozesse. Dieses Verhalten erhalten. Gesperrte Ziel-EXEs/Kopierfehler melden, nicht durch ungefragtes Beenden laufender Anwendungen umgehen.
-- Ausgaben liegen unter `build/bin/dodrag.exe`; das Skript kopiert sie zusaetzlich nach `dodrag.exe` und `dodrag_app.exe` im Projekt. Binaries, `dist` und Dependencies nicht committen.
+- Ausgaben liegen unter `build/bin/dodrag.exe`; das Skript kopiert sie zusaetzlich nach `dodrag.exe` im Projektstamm. Binaries, `dist` und Dependencies nicht committen.
 - `go test ./...` und `go test -tags "desktop,production" ./...` wurden erfolgreich ausgefuehrt. `go test -race` war mit `CGO_ENABLED=0` nicht verfuegbar; normale Tests ersetzen keine Race-Pruefung.
 - `go vet` meldete drei bestehende `unsafe.Pointer`-Warnungen im nativen Windows-Code (WM_MOVING/COM-vtable). Diese weder als bestanden verschweigen noch ohne Analyse als neue Regression ausgeben; Zeilennummern koennen sich verschieben.
 

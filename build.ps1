@@ -36,7 +36,7 @@ try {
     try {
         # Wails 2.9.2's CLI dependency x/tools is incompatible with Go 1.27.
         $env:GOTOOLCHAIN = "go1.23.12"
-        $buildVersion = "0.1.1"
+        $buildVersion = "0.1.2"
         $buildTime = (Get-Date).ToUniversalTime().ToString("o")
         Copy-Item -LiteralPath "frontend\src\assets\app-icon.png" -Destination "build\appicon.png" -Force
         # Wails only generates ICO files when missing; never package an older cached icon.
