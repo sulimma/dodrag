@@ -8,9 +8,9 @@ export interface DateLayerLineProps {
   isWeekend: boolean;
   isToday: boolean;
   isDropActive: boolean;
-  onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
-  onDragLeave: (e: React.DragEvent<HTMLDivElement>) => void;
-  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDragLeave?: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDrop?: (e: React.DragEvent<HTMLDivElement>) => void;
   className?: string;
   style?: React.CSSProperties;
   dataFlipKey?: string;

@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { Calendar, CalendarClock, Clock, CheckCircle2 } from 'lucide-react';
 import type { QuickResubmitTargetId } from '../domain/projector';
+import { formatDateHeading, toDateKey } from '../domain/projector';
 import type { TaskState } from '../domain/types';
 import type { TaskViewInteractions } from './taskInteractions';
+import { DateLayerLine } from './DateLayerLine';
 import { t, formatNumber } from '../i18n';
 const RESUBMIT_TARGETS: Array<{
   id: QuickResubmitTargetId;
@@ -44,6 +46,7 @@ const RESUBMIT_TARGETS: Array<{
 interface TaskSidebarProps {
   tasks: Record<string, TaskState>;
   completedTasks: TaskState[];
+  now: Date;
   interactions: Pick<
     TaskViewInteractions,
     | 'selectedTaskId'
@@ -59,6 +62,7 @@ interface TaskSidebarProps {
 export function TaskSidebar({
   tasks,
   completedTasks,
+  now,
   interactions,
   onResubmitTasks,
   onCompleteTask,
@@ -71,6 +75,15 @@ export function TaskSidebar({
     setActiveDropTargetKey,
     onDragEndTask,
   } = interactions;
+  const completedScrollRef = useRef<HTMLDivElement>(null);
+  const completionKey = JSON.stringify(completedTasks.map(task => [task.id, task.completedAt]));
+  useLayoutEffect(() => {
+    const container = completedScrollRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
+  }, [completionKey]);
+  const completedDateKeys = completedTasks.map(task =>
+    toDateKey(new Date(task.completedAt ?? task.createdAt))
+  );
   return (
     <aside className="w-80 border-l border-slate-200 bg-white/90 p-4 flex flex-col gap-4 shrink-0 overflow-hidden">
       <div className="space-y-2 shrink-0">
@@ -171,32 +184,41 @@ export function TaskSidebar({
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+        <div ref={completedScrollRef} className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
           {completedTasks.length === 0 ? (
             <div className="h-full flex items-center justify-center text-[11px] text-slate-400 text-center px-3">
               {t('Tasks hierher ziehen, um sie als erledigt abzulegen')}
             </div>
           ) : (
-            completedTasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs"
-              >
-                <div className="truncate min-w-0">
-                  <span className="font-mono text-[11px] text-slate-400 mr-1.5">
-                    {task.id}
-                  </span>
-                  <span className="line-through text-slate-500">{task.title}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onReopenTask(task.id)}
-                  title={t('Task wieder öffnen')}
-                  className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[10px] text-slate-600 shrink-0"
+            completedTasks.map((task, index) => (
+              <React.Fragment key={task.id}>
+                {completedDateKeys[index] !== completedDateKeys[index - 1] && (
+                  <DateLayerLine
+                    dateKey={completedDateKeys[index]}
+                    {...formatDateHeading(completedDateKeys[index], now)}
+                    isDropActive={false}
+                    className="pt-3 pb-1"
+                  />
+                )}
+                <div
+                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs"
                 >
-                  {t('Öffnen')}
-                </button>
-              </div>
+                  <div className="truncate min-w-0">
+                    <span className="font-mono text-[11px] text-slate-400 mr-1.5">
+                      {task.id}
+                    </span>
+                    <span className="line-through text-slate-500">{task.title}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onReopenTask(task.id)}
+                    title={t('Task wieder öffnen')}
+                    className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[10px] text-slate-600 shrink-0"
+                  >
+                    {t('Öffnen')}
+                  </button>
+                </div>
+              </React.Fragment>
             ))
           )}
         </div>

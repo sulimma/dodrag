@@ -299,6 +299,7 @@ export function App() {
         <TaskSidebar
           tasks={state.tasks}
           completedTasks={state.completedTasks}
+          now={now}
           interactions={interactions}
           onResubmitTasks={actions.handleResubmitTasks}
           onCompleteTask={actions.handleCompleteTask}

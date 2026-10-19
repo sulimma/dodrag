@@ -328,7 +328,10 @@ export function projectEvents(
   }
 
   openTasks.sort(compareTaskDates);
-  completedTasks.sort(compareTaskDates);
+  completedTasks.sort((a, b) =>
+    Date.parse(a.completedAt ?? a.createdAt) - Date.parse(b.completedAt ?? b.createdAt) ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
 
   const listEntries = buildDateGroupedAndCollapsedList(openTasks, now);
   const nextTaskId = `${yearPrefix}${maxNumberForYear + 1}`;
