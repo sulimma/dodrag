@@ -1,9 +1,6 @@
 import React from 'react';
 import { Calendar, CalendarClock, Clock, CheckCircle2 } from 'lucide-react';
-import {
-  calculateQuickResubmitDate,
-  QuickResubmitTargetId,
-} from '../domain/projector';
+import type { QuickResubmitTargetId } from '../domain/projector';
 import type { TaskState } from '../domain/types';
 import type { TaskViewInteractions } from './taskInteractions';
 import { t, formatNumber } from '../i18n';
@@ -53,16 +50,17 @@ interface TaskSidebarProps {
     | 'activeDropTargetKey'
     | 'draggedTaskId'
     | 'setActiveDropTargetKey'
-    | 'setDraggedTaskId'
-    | 'onSetConfiguredDate'
+    | 'onDragEndTask'
   >;
-  onCompleteTask: (id: string) => void;
+  onCompleteTask: (id: string, fromDrag?: boolean) => void;
+  onResubmitTasks: (id: string, target: QuickResubmitTargetId, fromDrag?: boolean) => void;
   onReopenTask: (id: string) => void;
 }
 export function TaskSidebar({
   tasks,
   completedTasks,
   interactions,
+  onResubmitTasks,
   onCompleteTask,
   onReopenTask,
 }: TaskSidebarProps) {
@@ -71,8 +69,7 @@ export function TaskSidebar({
     activeDropTargetKey,
     draggedTaskId,
     setActiveDropTargetKey,
-    setDraggedTaskId,
-    onSetConfiguredDate,
+    onDragEndTask,
   } = interactions;
   return (
     <aside className="w-80 border-l border-slate-200 bg-white/90 p-4 flex flex-col gap-4 shrink-0 overflow-hidden">
@@ -104,27 +101,14 @@ export function TaskSidebar({
                   e.preventDefault();
                   const tId =
                     draggedTaskId || e.dataTransfer.getData('text/plain');
-                  setActiveDropTargetKey(null);
-                  setDraggedTaskId(null);
                   if (tId && tasks[tId]) {
-                    const targetIso = calculateQuickResubmitDate(
-                      target.id,
-                      tasks[tId]
-                    );
-                    onSetConfiguredDate(tId, targetIso, t(target.label));
+                    onResubmitTasks(tId, target.id, true);
                   }
+                  onDragEndTask();
                 }}
                 onClick={() => {
                   if (selectedTaskId && tasks[selectedTaskId]) {
-                    const targetIso = calculateQuickResubmitDate(
-                      target.id,
-                      tasks[selectedTaskId]
-                    );
-                    onSetConfiguredDate(
-                      selectedTaskId,
-                      targetIso,
-                      t(target.label)
-                    );
+                    onResubmitTasks(selectedTaskId, target.id);
                   }
                 }}
                 className={`p-2.5 rounded-xl border transition-colors cursor-pointer flex items-center justify-between ${
@@ -169,11 +153,10 @@ export function TaskSidebar({
         onDrop={(e) => {
           e.preventDefault();
           const tId = draggedTaskId || e.dataTransfer.getData('text/plain');
-          setActiveDropTargetKey(null);
-          setDraggedTaskId(null);
           if (tId) {
-            onCompleteTask(tId);
+            onCompleteTask(tId, true);
           }
+          onDragEndTask();
         }}
         className={`flex-1 min-h-0 flex flex-col rounded-xl border-2 transition-colors overflow-hidden ${
           activeDropTargetKey === 'completed-list-dropzone'

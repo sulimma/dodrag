@@ -482,11 +482,10 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
               e.preventDefault();
               const tId =
                 draggedTaskId || e.dataTransfer.getData('text/plain');
-              setActiveDropTargetKey(null);
-              setDraggedTaskId(null);
               if (tId) {
                 onSetConfiguredDate(tId, band.isoDate, band.dateKey);
               }
+              props.onDragEndTask();
             }}
           />
         );

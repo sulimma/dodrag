@@ -8,7 +8,9 @@ export interface ModifierKeys {
 }
 
 export interface TaskInteractions {
-  onSelectTask: (id: string) => void;
+  onSelectTask: (id: string, event: ModifierKeys, orderedIds: string[]) => void;
+  selectedTaskIds?: string[];
+  orderedTaskIds?: string[];
   onDragStartTask: (event: React.DragEvent, id: string) => void;
   onDragEndTask: () => void;
   onShiftKeyChange: (shift: boolean) => void;
@@ -45,6 +47,7 @@ export function taskInteractions(
   return {
     draggable: true,
     'data-task-drag': id,
+    'data-task-selected': actions.selectedTaskIds?.includes(id) || undefined,
     onPointerDownCapture: (event: React.PointerEvent<HTMLElement>) => {
       if (
         event.shiftKey &&
@@ -67,7 +70,7 @@ export function taskInteractions(
     onClick: (event: React.MouseEvent) => {
       event.stopPropagation();
       if (!(event.target as HTMLElement).closest('input,button,textarea'))
-        actions.onSelectTask(id);
+        actions.onSelectTask(id, event, actions.orderedTaskIds ?? [id]);
     },
     onContextMenu: (event: React.MouseEvent) =>
       actions.onContextMenuTask(event, id),
@@ -75,7 +78,7 @@ export function taskInteractions(
       event.preventDefault();
       event.stopPropagation();
       actions.onShiftKeyChange(event.shiftKey);
-      if (actions.draggedTaskId && actions.draggedTaskId !== id) {
+      if (actions.draggedTaskId) {
         event.dataTransfer.dropEffect = 'move';
         actions.setActiveDropTargetKey(key);
       }
@@ -89,7 +92,7 @@ export function taskInteractions(
       event.stopPropagation();
       const source =
         actions.draggedTaskId || event.dataTransfer.getData('text/plain');
-      if (source && source !== id) {
+      if (source) {
         if (event.shiftKey) actions.onRemoveDependencyBetween(source, id);
         else actions.onAddPredecessor(source, id);
       }

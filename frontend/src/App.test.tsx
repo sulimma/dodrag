@@ -280,7 +280,8 @@ it.each(['help', 'context'] as const)('Escape dismisses %s with button or input 
     const target = focus === 'button' ? element.querySelector('button')! : element.querySelector('input')!;
     act(() => (target as HTMLElement).focus());
     key('Escape', target);
-    expect(element.textContent).not.toContain(overlay === 'help' ? 'Tastenkürzel & Drag-and-Drop Steuerung' : 'Als erledigt markieren');
+    if (overlay === 'help') expect(element.textContent).not.toContain('Tastenkürzel & Drag-and-Drop Steuerung');
+    else expect(element.querySelector('.fixed.z-50.w-64')).toBeNull();
     expect(api.AppendBatch).not.toHaveBeenCalled();
   }
   act(() => (document.activeElement as HTMLElement).blur());
@@ -303,7 +304,7 @@ it('editor Escape cancels once without clearing the underlying selected task', a
 function dragEvent(target: Element, kind: string, shiftKey = false) {
   const event = new MouseEvent(kind, { bubbles: true, cancelable: true, shiftKey });
   Object.defineProperty(event, 'dataTransfer', {
-    value: { setData: vi.fn(), getData: () => '26-101', effectAllowed: '', dropEffect: '' },
+    value: { setData: vi.fn(), setDragImage: vi.fn(), getData: () => '26-101', effectAllowed: '', dropEffect: '' },
   });
   act(() => target.dispatchEvent(event));
   return event;
@@ -517,4 +518,166 @@ it('opens the GitHub project from the version footer', async () => {
   await openSettings();
   await act(async () => click(button(t('GitHub-Projekt im Browser öffnen'))));
   expect(browserOpenURL).toHaveBeenCalledWith('https://github.com/sulimma/dodrag');
+});
+
+function selectTask(id: string, modifiers = {}) {
+  act(() => element.querySelector(`[data-task-drag="${id}"]`)!.dispatchEvent(new MouseEvent('click', { bubbles: true, ...modifiers })));
+}
+function selectedIds() {
+  return [...new Set([...element.querySelectorAll<HTMLElement>('[data-task-selected="true"]')].map(node => node.dataset.taskDrag))].sort();
+}
+const groupHistory: StoredEvent[] = ['Alpha', 'Beta', 'Gamma', 'Delta'].map((title, index) => ({
+  seq: index + 1, id: `group-${index}`, timestamp: date, undone: false,
+  type: 'TASK_CREATED', payload: { taskId: `26-${101 + index}`, title, configuredStart: date, createdAt: date },
+}));
+
+it.each(['Liste', 'Netzplan', 'Gantt'])('supports ranges, additive ranges, Ctrl/Meta toggles and context selection in %s', async view => {
+  vi.mocked(api.GetEvents).mockResolvedValue(groupHistory);
+  await mount();
+  await chooseView(view);
+  selectTask('26-101');
+  selectTask('26-103', { shiftKey: true });
+  expect(selectedIds()).toEqual(['26-101', '26-102', '26-103']);
+  selectTask('26-102', { ctrlKey: true });
+  expect(selectedIds()).toEqual(['26-101', '26-103']);
+  selectTask('26-104', { metaKey: true, shiftKey: true });
+  expect(selectedIds()).toEqual(['26-101', '26-102', '26-103', '26-104']);
+  selectTask('26-104', { metaKey: true });
+  expect(selectedIds()).toEqual(['26-101', '26-102', '26-103']);
+  act(() => element.querySelector('[data-task-drag="26-102"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+  expect(selectedIds()).toEqual(['26-101', '26-102', '26-103']);
+  key('Escape');
+  act(() => element.querySelector('[data-task-drag="26-104"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+  expect(selectedIds()).toEqual(['26-104']);
+  key('Escape'); key('Escape');
+  expect(selectedIds()).toEqual([]);
+});
+
+it('keeps sidebar content unchanged during single and multiple task selection', async () => {
+  await mount();
+  const sidebar = element.querySelector('aside')!;
+  const content = sidebar.innerHTML;
+  selectTask('26-101');
+  expect(sidebar.innerHTML).toBe(content);
+  selectTask('26-102', { ctrlKey: true });
+  expect(sidebar.innerHTML).toBe(content);
+  expect(sidebar.textContent).not.toContain('Als erledigt markieren');
+});
+
+it.each(['Delete', 'd', 'context'])('completes selected tasks with one atomic batch via %s', async route => {
+  await mount();
+  selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
+  if (route === 'context') {
+    act(() => element.querySelector('[data-task-drag="26-101"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+    await act(async () => click(element.querySelector('.fixed.z-50.w-64 button.text-emerald-700')!));
+  } else await act(async () => key(route));
+  expect(api.AppendBatch).toHaveBeenCalledTimes(1);
+  const commands = vi.mocked(api.AppendBatch).mock.calls[0][0];
+  expect(commands.map(command => [command.type, command.payload.taskId])).toEqual([
+    ['TASK_COMPLETED', '26-101'], ['TASK_COMPLETED', '26-102'],
+  ]);
+  expect(commands[0].payload).toMatchObject({ completedAt: (commands[1].payload as any).completedAt });
+  expect(api.AppendEvent).not.toHaveBeenCalled();
+  expect(selectedIds()).toEqual([]);
+});
+
+it('resubmits each selected task relative to its own visible date in a single batch', async () => {
+  const different: StoredEvent[] = [...history, {
+    seq: 3, id: 'future-beta', timestamp: date, undone: false,
+    type: 'TASK_START_DATE_SET', payload: { taskId: '26-102', configuredStart: '2030-04-12T11:30:00.000Z' },
+  }];
+  vi.mocked(api.GetEvents).mockResolvedValue(different);
+  await mount(); selectTask('26-101'); selectTask('26-102', { metaKey: true });
+  await act(async () => click([...element.querySelectorAll('aside .cursor-pointer')].find(node => node.textContent?.includes('+2 Stunden'))!));
+  expect(api.AppendBatch).toHaveBeenCalledTimes(1);
+  const commands = vi.mocked(api.AppendBatch).mock.calls[0][0];
+  expect(commands).toHaveLength(2);
+  expect(commands.every(command => command.type === 'TASK_START_DATE_SET')).toBe(true);
+  expect((commands[1].payload as any).configuredStart).toBe('2030-04-12T13:30:00.000Z');
+  expect((commands[0].payload as any).configuredStart).not.toBe((commands[1].payload as any).configuredStart);
+  expect(selectedIds()).toEqual(['26-101', '26-102']);
+});
+
+it.each(['Liste', 'Netzplan', 'Gantt'])('freezes the drag group and links every member to the target in one batch in %s', async view => {
+  vi.mocked(api.GetEvents).mockResolvedValue(groupHistory);
+  vi.mocked(api.AppendBatch).mockResolvedValue(groupHistory);
+  await mount(); await chooseView(view);
+  selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
+  dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragstart');
+  selectTask('26-104');
+  await act(async () => dragEvent(element.querySelector('[data-task-drag="26-103"]')!, 'drop'));
+  expect(api.AppendBatch).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0].map(command => command.payload)).toEqual([
+    { taskId: '26-101', predecessorId: '26-103' }, { taskId: '26-102', predecessorId: '26-103' },
+  ]);
+  expect(selectedIds()).toEqual(['26-104']);
+});
+
+it('omits self edges but links the remaining group when dropping onto its source', async () => {
+  await mount(); selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
+  const source = element.querySelector('[data-task-drag="26-101"]')!;
+  dragEvent(source, 'dragstart');
+  await act(async () => dragEvent(source, 'drop'));
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0]).toHaveLength(1);
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0].payload).toEqual({ taskId: '26-102', predecessorId: '26-101' });
+});
+
+it('rejects the entire group before persistence when a later member would create a cycle', async () => {
+  vi.mocked(api.GetEvents).mockResolvedValue([...groupHistory, {
+    seq: 5, id: 'cycle-edge', timestamp: date, undone: false,
+    type: 'DEPENDENCY_ADDED', payload: { taskId: '26-103', predecessorId: '26-102' },
+  }]);
+  await mount(); selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
+  dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragstart');
+  await act(async () => dragEvent(element.querySelector('[data-task-drag="26-103"]')!, 'drop'));
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+  expect(element.textContent).toContain('Zyklus verhindert');
+  expect(selectedIds()).toEqual(['26-101', '26-102']);
+});
+
+it.each(['date', 'resubmit', 'complete'])('applies %s drops to the frozen group, not the later selection', async route => {
+  vi.mocked(api.GetEvents).mockResolvedValue(groupHistory);
+  vi.mocked(api.AppendBatch).mockResolvedValue(groupHistory);
+  await mount(); selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
+  dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragstart');
+  selectTask('26-104');
+  const target = route === 'date' ? element.querySelector('[data-flip-key^="date:"]')!
+    : route === 'resubmit' ? element.querySelector('aside .cursor-pointer')!
+    : element.querySelector('aside .flex-1.min-h-0')!;
+  await act(async () => dragEvent(target, 'drop'));
+  expect(api.AppendBatch).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0].map(command => command.payload.taskId)).toEqual(['26-101', '26-102']);
+  expect(selectedIds()).toEqual(['26-104']);
+});
+
+it('keeps group selection during Shift drag and removes only original-source path edges', async () => {
+  vi.mocked(api.GetEvents).mockResolvedValue([...groupHistory, ...[
+    ['26-101', '26-102'], ['26-102', '26-103'], ['26-101', '26-103'],
+  ].map(([predecessorId, taskId], index) => ({
+    seq: 5 + index, id: `shift-edge-${index}`, timestamp: date, undone: false,
+    type: 'DEPENDENCY_ADDED' as const, payload: { taskId, predecessorId },
+  }))]);
+  await mount(); selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
+  dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragstart', true);
+  const target = element.querySelector('[data-task-drag="26-103"]')!;
+  dragEvent(target, 'dragover', true);
+  expect(selectedIds()).toEqual(['26-101', '26-102']);
+  expect([...element.querySelectorAll('[data-deletion-preview="true"]')].map(node => node.getAttribute('data-edge-key')).sort())
+    .toEqual(['26-101->26-102', '26-101->26-103']);
+  await act(async () => dragEvent(target, 'drop', true));
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0].map(command => command.payload)).toEqual([
+    { taskId: '26-102', predecessorId: '26-101' }, { taskId: '26-103', predecessorId: '26-101' },
+  ]);
+});
+
+it('retains a failed completion group and ignores external or cancelled drop identities', async () => {
+  vi.mocked(api.AppendBatch).mockRejectedValueOnce(new Error('Batch failed'));
+  await mount(); selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
+  await act(async () => key('Delete'));
+  expect(selectedIds()).toEqual(['26-101', '26-102']);
+  const source = element.querySelector('[data-task-drag="26-101"]')!;
+  dragEvent(source, 'dragstart'); key('Escape');
+  await act(async () => dragEvent(element.querySelector('aside .flex-1.min-h-0')!, 'drop'));
+  await act(async () => dragEvent(element.querySelector('[data-task-drag="26-102"]')!, 'drop'));
+  expect(api.AppendBatch).toHaveBeenCalledTimes(1);
 });

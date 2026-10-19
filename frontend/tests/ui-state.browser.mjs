@@ -22,7 +22,20 @@ try {
   });
   await page.goto('http://127.0.0.1:5197');
   const alpha = page.locator('span[title="Alpha"]');
+  await alpha.waitFor();
+  const sidebarLayout = () => page.locator('aside').evaluate(aside => [...aside.children].map(child => {
+    const { x, y, width, height } = child.getBoundingClientRect();
+    return { x, y, width, height };
+  }));
+  const unselectedLayout = await sidebarLayout();
   await alpha.click();
+  assert.deepEqual(await sidebarLayout(), unselectedLayout, 'single selection must not move sidebar targets');
+  await page.locator('span[title="Beta"]').click({ modifiers: ['Control'] });
+  assert.deepEqual(await sidebarLayout(), unselectedLayout, 'multiple selection must not move sidebar targets');
+  assert.equal(await page.locator('aside').getByText('Als erledigt markieren', { exact: true }).count(), 0);
+  await page.keyboard.press('Escape');
+  await alpha.click();
+  console.log('PASS sidebar: no extra completion control or layout shift on single/multiple selection');
   const before = await page.evaluate(() => localStorage.getItem('dodrag_sqlite_fallback_events_v1'));
   await page.getByTitle('Minimieren (Kompaktansicht in Bildschirmecke)', { exact: true }).click();
   await page.locator('button[title="Fenster wiederherstellen"]').waitFor();
@@ -81,10 +94,10 @@ try {
     for (const focus of ['button', 'input']) {
       if (overlay === 'help') await page.getByTitle('Tastenkürzel & Bedienung (?)', { exact: true }).click();
       else await alpha.click({ button: 'right' });
-      const overlayText = overlay === 'help' ? 'Tastenkürzel & Drag-and-Drop Steuerung' : 'Als erledigt markieren';
+      const overlayText = overlay === 'help' ? 'Tastenkürzel & Drag-and-Drop Steuerung' : 'Task 26-101';
       await page.getByText(overlayText, { exact: true }).waitFor();
       if (focus === 'button') {
-        const heading = page.getByText(overlay === 'help' ? overlayText : 'Task 26-101', { exact: true });
+        const heading = page.getByText(overlayText, { exact: true });
         await heading.locator('xpath=../..').locator('button').first().focus();
       } else {
         await page.locator('input').first().focus();

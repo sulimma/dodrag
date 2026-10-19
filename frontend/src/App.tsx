@@ -82,6 +82,7 @@ export function App() {
   );
   const {
     selectedTaskId,
+    selectedTaskIds,
     selectedEdgeKeys,
     contextMenu,
     setContextMenu,
@@ -149,8 +150,12 @@ export function App() {
   }, [miniTasks.length]);
 
   const highlights = useMemo(
-    () => computeDependencyHighlights(selectedTaskId, state.tasks),
-    [selectedTaskId, state.tasks]
+    () => {
+      const roles = computeDependencyHighlights(selectedTaskId, state.tasks);
+      for (const id of selectedTaskIds) roles[id] = 'selected';
+      return roles;
+    },
+    [selectedTaskId, selectedTaskIds, state.tasks]
   );
   const deletionPreview = previewPathKeys(
     state.tasks,
@@ -198,6 +203,8 @@ export function App() {
   // One contract instance supplies identical selection/context/Shift behavior to every layout.
   const interactions: TaskViewInteractions = {
     selectedTaskId,
+    selectedTaskIds,
+    orderedTaskIds: state.listEntries.flatMap(entry => entry.kind === 'task' ? [entry.task.id] : []),
     selectedEdgeKeys,
     highlights,
     deletionPreview,
@@ -209,7 +216,7 @@ export function App() {
     ...drag,
     onAddPredecessor: actions.handleAddPredecessor,
     onRemoveDependencyBetween: actions.handleRemoveDependencyBetween,
-    onSetConfiguredDate: actions.handleSetConfiguredDate,
+    onSetConfiguredDate: (id, date, label) => actions.handleSetConfiguredDate(id, date, label, true),
     onToggleActive: actions.handleToggleActive,
   };
   if (isMiniMode) {
@@ -293,6 +300,7 @@ export function App() {
           tasks={state.tasks}
           completedTasks={state.completedTasks}
           interactions={interactions}
+          onResubmitTasks={actions.handleResubmitTasks}
           onCompleteTask={actions.handleCompleteTask}
           onReopenTask={actions.handleReopenTask}
         />
@@ -301,6 +309,7 @@ export function App() {
         <TaskContextMenu
           contextMenu={contextMenu}
           task={state.tasks[contextMenu.taskId]}
+          selectedTaskIds={selectedTaskIds}
           onClose={() => setContextMenu(null)}
           onToggleActive={actions.handleToggleActive}
           onEditTitle={startInlineEdit}

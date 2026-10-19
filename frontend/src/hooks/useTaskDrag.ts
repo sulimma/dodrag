@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import type { TaskState } from '../domain/types';
 import { useDatabaseSnapshot } from './useDatabaseSnapshot';
 import { useTaskSelection } from './useTaskSelection';
+import { taskDragPreview } from './taskDragPreview';
 export interface DragIdentity {
   database: string;
   taskId: string;
+  taskIds: string[];
 }
 // Owns task-drag state and guards native drags against pending mutations.
 export function useTaskDrag(
@@ -14,13 +16,14 @@ export function useTaskDrag(
   >,
   selection: Pick<
     ReturnType<typeof useTaskSelection>,
-    'selectedTaskId' | 'setSelectedTaskId' | 'clearEdgeSelection'
+    'selectedTaskIds' | 'setSelectedTaskId' | 'clearEdgeSelection'
   >,
   tasks: Record<string, TaskState>,
   dragIdentity: React.MutableRefObject<DragIdentity | null>
 ) {
   const { mutationBusy, snapshotConfirmed, databaseIdentity } = database;
-  const { selectedTaskId, setSelectedTaskId, clearEdgeSelection } = selection;
+  const { selectedTaskIds, setSelectedTaskId, clearEdgeSelection } = selection;
+  const previewCleanup = React.useRef<(() => void) | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [isShiftDrag, setIsShiftDrag] = useState<boolean>(false);
   const [activeDropTargetKey, setActiveDropTargetKey] = useState<string | null>(
@@ -31,20 +34,23 @@ export function useTaskDrag(
       e.preventDefault();
       return;
     }
-    dragIdentity.current = { database: databaseIdentity.current, taskId };
+    const taskIds = selectedTaskIds.includes(taskId)
+      ? selectedTaskIds.filter(id => tasks[id] && !tasks[id].completed)
+      : [taskId];
+    dragIdentity.current = { database: databaseIdentity.current, taskId, taskIds };
     setDraggedTaskId(taskId);
     e.dataTransfer.setData('text/plain', taskId);
     e.dataTransfer.effectAllowed = 'all';
-    if (e.shiftKey) {
-      setIsShiftDrag(true);
-      setSelectedTaskId(taskId);
-      clearEdgeSelection();
-    } else {
-      setIsShiftDrag(false);
-    }
+    previewCleanup.current?.();
+    previewCleanup.current = taskDragPreview(e.dataTransfer, e.currentTarget as HTMLElement, taskIds, tasks, e.clientX, e.clientY);
+    if (!selectedTaskIds.includes(taskId)) setSelectedTaskId(taskId);
+    clearEdgeSelection();
+    setIsShiftDrag(e.shiftKey);
   };
 
   const onDragEndTask = () => {
+    previewCleanup.current?.();
+    previewCleanup.current = null;
     dragIdentity.current = null;
     document
       .querySelectorAll('[data-shift-drag]')
@@ -56,6 +62,7 @@ export function useTaskDrag(
 
   useEffect(() => {
     const stop = () => onDragEndTask();
+    const drop = () => { previewCleanup.current?.(); previewCleanup.current = null; };
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') stop();
       if (event.key === 'Shift') {
@@ -71,19 +78,18 @@ export function useTaskDrag(
     window.addEventListener('keyup', key, true);
     window.addEventListener('blur', stop);
     window.addEventListener('dragend', stop);
+    window.addEventListener('drop', drop, true);
     return () => {
+      drop();
       window.removeEventListener('keydown', key, true);
       window.removeEventListener('keyup', key, true);
       window.removeEventListener('blur', stop);
       window.removeEventListener('dragend', stop);
+      window.removeEventListener('drop', drop, true);
     };
   }, []);
   const onShiftKeyChange = (shift: boolean) => {
     setIsShiftDrag(shift);
-    if (shift && draggedTaskId && selectedTaskId !== draggedTaskId) {
-      setSelectedTaskId(draggedTaskId);
-      clearEdgeSelection();
-    }
   };
   return {
     draggedTaskId,

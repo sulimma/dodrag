@@ -7,7 +7,13 @@ export interface ContextMenuState {
 }
 // Owns selected tasks, selected edges, and the active task context menu.
 export function useTaskSelection() {
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const selectedTaskId = selectedTaskIds.at(-1) ?? null;
+  const [lastClickedTaskId, setLastClickedTaskId] = useState<string | null>(null);
+  const setSelectedTaskId = (id: string | null) => {
+    setSelectedTaskIds(id ? [id] : []);
+    setLastClickedTaskId(id);
+  };
   const [selectedEdgeKeys, setSelectedEdgeKeys] = useState<string[]>([]);
   const [lastClickedEdgeKey, setLastClickedEdgeKey] = useState<string | null>(
     null
@@ -73,15 +79,30 @@ export function useTaskSelection() {
     window.addEventListener('click', closeMenu);
     return () => window.removeEventListener('click', closeMenu);
   }, []);
-  const onSelectTask = (id: string) => {
+  const onSelectTask = (
+    id: string,
+    event: ModifierKeys = { ctrlKey: false, metaKey: false, shiftKey: false },
+    orderedIds: string[] = [id]
+  ) => {
     clearEdgeSelection();
-    setSelectedTaskId((previous) => (previous === id ? null : id));
+    const additive = event.ctrlKey || event.metaKey;
+    if (event.shiftKey && lastClickedTaskId && orderedIds.includes(lastClickedTaskId) && orderedIds.includes(id)) {
+      const a = orderedIds.indexOf(lastClickedTaskId);
+      const b = orderedIds.indexOf(id);
+      const range = orderedIds.slice(Math.min(a, b), Math.max(a, b) + 1);
+      setSelectedTaskIds(previous => additive ? Array.from(new Set([...previous, ...range])) : range);
+      return;
+    }
+    setSelectedTaskIds(previous => additive
+      ? previous.includes(id) ? previous.filter(value => value !== id) : [...previous, id]
+      : previous.length === 1 && previous[0] === id ? [] : [id]);
+    setLastClickedTaskId(id);
   };
   const onContextMenuTask = (event: React.MouseEvent, id: string) => {
     event.preventDefault();
     event.stopPropagation();
     clearEdgeSelection();
-    setSelectedTaskId(id);
+    if (!selectedTaskIds.includes(id)) setSelectedTaskId(id);
     setContextMenu({ x: event.clientX, y: event.clientY, taskId: id });
   };
   const reset = () => {
@@ -91,6 +112,8 @@ export function useTaskSelection() {
   };
   return {
     selectedTaskId,
+    selectedTaskIds,
+    setSelectedTaskIds,
     setSelectedTaskId,
     selectedEdgeKeys,
     clearEdgeSelection,

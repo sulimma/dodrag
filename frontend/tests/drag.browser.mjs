@@ -244,4 +244,102 @@ try {
   assert.ok((await page.locator('[data-gantt-node="B"]').getAttribute('title')).includes(keys[1]),'drop changes configured date despite constraint');
   console.log('PASS shared list/network date editing: Enter, blur, Escape, time; real Gantt date drag, undo, cancellation, predecessor constraint');
   await page.close();
+  for (const view of ['Liste','Netzplan','Gantt','GanttDiagramm']) {
+    const page=await browser.newPage({viewport:{width:1400,height:950},locale:'de-DE'});
+    await page.addInitScript(()=>{
+      const date=new Date();date.setHours(9,0,0,0);const iso=date.toISOString();
+      const events=['A','B','C'].map((taskId,index)=>({seq:index+1,id:`group${index}`,timestamp:iso,undone:false,
+        type:'TASK_CREATED',payload:{taskId,title:`Title ${taskId}`,configuredStart:iso,createdAt:iso}}));
+      localStorage.setItem('dodrag_sqlite_fallback_events_v1',JSON.stringify(events));
+      localStorage.setItem('dodrag_settings_fallback_v1',JSON.stringify({knownDatabases:[{name:'test',path:'test.db',exists:true,isDemo:false}],activeDatabasePath:'test.db',autostart:false}));
+      window.dragStarts=0;document.addEventListener('dragstart',()=>window.dragStarts++);
+      window.dragImages=[];
+      document.addEventListener('dragstart',event=>{
+        const root=event.target.closest('[data-task-drag]'),rect=root.getBoundingClientRect();
+        window.dragOrigin={id:root.dataset.taskDrag,x:event.clientX-rect.left,y:event.clientY-rect.top};
+      },true);
+      const original=DataTransfer.prototype.setDragImage;
+      DataTransfer.prototype.setDragImage=function(image,x,y){
+        const rect=image.getBoundingClientRect(),origin=window.dragOrigin;
+        const clones=[...image.querySelectorAll('[data-drag-preview-task]')];
+        const member=clones.find(clone=>clone.dataset.dragPreviewTask===origin.id),bounds=member.getBoundingClientRect();
+        const scale=bounds.width/parseFloat(member.style.width);
+        window.dragImages.push({ids:clones.map(clone=>clone.dataset.dragPreviewTask),text:image.textContent,
+          width:rect.width,height:rect.height,connected:image.isConnected,inert:image.inert,
+          safe:!image.querySelector('[id],[data-task-drag],[draggable],[contenteditable]'),
+          x,y,expectedX:Math.round(bounds.left-rect.left+origin.x*scale),expectedY:Math.round(bounds.top-rect.top+origin.y*scale),
+          background:getComputedStyle(member).backgroundColor});
+        return original.call(this,image,x,y);
+      };
+    });
+    await page.goto('http://127.0.0.1:5197');
+    const diagram=view==='GanttDiagramm';
+    await page.getByRole('button',{name:diagram?'Gantt':view,exact:true}).click();
+    const node=id=>page.locator(diagram?`[data-gantt-node="${id}"]`:`[data-task-drag="${id}"]`).first();
+    await node('A').click();await node('B').click({modifiers:['Control']});
+    assert.equal(await node('A').getAttribute('data-task-selected'),'true');
+    assert.equal(await node('B').getAttribute('data-task-selected'),'true');
+    await node('A').click({button:'right'});
+    assert.equal(await node('B').getAttribute('data-task-selected'),'true','context keeps group');
+    await page.keyboard.press('Escape');
+    const drag=async(target,cancel=false)=>{
+      await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState!=='running'));
+      const source=await (diagram?node('A'):node('A').locator('[data-drag-handle]')).boundingBox();
+      const dest=await target.boundingBox();
+      await page.mouse.move(source.x+source.width/2,source.y+source.height/2);await page.mouse.down();
+      await page.mouse.move(source.x+source.width/2+16,source.y+source.height/2,{steps:8});
+      await page.mouse.move(dest.x+dest.width*.65,dest.y+dest.height*.65,{steps:18});
+      assert.equal(await page.locator('[data-task-drag-preview]').count(),1);
+      const image=await page.evaluate(()=>window.dragImages.at(-1));
+      assert.deepEqual(image.ids,['A','B'],`${view}: actual frozen members in native image`);
+      assert.ok(image.connected && image.inert && image.safe);
+      assert.ok(image.width<=600 && image.height<=440);
+      assert.ok(image.x===image.expectedX && image.y===image.expectedY,`${view}: pointer hotspot`);
+      assert.notEqual(image.background,'rgba(0, 0, 0, 0)','actual node styles cloned');
+      if(!diagram) assert.ok(image.text.includes('Title A') && image.text.includes('Title B'));
+      if(cancel) await page.keyboard.press('Escape');
+      await page.mouse.up();
+      assert.equal(await page.locator('[data-task-drag-preview]').count(),0,'native end/drop cleanup');
+    };
+    const activeEvents=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>!event.undone));
+    await drag(node('C'),true);
+    assert.equal((await activeEvents()).filter(event=>event.type==='DEPENDENCY_ADDED').length,0,'Escape cancels mutation');
+    await drag(node('C'));
+    await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='DEPENDENCY_ADDED'&&!event.undone).length===2);
+    let batch=(await activeEvents()).filter(event=>event.type==='DEPENDENCY_ADDED');
+    assert.deepEqual(batch.map(event=>event.payload),[{taskId:'A',predecessorId:'C'},{taskId:'B',predecessorId:'C'}]);
+    assert.ok(batch[0].groupId && batch[0].groupId===batch[1].groupId,'one undo group');
+    await page.locator('button[title^="Rückgängig"]').click();
+    await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='DEPENDENCY_ADDED').every(event=>event.undone));
+    await drag(page.locator('aside .cursor-pointer').filter({hasText:'+2 Stunden'}));
+    await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='TASK_START_DATE_SET'&&!event.undone).length===2);
+    batch=(await activeEvents()).filter(event=>event.type==='TASK_START_DATE_SET');
+    assert.deepEqual(batch.map(event=>event.payload.taskId),['A','B']);
+    assert.ok(batch[0].groupId && batch[0].groupId===batch[1].groupId);
+    if(view==='Gantt') {
+      await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState!=='running'));
+      const source=await page.locator('[data-gantt-node="A"]').boundingBox();
+      const target=page.locator('[data-gantt-date]').nth(3);
+      const dateKey=await target.getAttribute('data-gantt-date'),dest=await target.boundingBox();
+      await page.mouse.move(source.x+source.width/2,source.y+source.height/2);await page.mouse.down();
+      await page.mouse.move(source.x+source.width/2+16,source.y+source.height/2,{steps:8});
+      await page.mouse.move(dest.x+20,source.y+source.height/2,{steps:18});await page.mouse.up();
+      await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='TASK_START_DATE_SET'&&!event.undone).length===4);
+      batch=(await activeEvents()).filter(event=>event.type==='TASK_START_DATE_SET').slice(-2);
+      assert.deepEqual(batch.map(event=>event.payload.taskId),['A','B']);
+      assert.ok(batch[0].groupId && batch[0].groupId===batch[1].groupId);
+      assert.deepEqual(await page.evaluate(events=>events.map(event=>{
+        const date=new Date(event.payload.configuredStart);
+        return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+      }),batch),[dateKey,dateKey],'both group members receive Gantt drop date');
+    }
+    await drag(page.locator('aside .flex-1.min-h-0').first());
+    await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='TASK_COMPLETED'&&!event.undone).length===2);
+    batch=(await activeEvents()).filter(event=>event.type==='TASK_COMPLETED');
+    assert.deepEqual(batch.map(event=>event.payload.taskId),['A','B']);
+    assert.ok(batch[0].groupId && batch[0].groupId===batch[1].groupId);
+    assert.ok(await page.evaluate(()=>window.dragStarts)>=3,'real native group drags');
+    console.log(`PASS ${view}: real group predecessor/resubmit/complete drags, context preservation, atomic undo`);
+    await page.close();
+  }
 } finally {await browser.close();await server.close();}

@@ -2,10 +2,11 @@ import React from 'react';
 import { Flame, Link2Off, CheckCircle2 } from 'lucide-react';
 import type { TaskState } from '../domain/types';
 import type { ContextMenuState } from '../hooks/useTaskSelection';
-import { t } from '../i18n';
+import { t, formatNumber } from '../i18n';
 interface TaskContextMenuProps {
   contextMenu: ContextMenuState;
   task: TaskState;
+  selectedTaskIds: string[];
   onClose: () => void;
   onToggleActive: (task: TaskState) => void;
   onEditTitle: (task: TaskState) => void;
@@ -17,6 +18,7 @@ interface TaskContextMenuProps {
 export function TaskContextMenu({
   contextMenu,
   task,
+  selectedTaskIds,
   onClose,
   onToggleActive,
   onEditTitle,
@@ -38,7 +40,9 @@ export function TaskContextMenu({
     >
       <div className="px-3 py-1.5 border-b border-slate-100 flex items-center justify-between">
         <span className="font-mono font-semibold text-sky-700">
-          {t('Task {id}', { id: contextMenu.taskId })}
+          {selectedTaskIds.length > 1
+            ? t('{count} Tasks ausgewaehlt', { count: formatNumber(selectedTaskIds.length) })
+            : t('Task {id}', { id: contextMenu.taskId })}
         </span>
         <span className="text-[10px] text-slate-400 truncate max-w-[130px]">
           {task.title}

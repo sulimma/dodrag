@@ -1,10 +1,12 @@
 import { eventBridge } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';
 import {
-  computeDependencyHighlights,
+  calculateQuickResubmitDate,
   formatIso8601Display,
   projectEvents,
 } from '../domain/projector';
+import type { QuickResubmitTargetId } from '../domain/projector';
+import { applyCommand, copyReplayTasks, replayCommands } from '../domain/commands';
 import { normalizeUserDate } from '../domain/dates';
 import { dependencyPathEdges } from '../domain/dependencyPaths';
 import { useDatabaseSnapshot } from './useDatabaseSnapshot';
@@ -20,7 +22,7 @@ export function useTaskMutations(
   >,
   selection: Pick<
     ReturnType<typeof useTaskSelection>,
-    'setSelectedTaskId' | 'clearEdgeSelection'
+    'selectedTaskIds' | 'setSelectedTaskIds' | 'clearEdgeSelection'
   >,
   state: ReturnType<typeof projectEvents>,
   now: Date,
@@ -29,7 +31,14 @@ export function useTaskMutations(
   pushToast: PushToast
 ) {
   const { mutate, databaseIdentity, confirmedEvents } = database;
-  const { setSelectedTaskId, clearEdgeSelection } = selection;
+  const { selectedTaskIds, setSelectedTaskIds, clearEdgeSelection } = selection;
+  const taskGroup = (taskId: string, fromDrag: boolean) => {
+    const identity = dragIdentity.current;
+    if (fromDrag && (!identity || identity.database !== databaseIdentity.current || identity.taskId !== taskId)) return [];
+    const ids = fromDrag ? identity!.taskIds : selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
+    const current = projectEvents(confirmedEvents.current, now);
+    return [...new Set(ids)].filter(id => current.tasks[id] && !current.tasks[id].completed);
+  };
   const handleToggleActive = async (task: TaskState) => {
     if (task.predecessorIds.length > 0) {
       pushToast(
@@ -50,72 +59,59 @@ export function useTaskMutations(
   const handleSetConfiguredDate = async (
     taskId: string,
     isoDate: string,
-    humanLabel: string
+    humanLabel: string,
+    fromDrag = false
   ) => {
-    if (!state.tasks[taskId]) return;
-    if (
-      dragIdentity.current &&
-      (dragIdentity.current.database !== databaseIdentity.current ||
-        dragIdentity.current.taskId !== taskId)
-    )
-      return;
+    const ids = taskGroup(taskId, fromDrag);
+    if (!ids.length) return;
     const configuredStart = normalizeUserDate(
       formatIso8601Display(isoDate).isoText,
       now
     );
-    if (
-      Date.parse(state.tasks[taskId].configuredStart) ===
-      Date.parse(configuredStart)
-    )
-      return;
+    const current = projectEvents(confirmedEvents.current, now);
+    const commands = ids.filter(id => Date.parse(current.tasks[id].configuredStart) !== Date.parse(configuredStart))
+      .map(id => ({ type: 'TASK_START_DATE_SET' as const, payload: { taskId: id, configuredStart } }));
+    if (!commands.length) return;
     setLastMovedKey(`task:${taskId}`);
     const updated = await mutate(() =>
-      eventBridge.appendEvent('TASK_START_DATE_SET', {
-        taskId,
-        configuredStart,
-      })
+      eventBridge.appendBatch(commands)
     );
     if (!updated) return;
-    pushToast(t('Startdatum von {id} → {date}', { id: taskId, date: /^\d{4}-\d{2}-\d{2}$/.test(humanLabel) ? formatIso8601Display(isoDate).localizedText : humanLabel }), 'info');
+    pushToast(t('Startdatum von {id} → {date}', { id: ids.join(', '), date: /^\d{4}-\d{2}-\d{2}$/.test(humanLabel) ? formatIso8601Display(isoDate).localizedText : humanLabel }), 'info');
+  };
+
+  const handleResubmitTasks = async (taskId: string, target: QuickResubmitTargetId, fromDrag = false) => {
+    const ids = taskGroup(taskId, fromDrag);
+    if (!ids.length) return;
+    const current = projectEvents(confirmedEvents.current, now);
+    await mutate(() => eventBridge.appendBatch(ids.map(id => ({
+      type: 'TASK_START_DATE_SET' as const,
+      payload: { taskId: id, configuredStart: calculateQuickResubmitDate(target, current.tasks[id]) },
+    }))));
   };
 
   const handleAddPredecessor = async (
     draggedId: string,
     targetTaskId: string
   ) => {
-    if (draggedId === targetTaskId) return;
-    const draggedTask = state.tasks[draggedId];
-    const targetTask = state.tasks[targetTaskId];
-    if (!draggedTask || !targetTask) return;
-
-    if (draggedTask.predecessorIds.includes(targetTaskId)) {
-      return;
+    const ids = taskGroup(draggedId, true).filter(id => id !== targetTaskId);
+    if (!ids.length) return;
+    const replay = replayCommands(confirmedEvents.current);
+    if (!replay.tasks.has(targetTaskId)) return;
+    const commands = ids.filter(id => !replay.tasks.get(id)!.predecessors.has(targetTaskId))
+      .map(id => ({ type: 'DEPENDENCY_ADDED' as const, payload: { taskId: id, predecessorId: targetTaskId } }));
+    if (!commands.length) return;
+    // Validate the complete proposed graph before sending any command to the backend.
+    const proposed = copyReplayTasks(replay);
+    for (const command of commands) {
+      try { applyCommand(proposed, command); }
+      catch {
+        pushToast(t('Zyklus verhindert: {id} ist bereits Vorgänger von {target}', { id: command.payload.taskId, target: targetTaskId }), 'warning');
+        return;
+      }
     }
-
-    const targetHighlights = computeDependencyHighlights(
-      targetTaskId,
-      state.tasks
-    );
-    if (
-      targetHighlights[draggedId] === 'predecessor-direct' ||
-      targetHighlights[draggedId] === 'predecessor-transitive'
-    ) {
-      pushToast(
-        t('Zyklus verhindert: {id} ist bereits Vorgänger von {target}', { id: draggedId, target: targetTaskId }),
-        'warning'
-      );
-      return;
-    }
-
     setLastMovedKey(`task:${draggedId}`);
-    const updated = await mutate(() =>
-      eventBridge.appendEvent('DEPENDENCY_ADDED', {
-        taskId: draggedId,
-        predecessorId: targetTaskId,
-      })
-    );
-    if (!updated) return;
-    setSelectedTaskId(draggedId);
+    await mutate(() => eventBridge.appendBatch(commands));
   };
 
   const handleRemovePredecessor = async (
@@ -176,16 +172,16 @@ export function useTaskMutations(
       pushToast(t('{count} Kanten an {id} geloescht', { count: formatNumber(edges.length), id: draggedId }), 'info');
   };
 
-  const handleCompleteTask = async (taskId: string) => {
+  const handleCompleteTask = async (taskId: string, fromDrag = false) => {
+    const ids = taskGroup(taskId, fromDrag);
+    if (!ids.length) return;
+    const completedAt = new Date().toISOString();
     const updated = await mutate(() =>
-      eventBridge.appendEvent('TASK_COMPLETED', {
-        taskId,
-        completedAt: new Date().toISOString(),
-      })
+      eventBridge.appendBatch(ids.map(id => ({ type: 'TASK_COMPLETED' as const, payload: { taskId: id, completedAt } })))
     );
     if (!updated) return;
     // A late completion must not clear a different task selected while saving.
-    setSelectedTaskId(current => current === taskId ? null : current);
+    setSelectedTaskIds(current => current.filter(id => !ids.includes(id)));
   };
 
   const handleReopenTask = async (taskId: string) => {
@@ -209,6 +205,7 @@ export function useTaskMutations(
   return {
     handleToggleActive,
     handleSetConfiguredDate,
+    handleResubmitTasks,
     handleAddPredecessor,
     handleRemovePredecessor,
     handleRemoveSelectedEdges,

@@ -75,11 +75,10 @@ export function ListView(props: ListViewProps) {
                 e.preventDefault();
                 const tId =
                   draggedTaskId || e.dataTransfer.getData('text/plain');
-                setActiveDropTargetKey(null);
-                setDraggedTaskId(null);
                 if (tId) {
                   onSetConfiguredDate(tId, entry.isoDate, entry.dateKey);
                 }
+                props.onDragEndTask();
               }}
             />
           );
