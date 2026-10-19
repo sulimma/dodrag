@@ -2,7 +2,7 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { formatDate, formatNumber, getLanguage, resolveLanguage, setLanguage, t } from './index';
 
-const languages = ['de', 'en', 'fr', 'es', 'zh-CN', 'uk', 'pt-BR', 'ja', 'zh-TW', 'ko', 'it', 'pl', 'tr'];
+const languages = ['de', 'en', 'fr', 'es', 'zh-CN', 'uk', 'pt-BR', 'ja', 'zh-TW', 'ko', 'it', 'pl', 'tr', 'eo', 'tok'];
 const catalogs = import.meta.glob<Record<string, string>>('./locales/*.json', { eager: true, import: 'default' });
 const sourceFiles = import.meta.glob<string>(['../**/*.ts', '../**/*.tsx', '!../**/*.test.*', '!../i18n/**'], { eager: true, query: '?raw', import: 'default' });
 const readCatalog = (name: string): Record<string, string> =>
@@ -19,6 +19,9 @@ describe('translation coverage', () => {
     expect(resolveLanguage('it-CH')).toBe('it');
     expect(resolveLanguage('pl-PL')).toBe('pl');
     expect(resolveLanguage('tr-TR')).toBe('tr');
+    expect(resolveLanguage('eo-001')).toBe('eo');
+    expect(resolveLanguage('epo')).toBe('eo');
+    expect(resolveLanguage('tok')).toBe('tok');
     const previous = getLanguage();
     try {
       setLanguage('de');
@@ -27,7 +30,8 @@ describe('translation coverage', () => {
       for (const language of languages) {
         setLanguage(language);
         expect(formatNumber(1234.5)).toBe(new Intl.NumberFormat(language).format(1234.5));
-        expect(formatDate(new Date(2026, 9, 18))).not.toBe('');
+        expect(formatDate(new Date(2026, 9, 18))).toBe('2026-10-18');
+        expect(formatDate(new Date(2026, 9, 18, 14, 30), { hour: '2-digit', minute: '2-digit' })).toBe('2026-10-18 14:30');
       }
     } finally { setLanguage(previous); }
   });

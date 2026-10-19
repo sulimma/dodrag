@@ -7,7 +7,7 @@ import {
 } from './types';
 import { calendarDistance, localDate } from './dates';
 import { replayCommands } from './commands';
-import { t, locale, formatDate, formatNumber, getLanguage } from '../i18n';
+import { t, locale, formatDate, formatNumber } from '../i18n';
 
 function compareTaskDates(a: TaskState, b: TaskState): number {
   return Date.parse(a.effectiveStart) - Date.parse(b.effectiveStart) ||
@@ -79,7 +79,7 @@ export function formatIso8601Display(isoString: string): {
   const day = dt.getDay();
   return {
     isoText,
-    localizedText: getLanguage() === 'de' ? isoText : formatDate(dt, { year: 'numeric', month: '2-digit', day: '2-digit', ...(hasCustomTime ? { hour: '2-digit', minute: '2-digit', ...(dt.getSeconds() ? { second: '2-digit' } : {}) } : {}) }),
+    localizedText: isoText,
     weekdayShort,
     isWeekend: day === 0 || day === 6,
   };

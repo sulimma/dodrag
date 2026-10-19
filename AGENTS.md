@@ -9,9 +9,9 @@ Diese Hinweise beruhen auf tatsaechlichen Build-/Testerfahrungen vom 2026-10-17.
 
 ## Internationalisierung
 
-- Neue Features und geaenderte Texte immer in **allen dreizehn Sprachen** uebersetzen: `de`, `en`, `fr`, `es`, `zh-CN`, `uk`, `pt-BR`, `ja`, `zh-TW`, `ko`, `it`, `pl`, `tr`. Keine neuen fest codierten UI-Texte, Tooltips, Platzhalter, ARIA-Labels, Dialogtitel oder nutzersichtbaren App-Fehlermeldungen einfuehren.
+- Neue Features und geaenderte Texte immer in **allen fünfzehn Sprachen** uebersetzen: `de`, `en`, `fr`, `es`, `zh-CN`, `uk`, `pt-BR`, `ja`, `zh-TW`, `ko`, `it`, `pl`, `tr`, `eo`, `tok`. Keine neuen fest codierten UI-Texte, Tooltips, Platzhalter, ARIA-Labels, Dialogtitel oder nutzersichtbaren App-Fehlermeldungen einfuehren.
 - Kataloge liegen unter `frontend/src/i18n/locales`: `<sprache>.json` fuer das Frontend, `backend-<sprache>.json` fuer native Go-Texte. Schluessel und `{platzhalter}` muessen in allen Sprachen identisch sein; Werte duerfen nicht leer sein. Nutzerdaten und technische Fremdfehler sind keine UI-Uebersetzungsschluessel.
-- Frontend-Texte ueber `t(...)`, native Texte ueber den Go-Katalog beziehen. Datums-/Zahlenanzeigen mit der ausgewaehlten Sprache formatieren; gespeicherte ISO-Daten unveraendert lassen. Gespeicherte Aufgabentitel und Datenbanknamen beim Sprachwechsel niemals umschreiben.
+- Frontend-Texte ueber `t(...)`, native Texte ueber den Go-Katalog beziehen. Datums-/Zeitformat ist immer ISO-8601 unabhängig von der Locale; Zahlenanzeigen mit der ausgewaehlten Sprache formatieren; gespeicherte ISO-Daten unveraendert lassen. Gespeicherte Aufgabentitel und Datenbanknamen beim Sprachwechsel niemals umschreiben.
 - `npm test` prueft Katalogvollstaendigkeit, Platzhalter und statisch erkennbare unuebersetzte UI-Texte; Go-Tests pruefen die native Sprachverwaltung. Neue Rendering-Helfer muessen im AST-Check oder einem Laufzeit-UI-Test abgedeckt werden. Ein gruener Strukturtest beweist keine sprachliche Korrektheit.
 - Die Uebersetzungen sind KI-erstellt; nur Deutsch und Englisch sind verifiziert. Diesen Hinweis und die Sprachliste im README aktuell halten.
 

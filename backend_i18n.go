@@ -13,7 +13,7 @@ import (
 //go:embed frontend/src/i18n/locales/backend-*.json
 var backendLocaleFiles embed.FS
 
-var uiLanguages = []string{"de", "en", "fr", "es", "zh-CN", "uk", "pt-BR", "ja", "zh-TW", "ko", "it", "pl", "tr"}
+var uiLanguages = []string{"de", "en", "fr", "es", "zh-CN", "uk", "pt-BR", "ja", "zh-TW", "ko", "it", "pl", "tr", "eo", "tok"}
 
 var backendCatalogs = loadBackendCatalogs(backendLocaleFiles)
 
