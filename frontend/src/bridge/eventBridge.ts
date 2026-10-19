@@ -2,6 +2,7 @@ import type { EventType, StoredEvent } from '../domain/types';
 import { parseCommand, parseStoredEvent } from '../domain/eventSchema';
 import type { EventCommand } from '../domain/eventSchema';
 import { applyCommand, copyReplayTasks, replayCommands } from '../domain/commands';
+import { resolveLanguage, setLanguage, supportedLanguages, t } from '../i18n';
 
 export interface DatabaseEntry {
   name: string;
@@ -19,12 +20,14 @@ export interface AppSettings {
   databaseReady?: boolean;
   version?: string;
   buildTime?: string;
+  uiLanguage?: string;
 }
 
 declare global {
   interface Window {
     runtime?: {
       EventsOn?: (eventName: string, callback: (...data: any[]) => void) => () => void;
+      BrowserOpenURL?: (url: string) => void;
     };
     go?: {
       main?: {
@@ -40,6 +43,7 @@ declare global {
           Redo: () => Promise<unknown>;
           GetSettings: () => Promise<AppSettings>;
           SetAutostart: (enabled: boolean) => Promise<AppSettings>;
+          SetUILanguage?: (language: string) => Promise<AppSettings>;
           SelectFolderDialog: () => Promise<string>;
           CreateDatabase: (
             folderPath: string,
@@ -74,7 +78,7 @@ function isWailsAvailable(): boolean {
 const normalizedCache = new WeakMap<object, StoredEvent[]>();
 
 export function normalizeEvents(rawList: unknown): StoredEvent[] {
-  if (!Array.isArray(rawList)) throw new Error('Event history must be an array');
+  if (!Array.isArray(rawList)) throw new Error(t('Event history must be an array'));
   const cached = normalizedCache.get(rawList);
   if (cached) return cached;
   const events = rawList.map((item: unknown) => parseStoredEvent(item));
@@ -104,7 +108,7 @@ function createInitialBrowserDemoEvents(): StoredEvent[] {
       type: 'TASK_CREATED',
       payload: {
         taskId: t1,
-        title: 'API-Zugangsdaten vom Kunden anfordern',
+        title: t('API-Zugangsdaten vom Kunden anfordern'),
         configuredStart: today.toISOString(),
         createdAt: new Date(now.getTime() - 300_000).toISOString(),
       },
@@ -120,7 +124,7 @@ function createInitialBrowserDemoEvents(): StoredEvent[] {
       type: 'TASK_CREATED',
       payload: {
         taskId: t2,
-        title: 'OAuth-Webhook im Staging-System konfigurieren',
+        title: t('OAuth-Webhook im Staging-System konfigurieren'),
         configuredStart: today.toISOString(),
         createdAt: new Date(now.getTime() - 240_000).toISOString(),
       },
@@ -136,7 +140,7 @@ function createInitialBrowserDemoEvents(): StoredEvent[] {
       type: 'TASK_CREATED',
       payload: {
         taskId: t3,
-        title: 'End-to-End Integrationstest durchführen',
+        title: t('End-to-End Integrationstest durchführen'),
         configuredStart: today.toISOString(),
         createdAt: new Date(now.getTime() - 180_000).toISOString(),
       },
@@ -145,7 +149,7 @@ function createInitialBrowserDemoEvents(): StoredEvent[] {
       type: 'TASK_CREATED',
       payload: {
         taskId: t4,
-        title: 'SSL-Zertifikat für Subdomain bestellen',
+        title: t('SSL-Zertifikat für Subdomain bestellen'),
         configuredStart: today.toISOString(),
         createdAt: new Date(now.getTime() - 120_000).toISOString(),
       },
@@ -154,7 +158,7 @@ function createInitialBrowserDemoEvents(): StoredEvent[] {
       type: 'TASK_CREATED',
       payload: {
         taskId: t5,
-        title: 'Freigabe durch Datenschutzbeauftragten abwarten',
+        title: t('Freigabe durch Datenschutzbeauftragten abwarten'),
         configuredStart: inTwoDays.toISOString(),
         createdAt: new Date(now.getTime() - 60_000).toISOString(),
       },
@@ -163,7 +167,7 @@ function createInitialBrowserDemoEvents(): StoredEvent[] {
       type: 'TASK_CREATED',
       payload: {
         taskId: t6,
-        title: 'Produktiv-Deployment & Release-Notes versenden',
+        title: t('Produktiv-Deployment & Release-Notes versenden'),
         configuredStart: inFiveDays.toISOString(),
         createdAt: now.toISOString(),
       },
@@ -224,7 +228,7 @@ export const eventBridge = {
   },
 
   async appendBatch(commands: EventCommand[], groupId = ''): Promise<StoredEvent[]> {
-    if ([...groupId].length > 256) throw new Error('Invalid edit group');
+    if ([...groupId].length > 256) throw new Error(t('Invalid edit group'));
     const checked = commands.map(parseCommand);
     const identified = checked.map(command => ({
       ...command,
@@ -299,23 +303,31 @@ export const eventBridge = {
 
   async getSettings(): Promise<AppSettings> {
     if (isWailsAvailable()) {
-      return await window.go!.main!.App!.GetSettings();
+      const settings = await window.go!.main!.App!.GetSettings();
+      if (settings.uiLanguage) setLanguage(resolveLanguage(settings.uiLanguage));
+      return settings;
     }
     {
       const raw = localStorage.getItem(LOCAL_SETTINGS_KEY);
       if (raw !== null) {
         // TODO: Browserbetrieb ist kein Produktziel; vor Produktnutzung die fehlende Settings-Formprüfung ergänzen, da syntaktisch gültiges JSON mit ungültiger Settings-Form den Dialog abstürzen lassen kann.
         const parsed: AppSettings = JSON.parse(raw);
+        const uiLanguage = parsed.uiLanguage ? resolveLanguage(parsed.uiLanguage) : resolveLanguage(navigator.languages?.length ? navigator.languages : navigator.language);
+        setLanguage(uiLanguage);
+        if (parsed.uiLanguage !== uiLanguage) localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify({ ...parsed, uiLanguage }));
         return {
           ...parsed,
+          uiLanguage,
           databaseReady: Boolean(parsed.activeDatabasePath),
         };
       }
     }
-    return {
+    const uiLanguage = resolveLanguage(navigator.languages?.length ? navigator.languages : navigator.language);
+    setLanguage(uiLanguage);
+    const settings: AppSettings = {
       knownDatabases: [
         {
-          name: 'Demo-Datenbank',
+          name: t('Demo-Datenbank'),
           path: '%APPDATA%\\DoDrag\\dodrag.db',
           isDemo: true,
           exists: localStorage.getItem(LOCAL_STORAGE_KEY) !== null,
@@ -325,7 +337,24 @@ export const eventBridge = {
       autostart: false,
       databaseReady: false,
       version: '0.1.2',
+      uiLanguage,
     };
+    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settings));
+    return settings;
+  },
+
+  async setUILanguage(language: string): Promise<AppSettings> {
+    if (!supportedLanguages.includes(language as typeof supportedLanguages[number])) throw new Error(t('Nicht unterstützte Sprache: {language}', { language }));
+    if (isWailsAvailable()) {
+      const settings = await window.go!.main!.App!.SetUILanguage!(language);
+      setLanguage(settings.uiLanguage || language);
+      return settings;
+    }
+    const current = await this.getSettings();
+    const updated = { ...current, uiLanguage: language };
+    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(updated));
+    setLanguage(language);
+    return updated;
   },
 
   async setAutostart(enabled: boolean): Promise<AppSettings> {
@@ -357,8 +386,8 @@ export const eventBridge = {
     const cleanName = dbName.trim();
     const fileName = cleanName.endsWith('.db') ? cleanName : `${cleanName}.db`;
     const fullPath = `${folderPath || '%APPDATA%\\DoDrag'}\\${fileName}`;
-    if (!cleanName || /[<>:"/\\|?*]/.test(cleanName) || cleanName.endsWith('.')) throw new Error('Datenbankname muss ein reiner Dateiname sein');
-    if (current.knownDatabases.some(entry => entry.path.toLowerCase() === fullPath.toLowerCase() && entry.exists)) throw new Error('Datenbank existiert bereits');
+    if (!cleanName || /[<>:"/\\|?*]/.test(cleanName) || cleanName.endsWith('.')) throw new Error(t('Datenbankname muss ein reiner Dateiname sein'));
+    if (current.knownDatabases.some(entry => entry.path.toLowerCase() === fullPath.toLowerCase() && entry.exists)) throw new Error(t('Datenbank existiert bereits'));
     loadBrowserEvents(); // Never overwrite a corrupt browser history during creation.
     const next: AppSettings = {
       ...current,
@@ -378,7 +407,7 @@ export const eventBridge = {
       try {
         if (oldEvents === null) localStorage.removeItem(LOCAL_STORAGE_KEY); else localStorage.setItem(LOCAL_STORAGE_KEY, oldEvents);
         if (oldSettings === null) localStorage.removeItem(LOCAL_SETTINGS_KEY); else localStorage.setItem(LOCAL_SETTINGS_KEY, oldSettings);
-      } catch (rollback) { throw new Error(`${error}; Ruecksetzen fehlgeschlagen: ${rollback}`); }
+      } catch (rollback) { throw new Error(t('{error}; Ruecksetzen fehlgeschlagen: {rollback}', { error: String(error), rollback: String(rollback) })); }
       throw error;
     }
     return next;

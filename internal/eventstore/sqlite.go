@@ -34,8 +34,9 @@ func NewStore(dbPath string) (*Store, error) {
 	return NewStoreWithOptions(dbPath, true)
 }
 
-// NewStoreWithOptions opens or creates the SQLite database at dbPath and optionally seeds demo data if empty.
-func NewStoreWithOptions(dbPath string, seedDemo bool) (*Store, error) {
+// NewStoreWithOptions opens or creates the database and optionally seeds it if empty.
+// An optional translator applies only to newly seeded titles, never to stored data.
+func NewStoreWithOptions(dbPath string, seedDemo bool, translateTitle ...func(string) string) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -70,7 +71,7 @@ func NewStoreWithOptions(dbPath string, seedDemo bool) (*Store, error) {
 		return nil, fmt.Errorf("validate event store: %w", err)
 	}
 	if seedDemo {
-		if err := s.seedIfEmpty(); err != nil {
+		if err := s.seedIfEmpty(translateTitle...); err != nil {
 			_ = db.Close()
 			return nil, fmt.Errorf("seed initial data: %w", err)
 		}
@@ -334,7 +335,7 @@ func (s *Store) setHistoryUndone(undone bool) ([]Event, error) {
 	return events, nil
 }
 
-func (s *Store) seedIfEmpty() error {
+func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
 	var count int
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM events`).Scan(&count); err != nil {
 		return err
@@ -455,6 +456,9 @@ func (s *Store) seedIfEmpty() error {
 	}
 	defer tx.Rollback()
 	for i, sEv := range seeds {
+		if title, ok := sEv.payload["title"].(string); ok && len(translateTitle) > 0 && translateTitle[0] != nil {
+			sEv.payload["title"] = translateTitle[0](title)
+		}
 		raw, err := json.Marshal(sEv.payload)
 		if err != nil {
 			return err

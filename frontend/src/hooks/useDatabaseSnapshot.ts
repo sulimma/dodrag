@@ -4,6 +4,7 @@ import type { AppSettings } from '../bridge/eventBridge';
 import type { StoredEvent } from '../domain/types';
 import type { PushToast } from './useToasts';
 import type { DragIdentity } from './useTaskDrag';
+import { t, errorText } from '../i18n';
 // Loads confirmed event snapshots and serializes mutations/database changes.
 export function useDatabaseSnapshot(
   pushToast: PushToast,
@@ -28,12 +29,12 @@ export function useDatabaseSnapshot(
     try {
       const updated = await operation();
       if (database !== databaseIdentity.current)
-        throw new Error('Datenbank wurde gewechselt');
+        throw new Error(t('Datenbank wurde gewechselt'));
       confirmedEvents.current = updated;
       setEvents(updated);
       return updated;
     } catch (error) {
-      pushToast(String(error), 'warning');
+      pushToast(errorText(t('Änderung konnte nicht gespeichert werden'), error), 'warning');
       return null;
     } finally {
       mutationBusy.current = false;
@@ -71,9 +72,9 @@ export function useDatabaseSnapshot(
 
   const changeDatabase = async (operation: () => Promise<AppSettings>) => {
     if (dragIdentity.current)
-      throw new Error('Datenbankwechsel erst nach Ende des Ziehens');
+      throw new Error(t('Datenbankwechsel erst nach Ende des Ziehens'));
     if (mutationBusy.current)
-      throw new Error('Eine Aenderung wird noch gespeichert');
+      throw new Error(t('Eine Aenderung wird noch gespeichert'));
     mutationBusy.current = true;
     invalidateSnapshot();
     try {
@@ -96,7 +97,7 @@ export function useDatabaseSnapshot(
       return settings;
     } catch (error) {
       setShowSettingsModal(true);
-      pushToast(String(error), 'warning');
+      pushToast(errorText(t('Datenbankwechsel fehlgeschlagen'), error), 'warning');
       throw error;
     } finally {
       mutationBusy.current = false;
@@ -111,7 +112,7 @@ export function useDatabaseSnapshot(
     await changeDatabase(() =>
       eventBridge.createDatabase(folderPath, dbName, seedDemo)
     );
-    pushToast(`Datenbank „${dbName}“ angelegt und aktiviert`, 'success');
+    pushToast(t('Datenbank „{name}“ angelegt und aktiviert', { name: dbName }), 'success');
   };
 
   const handleOpenExistingDatabase = async () => {
@@ -120,7 +121,7 @@ export function useDatabaseSnapshot(
       eventBridge.openExistingDatabaseDialog()
     );
     if (updatedSettings.activeDatabasePath !== prevPath) {
-      pushToast('Datenbank geöffnet und aktiviert', 'success');
+      pushToast(t('Datenbank geöffnet und aktiviert'), 'success');
     }
   };
 
@@ -131,7 +132,7 @@ export function useDatabaseSnapshot(
     const activeEntry = updatedSettings.knownDatabases.find(
       (d) => d.path.toLowerCase() === dbPath.toLowerCase()
     );
-    pushToast(`Datenbank „${activeEntry?.name || dbPath}“ geladen`, 'info');
+    pushToast(t('Datenbank „{name}“ geladen', { name: activeEntry?.name || dbPath }), 'info');
   };
 
   const handleDeleteDatabase = async (dbPath: string, deleteFile: boolean) => {
@@ -145,7 +146,7 @@ export function useDatabaseSnapshot(
       setShowSettingsModal(true);
     }
     pushToast(
-      `Datenbank „${targetEntry?.name || dbPath}“ ${deleteFile ? 'geloescht' : 'aus Liste entfernt'}`,
+      deleteFile ? t('Datenbank „{name}“ geloescht', { name: targetEntry?.name || dbPath }) : t('Datenbank „{name}“ aus Liste entfernt', { name: targetEntry?.name || dbPath }),
       'warning'
     );
   };
@@ -155,10 +156,14 @@ export function useDatabaseSnapshot(
     setAppSettings(updatedSettings);
     pushToast(
       enabled
-        ? 'Autostart beim Windows-Booten aktiviert'
-        : 'Autostart beim Windows-Booten deaktiviert',
+        ? t('Autostart beim Windows-Booten aktiviert')
+        : t('Autostart beim Windows-Booten deaktiviert'),
       'info'
     );
+  };
+  const handleSetUILanguage = async (language: string) => {
+    const updatedSettings = await eventBridge.setUILanguage(language);
+    setAppSettings(updatedSettings);
   };
   const openSettings = async () => {
     setShowSettingsModal(true);
@@ -167,7 +172,7 @@ export function useDatabaseSnapshot(
         await changeDatabase(() => eventBridge.getSettings());
       else setAppSettings(await eventBridge.getSettings());
     } catch (error) {
-      pushToast(String(error), 'warning');
+      pushToast(errorText(t('Einstellungen konnten nicht geladen werden'), error), 'warning');
     }
   };
   return {
@@ -189,6 +194,7 @@ export function useDatabaseSnapshot(
     handleSwitchDatabase,
     handleDeleteDatabase,
     handleToggleAutostart,
+    handleSetUILanguage,
     openSettings,
   };
 }

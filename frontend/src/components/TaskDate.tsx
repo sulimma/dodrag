@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import type { TaskState } from '../domain/types';
-import { formatIso8601Display, toDateKey } from '../domain/projector';
+import { formatIso8601Display } from '../domain/projector';
 import type { InlineEditor } from './inlineEditor';
+import { t, formatDate } from '../i18n';
 
 // Renders a configured task date and its inline editor.
 export function TaskDate({
@@ -36,10 +37,10 @@ export function TaskDate({
       {editing ? (
         <input
           ref={input}
-          aria-label={`Startdatum ${task.id}`}
+          aria-label={t('Startdatum {id}', { id: task.id })}
           type="text"
           value={editor.value}
-          placeholder="JJJJ-MM-TT"
+          placeholder={t('JJJJ-MM-TT')}
           onChange={(event) => editor.onChange(event.target.value)}
           onBlur={editor.onCommit}
           onKeyDown={(event) => {
@@ -57,16 +58,16 @@ export function TaskDate({
       ) : (
         <button
           type="button"
-          aria-label={`Startdatum ${task.id} bearbeiten`}
+          aria-label={t('Startdatum {id} bearbeiten', { id: task.id })}
           onClick={() => editor.onStart(task)}
-          title={`Konfiguriertes Startdatum: ${display.isoText} (${display.weekdayShort}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)`}
+          title={t('Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)', { date: display.localizedText, weekday: display.weekdayShort })}
           className={`${compact ? 'px-1 text-[10px]' : 'px-2'} py-0.5 rounded border transition-colors hover:border-sky-400 hover:bg-sky-50/60 ${display.isWeekend ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-100/90 text-slate-600 border-slate-200'}`}
         >
           {compact ? (
-            toDateKey(new Date(task.configuredStart))
+            formatDate(task.configuredStart)
           ) : (
             <>
-              {display.isoText}{' '}
+              {display.localizedText}{' '}
               <span
                 className={
                   display.isWeekend

@@ -1,5 +1,6 @@
 import { EventCommand, parseStoredEvent } from './eventSchema';
 import type { StoredEvent } from './types';
+import { t } from '../i18n';
 
 export interface ReplayTask {
   readonly id: string;
@@ -32,7 +33,7 @@ export function replayCommands(events: readonly StoredEvent[]): ReplayState {
   let canRedo = false;
   for (const input of events) {
     const event = parseStoredEvent(input);
-    if (ids.has(event.id) || event.seq <= previousSeq) throw new Error('Duplicate ID or unordered event sequence');
+    if (ids.has(event.id) || event.seq <= previousSeq) throw new Error(t('Duplicate ID or unordered event sequence'));
     ids.add(event.id);
     previousSeq = event.seq;
     canRedo ||= event.undone;
@@ -59,7 +60,7 @@ export function replayCommands(events: readonly StoredEvent[]): ReplayState {
       if (!remaining) queue.push(tasks.get(id)!);
     }
   }
-  if (queue.length !== tasks.size) throw new Error('Dependency cycle in final event history');
+  if (queue.length !== tasks.size) throw new Error(t('Dependency cycle in final event history'));
   const state: ReplayState = { tasks, orderedTasks: queue, activeEventCount, canRedo };
   replayCache.set(events, state);
   return state;
@@ -73,7 +74,7 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
   const p = command.payload;
   const task = tasks.get(p.taskId);
   if (command.type === 'TASK_CREATED') {
-    if (task) throw new Error(`Duplicate task ID: ${p.taskId}`);
+    if (task) throw new Error(t('Duplicate task ID: {id}', { id: p.taskId }));
     tasks.set(p.taskId, {
       id: p.taskId,
       title: command.payload.title,
@@ -86,7 +87,7 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
     });
     return true;
   }
-  if (!task) throw new Error(`Unknown task: ${p.taskId}`);
+  if (!task) throw new Error(t('Unknown task: {id}', { id: p.taskId }));
   switch (command.type) {
     case 'TASK_RENAMED':
       if (task.title === command.payload.title) return false;
@@ -100,7 +101,7 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
       if (task.isActive === command.payload.isActive) return false;
       if (command.payload.isActive &&
         (task.completed || [...task.predecessors].some(id => !tasks.get(id)?.completed))) {
-        throw new Error('Task has open predecessors or is completed');
+        throw new Error(t('Task has open predecessors or is completed'));
       }
       task.isActive = command.payload.isActive;
       break;
@@ -117,13 +118,13 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
       break;
     case 'DEPENDENCY_ADDED': {
       const pred = command.payload.predecessorId;
-      if (!tasks.has(pred)) throw new Error(`Unknown predecessor: ${pred}`);
+      if (!tasks.has(pred)) throw new Error(t('Unknown predecessor: {id}', { id: pred }));
       if (task.predecessors.has(pred)) return false;
       const stack = checkCycle ? [pred] : [];
       const visited = new Set<string>();
       while (stack.length) {
         const current = stack.pop()!;
-        if (current === p.taskId) throw new Error('Dependency cycle');
+        if (current === p.taskId) throw new Error(t('Dependency cycle'));
         if (visited.has(current)) continue;
         visited.add(current);
         stack.push(...tasks.get(current)!.predecessors);
@@ -132,7 +133,7 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
       break;
     }
     case 'DEPENDENCY_REMOVED':
-      if (!tasks.has(command.payload.predecessorId)) throw new Error('Unknown predecessor');
+      if (!tasks.has(command.payload.predecessorId)) throw new Error(t('Unknown predecessor'));
       return task.predecessors.delete(command.payload.predecessorId);
   }
   return true;

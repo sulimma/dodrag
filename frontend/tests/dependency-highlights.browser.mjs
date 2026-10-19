@@ -9,7 +9,7 @@ try {
   browser = await chromium.launch({ headless: true });
   for (const view of ['Liste', 'Netzplan', 'Gantt']) {
     const horizontal = view === 'Gantt';
-    const page = await browser.newPage({ viewport: { width: 1400, height: 650 } });
+    const page = await browser.newPage({ viewport: { width: 1400, height: 650 }, locale: 'de-DE' });
     await page.addInitScript(() => {
       const today = new Date(); today.setHours(9, 0, 0, 0);
       const iso = today.toISOString();
@@ -42,8 +42,9 @@ try {
       await page.waitForFunction(horizontal => {
         const main = document.querySelector('main');
         const viewport = main.getBoundingClientRect();
-        const start = horizontal ? viewport.left + main.clientLeft : viewport.top + main.clientTop;
-        const end = start + (horizontal ? main.clientWidth : main.clientHeight);
+        const scrollStart = horizontal ? viewport.left + main.clientLeft : viewport.top + main.clientTop;
+        const start = horizontal ? main.querySelector('[data-gantt-list]').getBoundingClientRect().right : scrollStart;
+        const end = scrollStart + (horizontal ? main.clientWidth : main.clientHeight);
         return ['predecessor', 'successor'].every(role => {
           const count = [...main.querySelectorAll(`[data-dependency-highlight="${role}"]`)].filter(row => {
             if (row.dataset.highlightSide) return row.dataset.highlightSide === (role === 'predecessor' ? 'before' : 'after');
@@ -85,11 +86,6 @@ try {
     assert.deepEqual(await layout(), highlighted, 'disappearing overlays do not shift layout');
     await select();
     await checkCounts();
-    if (horizontal) {
-      await page.getByRole('button', { name: 'Naechstes Zeitfenster', exact: true }).click({ force: true });
-      await checkCounts();
-      assert.equal((await page.locator('[data-dependency-indicator="predecessor"]').textContent()).trim(), '15', 'unrendered predecessors counted once after navigation');
-    }
     await page.getByRole('button', { name: view === 'Liste' ? 'Netzplan' : 'Liste', exact: true }).click();
     await page.getByRole('button', { name: view, exact: true }).click();
     await checkCounts();

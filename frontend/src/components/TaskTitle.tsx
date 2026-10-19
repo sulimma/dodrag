@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { TaskState } from '../domain/types';
 import type { InlineEditor } from './inlineEditor';
+import { t } from '../i18n';
 // Renders a task title as text or its active inline editor.
 export function TaskTitle({
   task,
@@ -23,7 +24,7 @@ export function TaskTitle({
     return (
       <input
         ref={input}
-        aria-label={`Titel ${task.id}`}
+        aria-label={t('Titel {id}', { id: task.id })}
         value={editor.value}
         onChange={(event) => editor.onChange(event.target.value)}
         onClick={(event) => event.stopPropagation()}

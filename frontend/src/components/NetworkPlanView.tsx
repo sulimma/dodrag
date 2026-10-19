@@ -18,6 +18,7 @@ import { edgesWithPreview } from '../domain/dependencyPaths';
 import { stableTopology } from '../domain/topology';
 import { TaskDragHandle } from './TaskDragHandle';
 import { arrowBase, ArrowMarkers } from './arrowGeometry';
+import { t, useLanguage } from '../i18n';
 
 interface NetworkPlanViewProps extends TaskViewInteractions {
   titleEditor: InlineEditor;
@@ -107,6 +108,7 @@ export function buildCleanEdgePath(
 
 // Renders tasks by dependency topology and routes their drag interactions.
 export function NetworkPlanView(props: NetworkPlanViewProps) {
+  const language = useLanguage();
   const {
     openTasks,
     now,
@@ -432,7 +434,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
       canvasWidth,
       canvasHeight,
     };
-  }, [openTasks, now, containerWidth, deletionPreview.join('|')]);
+  }, [openTasks, now, containerWidth, deletionPreview.join('|'), language]);
 
   return (
     <div
@@ -632,6 +634,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
                 {task.predecessorIds.length === 0 && (
                   <button
                     type="button"
+                    aria-label={task.isActive ? t('Deaktivieren (Space)') : t('Aktivieren (Space)')}
                     onClick={(e) => {
                       e.stopPropagation();
                       onToggleActive(task);

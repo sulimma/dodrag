@@ -863,7 +863,7 @@ func createJumpListShellLink(exePath string, args string, title string, descript
 	return shellLink
 }
 
-func registerTaskbarJumpList() {
+func registerTaskbarJumpList(language string) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	exePath, err := os.Executable()
@@ -922,7 +922,7 @@ func registerTaskbarJumpList() {
 	}
 	defer comRelease(objCollection)
 
-	linkRestore := createJumpListShellLink(exePath, "--restore", "Wiederherstellen", "DoDrag Hauptfenster wiederherstellen")
+	linkRestore := createJumpListShellLink(exePath, "--restore", backendText(language, "Wiederherstellen"), backendText(language, "DoDrag Hauptfenster wiederherstellen"))
 	if linkRestore != 0 {
 		// AddObject (index 5)
 		hr, _, _ = syscall.SyscallN(comVtableMethod(objCollection, 5), objCollection, linkRestore)
@@ -932,7 +932,7 @@ func registerTaskbarJumpList() {
 		}
 	}
 
-	linkMinimize := createJumpListShellLink(exePath, "--minimize", "Minimieren", "DoDrag in die Kompaktansicht minimieren")
+	linkMinimize := createJumpListShellLink(exePath, "--minimize", backendText(language, "Minimieren"), backendText(language, "DoDrag in die Kompaktansicht minimieren"))
 	if linkMinimize != 0 {
 		// AddObject (index 5)
 		hr, _, _ = syscall.SyscallN(comVtableMethod(objCollection, 5), objCollection, linkMinimize)

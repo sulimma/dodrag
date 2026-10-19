@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { futureLimit, localDate } from '../domain/dates';
+import React, { useMemo } from 'react';
+import { futureLimit } from '../domain/dates';
 import { Flame, GripVertical } from 'lucide-react';
 import {
   computeTransitiveReductionEdges,
@@ -16,6 +16,7 @@ import type { TaskViewInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
 import { TaskDragHandle } from './TaskDragHandle';
 import { arrowBase, ArrowMarkers } from './arrowGeometry';
+import { t, formatDate, useLanguage } from '../i18n';
 
 interface GanttViewProps extends TaskViewInteractions {
   titleEditor: InlineEditor;
@@ -98,6 +99,7 @@ export function buildChannelGanttPath(
 
 // Renders task dates and dependencies on a horizontal timeline.
 export function GanttView(props: GanttViewProps) {
+  const language = useLanguage();
   const {
     openTasks,
     listEntries,
@@ -119,15 +121,14 @@ export function GanttView(props: GanttViewProps) {
     titleEditor,
     deletionPreview,
   } = props;
-  const [windowStart, setWindowStart] = useState(() => toDateKey(now));
   const layout = useMemo(() => {
     const todayKey = toDateKey(now);
 
-    // A bounded, navigable 42-day window; legacy dates never expand the axis.
+    // A bounded 42-day window starting today; legacy dates never expand the axis.
     const calendarDays: CalendarDayCol[] = [];
     const dateKeyToCol = new Map<string, number>();
 
-    const [sy, sm, sd] = windowStart.split('-').map(Number);
+    const [sy, sm, sd] = todayKey.split('-').map(Number);
     const cur = new Date(sy, (sm || 1) - 1, sd || 1);
 
     let colIdx = 0;
@@ -331,24 +332,19 @@ export function GanttView(props: GanttViewProps) {
       canvasWidth,
       canvasHeight,
     };
-  }, [openTasks, listEntries, now, windowStart, deletionPreview.join('|')]);
-
-  const navigate = (days: number) => {
-    const [y,m,d] = windowStart.split('-').map(Number);
-    const date = localDate(y,m,d); date.setDate(date.getDate()+days);
-    const today = localDate(now.getFullYear(),now.getMonth()+1,now.getDate());
-    const last = futureLimit(now); last.setDate(last.getDate()-41);
-    setWindowStart(toDateKey(new Date(Math.max(today.getTime(),Math.min(last.getTime(),date.getTime())))));
-  };
+  }, [openTasks, listEntries, now, deletionPreview.join('|'), language]);
 
   const dropDay = (event: React.DragEvent<HTMLDivElement>) => {
-    const x = event.clientX - event.currentTarget.getBoundingClientRect().left;
+    const root = event.currentTarget;
+    const listRight = root.querySelector<HTMLElement>('[data-gantt-list]')?.getBoundingClientRect().right;
+    if (listRight !== undefined && event.clientX < listRight) return undefined;
+    const x = event.clientX - root.getBoundingClientRect().left;
     return layout.calendarDays[Math.floor((x - LEFT_LIST_WIDTH) / DAY_COL_WIDTH)];
   };
 
   return (
     <div
-      className="relative bg-white/80 rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden mx-auto"
+      className="relative bg-white/80 rounded-2xl border border-slate-200/90 shadow-xs overflow-clip my-5 mx-auto"
       style={{
         width: layout.canvasWidth,
         minHeight: layout.canvasHeight,
@@ -380,23 +376,18 @@ export function GanttView(props: GanttViewProps) {
     >
       {/* Left Task List Column (written-out task names stacked vertically) */}
       <div
+        data-gantt-list
         style={{
-          left: 0,
-          top: 0,
           width: LEFT_LIST_WIDTH,
           height: layout.canvasHeight,
         }}
-        className="absolute z-30 bg-white/95 border-r border-slate-300"
+        className="sticky left-0 z-40 bg-white/95 border-r border-slate-300"
       >
         {/* Left List Header */}
         <div
           style={{ height: HEADER_HEIGHT }}
-          className="w-full border-b border-slate-300/90 bg-slate-100/85 px-3 flex items-center text-[11px] font-semibold uppercase tracking-wider text-slate-500 select-none"
-        >
-          <button type="button" onClick={() => navigate(-35)} aria-label="Vorheriges Zeitfenster">&lt;</button>
-          <button type="button" onClick={() => setWindowStart(toDateKey(now))} className="mx-2">Heute</button>
-          <button type="button" onClick={() => navigate(35)} aria-label="Naechstes Zeitfenster">&gt;</button>
-        </div>
+          className="w-full border-b border-slate-300/90 bg-slate-100 select-none sticky top-0 z-10"
+        />
 
         {/* Left List Task Rows */}
         {layout.barList.map(({ task, rowIndex }) => {
@@ -438,6 +429,7 @@ export function GanttView(props: GanttViewProps) {
               {task.predecessorIds.length === 0 && (
                 <button
                   type="button"
+                  aria-label={task.isActive ? t('Deaktivieren (Space)') : t('Aktivieren (Space)')}
                   onClick={(e) => {
                     e.stopPropagation();
                     onToggleActive(task);
@@ -497,14 +489,14 @@ export function GanttView(props: GanttViewProps) {
             {/* Compact Calendar Day Header (ISO-8601 YYYY-MM-DD + Weekday) */}
             <div
               style={{ height: HEADER_HEIGHT }}
-              className={`w-full border-b px-1.5 flex flex-col justify-center items-start select-none ${
+              className={`w-full border-b px-1.5 flex flex-col justify-center items-start select-none sticky top-0 z-30 ${
                 isDropActive
-                  ? 'border-sky-400 bg-sky-100/80'
+                  ? 'border-sky-400 bg-sky-100'
                   : day.isWeekend
-                  ? 'border-amber-300/90 bg-amber-100/45'
+                  ? 'border-amber-300/90 bg-amber-100'
                   : day.isToday
-                  ? 'border-indigo-300/90 bg-indigo-100/45'
-                  : 'border-slate-300/90 bg-slate-100/75'
+                  ? 'border-indigo-300/90 bg-indigo-100'
+                  : 'border-slate-300/90 bg-slate-100'
               }`}
               onClick={() => onClearTaskSelection()}
             >
@@ -518,7 +510,7 @@ export function GanttView(props: GanttViewProps) {
                       : 'text-slate-700'
                   }`}
                 >
-                  {day.dateKey}
+                  {formatDate(day.isoDate)}
                 </span>
                 <span
                   className={`text-[9px] font-semibold px-1 py-0.1 rounded ${
@@ -644,7 +636,7 @@ export function GanttView(props: GanttViewProps) {
         const effectiveKey = task.effectiveDateKey < toDateKey(now) ? toDateKey(now) : task.effectiveDateKey;
         return <span key={`offscreen-${task.id}`} hidden
           data-dependency-highlight={role?.startsWith('predecessor-') ? 'predecessor' : role?.startsWith('successor-') ? 'successor' : undefined}
-          data-highlight-side={effectiveKey < windowStart ? 'before' : 'after'} />;
+          data-highlight-side={effectiveKey < toDateKey(now) ? 'before' : 'after'} />;
       })}
       {layout.barList.map(({ task, x, y, width, height }) => {
         const role: HighlightRole = highlights[task.id] ?? null;
@@ -652,7 +644,7 @@ export function GanttView(props: GanttViewProps) {
         const isDropTarget =
           activeDropTargetKey === dropKey && draggedTaskId !== task.id;
         const isBeingDragged = draggedTaskId === task.id;
-        const configuredDate = toDateKey(new Date(task.configuredStart));
+        const configuredDate = formatDate(task.configuredStart);
 
         const appearance = taskAppearanceRole(task, role, isDropTarget, isShiftDrag);
 
@@ -689,7 +681,7 @@ export function GanttView(props: GanttViewProps) {
               width,
               height,
             }}
-            title={`${task.id}: ${task.title} (${configuredDate}). Auf Datum ziehen: Startdatum setzen; auf Task ziehen: Vorgänger setzen; Shift: Kanten lösen.`}
+            title={t('{id}: {title} ({date}). Auf Datum ziehen: Startdatum setzen; auf Task ziehen: Vorgänger setzen; Shift: Kanten lösen.', { id: task.id, title: task.title, date: configuredDate })}
             {...taskInteractions(task.id, dropKey, props)}
             className={`absolute z-20 rounded-lg border px-1 flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors font-mono text-[11px] ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''

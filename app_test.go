@@ -13,7 +13,7 @@ import (
 func testApp(t *testing.T) *App {
 	t.Helper()
 	dir := t.TempDir()
-	a := &App{appDir: dir, settingsPath: filepath.Join(dir, "settings.json"), demoDBPath: filepath.Join(dir, "dodrag.db"), settings: AppSettings{KnownDatabases: []DatabaseEntry{}}}
+	a := &App{appDir: dir, settingsPath: filepath.Join(dir, "settings.json"), demoDBPath: filepath.Join(dir, "dodrag.db"), settings: AppSettings{KnownDatabases: []DatabaseEntry{}, UILanguage: "de"}}
 	t.Cleanup(func() {
 		if a.store != nil {
 			a.store.Close()

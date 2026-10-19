@@ -7,7 +7,7 @@ import {
 } from './types';
 import { calendarDistance, localDate } from './dates';
 import { replayCommands } from './commands';
-const weekdayFormatter = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
+import { t, locale, formatDate, formatNumber, getLanguage } from '../i18n';
 
 function compareTaskDates(a: TaskState, b: TaskState): number {
   return Date.parse(a.effectiveStart) - Date.parse(b.effectiveStart) ||
@@ -62,6 +62,7 @@ export function isWeekendDate(dateOrKey: Date | string): boolean {
  */
 export function formatIso8601Display(isoString: string): {
   isoText: string;
+  localizedText: string;
   weekdayShort: string;
   isWeekend: boolean;
 } {
@@ -72,12 +73,13 @@ export function formatIso8601Display(isoString: string): {
   const mm = String(dt.getMinutes()).padStart(2, '0');
   const seconds = dt.getSeconds() ? `:${String(dt.getSeconds()).padStart(2,'0')}` : '';
   const isoText = hasCustomTime ? `${datePart} ${hh}:${mm}${seconds}` : datePart;
-  const weekdayShort = weekdayFormatter
+  const weekdayShort = new Intl.DateTimeFormat(locale, { weekday: 'short' })
     .format(dt)
     .replace('.', '');
   const day = dt.getDay();
   return {
     isoText,
+    localizedText: getLanguage() === 'de' ? isoText : formatDate(dt, { year: 'numeric', month: '2-digit', day: '2-digit', ...(hasCustomTime ? { hour: '2-digit', minute: '2-digit', ...(dt.getSeconds() ? { second: '2-digit' } : {}) } : {}) }),
     weekdayShort,
     isWeekend: day === 0 || day === 6,
   };
@@ -107,17 +109,17 @@ export function formatDateHeading(
   const dayOfWeek = target.getDay();
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-  const weekdayShort = weekdayFormatter
+  const weekdayShort = new Intl.DateTimeFormat(locale, { weekday: 'short' })
     .format(target)
     .replace('.', '');
 
   // Always show ISO-8601 (YYYY-MM-DD) prominently in label
-  const isoLabel = `${dateKey} (${weekdayShort})`;
+  const isoLabel = t('{date} ({weekday})', { date: formatDate(target), weekday: weekdayShort });
 
   if (dateKey === todayKey) {
     return {
       label: isoLabel,
-      subLabel: 'Heute',
+      subLabel: t('Heute'),
       isToday: true,
       isWeekend,
       weekdayShort,
@@ -126,7 +128,7 @@ export function formatDateHeading(
   if (dateKey === tomorrowKey) {
     return {
       label: isoLabel,
-      subLabel: 'Morgen',
+      subLabel: t('Morgen'),
       isToday: false,
       isWeekend,
       weekdayShort,
@@ -135,7 +137,7 @@ export function formatDateHeading(
   if (dateKey === dayAfterKey) {
     return {
       label: isoLabel,
-      subLabel: 'Übermorgen',
+      subLabel: t('Übermorgen'),
       isToday: false,
       isWeekend,
       weekdayShort,
@@ -147,7 +149,7 @@ export function formatDateHeading(
   const diffDays = Math.round((targetMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
 
   const relative =
-    diffDays > 0 ? `in ${diffDays} Tagen` : `vor ${Math.abs(diffDays)} Tagen`;
+    diffDays > 0 ? t('in {count} Tagen', { count: formatNumber(diffDays) }) : t('vor {count} Tagen', { count: formatNumber(Math.abs(diffDays)) });
 
   return {
     label: isoLabel,

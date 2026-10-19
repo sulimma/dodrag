@@ -11,6 +11,9 @@ import {
   X,
 } from 'lucide-react';
 import type { AppSettings, DatabaseEntry } from '../bridge/eventBridge';
+import { t, formatDate, useLanguage, supportedLanguages, languageNames, errorText } from '../i18n';
+
+const PROJECT_URL = 'https://github.com/sulimma/dodrag';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -22,15 +25,15 @@ interface SettingsModalProps {
   onSwitchDatabase: (dbPath: string) => Promise<void>;
   onDeleteDatabase: (dbPath: string, deleteFile: boolean) => Promise<void>;
   onToggleAutostart: (enabled: boolean) => Promise<void>;
+  onSetUILanguage?: (language: string) => Promise<void>;
 }
 
 // Build time arrives as RFC3339 (UTC); show it in the local zone, keeping the raw value on parse failure.
 export function formatBuildTime(raw?: string): string {
-  if (!raw) return 'unbekannt';
+  if (!raw) return t('unbekannt');
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return raw;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(parsed.getDate())}.${pad(parsed.getMonth() + 1)}.${parsed.getFullYear()} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+  return formatDate(parsed, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(', ', ' ');
 }
 
 // Manages database selection, creation, deletion, and application settings.
@@ -44,7 +47,9 @@ export function SettingsModal({
   onSwitchDatabase,
   onDeleteDatabase,
   onToggleAutostart,
+  onSetUILanguage,
 }: SettingsModalProps) {
+  const language = useLanguage();
   const [folderPath, setFolderPath] = useState<string>('');
   const [dbName, setDbName] = useState<string>('');
   const [seedDemo, setSeedDemo] = useState(() => !settings.knownDatabases.some(entry => entry.exists));
@@ -55,6 +60,11 @@ export function SettingsModal({
   const [busy, setBusy] = useState<boolean>(false);
 
   const isDbReady = Boolean(settings.databaseReady);
+
+  const openProjectPage = () => {
+    if (window.runtime?.BrowserOpenURL) window.runtime.BrowserOpenURL(PROJECT_URL);
+    else window.open(PROJECT_URL, '_blank', 'noopener,noreferrer');
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -74,7 +84,7 @@ export function SettingsModal({
         setFolderPath(picked);
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Ordnerauswahl fehlgeschlagen');
+      setErrorMsg(errorText(t('Ordnerauswahl fehlgeschlagen'), err));
     }
   };
 
@@ -82,7 +92,7 @@ export function SettingsModal({
     e.preventDefault();
     setErrorMsg(null);
     if (!dbName.trim()) {
-      setErrorMsg('Bitte einen Namen für die neue Datenbank eingeben.');
+      setErrorMsg(t('Bitte einen Namen für die neue Datenbank eingeben.'));
       return;
     }
     setBusy(true);
@@ -91,9 +101,7 @@ export function SettingsModal({
       setDbName('');
     } catch (err: any) {
       setErrorMsg(
-        typeof err === 'string'
-          ? err
-          : err?.message || 'Datenbank konnte nicht angelegt werden.'
+        errorText(t('Datenbank konnte nicht angelegt werden.'), err)
       );
     } finally {
       setBusy(false);
@@ -107,9 +115,7 @@ export function SettingsModal({
       await onSwitchDatabase(entry.path);
     } catch (err: any) {
       setErrorMsg(
-        typeof err === 'string'
-          ? err
-          : err?.message || 'Wechsel der Datenbank fehlgeschlagen.'
+        errorText(t('Wechsel der Datenbank fehlgeschlagen.'), err)
       );
     } finally {
       setBusy(false);
@@ -124,9 +130,7 @@ export function SettingsModal({
       setConfirmDeletePath(null);
     } catch (err: any) {
       setErrorMsg(
-        typeof err === 'string'
-          ? err
-          : err?.message || 'Löschen der Datenbank fehlgeschlagen.'
+        errorText(t('Löschen der Datenbank fehlgeschlagen.'), err)
       );
     } finally {
       setBusy(false);
@@ -153,11 +157,11 @@ export function SettingsModal({
             <div>
               <h2 className="text-base font-bold text-slate-900">
                 {!isDbReady
-                  ? 'Datenbank auswählen oder anlegen'
-                  : 'Einstellungen & Datenbanken'}
+                  ? t('Datenbank auswählen oder anlegen')
+                  : t('Einstellungen & Datenbanken')}
               </h2>
               <p className="text-xs text-slate-500">
-                Speicherort z. B. für Google Drive Sync & Backup verwalten
+                {t('Speicherort z. B. für Google Drive Sync & Backup verwalten')}
               </p>
             </div>
           </div>
@@ -167,7 +171,7 @@ export function SettingsModal({
               disabled={busy}
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
-              title="Schließen"
+              title={t('Schließen')}
             >
               <X className="w-4 h-4" />
             </button>
@@ -180,17 +184,13 @@ export function SettingsModal({
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-900">
               {settings.activeDatabasePath ? (
                 <>
-                  <strong>Datenbank nicht verfügbar:</strong> Die ausgewählte
-                  Datenbank (<span className="font-mono">{settings.activeDatabasePath}</span>)
-                  konnte nicht geöffnet werden (evtl. verschoben oder gelöscht).
-                  Bitte wähle eine Datenbank aus oder lege eine neue an.
+                  <strong>{t('Datenbank nicht verfügbar:')}</strong>{' '}
+                  {t('Die ausgewählte Datenbank ({path}) konnte nicht geöffnet werden (evtl. verschoben oder gelöscht). Bitte wähle eine Datenbank aus oder lege eine neue an.', { path: settings.activeDatabasePath })}
                 </>
               ) : (
                 <>
-                  <strong>Keine Datenbank geöffnet:</strong> Bitte wähle eine
-                  vorhandene Datenbank (z. B. die{' '}
-                  <span className="font-semibold">Demo-Datenbank</span>) oder
-                  lege unten eine neue Datenbank an.
+                  <strong>{t('Keine Datenbank geöffnet:')}</strong>{' '}
+                  {t('Bitte wähle eine vorhandene Datenbank (z. B. die Demo-Datenbank) oder lege unten eine neue Datenbank an.')}
                 </>
               )}
             </div>
@@ -208,10 +208,10 @@ export function SettingsModal({
               setBusy(true);
               setErrorMsg(null);
               try { await onReloadDatabase(); }
-              catch (error) { setErrorMsg(String(error)); }
+              catch (error) { setErrorMsg(errorText(t('Datenbank konnte nicht geladen werden'), error)); }
               finally { setBusy(false); }
             }} className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs disabled:opacity-40">
-              Aktive Datenbank erneut laden
+              {t('Aktive Datenbank erneut laden')}
             </button>
           )}
 
@@ -220,19 +220,19 @@ export function SettingsModal({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                 <Database className="w-3.5 h-3.5 text-slate-400" />
-                <span>Bekannte Datenbanken</span>
+                <span>{t('Bekannte Datenbanken')}</span>
               </label>
               <button
                 type="button"
                 disabled={busy}
                 onClick={async () => {
                   setBusy(true); setErrorMsg(null);
-                  try { await onOpenExistingDatabase(); } catch (error) { setErrorMsg(String(error)); } finally { setBusy(false); }
+                  try { await onOpenExistingDatabase(); } catch (error) { setErrorMsg(errorText(t('Datenbank konnte nicht geöffnet werden'), error)); } finally { setBusy(false); }
                 }}
                 className="text-xs font-medium text-sky-700 hover:text-sky-800 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-sky-50 transition-colors"
               >
                 <FolderOpen className="w-3.5 h-3.5" />
-                <span>Vorhandene Datei öffnen…</span>
+                <span>{t('Vorhandene Datei öffnen…')}</span>
               </button>
             </div>
 
@@ -268,18 +268,18 @@ export function SettingsModal({
                           </span>
                           {entry.isDemo && (
                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                              Demo
+                              {t('Demo')}
                             </span>
                           )}
                           {isActive && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-0.5">
                               <Check className="w-3 h-3" />
-                              Aktiv
+                              {t('Aktiv')}
                             </span>
                           )}
                           {isMissing && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">
-                              Datei fehlt
+                              {t('Datei fehlt')}
                             </span>
                           )}
                         </div>
@@ -299,7 +299,7 @@ export function SettingsModal({
                             onClick={() => handleSwitch(entry)}
                             className="px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 hover:bg-sky-600 hover:text-white text-slate-700 disabled:opacity-40 disabled:pointer-events-none transition-colors"
                           >
-                            Verwenden
+                            {t('Verwenden')}
                           </button>
                         )}
 
@@ -311,7 +311,7 @@ export function SettingsModal({
                               isConfirmingDelete ? null : entry.path
                             )
                           }
-                          title="Datenbank löschen"
+                          title={t('Datenbank löschen')}
                           className={`p-1.5 rounded-lg border transition-colors ${
                             isConfirmingDelete
                               ? 'bg-rose-100 border-rose-300 text-rose-700'
@@ -326,7 +326,7 @@ export function SettingsModal({
                     {isConfirmingDelete && (
                       <div className="mt-2.5 pt-2.5 border-t border-rose-200 flex items-center justify-between gap-2 bg-rose-50/70 -mx-3 -mb-3 px-3 py-2 rounded-b-xl">
                         <span className="text-xs text-rose-800 font-medium">
-                          Datenbank „{entry.name}“ wirklich vom Rechner löschen?
+                          {t('Datenbank „{name}“ wirklich vom Rechner löschen?', { name: entry.name })}
                         </span>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button
@@ -335,7 +335,7 @@ export function SettingsModal({
                             onClick={() => setConfirmDeletePath(null)}
                             className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
                           >
-                            Abbrechen
+                            {t('Abbrechen')}
                           </button>
                           <button
                             type="button"
@@ -343,7 +343,7 @@ export function SettingsModal({
                             onClick={() => handleConfirmDelete(entry.path, false)}
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-300"
                           >
-                            Aus Liste entfernen
+                            {t('Aus Liste entfernen')}
                           </button>
                           <button
                             type="button"
@@ -351,7 +351,7 @@ export function SettingsModal({
                             onClick={() => handleConfirmDelete(entry.path, true)}
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700"
                           >
-                            Endgültig löschen
+                            {t('Endgültig löschen')}
                           </button>
                         </div>
                       </div>
@@ -369,24 +369,24 @@ export function SettingsModal({
           >
             <div className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5 text-sky-600" />
-              <span>Neue Datenbank anlegen</span>
+              <span>{t('Neue Datenbank anlegen')}</span>
             </div>
 
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-xs text-slate-700">
                 <input type="checkbox" checked={seedDemo} onChange={event => setSeedDemo(event.target.checked)} disabled={busy} />
-                Mit Demodaten befuellen
+                {t('Mit Demodaten befuellen')}
               </label>
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Speicherort (z. B. Google-Drive-Ordner)
+                  {t('Speicherort (z. B. Google-Drive-Ordner)')}
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={folderPath}
                     onChange={(e) => setFolderPath(e.target.value)}
-                    placeholder="Standard: %APPDATA%\DoDrag (oder Ordner wählen)"
+                    placeholder={t('Standard: %APPDATA%\\DoDrag (oder Ordner wählen)')}
                     className="flex-1 px-3 py-1.5 text-xs font-mono bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500"
                   />
                   <button
@@ -395,21 +395,21 @@ export function SettingsModal({
                     className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-1.5 shrink-0"
                   >
                     <FolderOpen className="w-3.5 h-3.5 text-sky-600" />
-                    <span>Ordner wählen…</span>
+                    <span>{t('Ordner wählen…')}</span>
                   </button>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Name der neuen Datenbank
+                  {t('Name der neuen Datenbank')}
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={dbName}
                     onChange={(e) => setDbName(e.target.value)}
-                    placeholder="z. B. meine-aufgaben.db"
+                    placeholder={t('z. B. meine-aufgaben.db')}
                     className="flex-1 px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500"
                   />
                   <button
@@ -417,7 +417,7 @@ export function SettingsModal({
                     disabled={busy || !dbName.trim()}
                     className="px-3.5 py-1.5 rounded-xl bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
                   >
-                    Anlegen & Öffnen
+                    {t('Anlegen & Öffnen')}
                   </button>
                 </div>
               </div>
@@ -432,11 +432,10 @@ export function SettingsModal({
               </div>
               <div>
                 <div className="text-sm font-semibold text-slate-900">
-                  Beim Booten automatisch starten
+                  {t('Beim Booten automatisch starten')}
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Startet DoDrag automatisch bei der Windows-Anmeldung im
-                  Hintergrund (minimiert).
+                  {t('Startet DoDrag automatisch bei der Windows-Anmeldung im Hintergrund (minimiert).')}
                 </p>
               </div>
             </div>
@@ -444,6 +443,7 @@ export function SettingsModal({
             <button
               type="button"
               role="switch"
+              aria-label={t('Beim Booten automatisch starten')}
               aria-checked={Boolean(settings.autostart)}
               disabled={busy}
               onClick={async () => {
@@ -453,10 +453,7 @@ export function SettingsModal({
                   await onToggleAutostart(!settings.autostart);
                 } catch (err: any) {
                   setErrorMsg(
-                    typeof err === 'string'
-                      ? err
-                      : err?.message ||
-                          'Autostart-Einstellung konnte nicht geändert werden.'
+                    errorText(t('Autostart-Einstellung konnte nicht geändert werden.'), err)
                   );
                 } finally {
                   setBusy(false);
@@ -473,20 +470,39 @@ export function SettingsModal({
               />
             </button>
           </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-4">
+            <label htmlFor="ui-language" className="text-sm font-semibold text-slate-900">{t('Sprache (Language)')}</label>
+            <select id="ui-language" value={language} disabled={busy || !onSetUILanguage}
+              className="max-w-[65%] rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
+              onChange={async event => {
+                const next = event.target.value;
+                setBusy(true); setErrorMsg(null);
+                try { await onSetUILanguage?.(next); }
+                catch (error) { setErrorMsg(errorText(t('Sprache konnte nicht geändert werden'), error)); }
+                finally { setBusy(false); }
+              }}>
+              {supportedLanguages.map(code => <option key={code} value={code} lang={code}>{languageNames[code]}</option>)}
+            </select>
+          </div>
         </div>
 
         {/* Footer */}
         <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
-          <span className="text-[11px] text-slate-500 font-mono truncate">
-            DoDrag v{settings.version || '0.1.2'} · Build {formatBuildTime(settings.buildTime)}
-          </span>
+          <button
+            type="button"
+            onClick={openProjectPage}
+            title={t('GitHub-Projekt im Browser öffnen')}
+            className="text-[11px] text-slate-500 font-mono truncate hover:text-sky-700 hover:underline"
+          >
+            {t('DoDrag v{version} · Build {time}', { version: settings.version || '0.1.2', time: formatBuildTime(settings.buildTime) })}
+          </button>
           <button
             type="button"
             disabled={!isDbReady || busy}
             onClick={onClose}
             className="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-medium hover:bg-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
-            Fertig
+            {t('Fertig')}
           </button>
         </div>
       </div>

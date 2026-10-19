@@ -6,6 +6,7 @@ import {
 } from '../domain/projector';
 import type { TaskState } from '../domain/types';
 import type { TaskViewInteractions } from './taskInteractions';
+import { t, formatNumber } from '../i18n';
 const RESUBMIT_TARGETS: Array<{
   id: QuickResubmitTargetId;
   label: string;
@@ -77,7 +78,7 @@ export function TaskSidebar({
     <aside className="w-80 border-l border-slate-200 bg-white/90 p-4 flex flex-col gap-4 shrink-0 overflow-hidden">
       <div className="space-y-2 shrink-0">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 px-1">
-          Wiedervorlage
+          {t('Wiedervorlage')}
         </h2>
 
         <div className="space-y-1.5">
@@ -110,7 +111,7 @@ export function TaskSidebar({
                       target.id,
                       tasks[tId]
                     );
-                    onSetConfiguredDate(tId, targetIso, target.label);
+                    onSetConfiguredDate(tId, targetIso, t(target.label));
                   }
                 }}
                 onClick={() => {
@@ -122,7 +123,7 @@ export function TaskSidebar({
                     onSetConfiguredDate(
                       selectedTaskId,
                       targetIso,
-                      target.label
+                      t(target.label)
                     );
                   }
                 }}
@@ -138,10 +139,10 @@ export function TaskSidebar({
                   </div>
                   <div>
                     <div className="text-xs font-semibold text-slate-800">
-                      {target.label}
+                      {t(target.label)}
                     </div>
                     <div className="text-[10px] text-slate-500">
-                      {target.sublabel}
+                      {t(target.sublabel)}
                     </div>
                   </div>
                 </div>
@@ -183,34 +184,34 @@ export function TaskSidebar({
         <div className="px-3 py-2.5 border-b border-slate-200/80 bg-white/70 flex items-center justify-between shrink-0">
           <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            Erledigte Tasks ({completedTasks.length})
+            {t('Erledigte Tasks ({count})', { count: formatNumber(completedTasks.length) })}
           </span>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5">
           {completedTasks.length === 0 ? (
             <div className="h-full flex items-center justify-center text-[11px] text-slate-400 text-center px-3">
-              Tasks hierher ziehen, um sie als erledigt abzulegen
+              {t('Tasks hierher ziehen, um sie als erledigt abzulegen')}
             </div>
           ) : (
-            completedTasks.map((t) => (
+            completedTasks.map((task) => (
               <div
-                key={t.id}
+                key={task.id}
                 className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs"
               >
                 <div className="truncate min-w-0">
                   <span className="font-mono text-[11px] text-slate-400 mr-1.5">
-                    {t.id}
+                    {task.id}
                   </span>
-                  <span className="line-through text-slate-500">{t.title}</span>
+                  <span className="line-through text-slate-500">{task.title}</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => onReopenTask(t.id)}
-                  title="Task wieder öffnen"
+                  onClick={() => onReopenTask(task.id)}
+                  title={t('Task wieder öffnen')}
                   className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[10px] text-slate-600 shrink-0"
                 >
-                  Öffnen
+                  {t('Öffnen')}
                 </button>
               </div>
             ))

@@ -1,5 +1,6 @@
 import React, { RefObject, useLayoutEffect, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from 'lucide-react';
+import { t, formatNumber } from '../i18n';
 
 // Counts highlighted dependencies currently outside the scroll viewport.
 export function DependencyHighlightIndicators({ scrollRef, contentKey, horizontal }: {
@@ -7,7 +8,7 @@ export function DependencyHighlightIndicators({ scrollRef, contentKey, horizonta
   contentKey: unknown;
   horizontal: boolean;
 }) {
-  const [counts, setCounts] = useState({ predecessors: 0, successors: 0 });
+  const [counts, setCounts] = useState({ predecessors: 0, successors: 0, predecessorLeft: 8 });
 
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
@@ -16,8 +17,13 @@ export function DependencyHighlightIndicators({ scrollRef, contentKey, horizonta
     let frame = 0;
     const measure = () => {
       const viewport = scroll.getBoundingClientRect();
-      const start = horizontal ? viewport.left + scroll.clientLeft : viewport.top + scroll.clientTop;
-      const end = start + (horizontal ? scroll.clientWidth : scroll.clientHeight);
+      const scrollStart = horizontal ? viewport.left + scroll.clientLeft : viewport.top + scroll.clientTop;
+      const list = horizontal ? scroll.querySelector<HTMLElement>('[data-gantt-list]') : null;
+      const listRect = list?.getBoundingClientRect();
+      const start = listRect ? listRect.right : scrollStart;
+      const end = scrollStart + (horizontal ? scroll.clientWidth : scroll.clientHeight);
+      const overlayLeft = scroll.parentElement?.getBoundingClientRect().left ?? viewport.left;
+      const predecessorLeft = listRect ? listRect.right - overlayLeft + 8 : 8;
       let predecessors = 0;
       let successors = 0;
       // Partially visible rows still count as shown; only fully hidden rows contribute.
@@ -29,8 +35,8 @@ export function DependencyHighlightIndicators({ scrollRef, contentKey, horizonta
         if (row.dataset.dependencyHighlight === 'predecessor' && before) predecessors++;
         if (row.dataset.dependencyHighlight === 'successor' && after) successors++;
       }
-      setCounts(previous => previous.predecessors === predecessors && previous.successors === successors
-        ? previous : { predecessors, successors });
+      setCounts(previous => previous.predecessors === predecessors && previous.successors === successors && previous.predecessorLeft === predecessorLeft
+        ? previous : { predecessors, successors, predecessorLeft });
     };
     const schedule = () => {
       cancelAnimationFrame(frame);
@@ -69,18 +75,19 @@ export function DependencyHighlightIndicators({ scrollRef, contentKey, horizonta
     <div className="pointer-events-none absolute inset-0 z-30" aria-live="polite" aria-atomic="true">
       {counts.predecessors > 0 && (
         <div data-dependency-indicator="predecessor" role="status"
-          aria-label={`${counts.predecessors} hervorgehobene Vorgänger ${horizontal ? 'links' : 'oberhalb'} des sichtbaren Bereichs`}
-          className={`absolute ${horizontal ? 'left-2 top-1/2 -translate-y-1/2' : 'top-2 left-6'} flex items-center gap-1 rounded-lg border border-amber-500 bg-amber-100 text-amber-800 px-2 py-1 text-sm font-semibold shadow-md`}>
+          aria-label={horizontal ? t('{count} hervorgehobene Vorgänger links des sichtbaren Bereichs', { count: formatNumber(counts.predecessors) }) : t('{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs', { count: formatNumber(counts.predecessors) })}
+          style={horizontal ? { left: counts.predecessorLeft } : undefined}
+          className={`absolute ${horizontal ? 'top-1/2 -translate-y-1/2' : 'top-2 left-6'} flex items-center gap-1 rounded-lg border border-amber-500 bg-amber-100 text-amber-800 px-2 py-1 text-sm font-semibold shadow-md`}>
           <PredecessorArrow className="w-5 h-5 text-amber-500" aria-hidden="true" />
-          {counts.predecessors}
+          {formatNumber(counts.predecessors)}
         </div>
       )}
       {counts.successors > 0 && (
         <div data-dependency-indicator="successor" role="status"
-          aria-label={`${counts.successors} hervorgehobene Nachfolger ${horizontal ? 'rechts' : 'unterhalb'} des sichtbaren Bereichs`}
+          aria-label={horizontal ? t('{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs', { count: formatNumber(counts.successors) }) : t('{count} hervorgehobene Nachfolger unterhalb des sichtbaren Bereichs', { count: formatNumber(counts.successors) })}
           className={`absolute ${horizontal ? 'right-2 top-1/2 -translate-y-1/2' : 'bottom-2 left-6'} flex items-center gap-1 rounded-lg border border-purple-500 bg-purple-100 text-purple-800 px-2 py-1 text-sm font-semibold shadow-md`}>
           <SuccessorArrow className="w-5 h-5 text-purple-500" aria-hidden="true" />
-          {counts.successors}
+          {formatNumber(counts.successors)}
         </div>
       )}
     </div>

@@ -11,6 +11,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import appIcon from '../assets/app-icon.png';
+import { t } from '../i18n';
 export type ViewMode = 'list' | 'network' | 'gantt';
 interface AppToolbarProps {
   viewMode: ViewMode;
@@ -74,7 +75,7 @@ export function AppToolbar({
             }`}
           >
             <List className="w-3.5 h-3.5" />
-            <span>Liste</span>
+            <span>{t('Liste')}</span>
           </button>
           <button
             type="button"
@@ -86,7 +87,7 @@ export function AppToolbar({
             }`}
           >
             <Network className="w-3.5 h-3.5" />
-            <span>Netzplan</span>
+            <span>{t('Netzplan')}</span>
           </button>
           <button
             type="button"
@@ -98,7 +99,7 @@ export function AppToolbar({
             }`}
           >
             <Calendar className="w-3.5 h-3.5" />
-            <span>Gantt</span>
+            <span>{t('Gantt')}</span>
           </button>
         </div>
       </div>
@@ -115,13 +116,13 @@ export function AppToolbar({
             disabled={!snapshotReady}
             value={newTaskTitle}
             onChange={(e) => setNewTaskTitle(e.target.value)}
-            placeholder="Neues kleines TODO eingeben... (Taste N)"
+            placeholder={t('Neues kleines TODO eingeben... (Taste N)')}
             className="w-full pl-20 pr-9 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
           />
           <button
             type="submit"
             disabled={!snapshotReady}
-            title="Task hinzufügen (Enter)"
+            title={t('Task hinzufügen (Enter)')}
             className="absolute right-2 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -135,27 +136,27 @@ export function AppToolbar({
           <button
             onClick={onUndo}
             disabled={!canUndo}
-            title="Rückgängig (Ctrl+Z)"
+            title={t('Rückgängig (Ctrl+Z)')}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-white disabled:opacity-35 disabled:pointer-events-none transition-colors"
           >
             <Undo2 className="w-3.5 h-3.5" />
-            <span>Undo</span>
+            <span>{t('Undo')}</span>
           </button>
           <div className="w-px h-4 bg-slate-300 mx-0.5" />
           <button
             onClick={onRedo}
             disabled={!canRedo}
-            title="Wiederherstellen (Ctrl+Y)"
+            title={t('Wiederherstellen (Ctrl+Y)')}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-white disabled:opacity-35 disabled:pointer-events-none transition-colors"
           >
             <Redo2 className="w-3.5 h-3.5" />
-            <span>Redo</span>
+            <span>{t('Redo')}</span>
           </button>
         </div>
 
         <button
           onClick={onSettings}
-          title="Einstellungen & Datenbanken"
+          title={t('Einstellungen & Datenbanken')}
           className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
         >
           <Settings className="w-4 h-4" />
@@ -163,7 +164,7 @@ export function AppToolbar({
 
         <button
           onClick={onMiniMode}
-          title="Minimieren (Kompaktansicht in Bildschirmecke)"
+          title={t('Minimieren (Kompaktansicht in Bildschirmecke)')}
           className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
         >
           <Minimize2 className="w-4 h-4" />
@@ -171,7 +172,7 @@ export function AppToolbar({
 
         <button
           onClick={onHelp}
-          title="Tastenkürzel & Bedienung (?)"
+          title={t('Tastenkürzel & Bedienung (?)')}
           className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
         >
           <HelpCircle className="w-4 h-4" />

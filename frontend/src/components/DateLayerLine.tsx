@@ -1,4 +1,6 @@
 import React from 'react';
+import { formatDate } from '../i18n';
+import { dateKeyToIsoStart } from '../domain/projector';
 
 export interface DateLayerLineProps {
   dateKey: string;
@@ -67,7 +69,7 @@ export const DateLayerLine: React.FC<DateLayerLineProps> = ({
               : 'text-slate-600'
           }`}
         >
-          {dateKey}
+          {formatDate(dateKeyToIsoStart(dateKey))}
         </span>
         <span
           className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${

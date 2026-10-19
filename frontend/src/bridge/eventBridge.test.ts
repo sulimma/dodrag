@@ -4,9 +4,11 @@ import { dependencyPathEdges } from '../domain/dependencyPaths';
 import { projectEvents } from '../domain/projector';
 import { parseCommand } from '../domain/eventSchema';
 import { StoredEvent } from '../domain/types';
+import { getLanguage, setLanguage } from '../i18n';
 const key = 'dodrag_sqlite_fallback_events_v1';
 let storage: Map<string, string>;
 beforeEach(() => {
+  setLanguage('de');
   storage = new Map([[key, '[]']]);
   vi.stubGlobal('window', {});
   vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
@@ -85,4 +87,40 @@ it('rejects new cyclic batches atomically and preserves history on cyclic undo/r
   const redoBefore = storage.get(key);
   await expect(eventBridge.redo()).rejects.toThrow('cycle');
   expect(storage.get(key)).toBe(redoBefore);
+});
+
+it('chooses and persists browser language on first start without rewriting stored titles', async () => {
+  vi.stubGlobal('navigator', { languages: ['nl-NL', 'zh-Hant-HK'], language: 'nl-NL' });
+  const settings = await eventBridge.getSettings();
+  expect(settings.uiLanguage).toBe('zh-TW');
+  expect(JSON.parse(storage.get('dodrag_settings_fallback_v1')!).uiLanguage).toBe('zh-TW');
+  await create();
+  const before = storage.get(key);
+  await eventBridge.setUILanguage('ja');
+  expect(getLanguage()).toBe('ja');
+  expect(storage.get(key)).toBe(before);
+  await expect(eventBridge.setUILanguage('invalid')).rejects.toThrow();
+  expect(getLanguage()).toBe('ja');
+  setLanguage('de');
+});
+
+it('migrates browser settings language once and uses English for unsupported preferences', async () => {
+  vi.stubGlobal('navigator', { languages: ['nl-NL'], language: 'nl-NL' });
+  const settingsKey = 'dodrag_settings_fallback_v1';
+  storage.set(settingsKey, JSON.stringify({ knownDatabases: [{ name: 'Mein Name', path: 'A.db', exists: true, isDemo: false }], activeDatabasePath: 'A.db', autostart: false }));
+  expect((await eventBridge.getSettings()).uiLanguage).toBe('en');
+  vi.stubGlobal('navigator', { languages: ['de-DE'], language: 'de-DE' });
+  const migrated = await eventBridge.getSettings();
+  expect(migrated.uiLanguage).toBe('en');
+  expect(migrated.knownDatabases[0].name).toBe('Mein Name');
+  setLanguage('de');
+});
+
+it.each(['it', 'pl', 'tr'])('persists %s from browser preferences and preserves the choice across restarts', async language => {
+  vi.stubGlobal('navigator', { languages: [`${language}-${language.toUpperCase()}`] });
+  expect((await eventBridge.getSettings()).uiLanguage).toBe(language);
+  vi.stubGlobal('navigator', { languages: ['en-US'] });
+  expect((await eventBridge.getSettings()).uiLanguage).toBe(language);
+  expect(getLanguage()).toBe(language);
+  setLanguage('de');
 });

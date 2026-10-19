@@ -5,7 +5,6 @@ import (
 	"dodrag/internal/eventstore"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,9 +16,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// Build-time identity, overridable via: go build -ldflags "-X main.buildVersion=0.1.2 -X main.buildTime=..."
+// Build-time identity, overridable via: go build -ldflags "-X main.buildVersion=0.1.3 -X main.buildTime=..."
 var (
-	buildVersion = "0.1.2"
+	buildVersion = "0.1.3"
 	buildTime    = ""
 )
 
@@ -38,6 +37,7 @@ type AppSettings struct {
 	Autostart          bool            `json:"autostart"`
 	DockMonitor        string          `json:"dockMonitor"`
 	DockCorner         string          `json:"dockCorner"`
+	UILanguage         string          `json:"uiLanguage"`
 	BootMinimized      bool            `json:"bootMinimized,omitempty"`
 	DatabaseReady      bool            `json:"databaseReady,omitempty"`
 	Version            string          `json:"version,omitempty"`
@@ -50,27 +50,31 @@ type persistedSettings struct {
 	Autostart          bool            `json:"autostart"`
 	DockMonitor        string          `json:"dockMonitor"`
 	DockCorner         string          `json:"dockCorner"`
+	UILanguage         string          `json:"uiLanguage"`
 }
 
 // App struct binds Go methods to the Wails frontend.
 type App struct {
-	ctx                 context.Context
-	mu                  sync.Mutex
-	store               *eventstore.Store
-	appDir              string
-	settingsPath        string
-	demoDBPath          string
-	settings            AppSettings
-	settingsLoadErr     error
-	settingsSaveErr     error
-	hwnd                uintptr
-	isMiniMode          bool
-	lastMiniItemCount   int
-	savedStyle          uintptr
-	savedRect           winRect
-	savedPlacement      windowPlacement
-	bootMinimized       bool
-	ignoreMinimizeUntil time.Time
+	ctx                   context.Context
+	mu                    sync.Mutex
+	jumpListMu            sync.Mutex
+	store                 *eventstore.Store
+	appDir                string
+	settingsPath          string
+	demoDBPath            string
+	settings              AppSettings
+	settingsLoadErr       error
+	settingsSaveErr       error
+	userDefaultUILanguage func() uint16
+	registerJumpList      func(string)
+	hwnd                  uintptr
+	isMiniMode            bool
+	lastMiniItemCount     int
+	savedStyle            uintptr
+	savedRect             winRect
+	savedPlacement        windowPlacement
+	bootMinimized         bool
+	ignoreMinimizeUntil   time.Time
 }
 
 // NewApp creates a new App application struct.
@@ -106,16 +110,16 @@ func (a *App) startup(ctx context.Context) {
 	a.demoDBPath = filepath.Clean(filepath.Join(appDir, "dodrag.db"))
 
 	if err := a.loadOrInitSettingsLocked(); err != nil {
-		runtime.LogErrorf(ctx, "Settings konnten nicht geladen werden: %v", err)
+		runtime.LogErrorf(ctx, "%s: %v", a.textLocked("Settings konnten nicht geladen werden"), err)
 	} else {
 		if a.settings.Autostart {
-			_ = syncWindowsAutostart(true)
+			_ = syncWindowsAutostart(true, a.settings.UILanguage)
 		}
 		a.openActiveDatabaseLocked()
 	}
 	a.mu.Unlock()
 
-	go registerTaskbarJumpList()
+	go a.refreshJumpList()
 	go a.watchNativeMinimize(ctx)
 }
 
@@ -280,20 +284,27 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 	defer func() { a.settingsLoadErr = err }()
 	a.settingsLoadErr = nil
 	a.settingsSaveErr = nil
+	if !validUILanguage(a.settings.UILanguage) {
+		a.settings.UILanguage = "en"
+	}
 	monitors := getConnectedMonitors()
 	primaryMonName := monitors[0].DeviceName
 
 	raw, err := os.ReadFile(a.settingsPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("Settings lesen (%s): %w", a.settingsPath, err)
+		return a.errorLocked("Settings lesen ({path})", err, "path", a.settingsPath)
 	}
 	if err == nil {
 		var loaded persistedSettings
 		if jsonErr := json.Unmarshal(raw, &loaded); jsonErr != nil {
-			return fmt.Errorf("Settings JSON (%s): %w", a.settingsPath, jsonErr)
+			return a.errorLocked("Settings JSON ({path})", jsonErr, "path", a.settingsPath)
 		}
 		if strings.TrimSpace(string(raw)) == "null" {
-			return fmt.Errorf("Settings JSON (%s): Objekt erwartet", a.settingsPath)
+			return errors.New(a.textLocked("Settings JSON ({path}): Objekt erwartet", "path", a.settingsPath))
+		}
+		migrateLanguage := !validUILanguage(loaded.UILanguage)
+		if migrateLanguage {
+			loaded.UILanguage = a.initialUILanguage()
 		}
 		for i := range loaded.KnownDatabases {
 			loaded.KnownDatabases[i].Path = filepath.Clean(loaded.KnownDatabases[i].Path)
@@ -307,7 +318,7 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 		if len(loaded.KnownDatabases) == 0 {
 			loaded.KnownDatabases = []DatabaseEntry{
 				{
-					Name:   "Demo-Datenbank",
+					Name:   backendText(loaded.UILanguage, "Demo-Datenbank"),
 					Path:   a.demoDBPath,
 					IsDemo: true,
 				},
@@ -329,15 +340,20 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 			Autostart:          loaded.Autostart,
 			DockMonitor:        loaded.DockMonitor,
 			DockCorner:         loaded.DockCorner,
+			UILanguage:         loaded.UILanguage,
+		}
+		if migrateLanguage {
+			return a.saveSettingsLocked()
 		}
 		return nil
 	}
 
 	// Only a missing file is first start; unreadable or invalid originals stay untouched.
+	language := a.initialUILanguage()
 	a.settings = AppSettings{
 		KnownDatabases: []DatabaseEntry{
 			{
-				Name:   "Demo-Datenbank",
+				Name:   backendText(language, "Demo-Datenbank"),
 				Path:   a.demoDBPath,
 				IsDemo: true,
 			},
@@ -346,13 +362,19 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 		Autostart:          false,
 		DockMonitor:        primaryMonName,
 		DockCorner:         "bottom-left",
+		UILanguage:         language,
 	}
 	return a.saveSettingsLocked()
 }
 
 func (a *App) saveSettingsLocked() (err error) {
 	// Native callbacks cannot return errors; GetSettings exposes the latest save failure.
-	defer func() { a.settingsSaveErr = err }()
+	defer func() {
+		if err != nil && a.settingsLoadErr == nil {
+			err = a.errorLocked("Settings konnten nicht gespeichert werden", err)
+		}
+		a.settingsSaveErr = err
+	}()
 	if a.settingsLoadErr != nil {
 		return a.settingsLoadErr
 	}
@@ -362,6 +384,7 @@ func (a *App) saveSettingsLocked() (err error) {
 		Autostart:          a.settings.Autostart,
 		DockMonitor:        a.settings.DockMonitor,
 		DockCorner:         a.settings.DockCorner,
+		UILanguage:         a.settings.UILanguage,
 	}
 	data, err := json.MarshalIndent(toSave, "", "  ")
 	if err != nil {
@@ -432,6 +455,7 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 		Autostart:          a.settings.Autostart,
 		DockMonitor:        a.settings.DockMonitor,
 		DockCorner:         a.settings.DockCorner,
+		UILanguage:         a.settings.UILanguage,
 		BootMinimized:      a.bootMinimized && a.store != nil,
 		DatabaseReady:      a.store != nil,
 		Version:            buildVersion,
@@ -618,17 +642,45 @@ func (a *App) SetAutostart(enabled bool) (AppSettings, error) {
 	if a.settingsLoadErr != nil {
 		return a.snapshotSettingsLocked(), a.settingsLoadErr
 	}
-	if err := syncWindowsAutostart(enabled); err != nil {
+	if err := syncWindowsAutostart(enabled, a.settings.UILanguage); err != nil {
 		return a.snapshotSettingsLocked(), err
 	}
 	previous := a.settings.Autostart
 	a.settings.Autostart = enabled
 	if err := a.saveSettingsLocked(); err != nil {
 		a.settings.Autostart = previous
-		rollbackErr := syncWindowsAutostart(previous)
+		rollbackErr := syncWindowsAutostart(previous, a.settings.UILanguage)
 		return a.snapshotSettingsLocked(), errors.Join(err, rollbackErr)
 	}
 	return a.snapshotSettingsLocked(), nil
+}
+
+// SetUILanguage persists a supported language before refreshing native shell tasks.
+func (a *App) SetUILanguage(language string) (AppSettings, error) {
+	a.mu.Lock()
+	if a.settingsLoadErr != nil {
+		settings, err := a.snapshotSettingsLocked(), a.settingsLoadErr
+		a.mu.Unlock()
+		return settings, err
+	}
+	if !validUILanguage(language) {
+		settings := a.snapshotSettingsLocked()
+		err := errors.New(a.textLocked("Ungültige UI-Sprache: {language}", "language", language))
+		a.mu.Unlock()
+		return settings, err
+	}
+	previous := a.settings.UILanguage
+	a.settings.UILanguage = language
+	if err := a.saveSettingsLocked(); err != nil {
+		a.settings.UILanguage = previous
+		settings := a.snapshotSettingsLocked()
+		a.mu.Unlock()
+		return settings, err
+	}
+	settings := a.snapshotSettingsLocked()
+	a.mu.Unlock()
+	a.refreshJumpList()
+	return settings, nil
 }
 
 // SelectFolderDialog opens a native folder picker dialog (e.g. to choose a Google Drive directory).
@@ -636,11 +688,12 @@ func (a *App) SelectFolderDialog() (string, error) {
 	if a.ctx == nil {
 		return "", nil
 	}
+	language := a.currentUILanguage()
 	selected, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Speicherort für Datenbank wählen (z. B. Google Drive Ordner)",
+		Title: backendText(language, "Speicherort für Datenbank wählen (z. B. Google Drive Ordner)"),
 	})
 	if err != nil {
-		return "", err
+		return "", localizedError(language, "Ordnerauswahl fehlgeschlagen", err)
 	}
 	return selected, nil
 }
@@ -655,10 +708,10 @@ func (a *App) CreateDatabase(folderPath string, dbName string, seedDemo bool) (A
 	}
 	trimmedName := strings.TrimSpace(dbName)
 	if trimmedName == "" {
-		return a.snapshotSettingsLocked(), errors.New("bitte einen Namen für die Datenbank eingeben")
+		return a.snapshotSettingsLocked(), errors.New(a.textLocked("bitte einen Namen für die Datenbank eingeben"))
 	}
 	if strings.ContainsAny(trimmedName, `<>:"/\|?*`) || trimmedName == "." || trimmedName == ".." || strings.HasSuffix(trimmedName, ".") || strings.HasSuffix(trimmedName, " ") {
-		return a.snapshotSettingsLocked(), errors.New("Datenbankname muss ein reiner Dateiname sein")
+		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbankname muss ein reiner Dateiname sein"))
 	}
 
 	trimmedFolder := strings.TrimSpace(folderPath)
@@ -667,7 +720,7 @@ func (a *App) CreateDatabase(folderPath string, dbName string, seedDemo bool) (A
 	}
 
 	if err := os.MkdirAll(trimmedFolder, 0755); err != nil {
-		return a.snapshotSettingsLocked(), fmt.Errorf("Ordner konnte nicht erstellt werden: %w", err)
+		return a.snapshotSettingsLocked(), a.errorLocked("Ordner konnte nicht erstellt werden", err)
 	}
 
 	fileName := trimmedName
@@ -685,16 +738,16 @@ func (a *App) CreateDatabase(folderPath string, dbName string, seedDemo bool) (A
 
 	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
-		return a.snapshotSettingsLocked(), fmt.Errorf("Datei konnte nicht exklusiv angelegt werden: %w", err)
+		return a.snapshotSettingsLocked(), a.errorLocked("Datei konnte nicht exklusiv angelegt werden", err)
 	}
 	if err := file.Close(); err != nil {
 		os.Remove(fullPath)
-		return a.snapshotSettingsLocked(), err
+		return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht geschlossen werden", err)
 	}
-	newStore, err := eventstore.NewStoreWithOptions(fullPath, seedDemo)
+	newStore, err := eventstore.NewStoreWithOptions(fullPath, seedDemo, func(title string) string { return a.textLocked(title) })
 	if err != nil {
 		os.Remove(fullPath)
-		return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank konnte nicht angelegt werden: %w", err)
+		return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht angelegt werden", err)
 	}
 
 	previous := a.settings
@@ -732,18 +785,19 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 	if a.ctx == nil {
 		return a.GetSettings()
 	}
+	language := a.currentUILanguage()
 	selectedFile, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "Vorhandene Datenbank auswählen",
+		Title: backendText(language, "Vorhandene Datenbank auswählen"),
 		Filters: []runtime.FileFilter{
 			{
-				DisplayName: "SQLite-Datenbank (*.db, *.sqlite)",
+				DisplayName: backendText(language, "SQLite-Datenbank (*.db, *.sqlite)"),
 				Pattern:     "*.db;*.sqlite;*.sqlite3",
 			},
 		},
 	})
 	if err != nil {
 		settings, _ := a.GetSettings()
-		return settings, err
+		return settings, localizedError(language, "Datenbankauswahl fehlgeschlagen", err)
 	}
 	if strings.TrimSpace(selectedFile) == "" {
 		return a.GetSettings()
@@ -760,11 +814,11 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 
 	info, err := os.Stat(fullPath)
 	if err != nil || info.IsDir() {
-		return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank nicht vorhanden: %s", fullPath)
+		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank nicht vorhanden: {path}", "path", fullPath))
 	}
 	newStore, err := eventstore.NewStoreWithOptions(fullPath, false)
 	if err != nil {
-		return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank konnte nicht geöffnet werden: %w", err)
+		return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht geöffnet werden", err)
 	}
 
 	previous := a.settings
@@ -816,7 +870,7 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 		}
 	}
 	if !known {
-		return a.snapshotSettingsLocked(), errors.New("Datenbank ist nicht in der Liste")
+		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank ist nicht in der Liste"))
 	}
 	isDemo := strings.EqualFold(cleanTarget, a.demoDBPath)
 	for _, entry := range a.settings.KnownDatabases {
@@ -830,13 +884,13 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 	{
 		info, statErr := os.Stat(cleanTarget)
 		if statErr != nil || info.IsDir() {
-			return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank-Datei wurde nicht gefunden (verschoben oder gelöscht): %s", cleanTarget)
+			return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank-Datei wurde nicht gefunden (verschoben oder gelöscht): {path}", "path", cleanTarget))
 		}
 	}
 
 	newStore, err := eventstore.NewStoreWithOptions(cleanTarget, false)
 	if err != nil {
-		return a.snapshotSettingsLocked(), fmt.Errorf("Datenbank konnte nicht geladen werden: %w", err)
+		return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht geladen werden", err)
 	}
 
 	previous := a.settings
@@ -865,14 +919,14 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 		}
 	}
 	if !known {
-		return a.snapshotSettingsLocked(), errors.New("Datenbank ist nicht in der Liste")
+		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank ist nicht in der Liste"))
 	}
 	wasActive := strings.EqualFold(filepath.Clean(a.settings.ActiveDatabasePath), cleanTarget)
 
 	// Close the SQLite connection first if deleting the currently active database so Windows releases the file lock
 	if wasActive && a.store != nil {
 		if err := a.store.Close(); err != nil {
-			return a.snapshotSettingsLocked(), err
+			return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht geschlossen werden", err)
 		}
 		a.store = nil
 	}
@@ -885,11 +939,11 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 			if wasActive {
 				a.openActiveDatabaseLocked()
 			}
-			return a.snapshotSettingsLocked(), fmt.Errorf("Hauptdatei nicht geloescht (%s), WAL/SHM nicht entfernt: %w", cleanTarget, err)
+			return a.snapshotSettingsLocked(), a.errorLocked("Hauptdatei nicht geloescht ({path}), WAL/SHM nicht entfernt", err, "path", cleanTarget)
 		}
 		for _, path := range []string{cleanTarget + "-wal", cleanTarget + "-shm"} {
 			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-				deleteErr = errors.Join(deleteErr, fmt.Errorf("Hauptdatei entfernt, Sidecar nicht geloescht (%s): %w", path, err))
+				deleteErr = errors.Join(deleteErr, a.errorLocked("Hauptdatei entfernt, Sidecar nicht geloescht ({path})", err, "path", path))
 			}
 		}
 	}
@@ -915,7 +969,7 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 			a.openActiveDatabaseLocked()
 		}
 		if deleteFile {
-			err = fmt.Errorf("Hauptdatei entfernt, Settings nicht gespeichert: %w", err)
+			err = a.errorLocked("Hauptdatei entfernt, Settings nicht gespeichert", err)
 		}
 		return a.snapshotSettingsLocked(), errors.Join(deleteErr, err)
 	}
@@ -926,7 +980,7 @@ func (a *App) activateStoreLocked(candidate *eventstore.Store, previous AppSetti
 	if _, err := candidate.GetEvents(); err != nil {
 		candidate.Close()
 		a.settings = previous
-		return err
+		return a.errorLocked("Ereignisse konnten nicht geladen werden", err)
 	}
 	if err := a.saveSettingsLocked(); err != nil {
 		candidate.Close()
@@ -938,7 +992,7 @@ func (a *App) activateStoreLocked(candidate *eventstore.Store, previous AppSetti
 	if old != nil {
 		if err := old.Close(); err != nil {
 			if a.ctx != nil {
-				runtime.LogErrorf(a.ctx, "Neue Datenbank aktiv, Schliessen der alten fehlgeschlagen: %v", err)
+				runtime.LogErrorf(a.ctx, "%s: %v", a.textLocked("Neue Datenbank aktiv, Schliessen der alten fehlgeschlagen"), err)
 			}
 		}
 	}
@@ -952,7 +1006,8 @@ func (a *App) GetEvents() ([]eventstore.Event, error) {
 	if a.store == nil {
 		return []eventstore.Event{}, nil
 	}
-	return a.store.GetEvents()
+	events, err := a.store.GetEvents()
+	return events, a.errorLocked("Ereignisse konnten nicht geladen werden", err)
 }
 
 // AppendEvent appends a new domain event to the SQLite event store and returns the updated list.
@@ -960,18 +1015,20 @@ func (a *App) AppendEvent(id string, eventType string, payloadJSON string) ([]ev
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.store == nil {
-		return []eventstore.Event{}, errors.New("keine Datenbank geöffnet")
+		return []eventstore.Event{}, errors.New(a.textLocked("keine Datenbank geöffnet"))
 	}
-	return a.store.AppendEvent(id, eventType, payloadJSON)
+	events, err := a.store.AppendEvent(id, eventType, payloadJSON)
+	return events, a.errorLocked("Änderung konnte nicht gespeichert werden", err)
 }
 
 func (a *App) AppendBatch(commands []eventstore.Command) ([]eventstore.Event, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.store == nil {
-		return nil, errors.New("keine Datenbank geoeffnet")
+		return nil, errors.New(a.textLocked("keine Datenbank geöffnet"))
 	}
-	return a.store.AppendBatch(commands)
+	events, err := a.store.AppendBatch(commands)
+	return events, a.errorLocked("Änderungen konnten nicht gespeichert werden", err)
 }
 
 // Undo reverts the most recent active event.
@@ -981,7 +1038,8 @@ func (a *App) Undo() ([]eventstore.Event, error) {
 	if a.store == nil {
 		return []eventstore.Event{}, nil
 	}
-	return a.store.Undo()
+	events, err := a.store.Undo()
+	return events, a.errorLocked("Rückgängig fehlgeschlagen", err)
 }
 
 // Redo re-applies the most recently undone event.
@@ -991,5 +1049,6 @@ func (a *App) Redo() ([]eventstore.Event, error) {
 	if a.store == nil {
 		return []eventstore.Event{}, nil
 	}
-	return a.store.Redo()
+	events, err := a.store.Redo()
+	return events, a.errorLocked("Wiederholen fehlgeschlagen", err)
 }

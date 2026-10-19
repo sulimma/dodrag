@@ -11,6 +11,7 @@ import { useDatabaseSnapshot } from './useDatabaseSnapshot';
 import { useTaskSelection } from './useTaskSelection';
 import type { DragIdentity } from './useTaskDrag';
 import type { PushToast } from './useToasts';
+import { t, formatNumber } from '../i18n';
 // Applies task commands and coordinates their selection and drag effects.
 export function useTaskMutations(
   database: Pick<
@@ -32,7 +33,7 @@ export function useTaskMutations(
   const handleToggleActive = async (task: TaskState) => {
     if (task.predecessorIds.length > 0) {
       pushToast(
-        `Task ${task.id} hat noch offene Vorgänger und kann nicht aktiviert werden.`,
+        t('Task {id} hat noch offene Vorgänger und kann nicht aktiviert werden.', { id: task.id }),
         'warning'
       );
       return;
@@ -75,7 +76,7 @@ export function useTaskMutations(
       })
     );
     if (!updated) return;
-    pushToast(`Startdatum von ${taskId} → ${humanLabel}`, 'info');
+    pushToast(t('Startdatum von {id} → {date}', { id: taskId, date: /^\d{4}-\d{2}-\d{2}$/.test(humanLabel) ? formatIso8601Display(isoDate).localizedText : humanLabel }), 'info');
   };
 
   const handleAddPredecessor = async (
@@ -100,7 +101,7 @@ export function useTaskMutations(
       targetHighlights[draggedId] === 'predecessor-transitive'
     ) {
       pushToast(
-        `Zyklus verhindert: ${draggedId} ist bereits Vorgänger von ${targetTaskId}`,
+        t('Zyklus verhindert: {id} ist bereits Vorgänger von {target}', { id: draggedId, target: targetTaskId }),
         'warning'
       );
       return;
@@ -144,8 +145,8 @@ export function useTaskMutations(
     clearEdgeSelection();
     pushToast(
       edgeKeysToRemove.length === 1
-        ? `Kante ${edgeKeysToRemove[0].replace('->', ' → ')} gelöscht`
-        : `${edgeKeysToRemove.length} Kanten gelöscht`,
+        ? t('Kante {edge} gelöscht', { edge: edgeKeysToRemove[0].replace('->', ' → ') })
+        : t('{count} Kanten gelöscht', { count: formatNumber(edgeKeysToRemove.length) }),
       'info'
     );
   };
@@ -172,7 +173,7 @@ export function useTaskMutations(
       )
     );
     if (updated)
-      pushToast(`${edges.length} Kanten an ${draggedId} geloescht`, 'info');
+      pushToast(t('{count} Kanten an {id} geloescht', { count: formatNumber(edges.length), id: draggedId }), 'info');
   };
 
   const handleCompleteTask = async (taskId: string) => {

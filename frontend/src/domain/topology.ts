@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 interface Node { id: string; creationOrder: number; predecessorIds: readonly string[] }
 // Stable Kahn sort with a heap: predecessors first, then newest creationOrder and ID.
 export function stableTopology<T extends Node>(nodes: readonly T[]): T[] {
@@ -16,6 +17,6 @@ export function stableTopology<T extends Node>(nodes: readonly T[]): T[] {
     result.push(node);
     for (const next of successors.get(node.id)!) { degree.set(next,degree.get(next)!-1); if (!degree.get(next)) push(byId.get(next)!); }
   }
-  if (result.length !== nodes.length) throw new Error('Dependency cycle');
+  if (result.length !== nodes.length) throw new Error(t('Dependency cycle'));
   return result;
 }

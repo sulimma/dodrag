@@ -27,9 +27,11 @@ import { useTaskDrag } from './hooks/useTaskDrag';
 import type { DragIdentity } from './hooks/useTaskDrag';
 import { useTaskMutations } from './hooks/useTaskMutations';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
+import { t, useLanguage, errorText } from './i18n';
 
 // Coordinates app state, shared task interactions, and the active view.
 export function App() {
+  const language = useLanguage();
   const [now, setNow] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [lastMovedKey, setLastMovedKey] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export function App() {
     loadSnapshot,
     changeDatabase,
   } = database;
-  const state = useMemo(() => projectEvents(events, now), [events, now]);
+  const state = useMemo(() => projectEvents(events, now), [events, now, language]);
   const editors = useInlineEditors(
     database,
     state.tasks,
@@ -112,12 +114,12 @@ export function App() {
           setIsMiniMode(true);
           eventBridge
             .enterMiniMode('', 4)
-            .catch((error) => pushToast(String(error), 'warning'));
+             .catch((error) => pushToast(errorText(t('Kompaktansicht konnte nicht geöffnet werden'), error), 'warning'));
         }
       })
       .catch((error) => {
         if (!current) return;
-        pushToast(String(error), 'warning');
+        pushToast(errorText(t('Anwendung konnte nicht geladen werden'), error), 'warning');
         setShowSettingsModal(true);
       })
       .finally(() => {
@@ -242,7 +244,7 @@ export function App() {
         <div className="relative flex flex-1 min-w-0 overflow-hidden">
           <main
             ref={listScrollRef}
-            className="flex-1 overflow-y-auto overflow-x-auto px-6 py-5"
+            className={`flex-1 overflow-y-auto overflow-x-auto ${viewMode === 'gantt' ? '' : 'px-6 py-5'}`}
             onClick={(e) => {
               if (
                 (e.target as HTMLElement).closest(
@@ -331,6 +333,7 @@ export function App() {
           onSwitchDatabase={database.handleSwitchDatabase}
           onDeleteDatabase={database.handleDeleteDatabase}
           onToggleAutostart={database.handleToggleAutostart}
+          onSetUILanguage={database.handleSetUILanguage}
         />
       )}
       <Toasts toasts={toasts} />

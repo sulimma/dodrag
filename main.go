@@ -15,7 +15,7 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:     "DoDrag – Dependency & Resubmission TODO",
+		Title:     "DoDrag",
 		Width:     1180,
 		Height:    820,
 		MinWidth:  860,

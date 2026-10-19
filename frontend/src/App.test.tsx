@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { AppSettings } from './bridge/eventBridge';
 import { StoredEvent } from './domain/types';
+import { setLanguage, supportedLanguages, t } from './i18n';
 
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
@@ -39,6 +40,7 @@ let activeSettings: AppSettings;
 let api: NonNullable<NonNullable<NonNullable<Window['go']>['main']>['App']>;
 
 beforeEach(() => {
+  setLanguage('de');
   activeSettings = { ...settings };
   api = {
     GetSettings: vi.fn(async () => activeSettings),
@@ -68,6 +70,8 @@ afterEach(() => {
   act(() => root.unmount());
   element.remove();
   delete window.go;
+  delete window.runtime;
+  setLanguage('de');
   vi.restoreAllMocks();
 });
 
@@ -476,4 +480,41 @@ it.each(['Liste', 'Netzplan', 'Gantt'])('clears edge selection on task context a
   expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
     type: 'DEPENDENCY_REMOVED', payload: { taskId: '26-102', predecessorId: '26-101' },
   });
+});
+
+it('changes every view and settings immediately in all languages without rewriting user data', async () => {
+  api.SetUILanguage = vi.fn(async language => {
+    activeSettings = { ...activeSettings, uiLanguage: language };
+    return activeSettings;
+  });
+  await mount();
+  await openSettings();
+  for (const language of supportedLanguages) {
+    await act(async () => {
+      const select = element.querySelector<HTMLSelectElement>('#ui-language')!;
+      select.value = language;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(document.documentElement.lang).toBe(language);
+    expect(element.querySelector('label[for="ui-language"]')!.textContent).toBe(t('Sprache (Language)'));
+    expect(element.textContent).toContain(t('Neue Datenbank anlegen'));
+    for (const key of ['Liste', 'Netzplan', 'Gantt']) {
+      await act(async () => click(textButton(t(key))));
+      expect(element.textContent).toContain('Alpha');
+      expect(element.textContent).toContain('Beta');
+      expect(element.textContent).toContain(t('Wiedervorlage'));
+    }
+  }
+  expect(api.SetUILanguage).toHaveBeenCalledTimes(supportedLanguages.length);
+  expect(activeSettings.knownDatabases.map(entry => entry.name)).toEqual(['A', 'B']);
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+});
+
+it('opens the GitHub project from the version footer', async () => {
+  const browserOpenURL = vi.fn();
+  window.runtime = { BrowserOpenURL: browserOpenURL };
+  await mount();
+  await openSettings();
+  await act(async () => click(button(t('GitHub-Projekt im Browser öffnen'))));
+  expect(browserOpenURL).toHaveBeenCalledWith('https://github.com/sulimma/dodrag');
 });

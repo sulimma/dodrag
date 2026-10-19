@@ -2,6 +2,7 @@ import React from 'react';
 import { Flame, Link2Off, CheckCircle2 } from 'lucide-react';
 import type { TaskState } from '../domain/types';
 import type { ContextMenuState } from '../hooks/useTaskSelection';
+import { t } from '../i18n';
 interface TaskContextMenuProps {
   contextMenu: ContextMenuState;
   task: TaskState;
@@ -37,7 +38,7 @@ export function TaskContextMenu({
     >
       <div className="px-3 py-1.5 border-b border-slate-100 flex items-center justify-between">
         <span className="font-mono font-semibold text-sky-700">
-          Task {contextMenu.taskId}
+          {t('Task {id}', { id: contextMenu.taskId })}
         </span>
         <span className="text-[10px] text-slate-400 truncate max-w-[130px]">
           {task.title}
@@ -55,10 +56,10 @@ export function TaskContextMenu({
       >
         <span className="flex items-center gap-2">
           <Flame className="w-3.5 h-3.5 text-emerald-600" />
-          {task.isActive ? 'Deaktivieren' : 'Aktivieren (Hervorheben)'}
+          {task.isActive ? t('Deaktivieren') : t('Aktivieren (Hervorheben)')}
         </span>
         <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600">
-          Space
+           {t('Space')}
         </kbd>
       </button>
 
@@ -66,7 +67,7 @@ export function TaskContextMenu({
         onClick={() => onEditTitle(task)}
         className="w-full px-3 py-2 text-left hover:bg-slate-50 flex items-center justify-between"
       >
-        <span>Titel bearbeiten (In-Place)</span>
+        <span>{t('Titel bearbeiten (In-Place)')}</span>
         <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600">
           F2
         </kbd>
@@ -76,11 +77,11 @@ export function TaskContextMenu({
         onClick={() => {
           const tId = contextMenu.taskId;
           onClose();
-          onSetConfiguredDate(tId, new Date().toISOString(), 'Heute');
+          onSetConfiguredDate(tId, new Date().toISOString(), t('Heute'));
         }}
         className="w-full px-3 py-2 text-left hover:bg-slate-50 flex items-center justify-between"
       >
-        <span>Startdatum auf Heute setzen</span>
+        <span>{t('Startdatum auf Heute setzen')}</span>
       </button>
 
       <div className="border-t border-slate-100 mt-1 pt-1">
@@ -94,10 +95,10 @@ export function TaskContextMenu({
         >
           <span className="flex items-center gap-2">
             <CheckCircle2 className="w-3.5 h-3.5" />
-            Als erledigt markieren
+            {t('Als erledigt markieren')}
           </span>
           <kbd className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600">
-            Del
+             {t('Del')}
           </kbd>
         </button>
       </div>
@@ -105,7 +106,7 @@ export function TaskContextMenu({
       {task.predecessorIds.length > 0 && (
         <div className="border-t border-slate-100 mt-1 pt-1">
           <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-slate-400">
-            Vorgänger entfernen
+            {t('Vorgänger entfernen')}
           </div>
           {task.predecessorIds.map((predId) => (
             <button
@@ -118,7 +119,7 @@ export function TaskContextMenu({
               className="w-full px-3 py-1.5 text-left hover:bg-amber-50 flex items-center gap-2 text-amber-800"
             >
               <Link2Off className="w-3.5 h-3.5" />
-              <span>Vorgänger {predId} lösen</span>
+              <span>{t('Vorgänger {id} lösen', { id: predId })}</span>
             </button>
           ))}
         </div>

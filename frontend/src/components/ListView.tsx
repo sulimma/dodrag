@@ -10,6 +10,7 @@ import { TaskDragHandle } from './TaskDragHandle';
 import { taskInteractions } from './taskInteractions';
 import type { TaskViewInteractions } from './taskInteractions';
 import { taskAppearanceRole } from './taskAppearance';
+import { t } from '../i18n';
 interface ListViewProps extends TaskViewInteractions {
   listEntries: ListEntry[];
   movedItemKey: string | null;
@@ -142,7 +143,7 @@ export function ListView(props: ListViewProps) {
             {/* Left section: Drag Handle + Active Toggle + Task ID + In-place Editable Title */}
             <div className="flex items-center gap-2.5 flex-1 min-w-0">
               <div
-                title="Ziehen auf Task (= Vorgänger setzen), Shift-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts"
+                title={t('Ziehen auf Task (= Vorgänger setzen), Shift-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts')}
                 className="text-slate-400 group-hover:text-slate-600 cursor-grab active:cursor-grabbing"
               >
                 <TaskDragHandle />
@@ -157,8 +158,8 @@ export function ListView(props: ListViewProps) {
                   }}
                   title={
                     task.isActive
-                      ? 'Deaktivieren (Space)'
-                      : 'Aktivieren (Space)'
+                      ? t('Deaktivieren (Space)')
+                      : t('Aktivieren (Space)')
                   }
                   className={`p-1 rounded-lg border transition-all ${
                     task.isActive
@@ -217,7 +218,7 @@ export function ListView(props: ListViewProps) {
                             e.stopPropagation();
                             onSelectEdge(edgeKey, e, listOrderedEdgeKeys);
                           }}
-                          title={`Vorgänger ${predId} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)`}
+                          title={t('Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)', { id: predId })}
                           className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono border transition-all cursor-pointer ${
                             isChipSelected
                               ? 'bg-rose-100 text-rose-900 border-rose-500 ring-2 ring-rose-400/40 font-semibold shadow-xs'

@@ -2,6 +2,7 @@ import React from 'react';
 import { Maximize2 } from 'lucide-react';
 import type { TaskState } from '../domain/types';
 import appIcon from '../assets/app-icon.png';
+import { t, formatNumber } from '../i18n';
 
 interface MiniCornerViewProps {
   tasks: TaskState[];
@@ -25,13 +26,13 @@ export function MiniCornerView({
             '--wails-draggable': 'drag',
           } as React.CSSProperties
         }
-        title="Mit der Maus in eine beliebige Bildschirmecke ziehen zum Andocken"
+        title={t('Mit der Maus in eine beliebige Bildschirmecke ziehen zum Andocken')}
         className="h-7 px-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between shrink-0 cursor-move"
       >
         <div className="flex items-center gap-1.5 min-w-0 pointer-events-none">
           <img src={appIcon} alt="" draggable={false} className="w-4 h-4 shrink-0" />
           <span className="text-[11px] font-bold text-slate-700 truncate">
-            DoDrag ({tasks.length})
+            {t('DoDrag ({count})', { count: formatNumber(tasks.length) })}
           </span>
         </div>
 
@@ -52,7 +53,7 @@ export function MiniCornerView({
               e.stopPropagation();
               onRestoreWindow();
             }}
-            title="Fenster wiederherstellen"
+            title={t('Fenster wiederherstellen')}
             className="w-5 h-5 rounded text-slate-500 hover:text-sky-700 hover:bg-sky-100 flex items-center justify-center transition-colors cursor-pointer"
           >
             <Maximize2 className="w-3 h-3" />
@@ -67,7 +68,7 @@ export function MiniCornerView({
             onClick={onRestoreWindow}
             className="h-7 px-2.5 flex items-center text-xs text-slate-400 italic cursor-pointer hover:bg-slate-50 truncate"
           >
-            Keine offenen Tasks
+            {t('Keine offenen Tasks')}
           </div>
         ) : (
           tasks.map((task) => (

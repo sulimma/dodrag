@@ -41,7 +41,7 @@ await server.listen();
 const browser=await chromium.launch({headless:true});
 try {
    for (const view of ['GanttDiagramm','Liste','Netzplan','Gantt']) for (const shiftBefore of (view==='GanttDiagramm'?[true,false,null]:[true,false])) {
-    const page=await browser.newPage({viewport:{width:1400,height:950}});
+    const page=await browser.newPage({viewport:{width:1400,height:950},locale:'de-DE'});
     await page.addInitScript(overdue=>{
       const date=new Date();if(overdue) date.setDate(date.getDate()-10);
       const iso=date.toISOString();let seq=0;
@@ -138,7 +138,7 @@ try {
     await page.close();
   }
   {
-    const page=await browser.newPage({viewport:{width:1400,height:950}});
+    const page=await browser.newPage({viewport:{width:1400,height:950},locale:'de-DE'});
     await page.addInitScript(()=>{
       const date=new Date();date.setDate(date.getDate()-10);date.setHours(9,0,0,0);
       const iso=date.toISOString();let seq=0;
@@ -184,7 +184,7 @@ try {
     console.log('PASS network real geometry: overdue levels, wrapped roots, diamond, direct/transitive highlights, future band, responsive resize');
     await page.close();
   }
-  const page=await browser.newPage({viewport:{width:1400,height:950}});
+  const page=await browser.newPage({viewport:{width:1400,height:950},locale:'de-DE'});
   await page.addInitScript(()=>{
     const date=new Date();date.setHours(9,0,0,0);const iso=date.toISOString();let seq=0;
     const event=(type,payload)=>({seq:++seq,id:`date${seq}`,timestamp:iso,type,payload,undone:false});

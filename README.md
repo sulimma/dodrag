@@ -44,16 +44,38 @@ The compact, corner-docked view stays out of the way and shows only work that ca
 - **Local-first desktop app:** the Windows app stores task history in SQLite and can manage multiple database files. A browser fallback supports development and UI testing.
 - **Compact corner view:** dock a small always-on-top task window to a screen corner and restore the main window when needed.
 
+## Languages and translations
+
+Choose the interface language in **Settings**. On first launch, DoDrag uses the Windows user's display language, falling back to English if it is unsupported. The choice is saved and can be changed without restarting. The browser development fallback uses the browser's preferred languages instead. Existing task titles and database names are user data and are not translated when switching languages.
+
+| Language | Code | Verification |
+| --- | --- | --- |
+| German | `de` | Verified |
+| English | `en` | Verified |
+| French | `fr` | Not verified |
+| Spanish | `es` | Not verified |
+| Simplified Chinese | `zh-CN` | Not verified |
+| Ukrainian | `uk` | Not verified |
+| Brazilian Portuguese | `pt-BR` | Not verified |
+| Japanese | `ja` | Not verified |
+| Traditional Chinese | `zh-TW` | Not verified |
+| Korean | `ko` | Not verified |
+| Italian | `it` | Not verified |
+| Polish | `pl` | Not verified |
+| Turkish | `tr` | Not verified |
+
+The translations are **AI-generated**; only **English and German have been verified**. The other languages may contain linguistic or contextual mistakes. Automated tests check catalog completeness, interpolation parameters, and untranslated app-owned UI text; they do not establish linguistic correctness. Technical error details from Windows or third-party libraries may remain in their original language.
+
 ## Getting started
 
 DoDrag is a Windows desktop application built with [Wails](https://wails.io/), Go, and React. To build it from source, install Go, Node.js/npm, and the Wails prerequisites for Windows, then run this repository's PowerShell build script:
 
 #### Download a release
 
-Download the executable for your Windows processor from the [DoDrag v0.1.2 release](https://github.com/sulimma/dodrag/releases/tag/v0.1.2):
+Download the executable for your Windows processor from the [DoDrag v0.1.3 release](https://github.com/sulimma/dodrag/releases/tag/v0.1.3):
 
-- **Most Windows PCs (Intel/AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.2/dodrag-windows-amd64.exe)
-- **Windows on ARM (ARM64):** [`dodrag-windows-arm64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.2/dodrag-windows-arm64.exe)
+- **Most Windows PCs (Intel/AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.3/dodrag-windows-amd64.exe)
+- **Windows on ARM (ARM64):** [`dodrag-windows-arm64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.3/dodrag-windows-arm64.exe)
 
 Save the matching `.exe` and open it to run DoDrag; no installer is required.
 
