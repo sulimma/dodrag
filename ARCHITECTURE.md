@@ -1,12 +1,12 @@
 # Architecture
 
-DoDrag is a Windows desktop application with a Go/Wails host and a React/TypeScript frontend. The frontend is embedded into the packaged application; its bridge also provides a `localStorage` event-log fallback for browser development and UI tests.
+DoDrag is a native Windows desktop application with a Go/Wails host and a React/TypeScript frontend. The frontend is embedded into the packaged application. A `localStorage` fallback exists only as an internal development aid; browser operation is not a product target or regular test target.
 
 ## Runtime and data flow
 
 1. **UI and interactions — `frontend/src/App.tsx`, `components/`, `hooks/`:** `App` coordinates state and the active list, network, or Gantt view. Hooks isolate selection, drag operations, edits, database snapshots, mutations, and keyboard shortcuts; the shared task-interaction contract keeps behavior consistent across views.
 2. **Domain — `frontend/src/domain/`:** validated commands and events are replayed into task state. Projection derives effective dates, actionable tasks, dependency relationships, date layers, and view metadata. Dependency/topology helpers enforce valid acyclic task relationships.
-3. **Bridge — `frontend/src/bridge/eventBridge.ts`:** sends typed commands to Wails in the desktop app or persists an event log in browser development mode.
+3. **Bridge — `frontend/src/bridge/eventBridge.ts`:** sends typed commands to Wails in the desktop app; a `localStorage` event-log fallback exists for limited frontend development/testing only.
 4. **Native host — `main.go`, `app.go`, `window_windows.go`, `autostart_windows.go`:** Wails embeds `frontend/dist`, exposes application/database operations, and handles Windows window behavior and autostart.
 5. **Persistence — `internal/eventstore/`:** SQLite stores task changes as an append-oriented event history. Undo/redo changes event status and state is reconstructed by replay; SQLite is provided by the pure-Go `modernc.org/sqlite` driver.
 
@@ -22,7 +22,7 @@ DoDrag is a Windows desktop application with a Go/Wails host and a React/TypeScr
 ├── build.ps1                      # Frontend checks/build, Go tests, and Wails packaging
 ├── frontend/
 │   ├── src/App.tsx                # UI composition and application state coordination
-│   ├── src/bridge/                # Wails/browser persistence boundary
+│   ├── src/bridge/                # Wails persistence boundary and limited dev fallback
 │   ├── src/domain/                # Event schema, replay, projection, dates, topology
 │   ├── src/hooks/                 # Selection, drag, editing, mutations, shortcuts
 │   ├── src/components/            # Toolbar, sidebar, dialogs, and task views

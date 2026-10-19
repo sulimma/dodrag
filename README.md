@@ -41,12 +41,12 @@ The compact, corner-docked view stays out of the way and shows only work that ca
 - **Dependencies at a glance:** list, network-plan, and Gantt views share task interactions and highlight upstream and downstream tasks.
 - **Drag-and-drop planning:** move tasks between dates, connect prerequisites, or remove selected dependency edges with Shift-drag.
 - **Small, traceable edits:** edit titles and dates in place, mark a task active, complete or reopen tasks, and undo or redo changes.
-- **Local-first desktop app:** the Windows app stores task history in SQLite and can manage multiple database files. A browser fallback supports development and UI testing.
+- **Native Windows desktop app:** the app stores task history in SQLite and can manage multiple database files. Browser fallback code is an internal development aid, not a supported product target.
 - **Compact corner view:** dock a small always-on-top task window to a screen corner and restore the main window when needed.
 
 ## Languages and translations
 
-Choose the interface language in **Settings**. On first launch, DoDrag uses the Windows user's display language, falling back to English if it is unsupported. The choice is saved and can be changed without restarting. The browser development fallback uses the browser's preferred languages instead. Existing task titles and database names are user data and are not translated when switching languages.
+Choose the interface language in **Settings**. On first launch, DoDrag uses the Windows user's display language, falling back to English if it is unsupported. The choice is saved and can be changed without restarting. Existing task titles and database names are user data and are not translated when switching languages.
 
 | Language | Code | Verification |
 | --- | --- | --- |

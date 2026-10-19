@@ -1,6 +1,12 @@
 # Projekthinweise fuer Agenten
 
-Diese Hinweise beruhen auf tatsaechlichen Build-/Testerfahrungen vom 2026-10-17. Sie sind keine Garantie fuer andere Rechner oder Toolchain-Versionen. Historische Befunde und Nutzerentscheidungen stehen in `CODE_REVIEW_2026-10-17_12-46-19.md`.
+Diese Hinweise beruhen auf tatsaechlichen Build-/Testerfahrungen vom 2026-10-17. Sie sind keine Garantie fuer andere Rechner oder Toolchain-Versionen. Historische Befunde und Nutzerentscheidungen stehen in `docs/reviews/CODE_REVIEW_2026-10-17_12-46-19.md`.
+
+## Produktziel und Testumfang
+
+- DoDrag ist eine native Windows-Desktop-App. Browserbetrieb ist kein Produktziel und kein regulärer Testumfang.
+- Standardtests sind Frontend-Unit-/DOM-Tests, Typecheck, Go-Tests und der native Wails-Build. Browser-/Chromiumtests nicht routinemaessig ausfuehren.
+- Browser-Tests sind nur zulaessig, wenn ein konkreter App-Test damit deutlich einfacher oder zuverlässiger ist als im nativen Umfeld. Den Browserlauf dann als begrenzten Test kennzeichnen; er verifiziert keine WebView2-, Windows-, Registry-, COM-, DPI- oder OS-Integration.
 
 ## Versionierung
 
@@ -37,13 +43,12 @@ Diese Hinweise beruhen auf tatsaechlichen Build-/Testerfahrungen vom 2026-10-17.
 - `go test ./...` und `go test -tags "desktop,production" ./...` wurden erfolgreich ausgefuehrt. `go test -race` war mit `CGO_ENABLED=0` nicht verfuegbar; normale Tests ersetzen keine Race-Pruefung.
 - `go vet` meldete drei bestehende `unsafe.Pointer`-Warnungen im nativen Windows-Code (WM_MOVING/COM-vtable). Diese weder als bestanden verschweigen noch ohne Analyse als neue Regression ausgeben; Zeilennummern koennen sich verschieben.
 
-## Frontend- und Browsertests
+## Frontend- und optionale Browser-Tests
 
-- Im aktuellen lokalen Frontend-Mirror: `npm test`, `npm exec -- tsc --noEmit`, `npm run build`. DOM-Tests nutzen jsdom, nicht WebView2.
-- Der echte Dragtest ist `frontend/tests/drag.browser.mjs`, gestartet mit `npm run test:browser` aus dem Frontendverzeichnis. Er startet selbst einen Vite-Server und Headless-Chromium und raeumt beide wieder auf.
-- `build.ps1` kopiert derzeit `src` und Konfigurationsdateien, aber nicht `frontend/tests`. Es fuehrt nur `npm test` und den Build aus, nicht `test:browser`. Fuer Browsertests daher auch das aktuelle `tests`-Verzeichnis in den lokalen Mirror kopieren. Ein erfolgreicher Buildskriptlauf belegt keine bestandenen Dragtests.
-- Playwright benoetigt zusaetzlich zum npm-Paket ein installiertes Chromium. Falls es fehlt, im lokalen Testverzeichnis `npm exec -- playwright install chromium` ausfuehren. Der Testserver fordert Port 5197 an und die Testnavigation verwendet diesen Port fest; vor dem Lauf sicherstellen, dass er frei ist. Vites automatischer Portwechsel wuerde sonst auf den falschen Server fuehren.
-- Der Browser-Fallback ist nicht die native SQLite-App. Browser-Datenbanken teilen derzeit weiterhin einen localStorage-Ereignisspeicher (offener Befund 1.7). Browsertests verwenden isolierte Testdaten/Browserkontexte; nicht mit echten Nutzerdaten testen. Eine gruene Browserpruefung verifiziert keine native DB-/Registry-/COM-Funktion.
+- Im aktuellen lokalen Frontend-Mirror: `npm test`, `npm exec -- tsc --noEmit`, `npm run build`. DOM-Tests nutzen jsdom, nicht WebView2; sie pruefen UI-/Domainlogik, nicht den nativen Host.
+- `frontend/tests/*.browser.mjs` und `npm run test:browser` sind optionale Browserhilfen fuer konkrete App-Verhalten, die dort leichter zu pruefen sind. Nicht standardmaessig ausfuehren. `build.ps1` fuehrt sie bewusst nicht aus.
+- Nur wenn ein solcher Test fuer die konkrete Aenderung gerechtfertigt ist: aktuelles `frontend/tests`-Verzeichnis in den lokalen Mirror kopieren; Playwright benoetigt installiertes Chromium. Tests starten eigene Vite-/Chromium-Prozesse, die der Test selbst wieder aufraeumt.
+- Browser-Fallback und Browser-Tests verifizieren nicht die native SQLite-App. Browser-Datenbanken teilen derzeit weiterhin einen localStorage-Ereignisspeicher (offener Befund 1.7); keine echten Nutzerdaten verwenden. Browserlaeufe belegen keine WebView2-, Windows-, Registry-, COM-, DPI- oder OS-Clipboard-Funktion.
 - Urspruengliche Datumstests mischten UTC-Fixtures mit festen lokalen Datumserwartungen: Berlin/UTC bestanden, Pacific/Kiritimati nicht durchgehend. Neue Datumstests mit explizitem Heute und bewusster Zeitzone schreiben. Sommerzeit- und Jahresgrenzen separat pruefen; Maschinen-Locale und Zeitzone sind verschiedene Dinge.
 
 ## Native Drag- und SVG-Fallen
