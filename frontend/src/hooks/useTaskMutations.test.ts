@@ -18,7 +18,7 @@ it('guards every group drop with the frozen database and source identity', async
   }, projectEvents(events, now), now, identity, vi.fn(), vi.fn());
   const drops = async (source: string) => {
     await actions.handleSetConfiguredDate(source, '2026-10-21T09:00:00.000Z', '2026-10-21', true);
-    await actions.handleResubmitTasks(source, 'plus_2h', true);
+    await actions.handleResubmitTasks(source, 'plus_1d', true);
     await actions.handleCompleteTask(source, true);
     await actions.handleAddPredecessor(source, 'C');
     await actions.handleRemoveDependencyBetween(source, 'C');

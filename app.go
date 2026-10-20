@@ -478,7 +478,7 @@ func computeMiniLogicalSize(itemCount int) (int, int) {
 	if rows > 4 {
 		rows = 4
 	}
-	logicalW := 240
+	logicalW := 320
 	logicalH := 28 + rows*28 + 2
 	return logicalW, logicalH
 }

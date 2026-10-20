@@ -89,6 +89,9 @@ const (
 	sysMenuRestoreID  = 0x1001
 	sysMenuMinimizeID = 0x1002
 
+	wmMouseActivate = 0x0021
+	maActivate      = 1
+
 	mfByCommand  = 0x00000000
 	mfByPosition = 0x00000400
 	mfString     = 0x00000000
@@ -421,6 +424,14 @@ func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) u
 				go app.onDisplayChange()
 			}
 			return 0
+		}
+
+	case wmMouseActivate:
+		if inMiniModeAtomic.Load() {
+			// The mini window is docked with SWP_NOACTIVATE and stays inactive; an inactive
+			// host drops mouse buttons, including right-clicks, before WebView2 delivers them.
+			procSetForegroundWindow.Call(hwnd)
+			return maActivate
 		}
 
 	case wmInitMenuPopup, wmPopupSystemMenu:

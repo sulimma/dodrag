@@ -1,48 +1,18 @@
 import React, { useLayoutEffect, useRef } from 'react';
-import { Calendar, CalendarClock, Clock, CheckCircle2 } from 'lucide-react';
+import { Calendar, CalendarClock, CheckCircle2 } from 'lucide-react';
 import type { QuickResubmitTargetId } from '../domain/projector';
-import { formatDateHeading, toDateKey } from '../domain/projector';
+import { QUICK_RESUBMIT_TARGETS, formatDateHeading, toDateKey } from '../domain/projector';
 import type { TaskState } from '../domain/types';
 import type { TaskViewInteractions } from './taskInteractions';
 import { DateLayerLine } from './DateLayerLine';
 import { t, formatNumber } from '../i18n';
-const RESUBMIT_TARGETS: Array<{
-  id: QuickResubmitTargetId;
-  label: string;
-  sublabel: string;
-  icon: React.ReactNode;
-}> = [
-  {
-    id: 'plus_2h',
-    label: '+2 Stunden',
-    sublabel: 'Zwei Stunden nach dem Tasktermin',
-    icon: <Clock className="w-4 h-4 text-sky-600" />,
-  },
-  {
-    id: 'plus_1d',
-    label: '+1 Tag',
-    sublabel: 'Folgetag des Tasktermins um 09:00',
-    icon: <CalendarClock className="w-4 h-4 text-teal-600" />,
-  },
-  {
-    id: 'next_week',
-    label: 'nächste Woche',
-    sublabel: 'Nächster Montag 09:00',
-    icon: <Calendar className="w-4 h-4 text-indigo-600" />,
-  },
-  {
-    id: 'plus_7d',
-    label: '+7 Tage',
-    sublabel: 'Exakt eine Woche später',
-    icon: <Calendar className="w-4 h-4 text-violet-600" />,
-  },
-  {
-    id: 'next_month',
-    label: 'nächsten Monat',
-    sublabel: 'Erster Tag des Folgemonats',
-    icon: <Calendar className="w-4 h-4 text-fuchsia-600" />,
-  },
-];
+// Icon tints only; labels stay here so the i18n AST check sees the keys.
+const RESUBMIT_ICONS: Record<QuickResubmitTargetId, React.ReactNode> = {
+  plus_1d: <CalendarClock className="w-4 h-4 text-teal-600" />,
+  next_week: <Calendar className="w-4 h-4 text-indigo-600" />,
+  plus_7d: <Calendar className="w-4 h-4 text-violet-600" />,
+  next_month: <Calendar className="w-4 h-4 text-fuchsia-600" />,
+};
 interface TaskSidebarProps {
   tasks: Record<string, TaskState>;
   completedTasks: TaskState[];
@@ -92,7 +62,7 @@ export function TaskSidebar({
         </h2>
 
         <div className="space-y-1.5">
-          {RESUBMIT_TARGETS.map((target) => {
+          {QUICK_RESUBMIT_TARGETS.map((target) => {
             const targetKey = `resubmit:${target.id}`;
             const isOver = activeDropTargetKey === targetKey;
             return (
@@ -132,7 +102,7 @@ export function TaskSidebar({
               >
                 <div className="flex items-center gap-2.5">
                   <div className="p-1.5 rounded-lg bg-white border border-slate-200 shadow-2xs">
-                    {target.icon}
+                    {RESUBMIT_ICONS[target.id]}
                   </div>
                   <div>
                     <div className="text-xs font-semibold text-slate-800">

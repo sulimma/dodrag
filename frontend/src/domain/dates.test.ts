@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { futureLimit, localDate, normalizeUserDate } from './dates';
 import { stableTopology } from './topology';
-import { calculateQuickResubmitDate, formatIso8601Display, projectEvents, QuickResubmitTargetId, toDateKey } from './projector';
+import { calculateQuickResubmitDate, formatIso8601Display, projectEvents, QUICK_RESUBMIT_TARGETS, QuickResubmitTargetId, toDateKey } from './projector';
 import { parseCommand } from './eventSchema';
 const now = localDate(2026,10,17,12);
 const key = (input: string) => { const d=new Date(normalizeUserDate(input,now)); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -34,7 +34,7 @@ it('resubmits from the displayed dependency-derived date, not the configured dat
   const task = state.tasks.b;
   expect(task.effectiveDateKey).toBe('2026-10-26');
   const expected: [QuickResubmitTargetId, string][] = [
-    ['plus_2h', '2026-10-26 16:30'], ['plus_1d', '2026-10-27'],
+    ['plus_1d', '2026-10-27'],
     ['next_week', '2026-11-02'], ['plus_7d', '2026-11-02'], ['next_month', '2026-11-01'],
   ];
   for (const [target, date] of expected) {
@@ -43,7 +43,8 @@ it('resubmits from the displayed dependency-derived date, not the configured dat
 });
 it('uses the visible Today group for overdue tasks and handles calendar boundaries', () => {
   const task = { effectiveStart: localDate(2026, 10, 1, 14, 30).toISOString(), effectiveDateKey: '2026-10-17' };
-  expect(formatIso8601Display(calculateQuickResubmitDate('plus_2h', task)).isoText).toBe('2026-10-17 16:30');
+  // "+2 Stunden" was removed; the shared list must stay in sync with the id union.
+  expect(QUICK_RESUBMIT_TARGETS.map(target => target.id)).toEqual(['plus_1d', 'next_week', 'plus_7d', 'next_month']);
   for (const [day, nextMonday] of [['2026-10-18', '2026-10-19'], ['2026-12-31', '2027-01-04']]) {
     expect(toDateKey(new Date(calculateQuickResubmitDate('next_week', { ...task, effectiveDateKey: day })))).toBe(nextMonday);
   }

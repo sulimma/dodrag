@@ -10,6 +10,15 @@ import (
 	"testing"
 )
 
+func TestMiniLogicalSize(t *testing.T) {
+	for _, tc := range []struct{ count, height int }{{0, 58}, {1, 58}, {2, 86}, {4, 142}, {8, 142}} {
+		width, height := computeMiniLogicalSize(tc.count)
+		if width != 320 || height != tc.height {
+			t.Fatalf("count %d: got %dx%d, want 320x%d", tc.count, width, height, tc.height)
+		}
+	}
+}
+
 func testApp(t *testing.T) *App {
 	t.Helper()
 	dir := t.TempDir()

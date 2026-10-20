@@ -225,6 +225,9 @@ export function App() {
         tasks={miniTasks}
         onSelectAndRestore={(taskId) => handleRestoreFromMiniMode(taskId)}
         onRestoreWindow={() => handleRestoreFromMiniMode()}
+        onResubmitTasks={actions.handleResubmitTasks}
+        onCompleteTask={actions.handleCompleteTask}
+        onToggleActive={actions.handleToggleActive}
       />
     );
   }

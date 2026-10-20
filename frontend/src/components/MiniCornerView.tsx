@@ -1,5 +1,6 @@
 import React from 'react';
-import { Maximize2 } from 'lucide-react';
+import { Maximize2, Flame, Check } from 'lucide-react';
+import type { QuickResubmitTargetId } from '../domain/projector';
 import type { TaskState } from '../domain/types';
 import appIcon from '../assets/app-icon.png';
 import { t, formatNumber } from '../i18n';
@@ -8,6 +9,9 @@ interface MiniCornerViewProps {
   tasks: TaskState[];
   onSelectAndRestore: (taskId: string) => void;
   onRestoreWindow: () => void;
+  onResubmitTasks: (id: string, target: QuickResubmitTargetId) => void;
+  onCompleteTask: (id: string) => void;
+  onToggleActive: (task: TaskState) => void;
 }
 
 // Shows a compact task list and restores the main window on interaction.
@@ -15,6 +19,9 @@ export function MiniCornerView({
   tasks,
   onSelectAndRestore,
   onRestoreWindow,
+  onResubmitTasks,
+  onCompleteTask,
+  onToggleActive,
 }: MiniCornerViewProps) {
   return (
     <div className="h-screen w-screen bg-white border border-slate-300 shadow-lg flex flex-col select-none overflow-hidden">
@@ -72,22 +79,58 @@ export function MiniCornerView({
           </div>
         ) : (
           tasks.map((task) => (
-            <button
+            <div
               key={task.id}
-              type="button"
-              onClick={() => onSelectAndRestore(task.id)}
-              title={task.title}
-              className={`w-full h-7 px-2.5 flex items-center text-left text-xs truncate transition-colors cursor-pointer ${
+              className={`group w-full h-7 px-2 flex items-center gap-1 text-xs transition-colors ${
                 task.isActive
                   ? 'bg-emerald-50/90 text-emerald-950 font-semibold hover:bg-emerald-100/90'
                   : 'bg-white text-slate-800 hover:bg-sky-50 hover:text-sky-900'
               }`}
             >
-              <span className="truncate">{task.title}</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => onSelectAndRestore(task.id)}
+                title={task.title}
+                className="flex-1 min-w-0 h-full truncate text-left cursor-pointer"
+              >
+                {task.title}
+              </button>
+              <div className="flex items-center gap-0.5 shrink-0 invisible group-hover:visible group-focus-within:visible">
+                <button
+                  type="button"
+                  onClick={() => onToggleActive(task)}
+                  disabled={task.predecessorIds.length > 0}
+                  aria-pressed={task.isActive}
+                  aria-label={task.isActive ? t('Deaktivieren') : t('Aktivieren (Hervorheben)')}
+                  title={task.isActive ? t('Deaktivieren') : t('Aktivieren (Hervorheben)')}
+                  className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer disabled:opacity-40 ${task.isActive ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-100'}`}
+                >
+                  <Flame className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onResubmitTasks(task.id, 'plus_1d')}
+                  aria-label={t('+1 Tag')}
+                  title={t('+1 Tag')}
+                  className="w-6 h-6 rounded text-[11px] font-semibold text-sky-700 hover:bg-sky-100 cursor-pointer"
+                >
+                  +1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onCompleteTask(task.id)}
+                  aria-label={t('Als erledigt markieren')}
+                  title={t('Als erledigt markieren')}
+                  className="w-6 h-6 rounded flex items-center justify-center text-emerald-700 hover:bg-emerald-100 cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           ))
         )}
       </div>
+
     </div>
   );
 }

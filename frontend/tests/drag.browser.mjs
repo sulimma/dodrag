@@ -311,7 +311,7 @@ try {
     assert.ok(batch[0].groupId && batch[0].groupId===batch[1].groupId,'one undo group');
     await page.locator('button[title^="Rückgängig"]').click();
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='DEPENDENCY_ADDED').every(event=>event.undone));
-    await drag(page.locator('aside .cursor-pointer').filter({hasText:'+2 Stunden'}));
+    await drag(page.locator('aside .cursor-pointer').filter({hasText:'+1 Tag'}));
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='TASK_START_DATE_SET'&&!event.undone).length===2);
     batch=(await activeEvents()).filter(event=>event.type==='TASK_START_DATE_SET');
     assert.deepEqual(batch.map(event=>event.payload.taskId),['A','B']);

@@ -566,11 +566,22 @@ export function computeDependencyHighlights(
  * Calculates target start timestamp for the sidebar quick-resubmission drag targets.
  */
 export type QuickResubmitTargetId =
-  | 'plus_2h'
   | 'plus_1d'
   | 'next_week'
   | 'plus_7d'
   | 'next_month';
+
+// Catalog keys shown in the sidebar targets and the compact-view context menu.
+export const QUICK_RESUBMIT_TARGETS: ReadonlyArray<{
+  id: QuickResubmitTargetId;
+  label: string;
+  sublabel: string;
+}> = [
+  { id: 'plus_1d', label: '+1 Tag', sublabel: 'Folgetag des Tasktermins um 09:00' },
+  { id: 'next_week', label: 'nächste Woche', sublabel: 'Nächster Montag 09:00' },
+  { id: 'plus_7d', label: '+7 Tage', sublabel: 'Exakt eine Woche später' },
+  { id: 'next_month', label: 'nächsten Monat', sublabel: 'Erster Tag des Folgemonats' },
+];
 
 export function calculateQuickResubmitDate(
   targetId: QuickResubmitTargetId,
@@ -581,9 +592,6 @@ export function calculateQuickResubmitDate(
   // Use the visible day (overdue tasks appear under Today), retaining the effective time.
   const now = localDate(year, month, day, effective.getHours(), effective.getMinutes(), effective.getSeconds());
   switch (targetId) {
-    case 'plus_2h': {
-      return new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString();
-    }
     case 'plus_1d': {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 0, 0, 0);
       return d.toISOString();

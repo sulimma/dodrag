@@ -588,12 +588,12 @@ it('resubmits each selected task relative to its own visible date in a single ba
   }];
   vi.mocked(api.GetEvents).mockResolvedValue(different);
   await mount(); selectTask('26-101'); selectTask('26-102', { metaKey: true });
-  await act(async () => click([...element.querySelectorAll('aside .cursor-pointer')].find(node => node.textContent?.includes('+2 Stunden'))!));
+  await act(async () => click([...element.querySelectorAll('aside .cursor-pointer')].find(node => node.textContent?.includes('+1 Tag'))!));
   expect(api.AppendBatch).toHaveBeenCalledTimes(1);
   const commands = vi.mocked(api.AppendBatch).mock.calls[0][0];
   expect(commands).toHaveLength(2);
   expect(commands.every(command => command.type === 'TASK_START_DATE_SET')).toBe(true);
-  expect((commands[1].payload as any).configuredStart).toBe('2030-04-12T13:30:00.000Z');
+  expect((commands[1].payload as any).configuredStart).toBe('2030-04-13T07:00:00.000Z');
   expect((commands[0].payload as any).configuredStart).not.toBe((commands[1].payload as any).configuredStart);
   expect(selectedIds()).toEqual(['26-101', '26-102']);
 });
