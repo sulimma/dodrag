@@ -405,11 +405,15 @@ func installWindowSubclassIfNeeded(hwnd uintptr, app *App) {
 		origWndProc.Store(prev)
 		subclassedHWND = hwnd
 		ensureSystemMenuItems(hwnd)
+		// Hook installation must happen on the window's UI thread, not this Go caller.
 	}
 }
 
 func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) uintptr {
 	app := appInstanceForHooks.Load()
+	if app != nil && dragWheelHook == 0 {
+		installDragWheelHook(app)
+	}
 	switch msg {
 	case wmNcCalcSize:
 		if inMiniModeAtomic.Load() {

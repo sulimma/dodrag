@@ -3,6 +3,7 @@ import type { TaskState } from '../domain/types';
 import { useDatabaseSnapshot } from './useDatabaseSnapshot';
 import { useTaskSelection } from './useTaskSelection';
 import { taskDragPreview } from './taskDragPreview';
+import { scrollTaskDragWheel } from './taskDragWheel';
 export interface DragIdentity {
   database: string;
   taskId: string;
@@ -62,6 +63,12 @@ export function useTaskDrag(
 
   useEffect(() => {
     const stop = () => onDragEndTask();
+    const unsubscribeWheel = window.runtime?.EventsOn?.('task:drag-wheel', (event) => {
+      if (dragIdentity.current && event && typeof event.horizontal === 'boolean') {
+        scrollTaskDragWheel(event);
+        setActiveDropTargetKey(null);
+      }
+    });
     const drop = () => { previewCleanup.current?.(); previewCleanup.current = null; };
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') stop();
@@ -81,6 +88,7 @@ export function useTaskDrag(
     window.addEventListener('drop', drop, true);
     return () => {
       drop();
+      unsubscribeWheel?.();
       window.removeEventListener('keydown', key, true);
       window.removeEventListener('keyup', key, true);
       window.removeEventListener('blur', stop);
