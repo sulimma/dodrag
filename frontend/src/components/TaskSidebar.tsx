@@ -46,11 +46,37 @@ export function TaskSidebar({
     onDragEndTask,
   } = interactions;
   const completedScrollRef = useRef<HTMLDivElement>(null);
+  const completedEndVisible = useRef(true);
   const completionKey = JSON.stringify(completedTasks.map(task => [task.id, task.completedAt]));
   useLayoutEffect(() => {
     const container = completedScrollRef.current;
     if (container) container.scrollTop = container.scrollHeight;
+    completedEndVisible.current = true;
   }, [completionKey]);
+  useLayoutEffect(() => {
+    const container = completedScrollRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+    let previousHeight = container.clientHeight;
+    const endVisible = () => container.scrollHeight - container.clientHeight - container.scrollTop <= 1;
+    const onScroll = () => {
+      // A resize can emit scroll before ResizeObserver; preserve the pre-resize anchor.
+      if (container.clientHeight === previousHeight) completedEndVisible.current = endVisible();
+    };
+    const observer = new ResizeObserver(() => {
+      if (container.clientHeight === previousHeight) return;
+      if (completedEndVisible.current) {
+        container.scrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      }
+      previousHeight = container.clientHeight;
+      completedEndVisible.current = endVisible();
+    });
+    container.addEventListener('scroll', onScroll);
+    observer.observe(container);
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      observer.disconnect();
+    };
+  }, []);
   const completedDateKeys = completedTasks.map(task =>
     toDateKey(new Date(task.completedAt ?? task.createdAt))
   );

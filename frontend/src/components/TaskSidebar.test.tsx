@@ -60,3 +60,58 @@ it('orders completions by instant, separates local days and scrolls to the newes
     act(() => root.unmount()); element.remove(); height.mockRestore(); vi.unstubAllGlobals();
   }
 });
+
+it('anchors a visible bottom on resize, keeps a hidden bottom stationary and caps short lists at the top', () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  let resize = () => {};
+  const disconnect = vi.fn();
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: () => void) { resize = callback; }
+    observe() {}
+    disconnect = disconnect;
+  });
+  const contentHeight = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(1000);
+  const viewportHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(300);
+  const element = document.createElement('div'); document.body.append(element);
+  const root = createRoot(element);
+  const noop = vi.fn();
+  try {
+    act(() => root.render(<TaskSidebar tasks={{}} completedTasks={[]} now={new Date(2027, 0, 2, 12)}
+      interactions={{ selectedTaskId: null, activeDropTargetKey: null, draggedTaskId: null,
+        setActiveDropTargetKey: noop, onDragEndTask: noop }}
+      onCompleteTask={noop} onResubmitTasks={noop} onReopenTask={noop} />));
+    const container = element.querySelector<HTMLElement>('.overflow-y-auto')!;
+    const scroll = (top: number) => { container.scrollTop = top; container.dispatchEvent(new Event('scroll')); };
+    scroll(700);
+    viewportHeight.mockReturnValue(200);
+    // Browser may dispatch resize-induced scroll before the observer notification.
+    container.dispatchEvent(new Event('scroll'));
+    resize(); expect(container.scrollTop).toBe(800);
+    viewportHeight.mockReturnValue(400);
+    resize(); expect(container.scrollTop).toBe(600);
+    scroll(250);
+    viewportHeight.mockReturnValue(300);
+    resize(); expect(container.scrollTop).toBe(250);
+    viewportHeight.mockReturnValue(600);
+    resize(); expect(container.scrollTop).toBe(250);
+    // Growing exposes the bottom; further resizes must now follow it.
+    viewportHeight.mockReturnValue(750);
+    resize(); expect(container.scrollTop).toBe(250);
+    viewportHeight.mockReturnValue(800);
+    resize(); expect(container.scrollTop).toBe(200);
+    viewportHeight.mockReturnValue(1200);
+    resize(); expect(container.scrollTop).toBe(0);
+    viewportHeight.mockReturnValue(1500);
+    resize(); expect(container.scrollTop).toBe(0);
+    viewportHeight.mockReturnValue(500);
+    resize(); expect(container.scrollTop).toBe(500);
+    // Manually leaving the bottom disables anchoring again.
+    scroll(0);
+    viewportHeight.mockReturnValue(400);
+    resize(); expect(container.scrollTop).toBe(0);
+  } finally {
+    act(() => root.unmount()); element.remove(); contentHeight.mockRestore(); viewportHeight.mockRestore();
+    vi.unstubAllGlobals();
+  }
+  expect(disconnect).toHaveBeenCalledOnce();
+});
