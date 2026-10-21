@@ -1,7 +1,7 @@
 import type { TaskState } from '../domain/types';
 
-// Chromium snapshots this attached, offscreen stacking context after dragstart.
-// Do not hide/remove it before then, or use a viewport-clipped ancestor.
+// Clone frozen drag members into an inert, viewport-bounded stacking context.
+// The pointer adapter positions it using the supplied source-relative hotspot.
 export function taskDragPreview(
   transfer: DataTransfer,
   source: HTMLElement,

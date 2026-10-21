@@ -112,10 +112,8 @@ export function GanttView(props: GanttViewProps) {
     highlights,
     draggedTaskId,
     isAltDrag,
-    onAltKeyChange,
     activeDropTargetKey,
     setActiveDropTargetKey,
-    setDraggedTaskId,
     onSetConfiguredDate,
     onToggleActive,
     titleEditor,
@@ -361,7 +359,6 @@ export function GanttView(props: GanttViewProps) {
         if (!day) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
-        onAltKeyChange(event.altKey);
         setActiveDropTargetKey(`gantt-date:${day.dateKey}`);
       }}
       onDragLeave={event => {
@@ -372,7 +369,6 @@ export function GanttView(props: GanttViewProps) {
         if (!day || !draggedTaskId) return;
         event.preventDefault();
         onSetConfiguredDate(draggedTaskId, day.isoDate, day.dateKey);
-        props.onDragEndTask();
       }}
     >
       {/* Left Task List Column (written-out task names stacked vertically) */}

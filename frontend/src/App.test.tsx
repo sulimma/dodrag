@@ -38,8 +38,14 @@ let element: HTMLDivElement;
 let root: Root;
 let activeSettings: AppSettings;
 let api: NonNullable<NonNullable<NonNullable<Window['go']>['main']>['App']>;
+let dragFrame: FrameRequestCallback;
+let dragHit: Element | null;
 
 beforeEach(() => {
+  dragHit = null;
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => { dragFrame = callback; return 1; });
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => dragHit });
   setLanguage('de');
   activeSettings = { ...settings };
   api = {
@@ -71,6 +77,7 @@ afterEach(() => {
   element.remove();
   delete window.go;
   delete window.runtime;
+  delete (document as Partial<Document>).elementFromPoint;
   setLanguage('de');
   vi.restoreAllMocks();
 });
@@ -302,10 +309,28 @@ it('editor Escape cancels once without clearing the underlying selected task', a
 });
 
 function dragEvent(target: Element, kind: string, altKey = false) {
-  const event = new MouseEvent(kind, { bubbles: true, cancelable: true, altKey });
-  Object.defineProperty(event, 'dataTransfer', {
-    value: { setData: vi.fn(), setDragImage: vi.fn(), getData: () => '26-101', effectAllowed: '', dropEffect: '' },
-  });
+  // Synthetic pointer input exercises the adapter; actual capture/focus needs Chromium.
+  const pointer = (type: string, x: number) => {
+    const event = new MouseEvent(type, { bubbles: true, cancelable: true, altKey, clientX: x });
+    Object.defineProperties(event, { pointerId: { value: 1 }, isPrimary: { value: true } });
+    act(() => target.dispatchEvent(event));
+    return event;
+  };
+  dragHit = target;
+  if (kind === 'dragstart') {
+    pointer('pointerdown', 10);
+    return pointer('pointermove', 30);
+  }
+  if (kind === 'dragover') {
+    const event = pointer('pointermove', 30);
+    act(() => dragFrame(0));
+    return event;
+  }
+  if (kind === 'dragend') return pointer('pointercancel', 30);
+  if (document.querySelector('[data-task-drag-preview]')) return pointer('pointerup', 30);
+  // Unsolicited external/local drops must still be rejected by mutation guards.
+  const event = new MouseEvent('drop', { bubbles: true, cancelable: true, altKey });
+  Object.defineProperty(event, 'dataTransfer', { value: { getData: () => '26-101' } });
   act(() => target.dispatchEvent(event));
   return event;
 }
@@ -445,6 +470,8 @@ it.each(['save', 'drag'])('blocks database switches during a pending %s', async 
   expect(activeSettings.activeDatabasePath).toBe('A.db');
   if (pending === 'save') await act(async () => response.resolve(history));
   else dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragend');
+  // A real new click has a pointerdown, resetting suppression of the cancelled drag's click.
+  act(() => textButton('Verwenden').dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })));
   await act(async () => click(textButton('Verwenden')));
   expect(api.SwitchDatabase).toHaveBeenCalledTimes(1);
 });

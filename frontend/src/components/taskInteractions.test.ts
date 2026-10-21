@@ -3,7 +3,7 @@ import { taskInteractions } from './taskInteractions';
 import { normalizeTitleInput, TITLE_LIMIT } from '../domain/input';
 it('selects once on click, never on mousedown', () => {
   const select=vi.fn();
-  const handlers=taskInteractions('t1','task:t1',{onSelectTask:select,onDragStartTask:vi.fn(),onDragEndTask:vi.fn(),onAltKeyChange:vi.fn(),isAltDrag:false,draggedTaskId:null,setDraggedTaskId:vi.fn(),setActiveDropTargetKey:vi.fn(),onAddPredecessor:vi.fn(),onRemoveDependencyBetween:vi.fn(),onContextMenuTask:vi.fn()});
+  const handlers=taskInteractions('t1','task:t1',{onSelectTask:select,onDragStartTask:vi.fn(),isAltDrag:false,draggedTaskId:null,setActiveDropTargetKey:vi.fn(),onAddPredecessor:vi.fn(),onRemoveDependencyBetween:vi.fn(),onContextMenuTask:vi.fn()});
   expect(handlers.onMouseDown).toBeUndefined();
   handlers.onClick({stopPropagation:vi.fn(),target:{closest:()=>null},shiftKey:true} as any);
   expect(select).toHaveBeenCalledTimes(1);

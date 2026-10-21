@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { projectEvents } from '../domain/projector';
 import { useTaskSelection } from './useTaskSelection';
-import { useTaskDrag } from './useTaskDrag';
 import { useTaskMutations } from './useTaskMutations';
 import type { InlineEditor } from '../components/inlineEditor';
 interface ShortcutContext {
@@ -14,7 +13,6 @@ interface ShortcutContext {
     | 'contextMenu'
     | 'setContextMenu'
   >;
-  drag: Pick<ReturnType<typeof useTaskDrag>, 'onAltKeyChange'>;
   actions: Pick<
     ReturnType<typeof useTaskMutations>,
     | 'handleUndo'
@@ -36,7 +34,6 @@ interface ShortcutContext {
 // Routes global keyboard input while respecting editors and overlays.
 export function useGlobalShortcuts({
   selection,
-  drag,
   actions,
   state,
   showSettingsModal,
@@ -56,7 +53,6 @@ export function useGlobalShortcuts({
     contextMenu,
     setContextMenu,
   } = selection;
-  const { onAltKeyChange } = drag;
   const {
     handleUndo,
     handleRedo,
@@ -108,10 +104,6 @@ export function useGlobalShortcuts({
           handleRedo();
           return;
         }
-      }
-
-      if (e.key === 'Alt') {
-        onAltKeyChange(true);
       }
 
       const isTextEntryFocused =
@@ -232,17 +224,9 @@ export function useGlobalShortcuts({
       }
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Alt') {
-        onAltKeyChange(false);
-      }
-    };
-
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
     };
   });
 }

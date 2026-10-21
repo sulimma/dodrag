@@ -12,11 +12,8 @@ export interface TaskInteractions {
   selectedTaskIds?: string[];
   orderedTaskIds?: string[];
   onDragStartTask: (event: React.DragEvent, id: string) => void;
-  onDragEndTask: () => void;
-  onAltKeyChange: (shift: boolean) => void;
   isAltDrag: boolean;
   draggedTaskId: string | null;
-  setDraggedTaskId: (id: string | null) => void;
   setActiveDropTargetKey: (key: string | null) => void;
   onAddPredecessor: (source: string, target: string) => void;
   onRemoveDependencyBetween: (source: string, target: string) => void;
@@ -49,25 +46,8 @@ export function taskInteractions(
     'data-task-drag': id,
     'data-task-drop-target': key,
     'data-task-selected': actions.selectedTaskIds?.includes(id) || undefined,
-    onPointerDownCapture: (event: React.PointerEvent<HTMLElement>) => {
-      if (
-        event.altKey &&
-        !(event.target as HTMLElement).closest(
-          'input,textarea,button,[contenteditable="true"]'
-        )
-      ) {
-        // Keep the deletion-mode marker separate from Shift selection/scrolling.
-        event.currentTarget.setAttribute('data-alt-drag', 'true');
-      }
-    },
-    onPointerUp: (event: React.PointerEvent<HTMLElement>) =>
-      event.currentTarget.removeAttribute('data-alt-drag'),
     onMouseDown: undefined,
     onDragStart: (event: React.DragEvent) => actions.onDragStartTask(event, id),
-    onDragEnd: (event: React.DragEvent<HTMLElement>) => {
-      event.currentTarget.removeAttribute('data-alt-drag');
-      actions.onDragEndTask();
-    },
     onClick: (event: React.MouseEvent) => {
       event.stopPropagation();
       if (!(event.target as HTMLElement).closest('input,button,textarea'))
@@ -78,7 +58,6 @@ export function taskInteractions(
     onDragOver: (event: React.DragEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      actions.onAltKeyChange(event.altKey);
       if (actions.draggedTaskId) {
         event.dataTransfer.dropEffect = 'move';
         actions.setActiveDropTargetKey(key);
@@ -97,7 +76,6 @@ export function taskInteractions(
         if (event.altKey) actions.onRemoveDependencyBetween(source, id);
         else actions.onAddPredecessor(source, id);
       }
-      actions.onDragEndTask();
     },
   };
 }

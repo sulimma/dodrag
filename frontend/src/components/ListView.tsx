@@ -29,7 +29,6 @@ export function ListView(props: ListViewProps) {
     activeDropTargetKey,
     isAltDrag,
     setActiveDropTargetKey,
-    setDraggedTaskId,
     onSetConfiguredDate,
     onToggleActive,
     deletionPreview,
@@ -78,7 +77,6 @@ export function ListView(props: ListViewProps) {
                 if (tId) {
                   onSetConfiguredDate(tId, entry.isoDate, entry.dateKey);
                 }
-                props.onDragEndTask();
               }}
             />
           );

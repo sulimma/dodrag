@@ -8,7 +8,8 @@ import type { TaskState } from '../domain/types';
 
 it('reuses drop targeting for movement, scroll, resize and release across repeated pointer drags', () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-  vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+  let frame!: FrameRequestCallback;
+  vi.stubGlobal('requestAnimationFrame', vi.fn(callback => { frame = callback; return 1; }));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
   const host = document.createElement('div'); document.body.append(host);
   const root = createRoot(host);
@@ -26,7 +27,7 @@ it('reuses drop targeting for movement, scroll, resize and release across repeat
       <span data-drag-handle>{id}</span><span data-title data-task-selectable-text>{id}</span>
     </div>)}<div data-task-drop-target="resubmit" onDragOver={e => {
       e.preventDefault(); actions.setActiveDropTargetKey('resubmit');
-    }} onDrop={() => { resubmit(identity.current?.taskIds); actions.onDragEndTask(); }} /></>;
+    }} onDrop={() => resubmit(identity.current?.taskIds)} /></>;
   }
   const pointer = (target: Element, type: string, x: number, altKey = false) => {
     const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: 20, button: 0, altKey });
@@ -44,11 +45,25 @@ it('reuses drop targeting for movement, scroll, resize and release across repeat
     pointer(source.querySelector('[data-title]')!, 'pointerdown', 10);
     pointer(source, 'pointermove', 30);
     expect(identity.current).toBeNull();
-    pointer(handle, 'pointerdown', 10);
+    expect(pointer(handle, 'pointerdown', 10).defaultPrevented).toBe(false);
     pointer(source, 'pointermove', 12);
     expect(identity.current).toBeNull();
     pointer(source, 'pointermove', 30);
     expect(identity.current?.taskIds).toEqual(['A', 'B']);
+    expect(actions.activeDropTargetKey).toBeNull();
+    const hitTest = vi.mocked(document.elementFromPoint);
+    expect(hitTest).not.toHaveBeenCalled();
+    pointer(source, 'pointermove', 31);
+    pointer(source, 'pointermove', 32);
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt' }));
+    });
+    expect(hitTest).not.toHaveBeenCalled();
+    act(() => frame(0));
+    expect(hitTest).toHaveBeenCalledTimes(1);
+    expect(actions.isAltDrag).toBe(true);
+    act(() => window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Alt' })));
     expect(actions.activeDropTargetKey).toBe('task:B');
     expect(document.querySelectorAll('[data-drag-preview-task]').length).toBe(2);
     // Wheel is neither consumed nor converted into custom scrolling.
@@ -57,9 +72,12 @@ it('reuses drop targeting for movement, scroll, resize and release across repeat
     expect(wheel.defaultPrevented).toBe(false);
     hit = host.querySelector('[data-task-drag="C"]');
     act(() => host.dispatchEvent(new Event('scroll')));
+    expect(actions.activeDropTargetKey).toBe('task:B');
+    act(() => frame(16));
     expect(actions.activeDropTargetKey).toBe('task:C');
     hit = host.querySelector('[data-task-drag="B"]');
     act(() => window.dispatchEvent(new Event('resize')));
+    act(() => frame(32));
     expect(actions.activeDropTargetKey).toBe('task:B');
     // Release must re-hit-test even if no movement/scroll event was delivered.
     hit = host.querySelector('[data-task-drag="C"]');
@@ -79,6 +97,24 @@ it('reuses drop targeting for movement, scroll, resize and release across repeat
     pointer(source, 'pointerup', 30);
     expect(resubmit).toHaveBeenCalledTimes(1);
     expect(identity.current).toBeNull();
+    // Source removal must cancel even though dragend could no longer bubble.
+    pointer(handle, 'pointerdown', 10); pointer(source, 'pointermove', 30);
+    act(() => frame(48));
+    expect(actions.activeDropTargetKey).not.toBeNull();
+    source.remove();
+    act(() => frame(64));
+    expect(identity.current).toBeNull();
+    expect(actions.draggedTaskId).toBeNull();
+    expect(actions.activeDropTargetKey).toBeNull();
+    expect(document.querySelector('[data-task-drag-preview]')).toBeNull();
+    act(() => window.dispatchEvent(new Event('blur')));
+    pointer(host, 'pointerup', 30);
+    expect(remove).toHaveBeenCalledTimes(1);
+    host.prepend(source);
+    pointer(handle, 'pointerdown', 10); pointer(source, 'pointermove', 30);
+    act(() => root.unmount());
+    expect(identity.current).toBeNull();
+    expect(document.querySelector('[data-task-drag-preview]')).toBeNull();
   } finally {
     act(() => root.unmount()); host.remove();
     delete (document as Partial<Document>).elementFromPoint; vi.unstubAllGlobals();

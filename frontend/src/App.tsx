@@ -40,7 +40,7 @@ export function App() {
   const [isMiniMode, setIsMiniMode] = useState(false);
   const newTaskInputRef = useRef<HTMLInputElement>(null);
   const listScrollRef = useRef<HTMLElement>(null);
-  // The native drag identity survives drop render updates until dragend.
+  // Frozen drag members/database remain available until drop callbacks consume them.
   const dragIdentity = useRef<DragIdentity | null>(null);
   const { toasts, pushToast } = useToasts();
   const selection = useTaskSelection();
@@ -92,7 +92,6 @@ export function App() {
   const { draggedTaskId, activeDropTargetKey, isAltDrag } = drag;
   useGlobalShortcuts({
     selection,
-    drag,
     actions,
     state,
     showSettingsModal,

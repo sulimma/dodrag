@@ -26,6 +26,24 @@ try {
   const source = page.locator('[data-task-drag="T0"]');
   await source.waitFor();
   await page.waitForFunction(() => document.getAnimations().every(animation => animation.playState !== 'running'));
+  const newTask = page.getByPlaceholder('Neues kleines TODO eingeben... (Taste N)', { exact: true });
+  for (const area of [source.locator('[data-drag-handle]'), source.locator('.font-mono').first(), source.locator('[data-task-title-area]')]) {
+    await newTask.focus();
+    await area.click({ position: { x: 3, y: 3 } });
+    assert.equal(await newTask.evaluate(node => node === document.activeElement), false, 'ordinary task click blurs new-task input');
+    assert.equal(await page.locator('[data-task-drag-preview]').count(), 0, 'ordinary click does not start a preview');
+  }
+  await source.getByText('Task 0', { exact: true }).dblclick();
+  await source.locator('input').fill('Committed by task click');
+  await page.locator('[data-task-drag="T1"] [data-drag-handle]').click();
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1'))
+    .some(event => event.type === 'TASK_RENAMED' && event.payload.title === 'Committed by task click'));
+  assert.equal(await source.locator('input').count(), 0, 'clicking another handle commits inline editor on blur');
+  await source.locator('[data-drag-handle]').click();
+  await page.locator('[data-task-drag="T1"] [data-drag-handle]').click({ modifiers: ['Control'] });
+  assert.equal(await source.getAttribute('data-task-selected'), 'true');
+  assert.equal(await page.locator('[data-task-drag="T1"]').getAttribute('data-task-selected'), 'true');
+  console.log('PASS: ordinary clicks restore focus/blur commit and Control selection');
   for (let run = 0; run < 2; run++) {
     await source.scrollIntoViewIfNeeded();
     const bounds = await (run === 0 ? source.locator('[data-drag-handle]') : source.locator('[data-task-title-area]')).boundingBox();
@@ -67,6 +85,26 @@ try {
   assert.equal(await page.locator('[data-task-drag-preview]').count(), 1);
   await page.keyboard.press('Escape'); await page.mouse.up(); await page.keyboard.up('Alt');
   assert.equal(await page.locator('[data-task-drag-preview]').count(), 0);
+  // Change the view with keyboard input while capture is held, removing the source.
+  await bar.scrollIntoViewIfNeeded();
+  const detached = await bar.boundingBox();
+  await page.mouse.move(detached.x + detached.width / 2, detached.y + detached.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(detached.x + detached.width / 2 + 20, detached.y + detached.height / 2, { steps: 5 });
+  await page.waitForSelector('[data-task-drag-preview]');
+  await page.getByRole('button', { name: 'Liste', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !document.querySelector('[data-task-drag-preview]'));
+  await page.mouse.up();
+  const next = await source.locator('[data-drag-handle]').boundingBox();
+  await page.mouse.move(next.x + next.width / 2, next.y + next.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(next.x + next.width / 2 + 20, next.y + next.height / 2, { steps: 5 });
+  await page.waitForSelector('[data-task-drag-preview]');
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  assert.equal(await page.locator('[data-task-drag-preview]').count(), 0);
+  console.log('PASS: source removal during pointer capture cleans up and permits another drag');
   console.log('PASS: repeated real pointer drags retain native browser wheel scrolling');
 } finally {
   await browser.close(); await server.close();

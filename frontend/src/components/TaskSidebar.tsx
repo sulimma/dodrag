@@ -23,7 +23,6 @@ interface TaskSidebarProps {
     | 'activeDropTargetKey'
     | 'draggedTaskId'
     | 'setActiveDropTargetKey'
-    | 'onDragEndTask'
   >;
   onCompleteTask: (id: string, fromDrag?: boolean) => void;
   onResubmitTasks: (id: string, target: QuickResubmitTargetId, fromDrag?: boolean) => void;
@@ -43,7 +42,6 @@ export function TaskSidebar({
     activeDropTargetKey,
     draggedTaskId,
     setActiveDropTargetKey,
-    onDragEndTask,
   } = interactions;
   const completedScrollRef = useRef<HTMLDivElement>(null);
   const completedEndVisible = useRef(true);
@@ -114,7 +112,6 @@ export function TaskSidebar({
                   if (tId && tasks[tId]) {
                     onResubmitTasks(tId, target.id, true);
                   }
-                  onDragEndTask();
                 }}
                 onClick={() => {
                   if (selectedTaskId && tasks[selectedTaskId]) {
@@ -167,7 +164,6 @@ export function TaskSidebar({
           if (tId) {
             onCompleteTask(tId, true);
           }
-          onDragEndTask();
         }}
         className={`flex-1 min-h-0 flex flex-col rounded-xl border-2 transition-colors overflow-hidden ${
           activeDropTargetKey === 'completed-list-dropzone'

@@ -25,8 +25,8 @@ it('lays out complete same-day dependency levels at responsive widths and across
     selectedTaskId: null, selectedEdgeKeys: [], highlights: {}, draggedTaskId: null,
     isAltDrag: false, activeDropTargetKey: null, titleEditor: editor, dateEditor: editor,
     onSelectEdge: noop, onClearEdgeSelection: noop, onClearTaskSelection: noop,
-    onAltKeyChange: noop, setActiveDropTargetKey: noop, setDraggedTaskId: noop,
-    onSelectTask: noop, onContextMenuTask: noop, onDragStartTask: noop, onDragEndTask: noop,
+    setActiveDropTargetKey: noop,
+    onSelectTask: noop, onContextMenuTask: noop, onDragStartTask: noop,
     onAddPredecessor: noop, onRemoveDependencyBetween: noop, onSetConfiguredDate: noop, onToggleActive: noop,
   };
   let width = 840;

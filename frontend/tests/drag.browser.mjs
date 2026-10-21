@@ -61,19 +61,19 @@ try {
     if(view==='Netzplan') await verifyNetworkGeometry(page);
     const sourceText=diagram?source:source.locator('[data-drag-handle]');
     const a=await sourceText.boundingBox(), c=await target.boundingBox();
-    // Real native drag from the explicit non-text handle, never synthetic dragstart.
+    // Actual mouse input drives the pointer adapter, which emits local drag events.
     await page.mouse.move(a.x+a.width*0.5,a.y+a.height*0.5);
      if(altBefore) await page.keyboard.down('Alt');
      await page.mouse.down();await page.mouse.move(a.x+a.width*0.5+16,a.y+a.height*0.5,{steps:8});
      if(altBefore===false) await page.keyboard.down('Alt');
      await page.mouse.move(c.x+c.width*0.65,c.y+c.height*0.65,{steps:18});
      await page.mouse.move(c.x+c.width*0.65+1,c.y+c.height*0.65,{steps:2});
-     assert.ok(await page.evaluate(()=>window.dragStarts)>0,`${view} Alt-before=${altBefore}: native dragstart`);
+     assert.ok(await page.evaluate(()=>window.dragStarts)>0,`${view} Alt-before=${altBefore}: pointer-adapted dragstart`);
      if(altBefore===null) {
       assert.equal(await page.locator('[data-deletion-preview="true"]').count(),0);
       await page.mouse.up();
       assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='DEPENDENCY_REMOVED').length),0);
-      console.log('PASS GanttDiagramm: normal native drag from ID center');await page.close();continue;
+      console.log('PASS GanttDiagramm: normal pointer drag from ID center');await page.close();continue;
     }
     const preview=await page.locator('[data-deletion-preview="true"]').evaluateAll(elements=>elements.map(element=>element.getAttribute('data-edge-key')).sort());
     assert.deepEqual(preview,['A->B','A->C'],`${view}: exact source-local preview including redundant edge`);
@@ -100,7 +100,7 @@ try {
       if(view==='Netzplan') assert.ok(Math.abs(geometry.tangent.x)<0.001 && geometry.tangent.y>0);
       else assert.ok(Math.abs(geometry.tangent.y)<0.001 && Math.abs(geometry.tangent.x)>0);
     }
-     // Native normal text selection and inline input editing still work after Alt cleanup.
+     // Browser text selection and inline editing still work after pointer cleanup.
     const editableSource=diagram?page.locator('[data-task-drag="A"]').first():source;
     const title=editableSource.getByText('Title A',{exact:true});
     assert.equal(await title.evaluate(element=>getComputedStyle(element).userSelect),'text');
@@ -236,7 +236,7 @@ try {
   await page.locator('button[title^="Rückgängig"]').click();
   await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='TASK_START_DATE_SET' && event.payload.taskId==='A').at(-1).undone);
   assert.notEqual(await page.locator('[data-gantt-node="A"]').evaluate(element=>element.style.left),position,'undo restores position');
-  await dragToDate('A',keys[5],true);assert.equal((await dateEvents()).length,2,'Escape cancels native date drag');
+  await dragToDate('A',keys[5],true);assert.equal((await dateEvents()).length,2,'Escape cancels pointer date drag');
   const constrained=await page.locator('[data-gantt-node="B"]').evaluate(element=>element.style.left);
   await dragToDate('B',keys[1]);
   await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).some(event=>event.type==='TASK_START_DATE_SET' && event.payload.taskId==='B'));
@@ -253,24 +253,10 @@ try {
       localStorage.setItem('dodrag_sqlite_fallback_events_v1',JSON.stringify(events));
       localStorage.setItem('dodrag_settings_fallback_v1',JSON.stringify({knownDatabases:[{name:'test',path:'test.db',exists:true,isDemo:false}],activeDatabasePath:'test.db',autostart:false}));
       window.dragStarts=0;document.addEventListener('dragstart',()=>window.dragStarts++);
-      window.dragImages=[];
       document.addEventListener('dragstart',event=>{
         const root=event.target.closest('[data-task-drag]'),rect=root.getBoundingClientRect();
         window.dragOrigin={id:root.dataset.taskDrag,x:event.clientX-rect.left,y:event.clientY-rect.top};
       },true);
-      const original=DataTransfer.prototype.setDragImage;
-      DataTransfer.prototype.setDragImage=function(image,x,y){
-        const rect=image.getBoundingClientRect(),origin=window.dragOrigin;
-        const clones=[...image.querySelectorAll('[data-drag-preview-task]')];
-        const member=clones.find(clone=>clone.dataset.dragPreviewTask===origin.id),bounds=member.getBoundingClientRect();
-        const scale=bounds.width/parseFloat(member.style.width);
-        window.dragImages.push({ids:clones.map(clone=>clone.dataset.dragPreviewTask),text:image.textContent,
-          width:rect.width,height:rect.height,connected:image.isConnected,inert:image.inert,
-          safe:!image.querySelector('[id],[data-task-drag],[draggable],[contenteditable]'),
-          x,y,expectedX:Math.round(bounds.left-rect.left+origin.x*scale),expectedY:Math.round(bounds.top-rect.top+origin.y*scale),
-          background:getComputedStyle(member).backgroundColor});
-        return original.call(this,image,x,y);
-      };
     });
     await page.goto('http://127.0.0.1:5197');
     const diagram=view==='GanttDiagramm';
@@ -290,16 +276,29 @@ try {
       await page.mouse.move(source.x+source.width/2+16,source.y+source.height/2,{steps:8});
       await page.mouse.move(dest.x+dest.width*.65,dest.y+dest.height*.65,{steps:18});
       assert.equal(await page.locator('[data-task-drag-preview]').count(),1);
-      const image=await page.evaluate(()=>window.dragImages.at(-1));
-      assert.deepEqual(image.ids,['A','B'],`${view}: actual frozen members in native image`);
+      const pointer={x:dest.x+dest.width*.65,y:dest.y+dest.height*.65};
+      await page.evaluate(()=>new Promise(requestAnimationFrame));
+      const image=await page.locator('[data-task-drag-preview]').evaluate((image,pointer)=>{
+        const rect=image.getBoundingClientRect(),origin=window.dragOrigin;
+        const clones=[...image.querySelectorAll('[data-drag-preview-task]')];
+        const member=clones.find(clone=>clone.dataset.dragPreviewTask===origin.id),bounds=member.getBoundingClientRect();
+        const scale=bounds.width/parseFloat(member.style.width);
+        return {ids:clones.map(clone=>clone.dataset.dragPreviewTask),text:image.textContent,
+          width:rect.width,height:rect.height,connected:image.isConnected,inert:image.inert,
+          safe:!image.querySelector('[id],[data-task-drag],[draggable],[contenteditable]'),
+          x:pointer.x-rect.left,y:pointer.y-rect.top,
+          expectedX:Math.round(bounds.left-rect.left+origin.x*scale),expectedY:Math.round(bounds.top-rect.top+origin.y*scale),
+          background:getComputedStyle(member).backgroundColor};
+      },pointer);
+      assert.deepEqual(image.ids,['A','B'],`${view}: actual frozen members in pointer preview`);
       assert.ok(image.connected && image.inert && image.safe);
       assert.ok(image.width<=600 && image.height<=440);
-      assert.ok(image.x===image.expectedX && image.y===image.expectedY,`${view}: pointer hotspot`);
+      assert.ok(Math.abs(image.x-image.expectedX)<0.1 && Math.abs(image.y-image.expectedY)<0.1,`${view}: pointer hotspot`);
       assert.notEqual(image.background,'rgba(0, 0, 0, 0)','actual node styles cloned');
       if(!diagram) assert.ok(image.text.includes('Title A') && image.text.includes('Title B'));
       if(cancel) await page.keyboard.press('Escape');
       await page.mouse.up();
-      assert.equal(await page.locator('[data-task-drag-preview]').count(),0,'native end/drop cleanup');
+      assert.equal(await page.locator('[data-task-drag-preview]').count(),0,'pointer end/drop cleanup');
     };
     const activeEvents=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>!event.undone));
     await drag(node('C'),true);
@@ -338,7 +337,7 @@ try {
     batch=(await activeEvents()).filter(event=>event.type==='TASK_COMPLETED');
     assert.deepEqual(batch.map(event=>event.payload.taskId),['A','B']);
     assert.ok(batch[0].groupId && batch[0].groupId===batch[1].groupId);
-    assert.ok(await page.evaluate(()=>window.dragStarts)>=3,'real native group drags');
+    assert.ok(await page.evaluate(()=>window.dragStarts)>=3,'actual mouse-driven group drags');
     console.log(`PASS ${view}: real group predecessor/resubmit/complete drags, context preservation, atomic undo`);
     await page.close();
   }

@@ -120,10 +120,8 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
     highlights,
     draggedTaskId,
     isAltDrag,
-    onAltKeyChange,
     activeDropTargetKey,
     setActiveDropTargetKey,
-    setDraggedTaskId,
     onSetConfiguredDate,
     onToggleActive,
     titleEditor,
@@ -485,7 +483,6 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
               if (tId) {
                 onSetConfiguredDate(tId, band.isoDate, band.dateKey);
               }
-              props.onDragEndTask();
             }}
           />
         );

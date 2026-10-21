@@ -66,7 +66,7 @@ it('represents unavailable members separately with literal text, not overlapping
   expect(new Set(Array.from(image.querySelectorAll<HTMLElement>('[data-drag-preview-task]')).map(node => node.style.top)).size).toBe(3);
 });
 
-it('leaves single drags native and removes a source if setDragImage throws', () => {
+it('skips single previews unless requested and removes a preview if setDragImage throws', () => {
   const source = node('A', 100, 100); node('B', 100, 150);
   const setDragImage = vi.fn(() => { throw new Error('test'); });
   taskDragPreview({ setDragImage } as unknown as DataTransfer, source, ['A'], tasks, 110, 110)();
@@ -75,11 +75,12 @@ it('leaves single drags native and removes a source if setDragImage throws', () 
   expect(document.querySelector('[data-task-drag-preview]')).toBeNull();
 });
 
-it.each(['dragend', 'drop', 'blur', 'Escape', 'unmount'])('cleans the preview on %s without invalidating identity before a drop handler', async end => {
+it.each(['pointercancel', 'drop', 'blur', 'Escape', 'unmount'])('cleans the pointer preview on %s after the drop handler consumes identity', async end => {
   const source = node('A', 100, 100); node('B', 100, 150);
   const host = document.createElement('div'); document.body.appendChild(host);
   const root = createRoot(host);
   const identity = { current: null } as React.MutableRefObject<DragIdentity | null>;
+  const consumed = vi.fn();
   let actions!: ReturnType<typeof useTaskDrag>;
   function Harness() {
     actions = useTaskDrag({ mutationBusy: { current: false }, snapshotConfirmed: { current: true }, databaseIdentity: { current: 'test.db' } }, {
@@ -88,13 +89,28 @@ it.each(['dragend', 'drop', 'blur', 'Escape', 'unmount'])('cleans the preview on
     return null;
   }
   await act(async () => root.render(<Harness />));
-  await act(async () => actions.onDragStartTask({ currentTarget: source, clientX: 110, clientY: 110, dataTransfer: { setData: vi.fn(), setDragImage: vi.fn() } } as unknown as React.DragEvent, 'A'));
+  source.dataset.taskDropTarget = 'task:A';
+  source.addEventListener('dragstart', event => actions.onDragStartTask({ currentTarget: source,
+    clientX: 110, clientY: 110, dataTransfer: (event as DragEvent).dataTransfer } as unknown as React.DragEvent, 'A'));
+  source.addEventListener('drop', () => consumed(identity.current?.taskIds));
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => source });
+  const pointer = (type: string, x: number) => {
+    const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: 110 });
+    Object.defineProperties(event, { pointerId: { value: 1 }, isPrimary: { value: true } });
+    source.dispatchEvent(event);
+  };
+  await act(async () => { pointer('pointerdown', 100); pointer('pointermove', 110); });
   expect(document.querySelector('[data-task-drag-preview]')).not.toBeNull();
   await act(async () => {
     if (end === 'unmount') root.unmount();
+    else if (end === 'drop') pointer('pointerup', 110);
+    else if (end === 'pointercancel') pointer('pointercancel', 110);
     else window.dispatchEvent(end === 'Escape' ? new KeyboardEvent('keydown', { key: 'Escape' }) : new Event(end));
   });
   expect(document.querySelector('[data-task-drag-preview]')).toBeNull();
-  if (end === 'drop') expect(identity.current?.taskIds).toEqual(['A', 'B']);
+  if (end === 'drop') expect(consumed).toHaveBeenCalledWith(['A', 'B']);
+  else expect(consumed).not.toHaveBeenCalled();
+  expect(identity.current).toBeNull();
   if (end !== 'unmount') await act(async () => root.unmount());
+  delete (document as Partial<Document>).elementFromPoint;
 });

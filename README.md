@@ -74,10 +74,10 @@ DoDrag is a Windows desktop application built with [Wails](https://wails.io/), G
 
 #### Download a release
 
-Download the executable for your Windows processor from the [DoDrag v0.1.3 release](https://github.com/sulimma/dodrag/releases/tag/v0.1.3):
+Download the executable for your Windows processor from the [DoDrag v0.1.4 release](https://github.com/sulimma/dodrag/releases/tag/v0.1.4):
 
-- **Most Windows PCs (Intel/AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.3/dodrag-windows-amd64.exe)
-- **Windows on ARM (ARM64):** [`dodrag-windows-arm64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.3/dodrag-windows-arm64.exe)
+- **Most Windows PCs (Intel/AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.4/dodrag-windows-amd64.exe)
+- **Windows on ARM (ARM64):** [`dodrag-windows-arm64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.4/dodrag-windows-arm64.exe)
 
 Save the matching `.exe` and open it to run DoDrag; no installer is required.
 

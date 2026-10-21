@@ -9,7 +9,7 @@ export interface DragIdentity {
   taskId: string;
   taskIds: string[];
 }
-// Owns task-drag state and guards native drags against pending mutations.
+// Owns frozen task-drag identity, preview resources and React target state.
 export function useTaskDrag(
   database: Pick<
     ReturnType<typeof useDatabaseSnapshot>,
@@ -46,64 +46,24 @@ export function useTaskDrag(
     previewCleanup.current = taskDragPreview(e.dataTransfer, e.currentTarget as HTMLElement, taskIds, tasks, e.clientX, e.clientY, true);
     if (!selectedTaskIds.includes(taskId)) setSelectedTaskId(taskId);
     clearEdgeSelection();
-    setIsAltDrag(e.altKey);
   };
 
-  const onDragEndTask = () => {
+  const endDrag = () => {
     previewCleanup.current?.();
     previewCleanup.current = null;
     dragIdentity.current = null;
-    document
-      .querySelectorAll('[data-alt-drag]')
-      .forEach((element) => element.removeAttribute('data-alt-drag'));
     setDraggedTaskId(null);
     setIsAltDrag(false);
     setActiveDropTargetKey(null);
   };
 
-  useEffect(() => {
-    const stop = () => onDragEndTask();
-    const uninstallPointerDrag = installTaskPointerDrag();
-    const drop = () => { previewCleanup.current?.(); previewCleanup.current = null; };
-    const key = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') stop();
-      if (event.key === 'Alt') {
-        if (dragIdentity.current) event.preventDefault();
-        const held = event.type === 'keydown';
-        setIsAltDrag(held);
-        document.querySelectorAll('[data-task-drag]').forEach((element) => {
-          if (held) element.setAttribute('data-alt-drag', 'true');
-          else element.removeAttribute('data-alt-drag');
-        });
-      }
-    };
-    window.addEventListener('keydown', key, true);
-    window.addEventListener('keyup', key, true);
-    window.addEventListener('blur', stop);
-    window.addEventListener('dragend', stop);
-    window.addEventListener('drop', drop, true);
-    return () => {
-      drop();
-      uninstallPointerDrag();
-      window.removeEventListener('keydown', key, true);
-      window.removeEventListener('keyup', key, true);
-      window.removeEventListener('blur', stop);
-      window.removeEventListener('dragend', stop);
-      window.removeEventListener('drop', drop, true);
-    };
-  }, []);
-  const onAltKeyChange = (shift: boolean) => {
-    setIsAltDrag(shift);
-  };
+  // Callbacks only use stable setters and refs; DOM drag handlers use current renders.
+  useEffect(() => installTaskPointerDrag(endDrag, setIsAltDrag), [dragIdentity]);
   return {
     draggedTaskId,
-    setDraggedTaskId,
     isAltDrag,
-    setIsAltDrag,
     activeDropTargetKey,
     setActiveDropTargetKey,
     onDragStartTask,
-    onDragEndTask,
-    onAltKeyChange,
   };
 }
