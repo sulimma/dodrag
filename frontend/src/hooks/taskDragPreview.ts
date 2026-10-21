@@ -8,9 +8,10 @@ export function taskDragPreview(
   taskIds: readonly string[],
   tasks: Record<string, TaskState>,
   clientX: number,
-  clientY: number
+  clientY: number,
+  includeSingle = false
 ) {
-  if (taskIds.length < 2) return () => {};
+  if (taskIds.length < 2 && !includeSingle) return () => {};
   const bars = source.hasAttribute('data-gantt-node');
   const nodes = Array.from(document.querySelectorAll<HTMLElement>(
     bars ? '[data-gantt-node]' : '[data-task-drag]:not([data-gantt-node])'

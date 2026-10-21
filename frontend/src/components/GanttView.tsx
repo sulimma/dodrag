@@ -111,8 +111,8 @@ export function GanttView(props: GanttViewProps) {
     onClearTaskSelection,
     highlights,
     draggedTaskId,
-    isShiftDrag,
-    onShiftKeyChange,
+    isAltDrag,
+    onAltKeyChange,
     activeDropTargetKey,
     setActiveDropTargetKey,
     setDraggedTaskId,
@@ -345,6 +345,7 @@ export function GanttView(props: GanttViewProps) {
   return (
     <div
       className="relative bg-white/80 rounded-2xl border border-slate-200/90 shadow-xs overflow-clip my-5 mx-auto"
+      data-task-drop-target="gantt-calendar"
       style={{
         width: layout.canvasWidth,
         minHeight: layout.canvasHeight,
@@ -360,7 +361,7 @@ export function GanttView(props: GanttViewProps) {
         if (!day) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
-        onShiftKeyChange(event.shiftKey);
+        onAltKeyChange(event.altKey);
         setActiveDropTargetKey(`gantt-date:${day.dateKey}`);
       }}
       onDragLeave={event => {
@@ -397,7 +398,7 @@ export function GanttView(props: GanttViewProps) {
             activeDropTargetKey === dropKey && draggedTaskId !== task.id;
           const isBeingDragged = draggedTaskId === task.id;
 
-          const appearance = taskAppearanceRole(task, role, isDropTarget, isShiftDrag);
+          const appearance = taskAppearanceRole(task, role, isDropTarget, isAltDrag);
 
           let rowBgClasses = 'bg-white hover:bg-slate-50/90';
           if (appearance === 'drop') {
@@ -420,7 +421,7 @@ export function GanttView(props: GanttViewProps) {
                 height: ROW_HEIGHT,
               }}
               {...taskInteractions(task.id, dropKey, props)}
-              draggable={titleEditor.taskId !== task.id}
+              data-task-drag-disabled={titleEditor.taskId === task.id || undefined}
               className={`absolute left-0 right-0 px-2.5 border-b border-slate-200/60 flex items-center gap-1.5 cursor-pointer transition-colors ${rowBgClasses} ${
                 isBeingDragged ? 'opacity-35' : ''
               } ${task.isDeemphasized && !role ? 'opacity-80' : ''}`}
@@ -646,7 +647,7 @@ export function GanttView(props: GanttViewProps) {
         const isBeingDragged = draggedTaskId === task.id;
         const configuredDate = formatDate(task.configuredStart);
 
-        const appearance = taskAppearanceRole(task, role, isDropTarget, isShiftDrag);
+        const appearance = taskAppearanceRole(task, role, isDropTarget, isAltDrag);
 
         let containerClasses =
           'bg-white border-slate-300 text-slate-700 shadow-xs hover:border-slate-400';
@@ -674,6 +675,7 @@ export function GanttView(props: GanttViewProps) {
           <div
             key={task.id}
             data-gantt-node={task.id}
+            data-drag-handle
             data-dependency-highlight={role?.startsWith('predecessor-') ? 'predecessor' : role?.startsWith('successor-') ? 'successor' : undefined}
             style={{
               left: x,
@@ -681,7 +683,7 @@ export function GanttView(props: GanttViewProps) {
               width,
               height,
             }}
-            title={t('{id}: {title} ({date}). Auf Datum ziehen: Startdatum setzen; auf Task ziehen: Vorgänger setzen; Shift: Kanten lösen.', { id: task.id, title: task.title, date: configuredDate })}
+            title={t('{id}: {title} ({date}). Auf Datum ziehen: Startdatum setzen; auf Task ziehen: Vorgänger setzen; Alt: Kanten lösen.', { id: task.id, title: task.title, date: configuredDate })}
             {...taskInteractions(task.id, dropKey, props)}
             className={`absolute z-20 rounded-lg border px-1 flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors font-mono text-[11px] ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''

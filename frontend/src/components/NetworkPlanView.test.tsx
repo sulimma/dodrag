@@ -23,9 +23,9 @@ it('lays out complete same-day dependency levels at responsive widths and across
   const props = {
     openTasks: tasks, now: new Date(2026, 9, 17, 23, 59), deletionPreview: [],
     selectedTaskId: null, selectedEdgeKeys: [], highlights: {}, draggedTaskId: null,
-    isShiftDrag: false, activeDropTargetKey: null, titleEditor: editor, dateEditor: editor,
+    isAltDrag: false, activeDropTargetKey: null, titleEditor: editor, dateEditor: editor,
     onSelectEdge: noop, onClearEdgeSelection: noop, onClearTaskSelection: noop,
-    onShiftKeyChange: noop, setActiveDropTargetKey: noop, setDraggedTaskId: noop,
+    onAltKeyChange: noop, setActiveDropTargetKey: noop, setDraggedTaskId: noop,
     onSelectTask: noop, onContextMenuTask: noop, onDragStartTask: noop, onDragEndTask: noop,
     onAddPredecessor: noop, onRemoveDependencyBetween: noop, onSetConfiguredDate: noop, onToggleActive: noop,
   };

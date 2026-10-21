@@ -3,7 +3,7 @@ import type { TaskState } from '../domain/types';
 import { useDatabaseSnapshot } from './useDatabaseSnapshot';
 import { useTaskSelection } from './useTaskSelection';
 import { taskDragPreview } from './taskDragPreview';
-import { scrollTaskDragWheel } from './taskDragWheel';
+import { installTaskPointerDrag } from './taskPointerDrag';
 export interface DragIdentity {
   database: string;
   taskId: string;
@@ -26,7 +26,7 @@ export function useTaskDrag(
   const { selectedTaskIds, setSelectedTaskId, clearEdgeSelection } = selection;
   const previewCleanup = React.useRef<(() => void) | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  const [isShiftDrag, setIsShiftDrag] = useState<boolean>(false);
+  const [isAltDrag, setIsAltDrag] = useState<boolean>(false);
   const [activeDropTargetKey, setActiveDropTargetKey] = useState<string | null>(
     null
   );
@@ -43,10 +43,10 @@ export function useTaskDrag(
     e.dataTransfer.setData('text/plain', taskId);
     e.dataTransfer.effectAllowed = 'all';
     previewCleanup.current?.();
-    previewCleanup.current = taskDragPreview(e.dataTransfer, e.currentTarget as HTMLElement, taskIds, tasks, e.clientX, e.clientY);
+    previewCleanup.current = taskDragPreview(e.dataTransfer, e.currentTarget as HTMLElement, taskIds, tasks, e.clientX, e.clientY, true);
     if (!selectedTaskIds.includes(taskId)) setSelectedTaskId(taskId);
     clearEdgeSelection();
-    setIsShiftDrag(e.shiftKey);
+    setIsAltDrag(e.altKey);
   };
 
   const onDragEndTask = () => {
@@ -54,30 +54,26 @@ export function useTaskDrag(
     previewCleanup.current = null;
     dragIdentity.current = null;
     document
-      .querySelectorAll('[data-shift-drag]')
-      .forEach((element) => element.removeAttribute('data-shift-drag'));
+      .querySelectorAll('[data-alt-drag]')
+      .forEach((element) => element.removeAttribute('data-alt-drag'));
     setDraggedTaskId(null);
-    setIsShiftDrag(false);
+    setIsAltDrag(false);
     setActiveDropTargetKey(null);
   };
 
   useEffect(() => {
     const stop = () => onDragEndTask();
-    const unsubscribeWheel = window.runtime?.EventsOn?.('task:drag-wheel', (event) => {
-      if (dragIdentity.current && event && typeof event.horizontal === 'boolean') {
-        scrollTaskDragWheel(event);
-        setActiveDropTargetKey(null);
-      }
-    });
+    const uninstallPointerDrag = installTaskPointerDrag();
     const drop = () => { previewCleanup.current?.(); previewCleanup.current = null; };
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') stop();
-      if (event.key === 'Shift') {
+      if (event.key === 'Alt') {
+        if (dragIdentity.current) event.preventDefault();
         const held = event.type === 'keydown';
-        setIsShiftDrag(held);
+        setIsAltDrag(held);
         document.querySelectorAll('[data-task-drag]').forEach((element) => {
-          if (held) element.setAttribute('data-shift-drag', 'true');
-          else element.removeAttribute('data-shift-drag');
+          if (held) element.setAttribute('data-alt-drag', 'true');
+          else element.removeAttribute('data-alt-drag');
         });
       }
     };
@@ -88,7 +84,7 @@ export function useTaskDrag(
     window.addEventListener('drop', drop, true);
     return () => {
       drop();
-      unsubscribeWheel?.();
+      uninstallPointerDrag();
       window.removeEventListener('keydown', key, true);
       window.removeEventListener('keyup', key, true);
       window.removeEventListener('blur', stop);
@@ -96,18 +92,18 @@ export function useTaskDrag(
       window.removeEventListener('drop', drop, true);
     };
   }, []);
-  const onShiftKeyChange = (shift: boolean) => {
-    setIsShiftDrag(shift);
+  const onAltKeyChange = (shift: boolean) => {
+    setIsAltDrag(shift);
   };
   return {
     draggedTaskId,
     setDraggedTaskId,
-    isShiftDrag,
-    setIsShiftDrag,
+    isAltDrag,
+    setIsAltDrag,
     activeDropTargetKey,
     setActiveDropTargetKey,
     onDragStartTask,
     onDragEndTask,
-    onShiftKeyChange,
+    onAltKeyChange,
   };
 }

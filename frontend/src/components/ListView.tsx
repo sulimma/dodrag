@@ -27,7 +27,7 @@ export function ListView(props: ListViewProps) {
     highlights,
     draggedTaskId,
     activeDropTargetKey,
-    isShiftDrag,
+    isAltDrag,
     setActiveDropTargetKey,
     setDraggedTaskId,
     onSetConfiguredDate,
@@ -97,7 +97,7 @@ export function ListView(props: ListViewProps) {
           task,
           role,
           isDropTarget,
-          isShiftDrag
+          isAltDrag
         );
         let containerClasses =
           'bg-white border-slate-200/90 shadow-sm hover:border-slate-300';
@@ -134,7 +134,7 @@ export function ListView(props: ListViewProps) {
                   : undefined
             }
             {...taskInteractions(task.id, entry.key, props)}
-            draggable={!isEditing && !isEditingDate}
+            data-task-drag-disabled={isEditing || isEditingDate || undefined}
             className={`group relative flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border transition-colors cursor-pointer ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''
             }`}
@@ -142,7 +142,7 @@ export function ListView(props: ListViewProps) {
             {/* Left section: Drag Handle + Active Toggle + Task ID + In-place Editable Title */}
             <div className="flex items-center gap-2.5 flex-1 min-w-0">
               <div
-                title={t('Ziehen auf Task (= Vorgänger setzen), Shift-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts')}
+                title={t('Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts')}
                 className="text-slate-400 group-hover:text-slate-600 cursor-grab active:cursor-grabbing"
               >
                 <TaskDragHandle />
@@ -182,11 +182,13 @@ export function ListView(props: ListViewProps) {
                 {task.id}
               </span>
 
-              <TaskTitle
-                task={task}
-                editor={titleEditor}
-                className="text-sm truncate min-w-0 flex-1"
-              />
+              <div className="min-w-0 flex-1" data-task-title-area>
+                <TaskTitle
+                  task={task}
+                  editor={titleEditor}
+                  className="inline-block max-w-full align-middle text-sm truncate"
+                />
+              </div>
             </div>
 
             {/* Right section: Selectable Predecessor chips (Ctrl/Shift multi-select, Del/Backspace) & In-Place Editable Configured Date */}

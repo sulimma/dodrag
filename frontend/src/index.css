@@ -7,8 +7,8 @@
     user-select: text;
   }
   .cursor-grab { user-select: none; }
-  [data-task-drag][data-shift-drag="true"],
-  [data-task-drag][data-shift-drag="true"] * { user-select: none; }
+  [data-task-drag][data-alt-drag="true"],
+  [data-task-drag][data-alt-drag="true"] * { user-select: none; }
   [data-task-drag] input, [data-task-drag] textarea,
   [data-task-drag] [contenteditable="true"] { user-select: text; }
 }

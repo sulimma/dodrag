@@ -94,6 +94,7 @@ export function TaskSidebar({
             return (
               <div
                 key={target.id}
+                data-task-drop-target={targetKey}
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.dataTransfer.dropEffect = 'move';
@@ -147,6 +148,7 @@ export function TaskSidebar({
 
       {/* Permanent "Erledigte Tasks" List acting directly as the Drop Target to complete tasks */}
       <div
+        data-task-drop-target="completed-list-dropzone"
         onDragOver={(e) => {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';

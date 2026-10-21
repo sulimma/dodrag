@@ -24,7 +24,7 @@ Drag a task onto a quick-resubmission target: **+2 hours**, **+1 day**, **next w
 
 ### See dependencies as a network
 
-Switch from the list to a dependency network or a Gantt timeline. Add a prerequisite by dragging the dependent task onto its prerequisite; drag with **Shift** to remove the relevant dependency edges.
+Switch from the list to a dependency network or a Gantt timeline. Add a prerequisite by dragging the dependent task onto its prerequisite; drag with **Alt** to remove the relevant dependency edges.
 
 <p align="center"><img src="docs/screenshots/network-plan.png" alt="DoDrag dependency network view" width="900"></p>
 
@@ -39,7 +39,7 @@ The compact, corner-docked view stays out of the way and shows only work that ca
 - **Actionable work first:** the compact view filters out tasks blocked by unfinished prerequisites. It prefers tasks due today and falls back to other unblocked tasks when there is no work due today; the full views remain available for planning ahead.
 - **One-drag rescheduling:** defer a task by dragging it to a relative date target instead of opening a date picker.
 - **Dependencies at a glance:** list, network-plan, and Gantt views share task interactions and highlight upstream and downstream tasks.
-- **Drag-and-drop planning:** move tasks between dates, connect prerequisites, or remove selected dependency edges with Shift-drag.
+- **Drag-and-drop planning:** move tasks between dates, connect prerequisites, or remove selected dependency edges with Alt-drag.
 - **Small, traceable edits:** edit titles and dates in place, mark a task active, complete or reopen tasks, and undo or redo changes.
 - **Native Windows desktop app:** the app stores task history in SQLite and can manage multiple database files. Browser fallback code is an internal development aid, not a supported product target.
 - **Compact corner view:** dock a small always-on-top task window to a screen corner and restore the main window when needed.

@@ -13,8 +13,8 @@ export interface TaskInteractions {
   orderedTaskIds?: string[];
   onDragStartTask: (event: React.DragEvent, id: string) => void;
   onDragEndTask: () => void;
-  onShiftKeyChange: (shift: boolean) => void;
-  isShiftDrag: boolean;
+  onAltKeyChange: (shift: boolean) => void;
+  isAltDrag: boolean;
   draggedTaskId: string | null;
   setDraggedTaskId: (id: string | null) => void;
   setActiveDropTargetKey: (key: string | null) => void;
@@ -45,26 +45,27 @@ export function taskInteractions(
   actions: TaskInteractions
 ) {
   return {
-    draggable: true,
+    draggable: false,
     'data-task-drag': id,
+    'data-task-drop-target': key,
     'data-task-selected': actions.selectedTaskIds?.includes(id) || undefined,
     onPointerDownCapture: (event: React.PointerEvent<HTMLElement>) => {
       if (
-        event.shiftKey &&
+        event.altKey &&
         !(event.target as HTMLElement).closest(
           'input,textarea,button,[contenteditable="true"]'
         )
       ) {
-        // Suppress Shift's native selection extension, not mousedown's native drag default.
-        event.currentTarget.setAttribute('data-shift-drag', 'true');
+        // Keep the deletion-mode marker separate from Shift selection/scrolling.
+        event.currentTarget.setAttribute('data-alt-drag', 'true');
       }
     },
     onPointerUp: (event: React.PointerEvent<HTMLElement>) =>
-      event.currentTarget.removeAttribute('data-shift-drag'),
+      event.currentTarget.removeAttribute('data-alt-drag'),
     onMouseDown: undefined,
     onDragStart: (event: React.DragEvent) => actions.onDragStartTask(event, id),
     onDragEnd: (event: React.DragEvent<HTMLElement>) => {
-      event.currentTarget.removeAttribute('data-shift-drag');
+      event.currentTarget.removeAttribute('data-alt-drag');
       actions.onDragEndTask();
     },
     onClick: (event: React.MouseEvent) => {
@@ -77,7 +78,7 @@ export function taskInteractions(
     onDragOver: (event: React.DragEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      actions.onShiftKeyChange(event.shiftKey);
+      actions.onAltKeyChange(event.altKey);
       if (actions.draggedTaskId) {
         event.dataTransfer.dropEffect = 'move';
         actions.setActiveDropTargetKey(key);
@@ -93,7 +94,7 @@ export function taskInteractions(
       const source =
         actions.draggedTaskId || event.dataTransfer.getData('text/plain');
       if (source) {
-        if (event.shiftKey) actions.onRemoveDependencyBetween(source, id);
+        if (event.altKey) actions.onRemoveDependencyBetween(source, id);
         else actions.onAddPredecessor(source, id);
       }
       actions.onDragEndTask();

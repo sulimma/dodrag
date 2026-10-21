@@ -43,9 +43,9 @@ export function ShortcutHelp({
                 </kbd>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
-                <span>{t('Shift: an der gezogenen Aufgabe gespeicherte Kanten Richtung Ziel lösen (Vorgänger und Nachfolger, kein ganzer Pfad)')}</span>
+                <span>{t('Alt: an der gezogenen Aufgabe gespeicherte Kanten Richtung Ziel lösen (Vorgänger und Nachfolger, kein ganzer Pfad)')}</span>
                 <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700 whitespace-normal">
-                  {t('Shift+Task-Ziehen auf anderen Task')}
+                  {t('Alt+Task-Ziehen auf anderen Task')}
                 </kbd>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">

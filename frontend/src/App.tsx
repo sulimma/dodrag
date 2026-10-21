@@ -89,7 +89,7 @@ export function App() {
     setSelectedTaskId,
     clearEdgeSelection,
   } = selection;
-  const { draggedTaskId, activeDropTargetKey, isShiftDrag } = drag;
+  const { draggedTaskId, activeDropTargetKey, isAltDrag } = drag;
   useGlobalShortcuts({
     selection,
     drag,
@@ -161,7 +161,7 @@ export function App() {
     state.tasks,
     draggedTaskId,
     activeDropTargetKey,
-    isShiftDrag
+    isAltDrag
   );
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,7 +200,7 @@ export function App() {
     await eventBridge.exitMiniMode();
   };
 
-  // One contract instance supplies identical selection/context/Shift behavior to every layout.
+  // One contract instance supplies identical selection/context/Alt behavior to every layout.
   const interactions: TaskViewInteractions = {
     selectedTaskId,
     selectedTaskIds,

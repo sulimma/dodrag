@@ -40,7 +40,7 @@ const server=await createServer({server:{host:'127.0.0.1',port:5197,strictPort:t
 await server.listen();
 const browser=await chromium.launch({headless:true});
 try {
-   for (const view of ['GanttDiagramm','Liste','Netzplan','Gantt']) for (const shiftBefore of (view==='GanttDiagramm'?[true,false,null]:[true,false])) {
+   for (const view of ['GanttDiagramm','Liste','Netzplan','Gantt']) for (const altBefore of (view==='GanttDiagramm'?[true,false,null]:[true,false])) {
     const page=await browser.newPage({viewport:{width:1400,height:950},locale:'de-DE'});
     await page.addInitScript(overdue=>{
       const date=new Date();if(overdue) date.setDate(date.getDate()-10);
@@ -63,13 +63,13 @@ try {
     const a=await sourceText.boundingBox(), c=await target.boundingBox();
     // Real native drag from the explicit non-text handle, never synthetic dragstart.
     await page.mouse.move(a.x+a.width*0.5,a.y+a.height*0.5);
-    if(shiftBefore) await page.keyboard.down('Shift');
-    await page.mouse.down();await page.mouse.move(a.x+a.width*0.5+16,a.y+a.height*0.5,{steps:8});
-    if(shiftBefore===false) await page.keyboard.down('Shift');
-    await page.mouse.move(c.x+c.width*0.65,c.y+c.height*0.65,{steps:18});
-    await page.mouse.move(c.x+c.width*0.65+1,c.y+c.height*0.65,{steps:2});
-    assert.ok(await page.evaluate(()=>window.dragStarts)>0,`${view} Shift-before=${shiftBefore}: native dragstart`);
-    if(shiftBefore===null) {
+     if(altBefore) await page.keyboard.down('Alt');
+     await page.mouse.down();await page.mouse.move(a.x+a.width*0.5+16,a.y+a.height*0.5,{steps:8});
+     if(altBefore===false) await page.keyboard.down('Alt');
+     await page.mouse.move(c.x+c.width*0.65,c.y+c.height*0.65,{steps:18});
+     await page.mouse.move(c.x+c.width*0.65+1,c.y+c.height*0.65,{steps:2});
+     assert.ok(await page.evaluate(()=>window.dragStarts)>0,`${view} Alt-before=${altBefore}: native dragstart`);
+     if(altBefore===null) {
       assert.equal(await page.locator('[data-deletion-preview="true"]').count(),0);
       await page.mouse.up();
       assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='DEPENDENCY_REMOVED').length),0);
@@ -79,12 +79,12 @@ try {
     assert.deepEqual(preview,['A->B','A->C'],`${view}: exact source-local preview including redundant edge`);
     assert.ok(!(await target.getAttribute('class')).includes('bg-rose'),`${view}: target not red`);
     if(view==='Netzplan') await verifyNetworkGeometry(page);
-    await page.keyboard.up('Shift');
-    await page.mouse.move(c.x+c.width*0.65+2,c.y+c.height*0.65,{steps:2});
-    await page.waitForFunction(()=>document.querySelectorAll('[data-deletion-preview="true"]').length===0);
-    assert.equal(await page.locator('[data-deletion-preview="true"]').count(),0,'Shift release clears preview');
-    await page.keyboard.down('Shift');await page.mouse.move(c.x+c.width*0.65+3,c.y+c.height*0.65,{steps:2});
-    await page.mouse.up();await page.keyboard.up('Shift');
+     await page.keyboard.up('Alt');
+     await page.mouse.move(c.x+c.width*0.65+2,c.y+c.height*0.65,{steps:2});
+     await page.waitForFunction(()=>document.querySelectorAll('[data-deletion-preview="true"]').length===0);
+     assert.equal(await page.locator('[data-deletion-preview="true"]').count(),0,'Alt release clears preview');
+     await page.keyboard.down('Alt');await page.mouse.move(c.x+c.width*0.65+3,c.y+c.height*0.65,{steps:2});
+     await page.mouse.up();await page.keyboard.up('Alt');
     await page.waitForFunction(()=>JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1')).filter(event=>event.type==='DEPENDENCY_REMOVED').length===2);
     assert.equal(await page.locator('[data-deletion-preview="true"]').count(),0,'drop clears preview');
     await page.locator('button[title^="Rückgängig"]').click();
@@ -100,7 +100,7 @@ try {
       if(view==='Netzplan') assert.ok(Math.abs(geometry.tangent.x)<0.001 && geometry.tangent.y>0);
       else assert.ok(Math.abs(geometry.tangent.y)<0.001 && Math.abs(geometry.tangent.x)>0);
     }
-    // Native normal text selection and inline input editing still work after Shift cleanup.
+     // Native normal text selection and inline input editing still work after Alt cleanup.
     const editableSource=diagram?page.locator('[data-task-drag="A"]').first():source;
     const title=editableSource.getByText('Title A',{exact:true});
     assert.equal(await title.evaluate(element=>getComputedStyle(element).userSelect),'text');
@@ -110,12 +110,12 @@ try {
     await editor.press('Escape');
     await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState!=='running'));
     const handle=await (diagram?source:source.locator('[data-drag-handle]')).boundingBox();
-    await page.keyboard.down('Shift');await page.mouse.move(handle.x+3,handle.y+3);await page.mouse.down();
-    await page.mouse.move(handle.x+19,handle.y+3,{steps:8});await page.mouse.move(c.x+c.width*0.65,c.y+c.height*0.65,{steps:15});
-    await page.keyboard.press('Escape');await page.mouse.up();await page.keyboard.up('Shift');
-    await page.waitForFunction(()=>document.querySelectorAll('[data-deletion-preview="true"]').length===0);
-    console.log(`PASS ${view}: real mouse drag, Shift ${shiftBefore?'before':'during'}, preview/release/drop/batch undo`);
-    if(view==='Gantt' && shiftBefore) {
+     await page.keyboard.down('Alt');await page.mouse.move(handle.x+3,handle.y+3);await page.mouse.down();
+     await page.mouse.move(handle.x+19,handle.y+3,{steps:8});await page.mouse.move(c.x+c.width*0.65,c.y+c.height*0.65,{steps:15});
+     await page.keyboard.press('Escape');await page.mouse.up();await page.keyboard.up('Alt');
+     await page.waitForFunction(()=>document.querySelectorAll('[data-deletion-preview="true"]').length===0);
+     console.log(`PASS ${view}: real mouse drag, Alt ${altBefore?'before':'during'}, preview/release/drop/batch undo`);
+     if(view==='Gantt' && altBefore) {
       for(const previous of ['Netzplan','Liste']) for(const marked of ['none','task','edge']) {
         await page.getByRole('button',{name:previous,exact:true}).click();
         if(marked==='task') await page.locator('[data-task-drag="B"]').first().click();

@@ -14,7 +14,7 @@ interface ShortcutContext {
     | 'contextMenu'
     | 'setContextMenu'
   >;
-  drag: Pick<ReturnType<typeof useTaskDrag>, 'onShiftKeyChange'>;
+  drag: Pick<ReturnType<typeof useTaskDrag>, 'onAltKeyChange'>;
   actions: Pick<
     ReturnType<typeof useTaskMutations>,
     | 'handleUndo'
@@ -56,7 +56,7 @@ export function useGlobalShortcuts({
     contextMenu,
     setContextMenu,
   } = selection;
-  const { onShiftKeyChange } = drag;
+  const { onAltKeyChange } = drag;
   const {
     handleUndo,
     handleRedo,
@@ -110,8 +110,8 @@ export function useGlobalShortcuts({
         }
       }
 
-      if (e.key === 'Shift') {
-        onShiftKeyChange(true);
+      if (e.key === 'Alt') {
+        onAltKeyChange(true);
       }
 
       const isTextEntryFocused =
@@ -233,8 +233,8 @@ export function useGlobalShortcuts({
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') {
-        onShiftKeyChange(false);
+      if (e.key === 'Alt') {
+        onAltKeyChange(false);
       }
     };
 

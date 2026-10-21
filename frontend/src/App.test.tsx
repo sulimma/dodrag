@@ -301,8 +301,8 @@ it('editor Escape cancels once without clearing the underlying selected task', a
   expect(api.AppendBatch).toHaveBeenCalledTimes(1);
 });
 
-function dragEvent(target: Element, kind: string, shiftKey = false) {
-  const event = new MouseEvent(kind, { bubbles: true, cancelable: true, shiftKey });
+function dragEvent(target: Element, kind: string, altKey = false) {
+  const event = new MouseEvent(kind, { bubbles: true, cancelable: true, altKey });
   Object.defineProperty(event, 'dataTransfer', {
     value: { setData: vi.fn(), setDragImage: vi.fn(), getData: () => '26-101', effectAllowed: '', dropEffect: '' },
   });
@@ -332,11 +332,11 @@ it.each(['Liste', 'Netzplan', 'Gantt'])('preserves selection and context parity 
   });
 });
 
-it('documents the implemented drag direction, scoped Shift removal, and active shortcuts', async () => {
+it('documents the implemented drag direction, scoped Alt removal, and active shortcuts', async () => {
   await mount();
   click(button('Tastenkürzel & Bedienung (?)'));
   expect(element.textContent).toContain('Abhängigen Task auf seinen Vorgänger ziehen (A auf B: B → A)');
-  expect(element.textContent).toContain('Shift: an der gezogenen Aufgabe gespeicherte Kanten Richtung Ziel lösen (Vorgänger und Nachfolger, kein ganzer Pfad)');
+  expect(element.textContent).toContain('Alt: an der gezogenen Aufgabe gespeicherte Kanten Richtung Ziel lösen (Vorgänger und Nachfolger, kein ganzer Pfad)');
   expect(element.textContent).toContain('F2 / E / Enter / Doppelklick');
   expect(element.textContent).toContain('N: Eingabe für neuen Task fokussieren');
   expect(element.textContent).toContain('Enter (Eingabe): Task anlegen');
@@ -388,7 +388,7 @@ it.each(['Liste', 'Netzplan', 'Gantt'])('adds the target as predecessor when dra
   });
 });
 
-it.each(['Liste', 'Netzplan', 'Gantt'])('selects the drag source on Shift dragover and removes source edges in %s', async view => {
+it.each(['Liste', 'Netzplan', 'Gantt'])('selects the drag source on Alt dragover and removes source edges in %s', async view => {
   const linked: StoredEvent[] = [...history, {
     seq: 3, id: 'dependency', timestamp: date, undone: false,
     type: 'DEPENDENCY_ADDED', payload: { taskId: '26-102', predecessorId: '26-101' },
@@ -650,7 +650,7 @@ it.each(['date', 'resubmit', 'complete'])('applies %s drops to the frozen group,
   expect(selectedIds()).toEqual(['26-104']);
 });
 
-it('keeps group selection during Shift drag and removes only original-source path edges', async () => {
+it('keeps group selection during Alt drag and removes only original-source path edges', async () => {
   vi.mocked(api.GetEvents).mockResolvedValue([...groupHistory, ...[
     ['26-101', '26-102'], ['26-102', '26-103'], ['26-101', '26-103'],
   ].map(([predecessorId, taskId], index) => ({

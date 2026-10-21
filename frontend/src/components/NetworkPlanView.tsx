@@ -119,8 +119,8 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
     onClearTaskSelection,
     highlights,
     draggedTaskId,
-    isShiftDrag,
-    onShiftKeyChange,
+    isAltDrag,
+    onAltKeyChange,
     activeDropTargetKey,
     setActiveDropTargetKey,
     setDraggedTaskId,
@@ -587,7 +587,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
           activeDropTargetKey === dropKey && draggedTaskId !== task.id;
         const isBeingDragged = draggedTaskId === task.id;
 
-        const appearance = taskAppearanceRole(task, role, isDropTarget, isShiftDrag);
+        const appearance = taskAppearanceRole(task, role, isDropTarget, isAltDrag);
 
         let containerClasses =
           'bg-white border-slate-200/90 shadow-sm hover:border-slate-300';
@@ -622,7 +622,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
               height,
             }}
             {...taskInteractions(task.id, dropKey, props)}
-            draggable={titleEditor.taskId !== task.id && dateEditor.taskId !== task.id}
+            data-task-drag-disabled={titleEditor.taskId === task.id || dateEditor.taskId === task.id || undefined}
             className={`absolute z-20 rounded-xl border px-2.5 py-2 flex flex-col justify-between cursor-pointer transition-colors ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''
             }`}

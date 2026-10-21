@@ -50,6 +50,7 @@ export function TaskTitle({
     );
   return (
     <span
+      data-task-selectable-text
       title={task.title}
       onDoubleClick={(event) => {
         event.stopPropagation();
