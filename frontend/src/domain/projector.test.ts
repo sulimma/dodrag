@@ -490,6 +490,24 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     const mini1 = computeMiniWindowTasks(state1.openTasks, fixedNow);
     expect(mini1.map((t) => t.id)).toEqual(['26-2', '26-1']);
 
+    // Future active tasks remain visible ahead of today's inactive tasks.
+    const activeWithToday = projectEvents([...eventsWithToday, {
+      seq: 5, id: 'm5', timestamp: todayIso, undone: false,
+      type: 'TASK_CREATED', payload: { taskId: '26-4', title: 'Future active', configuredStart: nextWeekIso, createdAt: todayIso },
+    }, {
+      seq: 6, id: 'm6', timestamp: todayIso, undone: false,
+      type: 'TASK_ACTIVE_SET', payload: { taskId: '26-4', isActive: true },
+    }], fixedNow);
+    expect(computeMiniWindowTasks(activeWithToday.openTasks, fixedNow).map(t => t.id)).toEqual(['26-2', '26-4', '26-1']);
+    const deactivatedWithToday = projectEvents([...eventsWithToday, {
+      seq: 5, id: 'm5', timestamp: todayIso, undone: false,
+      type: 'TASK_ACTIVE_SET', payload: { taskId: '26-3', isActive: true },
+    }, {
+      seq: 6, id: 'm6', timestamp: todayIso, undone: false,
+      type: 'TASK_ACTIVE_SET', payload: { taskId: '26-3', isActive: false },
+    }], fixedNow);
+    expect(computeMiniWindowTasks(deactivatedWithToday.openTasks, fixedNow).map(t => t.id)).toEqual(['26-2', '26-1']);
+
     // Case 2: Today has NO tasks -> all tasks without predecessors across future days are returned
     const eventsWithoutToday: StoredEvent[] = [
       {

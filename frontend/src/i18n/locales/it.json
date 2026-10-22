@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "Primo giorno del mese successivo",
   "Erledigte Tasks ({count})": "Attività completate ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "Trascina qui le attività per segnarle come completate",
-  "Task wieder öffnen": "Riapri attività",
-  "Öffnen": "Apri",
   "Liste": "Elenco",
   "Netzplan": "Diagramma delle dipendenze",
   "Gantt": "Gantt",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "Trascina su un'attività (= imposta il predecessore), trascina con Alt (= elimina il collegamento), oppure trascina su una data o sulle opzioni di riprogrammazione a destra",
   "Deaktivieren (Space)": "Disattiva (Space)",
   "Aktivieren (Space)": "Attiva (Space)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Predecessore {id} (clic / Strg+clic / Shift+clic per selezionare, Entf/Backspace per eliminare)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Predecessore {id} (clic / Strg+clic / Shift+clic per selezionare, Entf/Backspace per eliminare)",
+  "Installation & Verknüpfungen": "Installazione e collegamenti",
+  "Programm in den Benutzerordner installieren": "Installa il programma nella cartella utente",
+  "Desktop-Verknüpfung anlegen": "Crea collegamento sul desktop",
+  "Startmenü-Verknüpfung anlegen": "Crea collegamento nel menu Start",
+  "Desktop-Verknüpfung angelegt": "Collegamento sul desktop creato",
+  "Startmenü-Verknüpfung angelegt": "Collegamento nel menu Start creato",
+  "Installation konnte nicht abgeschlossen werden.": "Impossibile completare l’installazione.",
+  "Verknüpfung konnte nicht angelegt werden.": "Impossibile creare il collegamento.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "Copia DoDrag in {path}. Al prossimo avvio verrà usata la versione installata.",
+  "Im Explorer öffnen": "Apri in Esplora file",
+  "In VS Code öffnen": "Apri in VS Code",
+  "Ordner konnte nicht geöffnet werden.": "Impossibile aprire la cartella."
 }

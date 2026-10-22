@@ -11,6 +11,15 @@ export interface DatabaseEntry {
   exists: boolean;
 }
 
+export interface SetupState {
+  currentExe: string;
+  currentDir?: string;
+  installPath: string;
+  programInstalled: boolean;
+  desktopShortcut: boolean;
+  startMenuShortcut: boolean;
+}
+
 export interface AppSettings {
   knownDatabases: DatabaseEntry[];
   activeDatabasePath: string;
@@ -21,6 +30,7 @@ export interface AppSettings {
   version?: string;
   buildTime?: string;
   uiLanguage?: string;
+  setup?: SetupState;
 }
 
 declare global {
@@ -53,6 +63,9 @@ declare global {
           OpenExistingDatabaseDialog: () => Promise<AppSettings>;
           SwitchDatabase: (dbPath: string) => Promise<AppSettings>;
           DeleteDatabase: (dbPath: string, deleteFile: boolean) => Promise<AppSettings>;
+          RunSetupAction?: (action: string) => Promise<AppSettings>;
+          OpenFolderInExplorer?: (path: string, isFile: boolean) => Promise<void>;
+          OpenFolderInVSCode?: (path: string, isFile: boolean) => Promise<void>;
           EnterMiniMode: (
             corner: string,
             itemCount: number
@@ -365,6 +378,25 @@ export const eventBridge = {
     const updated: AppSettings = { ...current, autostart: enabled };
     localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(updated));
     return updated;
+  },
+
+  async runSetupAction(action: 'install' | 'desktop-shortcut' | 'startmenu-shortcut'): Promise<AppSettings> {
+    if (isWailsAvailable() && window.go!.main!.App!.RunSetupAction) {
+      return await window.go!.main!.App!.RunSetupAction(action);
+    }
+    return await this.getSettings();
+  },
+
+  async openFolderInExplorer(path: string, isFile: boolean): Promise<void> {
+    if (isWailsAvailable() && window.go!.main!.App!.OpenFolderInExplorer) {
+      await window.go!.main!.App!.OpenFolderInExplorer(path, isFile);
+    }
+  },
+
+  async openFolderInVSCode(path: string, isFile: boolean): Promise<void> {
+    if (isWailsAvailable() && window.go!.main!.App!.OpenFolderInVSCode) {
+      await window.go!.main!.App!.OpenFolderInVSCode(path, isFile);
+    }
   },
 
   async selectFolderDialog(): Promise<string> {

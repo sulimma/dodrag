@@ -27,7 +27,8 @@ it('orders completions by instant, separates local days and scrolls to the newes
   expect(state.completedTasks.map(task => task.id)).toEqual(['B', 'A', 'C']);
   const noop = vi.fn();
   const interactions = { selectedTaskId: null, activeDropTargetKey: null, draggedTaskId: null,
-    setActiveDropTargetKey: noop };
+    setActiveDropTargetKey: noop, onDragStartTask: noop, onAddPredecessor: noop,
+    onRemoveDependencyBetween: noop };
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(900);
   const element = document.createElement('div');
@@ -35,7 +36,7 @@ it('orders completions by instant, separates local days and scrolls to the newes
   const root = createRoot(element);
   const render = () => act(() => root.render(<TaskSidebar tasks={state.tasks}
     completedTasks={state.completedTasks} now={now} interactions={interactions}
-    onCompleteTask={noop} onResubmitTasks={noop} onReopenTask={noop} />));
+    onCompleteTask={noop} onResubmitTasks={noop} />));
   try {
     render();
     const container = element.querySelector<HTMLElement>('.overflow-y-auto')!;
@@ -56,6 +57,9 @@ it('orders completions by instant, separates local days and scrolls to the newes
     expect(container.scrollTop).toBe(1100);
     expect(container.textContent).not.toContain('2026-12-31');
     expect(container.textContent).toContain('2027-01-02');
+    const completedRow = element.querySelector<HTMLElement>('[data-completed-task="A"]')!;
+    expect(completedRow.getAttribute('data-task-drag')).toBe('A');
+    expect(completedRow.querySelector('[data-task-selectable-text]')).not.toBeNull();
   } finally {
     act(() => root.unmount()); element.remove(); height.mockRestore(); vi.unstubAllGlobals();
   }
@@ -78,8 +82,9 @@ it('anchors a visible bottom on resize, keeps a hidden bottom stationary and cap
   try {
     act(() => root.render(<TaskSidebar tasks={{}} completedTasks={[]} now={new Date(2027, 0, 2, 12)}
       interactions={{ selectedTaskId: null, activeDropTargetKey: null, draggedTaskId: null,
-        setActiveDropTargetKey: noop }}
-      onCompleteTask={noop} onResubmitTasks={noop} onReopenTask={noop} />));
+        setActiveDropTargetKey: noop, onDragStartTask: noop, onAddPredecessor: noop,
+        onRemoveDependencyBetween: noop }}
+      onCompleteTask={noop} onResubmitTasks={noop} />));
     const container = element.querySelector<HTMLElement>('.overflow-y-auto')!;
     const scroll = (top: number) => { container.scrollTop = top; container.dispatchEvent(new Event('scroll')); };
     scroll(700);

@@ -162,8 +162,18 @@ export function useDatabaseSnapshot(
     );
   };
   const handleSetUILanguage = async (language: string) => {
-    const updatedSettings = await eventBridge.setUILanguage(language);
-    setAppSettings(updatedSettings);
+    const updated = await eventBridge.setUILanguage(language);
+    setAppSettings(updated);
+  };
+  const handleRunSetupAction = async (
+    action: 'install' | 'desktop-shortcut' | 'startmenu-shortcut'
+  ) => {
+    const updated = await eventBridge.runSetupAction(action);
+    setAppSettings(updated);
+    if (action === 'desktop-shortcut')
+      pushToast(t('Desktop-Verknüpfung angelegt'), 'success');
+    if (action === 'startmenu-shortcut')
+      pushToast(t('Startmenü-Verknüpfung angelegt'), 'success');
   };
   const openSettings = async () => {
     setShowSettingsModal(true);
@@ -195,6 +205,7 @@ export function useDatabaseSnapshot(
     handleDeleteDatabase,
     handleToggleAutostart,
     handleSetUILanguage,
+    handleRunSetupAction,
     openSettings,
   };
 }

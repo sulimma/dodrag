@@ -56,7 +56,7 @@ export function TaskTitle({
         event.stopPropagation();
         editor.onStart(task);
       }}
-      className={className}
+      className={`cursor-text select-text ${className}`}
     >
       {task.title}
     </span>

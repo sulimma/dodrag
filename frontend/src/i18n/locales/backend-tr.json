@@ -45,5 +45,20 @@
   "End-to-End Integrationstest durchführen": "End-to-End entegrasyon testi yap",
   "SSL-Zertifikat für Subdomain bestellen": "Subdomain için SSL sertifikası sipariş et",
   "Freigabe durch Datenschutzbeauftragten abwarten": "Veri koruma sorumlusunun onayını bekle",
-  "Produktiv-Deployment & Release-Notes versenden": "Üretim ortamına Deployment yap ve Release-Notes gönder"
+  "Produktiv-Deployment & Release-Notes versenden": "Üretim ortamına Deployment yap ve Release-Notes gönder",
+  "Benutzerordner konnte nicht ermittelt werden": "Kullanıcı klasörü belirlenemedi",
+  "Programm konnte nicht kopiert werden": "Program kopyalanamadı",
+  "Desktop-Ordner konnte nicht ermittelt werden": "Masaüstü klasörü belirlenemedi",
+  "Startmenü-Ordner konnte nicht ermittelt werden": "Başlat menüsü klasörü belirlenemedi",
+  "Verknüpfung konnte nicht erstellt werden": "Kısayol oluşturulamadı",
+  "Unbekannte Installationsaktion: {action}": "Bilinmeyen kurulum işlemi: {action}",
+  "Vorhandene Version überschreiben?": "Mevcut sürümün üzerine yazılsın mı?",
+  "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Hedef konumda zaten bir DoDrag sürümü var. Üzerine yazılsın mı?",
+  "Ja": "Evet",
+  "Nein": "Hayır",
+  "Überschreiben konnte nicht bestätigt werden": "Üzerine yazma onaylanamadı",
+  "Ordner nicht gefunden: {path}": "Klasör bulunamadı: {path}",
+  "Ordner konnte nicht geöffnet werden": "Klasör açılamadı",
+  "Visual Studio Code wurde nicht gefunden": "Visual Studio Code bulunamadı",
+  "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code açılamadı"
 }

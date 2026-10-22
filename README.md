@@ -70,24 +70,28 @@ The translations are **AI-generated**; only **English and German have been verif
 
 ## Getting started
 
-DoDrag is a Windows desktop application built with [Wails](https://wails.io/), Go, and React. To build it from source, install Go, Node.js/npm, and the Wails prerequisites for Windows, then run this repository's PowerShell build script:
+DoDrag is a Windows desktop application built with [Wails](https://wails.io/), Go, and React. You can either run a prebuilt executable or build it from source.
 
 #### Download a release
 
-Download the executable for your Windows processor from the [DoDrag v0.1.4 release](https://github.com/sulimma/dodrag/releases/tag/v0.1.4):
+Download the executable for your Windows processor from the [DoDrag v0.1.4rc2 prerelease](https://github.com/sulimma/dodrag/releases/tag/v0.1.4rc2):
 
-- **Most Windows PCs (Intel/AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.4/dodrag-windows-amd64.exe)
-- **Windows on ARM (ARM64):** [`dodrag-windows-arm64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.4/dodrag-windows-arm64.exe)
+- **Most Windows PCs (Intel/AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.4rc2/dodrag-windows-amd64.exe)
+- **Windows on ARM (ARM64):** [`dodrag-windows-arm64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.4rc2/dodrag-windows-arm64.exe)
 
-Save the matching `.exe` and open it to run DoDrag; no installer is required.
+Save the matching `.exe` and open it to run DoDrag; no installer is required. The settings dialog can copy the program to `%LOCALAPPDATA%\Programs\DoDrag` and create desktop or Start menu shortcuts later.
+
+The checked-in version is a prerelease (`0.1.4rc2`). The previous stable builds remain available from the [DoDrag v0.1.4 release](https://github.com/sulimma/dodrag/releases/tag/v0.1.4).
 
 #### Build from source
+
+Install Go, Node.js/npm, and the Wails prerequisites for Windows, then run this repository's PowerShell build script:
 
 ```powershell
 ./build.ps1
 ```
 
-The script installs frontend dependencies in a local cache, runs the frontend and Go tests, builds the frontend, and packages `dodrag.exe`. It does not start the application. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
+The script installs frontend dependencies in a local cache, runs the frontend and Go tests, builds the frontend, and packages `dodrag.exe`. It does not start the application. Builds get their version from `build.ps1`; without the script the binary reports `0.1.4rc2` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
 
 ## Author and affiliation
 

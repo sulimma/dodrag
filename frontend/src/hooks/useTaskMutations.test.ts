@@ -33,6 +33,46 @@ it('guards every group drop with the frozen database and source identity', async
   expect(database.mutate).not.toHaveBeenCalled();
 });
 
+it('reopens a completed task on every drop except the completed list', async () => {
+  const now = new Date('2026-10-19T09:00:00.000Z');
+  const events: StoredEvent[] = [
+    ...['A', 'B'].map((taskId, index) => ({
+      seq: index + 1, id: `task-${index}`, timestamp: now.toISOString(), undone: false,
+      type: 'TASK_CREATED' as const,
+      payload: { taskId, title: taskId, configuredStart: now.toISOString(), createdAt: now.toISOString() },
+    })),
+    {
+      seq: 3, id: 'complete-B', timestamp: now.toISOString(), undone: false,
+      type: 'TASK_COMPLETED', payload: { taskId: 'B', completedAt: now.toISOString() },
+    },
+  ];
+  const append = vi.spyOn(eventBridge, 'appendBatch').mockResolvedValue(events);
+  const types = () => append.mock.calls[0][0].map(command => command.type);
+  try {
+    const actions = useTaskMutations({
+      databaseIdentity: { current: 'A.db' }, confirmedEvents: { current: events }, mutate: operation => operation(),
+    }, {
+      selectedTaskIds: [], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn(),
+    }, projectEvents(events, now), now, { current: { database: 'A.db', taskId: 'B', taskIds: ['B'] } }, vi.fn(), vi.fn());
+
+    await actions.handleSetConfiguredDate('B', '2026-10-21T09:00:00.000Z', '2026-10-21', true);
+    expect(types()).toEqual(['TASK_REOPENED', 'TASK_START_DATE_SET']);
+    append.mockClear();
+
+    await actions.handleAddPredecessor('B', 'A');
+    expect(types()).toEqual(['TASK_REOPENED', 'DEPENDENCY_ADDED']);
+    append.mockClear();
+
+    await actions.handleResubmitTasks('B', 'plus_1d', true);
+    expect(types()).toEqual(['TASK_REOPENED', 'TASK_START_DATE_SET']);
+    append.mockClear();
+
+    // Dropping onto the completed list keeps an already completed task completed.
+    await actions.handleCompleteTask('B', true);
+    expect(append).not.toHaveBeenCalled();
+  } finally { append.mockRestore(); }
+});
+
 it('uses frozen group members for date drops even after selection changes', async () => {
   const now = new Date('2026-10-19T09:00:00.000Z');
   const events: StoredEvent[] = ['A', 'B', 'C'].map((taskId, index) => ({

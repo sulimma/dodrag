@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "tenpo suno nanpa wan pi tenpo mun kama",
   "Erledigte Tasks ({count})": "pali pini ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "o tawa e pali tawa ma ni tawa pini e ona",
-  "Task wieder öffnen": "open sin e ijo pali",
-  "Öffnen": "open",
   "Liste": "kulupu lipu",
   "Netzplan": "lipu linja",
   "Gantt": "Gantt",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "tawa tawa pali (= pana e pali monsi), tawa Alt (= weka e linja), tawa tenpo suno anu tenpo kama lon poka",
   "Deaktivieren (Space)": "pini (Space)",
   "Aktivieren (Space)": "open (Space)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "pali monsi {id} (o nena / Ctrl+nena / Shift+nena tawa lukin, Del/Backspace tawa weka)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "pali monsi {id} (o nena / Ctrl+nena / Shift+nena tawa lukin, Del/Backspace tawa weka)",
+  "Installation & Verknüpfungen": "pana ilo en linja lili",
+  "Programm in den Benutzerordner installieren": "o pana e ilo lon poki jan",
+  "Desktop-Verknüpfung anlegen": "o pali e linja lili lon supa",
+  "Startmenü-Verknüpfung anlegen": "o pali e linja lili lon kulupu open",
+  "Desktop-Verknüpfung angelegt": "linja lili lon supa li pali",
+  "Startmenü-Verknüpfung angelegt": "linja lili lon kulupu open li pali",
+  "Installation konnte nicht abgeschlossen werden.": "pana ilo li ken ala pini.",
+  "Verknüpfung konnte nicht angelegt werden.": "linja lili li ken ala pali.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "ni li pana e DoDrag tawa {path}. open sin li kepeken ilo lon insa.",
+  "Im Explorer öffnen": "o open lon ilo lipu",
+  "In VS Code öffnen": "o open lon VS Code",
+  "Ordner konnte nicht geöffnet werden.": "poki li ken ala open."
 }

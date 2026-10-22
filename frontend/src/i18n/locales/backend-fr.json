@@ -45,5 +45,20 @@
   "End-to-End Integrationstest durchführen": "Effectuer un test d'intégration de bout en bout",
   "SSL-Zertifikat für Subdomain bestellen": "Commander un certificat SSL pour le sous-domaine",
   "Freigabe durch Datenschutzbeauftragten abwarten": "Attendre l'approbation du délégué à la protection des données",
-  "Produktiv-Deployment & Release-Notes versenden": "Déployer en production et envoyer les notes de version"
+  "Produktiv-Deployment & Release-Notes versenden": "Déployer en production et envoyer les notes de version",
+  "Benutzerordner konnte nicht ermittelt werden": "Impossible de déterminer le dossier utilisateur",
+  "Programm konnte nicht kopiert werden": "Impossible de copier le programme",
+  "Desktop-Ordner konnte nicht ermittelt werden": "Impossible de déterminer le dossier du Bureau",
+  "Startmenü-Ordner konnte nicht ermittelt werden": "Impossible de déterminer le dossier du menu Démarrer",
+  "Verknüpfung konnte nicht erstellt werden": "Impossible de créer le raccourci",
+  "Unbekannte Installationsaktion: {action}": "Action d’installation inconnue : {action}",
+  "Vorhandene Version überschreiben?": "Écraser la version existante ?",
+  "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Une version de DoDrag existe déjà à l’emplacement cible. Voulez-vous l’écraser ?",
+  "Ja": "Oui",
+  "Nein": "Non",
+  "Überschreiben konnte nicht bestätigt werden": "L’écrasement n’a pas pu être confirmé",
+  "Ordner nicht gefunden: {path}": "Dossier introuvable : {path}",
+  "Ordner konnte nicht geöffnet werden": "Le dossier n’a pas pu être ouvert",
+  "Visual Studio Code wurde nicht gefunden": "Visual Studio Code est introuvable",
+  "Visual Studio Code konnte nicht geöffnet werden": "Impossible d’ouvrir Visual Studio Code"
 }

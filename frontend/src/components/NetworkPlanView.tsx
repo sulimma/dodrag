@@ -12,7 +12,7 @@ import { TaskTitle } from './TaskTitle';
 import type { InlineEditor } from './inlineEditor';
 import { taskAppearanceRole } from './taskAppearance';
 import { TaskDate } from './TaskDate';
-import { taskInteractions } from './taskInteractions';
+import { taskInteractions, draggedTaskIdOf } from './taskInteractions';
 import type { TaskViewInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
 import { stableTopology } from '../domain/topology';
@@ -478,8 +478,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
             }}
             onDrop={(e) => {
               e.preventDefault();
-              const tId =
-                draggedTaskId || e.dataTransfer.getData('text/plain');
+              const tId = draggedTaskIdOf(e, draggedTaskId);
               if (tId) {
                 onSetConfiguredDate(tId, band.isoDate, band.dateKey);
               }

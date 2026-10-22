@@ -45,5 +45,20 @@
   "End-to-End Integrationstest durchführen": "執行端對端整合測試",
   "SSL-Zertifikat für Subdomain bestellen": "申請子網域的 SSL 憑證",
   "Freigabe durch Datenschutzbeauftragten abwarten": "等待資料保護主管核准",
-  "Produktiv-Deployment & Release-Notes versenden": "部署至正式環境並寄送版本資訊"
+  "Produktiv-Deployment & Release-Notes versenden": "部署至正式環境並寄送版本資訊",
+  "Benutzerordner konnte nicht ermittelt werden": "無法確定使用者資料夾",
+  "Programm konnte nicht kopiert werden": "無法複製程式",
+  "Desktop-Ordner konnte nicht ermittelt werden": "無法確定桌面資料夾",
+  "Startmenü-Ordner konnte nicht ermittelt werden": "無法確定開始功能表資料夾",
+  "Verknüpfung konnte nicht erstellt werden": "無法建立捷徑",
+  "Unbekannte Installationsaktion: {action}": "未知的安裝操作：{action}",
+  "Vorhandene Version überschreiben?": "覆寫現有版本？",
+  "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "目標位置已存在 DoDrag 版本。是否要覆寫？",
+  "Ja": "是",
+  "Nein": "否",
+  "Überschreiben konnte nicht bestätigt werden": "無法確認覆寫操作",
+  "Ordner nicht gefunden: {path}": "找不到資料夾：{path}",
+  "Ordner konnte nicht geöffnet werden": "無法開啟資料夾",
+  "Visual Studio Code wurde nicht gefunden": "找不到 Visual Studio Code",
+  "Visual Studio Code konnte nicht geöffnet werden": "無法開啟 Visual Studio Code"
 }

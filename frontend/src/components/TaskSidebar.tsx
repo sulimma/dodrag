@@ -3,7 +3,8 @@ import { Calendar, CalendarClock, CheckCircle2 } from 'lucide-react';
 import type { QuickResubmitTargetId } from '../domain/projector';
 import { QUICK_RESUBMIT_TARGETS, formatDateHeading, toDateKey } from '../domain/projector';
 import type { TaskState } from '../domain/types';
-import type { TaskViewInteractions } from './taskInteractions';
+import type { TaskDragDropActions, TaskViewInteractions } from './taskInteractions';
+import { taskDragSourceInteractions, draggedTaskIdOf } from './taskInteractions';
 import { DateLayerLine } from './DateLayerLine';
 import { t, formatNumber } from '../i18n';
 // Icon tints only; labels stay here so the i18n AST check sees the keys.
@@ -23,10 +24,12 @@ interface TaskSidebarProps {
     | 'activeDropTargetKey'
     | 'draggedTaskId'
     | 'setActiveDropTargetKey'
+    | 'onDragStartTask'
+    | 'onAddPredecessor'
+    | 'onRemoveDependencyBetween'
   >;
   onCompleteTask: (id: string, fromDrag?: boolean) => void;
   onResubmitTasks: (id: string, target: QuickResubmitTargetId, fromDrag?: boolean) => void;
-  onReopenTask: (id: string) => void;
 }
 export function TaskSidebar({
   tasks,
@@ -35,7 +38,6 @@ export function TaskSidebar({
   interactions,
   onResubmitTasks,
   onCompleteTask,
-  onReopenTask,
 }: TaskSidebarProps) {
   const {
     selectedTaskId,
@@ -43,6 +45,7 @@ export function TaskSidebar({
     draggedTaskId,
     setActiveDropTargetKey,
   } = interactions;
+  const dragDropActions: TaskDragDropActions = interactions;
   const completedScrollRef = useRef<HTMLDivElement>(null);
   const completedEndVisible = useRef(true);
   const completionKey = JSON.stringify(completedTasks.map(task => [task.id, task.completedAt]));
@@ -107,8 +110,7 @@ export function TaskSidebar({
                 }}
                 onDrop={(e) => {
                   e.preventDefault();
-                  const tId =
-                    draggedTaskId || e.dataTransfer.getData('text/plain');
+                  const tId = draggedTaskIdOf(e, draggedTaskId);
                   if (tId && tasks[tId]) {
                     onResubmitTasks(tId, target.id, true);
                   }
@@ -160,7 +162,7 @@ export function TaskSidebar({
         }}
         onDrop={(e) => {
           e.preventDefault();
-          const tId = draggedTaskId || e.dataTransfer.getData('text/plain');
+          const tId = draggedTaskIdOf(e, draggedTaskId);
           if (tId) {
             onCompleteTask(tId, true);
           }
@@ -195,22 +197,23 @@ export function TaskSidebar({
                   />
                 )}
                 <div
-                  className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs"
+                  {...taskDragSourceInteractions(task.id, dragDropActions)}
+                  data-completed-task={task.id}
+                  className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs cursor-pointer hover:border-slate-300 transition-colors ${
+                    draggedTaskId === task.id ? 'opacity-40' : ''
+                  }`}
                 >
                   <div className="truncate min-w-0">
                     <span className="font-mono text-[11px] text-slate-400 mr-1.5">
                       {task.id}
                     </span>
-                    <span className="line-through text-slate-500">{task.title}</span>
+                    <span
+                      data-task-selectable-text
+                      className="line-through text-slate-500 cursor-text select-text"
+                    >
+                      {task.title}
+                    </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onReopenTask(task.id)}
-                    title={t('Task wieder öffnen')}
-                    className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-[10px] text-slate-600 shrink-0"
-                  >
-                    {t('Öffnen')}
-                  </button>
                 </div>
               </React.Fragment>
             ))

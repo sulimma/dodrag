@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "下個月的第一天",
   "Erledigte Tasks ({count})": "已完成的任務（{count}）",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "將任務拖曳至此處，標示為已完成",
-  "Task wieder öffnen": "重新開啟任務",
-  "Öffnen": "開啟",
   "Liste": "清單",
   "Netzplan": "網路圖",
   "Gantt": "甘特圖",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "拖曳至任務（= 設定前置任務）、按住 Alt 拖曳（= 刪除連線）、拖曳至右側的日期或稍後提醒",
   "Deaktivieren (Space)": "停用（Space）",
   "Aktivieren (Space)": "啟用（Space）",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "前置任務 {id}（點選 / Ctrl+點選 / Shift+點選以選取，按 Delete/Backspace 刪除）"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "前置任務 {id}（點選 / Ctrl+點選 / Shift+點選以選取，按 Delete/Backspace 刪除）",
+  "Installation & Verknüpfungen": "安裝與捷徑",
+  "Programm in den Benutzerordner installieren": "將程式安裝到使用者資料夾",
+  "Desktop-Verknüpfung anlegen": "建立桌面捷徑",
+  "Startmenü-Verknüpfung anlegen": "建立開始功能表捷徑",
+  "Desktop-Verknüpfung angelegt": "已建立桌面捷徑",
+  "Startmenü-Verknüpfung angelegt": "已建立開始功能表捷徑",
+  "Installation konnte nicht abgeschlossen werden.": "無法完成安裝。",
+  "Verknüpfung konnte nicht angelegt werden.": "無法建立捷徑。",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "將 DoDrag 複製到 {path}。下次啟動時將使用已安裝的版本。",
+  "Im Explorer öffnen": "在檔案總管中開啟",
+  "In VS Code öffnen": "在 VS Code 中開啟",
+  "Ordner konnte nicht geöffnet werden.": "無法開啟資料夾。"
 }

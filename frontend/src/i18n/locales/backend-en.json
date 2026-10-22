@@ -45,5 +45,20 @@
   "End-to-End Integrationstest durchführen": "Run the end-to-end integration test",
   "SSL-Zertifikat für Subdomain bestellen": "Order an SSL certificate for the subdomain",
   "Freigabe durch Datenschutzbeauftragten abwarten": "Wait for approval from the data protection officer",
-  "Produktiv-Deployment & Release-Notes versenden": "Deploy to production and send the release notes"
+  "Produktiv-Deployment & Release-Notes versenden": "Deploy to production and send the release notes",
+  "Benutzerordner konnte nicht ermittelt werden": "Could not determine the user folder",
+  "Programm konnte nicht kopiert werden": "Could not copy the program",
+  "Desktop-Ordner konnte nicht ermittelt werden": "Could not determine the desktop folder",
+  "Startmenü-Ordner konnte nicht ermittelt werden": "Could not determine the Start menu folder",
+  "Verknüpfung konnte nicht erstellt werden": "Could not create the shortcut",
+  "Unbekannte Installationsaktion: {action}": "Unknown installation action: {action}",
+  "Vorhandene Version überschreiben?": "Overwrite existing version?",
+  "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "DoDrag already exists at the destination. Overwrite it?",
+  "Ja": "Yes",
+  "Nein": "No",
+  "Überschreiben konnte nicht bestätigt werden": "Could not confirm the overwrite",
+  "Ordner nicht gefunden: {path}": "Folder not found: {path}",
+  "Ordner konnte nicht geöffnet werden": "Could not open the folder",
+  "Visual Studio Code wurde nicht gefunden": "Visual Studio Code was not found",
+  "Visual Studio Code konnte nicht geöffnet werden": "Could not open Visual Studio Code"
 }

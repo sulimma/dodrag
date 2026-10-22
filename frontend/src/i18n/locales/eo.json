@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "Unua tago de la sekva monato",
   "Erledigte Tasks ({count})": "Plenumitaj taskoj ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "Tiri taskojn ĉi tien por marki ilin kiel plenumitajn",
-  "Task wieder öffnen": "Remalfermi taskon",
-  "Öffnen": "Malfermi",
   "Liste": "Listo",
   "Netzplan": "Retplano",
   "Gantt": "Gantt",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "Tiri sur taskon (= agordi antaŭulon), Alt-tiri (= forigi eĝon), sur daton aŭ reatenton dekstre",
   "Deaktivieren (Space)": "Malaktivigi (Spaco)",
   "Aktivieren (Space)": "Aktivigi (Spaco)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Antaŭulo {id} (Klaku / Stir+klaku / Majusklig+klaku por elekti, Forigi/Reen por forigi)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Antaŭulo {id} (Klaku / Stir+klaku / Majusklig+klaku por elekti, Forigi/Reen por forigi)",
+  "Installation & Verknüpfungen": "Instalado kaj ligiloj",
+  "Programm in den Benutzerordner installieren": "Instali la programon en la uzantan dosierujon",
+  "Desktop-Verknüpfung anlegen": "Krei labortablan ligilon",
+  "Startmenü-Verknüpfung anlegen": "Krei ligilon en la Starta menuo",
+  "Desktop-Verknüpfung angelegt": "Labortabla ligilo kreita",
+  "Startmenü-Verknüpfung angelegt": "Ligilo en la Starta menuo kreita",
+  "Installation konnte nicht abgeschlossen werden.": "Instalado ne povis esti finita.",
+  "Verknüpfung konnte nicht angelegt werden.": "Ligilo ne povis esti kreita.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "Kopias DoDrag al {path}. Ĉe la sekva lanĉo la instalita versio estos uzata.",
+  "Im Explorer öffnen": "Malfermi en Esploro",
+  "In VS Code öffnen": "Malfermi en VS Code",
+  "Ordner konnte nicht geöffnet werden.": "Ne eblis malfermi la dosierujon."
 }

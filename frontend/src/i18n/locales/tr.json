@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "Gelecek ayın ilk günü",
   "Erledigte Tasks ({count})": "Tamamlanan görevler ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "Görevleri tamamlandı olarak kaydetmek için buraya sürükleyin",
-  "Task wieder öffnen": "Görevi yeniden aç",
-  "Öffnen": "Aç",
   "Liste": "Liste",
   "Netzplan": "Ağ diyagramı",
   "Gantt": "Gantt",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "Bir göreve sürükle (= öncülü belirle), Alt ile sürükle (= bağlantıyı sil), bir tarihe veya sağdaki erteleme seçeneklerine sürükle",
   "Deaktivieren (Space)": "Devre dışı bırak (Space)",
   "Aktivieren (Space)": "Etkinleştir (Space)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Öncül {id} (seçmek için tıklama / Strg+tıklama / Shift+tıklama, silmek için Entf/Backspace)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Öncül {id} (seçmek için tıklama / Strg+tıklama / Shift+tıklama, silmek için Entf/Backspace)",
+  "Installation & Verknüpfungen": "Kurulum ve kısayollar",
+  "Programm in den Benutzerordner installieren": "Programı kullanıcı klasörüne yükle",
+  "Desktop-Verknüpfung anlegen": "Masaüstü kısayolu oluştur",
+  "Startmenü-Verknüpfung anlegen": "Başlat menüsü kısayolu oluştur",
+  "Desktop-Verknüpfung angelegt": "Masaüstü kısayolu oluşturuldu",
+  "Startmenü-Verknüpfung angelegt": "Başlat menüsü kısayolu oluşturuldu",
+  "Installation konnte nicht abgeschlossen werden.": "Kurulum tamamlanamadı.",
+  "Verknüpfung konnte nicht angelegt werden.": "Kısayol oluşturulamadı.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "DoDrag'ı {path} konumuna kopyalar. Bir sonraki başlatmada yüklü sürüm kullanılır.",
+  "Im Explorer öffnen": "Gezgin'de aç",
+  "In VS Code öffnen": "VS Code'da aç",
+  "Ordner konnte nicht geöffnet werden.": "Klasör açılamadı."
 }

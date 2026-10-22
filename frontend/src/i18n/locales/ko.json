@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "다음 달 첫째 날",
   "Erledigte Tasks ({count})": "완료된 작업 ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "작업을 여기로 끌어 완료 처리하세요",
-  "Task wieder öffnen": "작업 다시 열기",
-  "Öffnen": "열기",
   "Liste": "목록",
   "Netzplan": "네트워크 다이어그램",
   "Gantt": "간트",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "작업으로 끌기 (= 선행 작업 설정), Alt를 누른 채 끌기 (= 연결 삭제), 날짜 또는 오른쪽의 다시 알림으로 끌기",
   "Deaktivieren (Space)": "비활성화 (Space)",
   "Aktivieren (Space)": "활성화 (Space)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "선행 작업 {id} (클릭 / Strg+클릭 / Shift+클릭으로 선택, Entf/Backspace로 삭제)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "선행 작업 {id} (클릭 / Strg+클릭 / Shift+클릭으로 선택, Entf/Backspace로 삭제)",
+  "Installation & Verknüpfungen": "설치 및 바로 가기",
+  "Programm in den Benutzerordner installieren": "사용자 폴더에 프로그램 설치",
+  "Desktop-Verknüpfung anlegen": "바탕 화면 바로 가기 만들기",
+  "Startmenü-Verknüpfung anlegen": "시작 메뉴 바로 가기 만들기",
+  "Desktop-Verknüpfung angelegt": "바탕 화면 바로 가기를 만들었습니다",
+  "Startmenü-Verknüpfung angelegt": "시작 메뉴 바로 가기를 만들었습니다",
+  "Installation konnte nicht abgeschlossen werden.": "설치를 완료할 수 없습니다.",
+  "Verknüpfung konnte nicht angelegt werden.": "바로 가기를 만들 수 없습니다.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "DoDrag를 {path}에 복사합니다. 다음 시작 시 설치된 버전이 사용됩니다.",
+  "Im Explorer öffnen": "탐색기에서 열기",
+  "In VS Code öffnen": "VS Code에서 열기",
+  "Ordner konnte nicht geöffnet werden.": "폴더를 열 수 없습니다."
 }

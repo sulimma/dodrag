@@ -45,5 +45,20 @@
   "End-to-End Integrationstest durchführen": "Eseguire un test di integrazione End-to-End",
   "SSL-Zertifikat für Subdomain bestellen": "Ordinare un certificato SSL per il sottodominio",
   "Freigabe durch Datenschutzbeauftragten abwarten": "Attendere l'approvazione del responsabile della protezione dei dati",
-  "Produktiv-Deployment & Release-Notes versenden": "Eseguire il Deployment in produzione e inviare le Release-Notes"
+  "Produktiv-Deployment & Release-Notes versenden": "Eseguire il Deployment in produzione e inviare le Release-Notes",
+  "Benutzerordner konnte nicht ermittelt werden": "Impossibile determinare la cartella utente",
+  "Programm konnte nicht kopiert werden": "Impossibile copiare il programma",
+  "Desktop-Ordner konnte nicht ermittelt werden": "Impossibile determinare la cartella del desktop",
+  "Startmenü-Ordner konnte nicht ermittelt werden": "Impossibile determinare la cartella del menu Start",
+  "Verknüpfung konnte nicht erstellt werden": "Impossibile creare il collegamento",
+  "Unbekannte Installationsaktion: {action}": "Azione di installazione sconosciuta: {action}",
+  "Vorhandene Version überschreiben?": "Sovrascrivere la versione esistente?",
+  "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Una versione di DoDrag è già presente nella destinazione. Vuoi sovrascriverla?",
+  "Ja": "Sì",
+  "Nein": "No",
+  "Überschreiben konnte nicht bestätigt werden": "Impossibile confermare la sovrascrittura",
+  "Ordner nicht gefunden: {path}": "Cartella non trovata: {path}",
+  "Ordner konnte nicht geöffnet werden": "Impossibile aprire la cartella",
+  "Visual Studio Code wurde nicht gefunden": "Visual Studio Code non trovato",
+  "Visual Studio Code konnte nicht geöffnet werden": "Impossibile aprire Visual Studio Code"
 }

@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "翌月の初日",
   "Erledigte Tasks ({count})": "完了したタスク（{count}）",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "タスクをここにドラッグして完了として記録",
-  "Task wieder öffnen": "タスクを再開",
-  "Öffnen": "開く",
   "Liste": "リスト",
   "Netzplan": "ネットワーク図",
   "Gantt": "ガントチャート",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "タスクにドラッグ（先行タスクを設定）、Altを押しながらドラッグ（依存関係を削除）、右側の日付または再通知へドラッグ",
   "Deaktivieren (Space)": "無効化（Space）",
   "Aktivieren (Space)": "有効化（Space）",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "先行タスク {id}（クリック / Ctrl+クリック / Shift+クリックで選択、Del / Backspaceで削除）"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "先行タスク {id}（クリック / Ctrl+クリック / Shift+クリックで選択、Del / Backspaceで削除）",
+  "Installation & Verknüpfungen": "インストールとショートカット",
+  "Programm in den Benutzerordner installieren": "プログラムをユーザーフォルダーにインストール",
+  "Desktop-Verknüpfung anlegen": "デスクトップにショートカットを作成",
+  "Startmenü-Verknüpfung anlegen": "スタートメニューにショートカットを作成",
+  "Desktop-Verknüpfung angelegt": "デスクトップショートカットを作成しました",
+  "Startmenü-Verknüpfung angelegt": "スタートメニューのショートカットを作成しました",
+  "Installation konnte nicht abgeschlossen werden.": "インストールを完了できませんでした。",
+  "Verknüpfung konnte nicht angelegt werden.": "ショートカットを作成できませんでした。",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "DoDrag を {path} にコピーします。次回の起動時にはインストール済みのバージョンが使用されます。",
+  "Im Explorer öffnen": "エクスプローラーで開く",
+  "In VS Code öffnen": "VS Code で開く",
+  "Ordner konnte nicht geöffnet werden.": "フォルダーを開けませんでした。"
 }

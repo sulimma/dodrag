@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "First day of the following month",
   "Erledigte Tasks ({count})": "Completed tasks ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "Drag tasks here to mark them as complete",
-  "Task wieder öffnen": "Reopen task",
-  "Öffnen": "Open",
   "Liste": "List",
   "Netzplan": "Dependency graph",
   "Gantt": "Gantt",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "Drag onto a task to set a predecessor; Alt-drag to delete an edge; drag to a date or snooze control on the right",
   "Deaktivieren (Space)": "Deactivate (Space)",
   "Aktivieren (Space)": "Activate (Space)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Predecessor {id} (click / Ctrl-click / Shift-click to select; Delete/Backspace to remove)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Predecessor {id} (click / Ctrl-click / Shift-click to select; Delete/Backspace to remove)",
+  "Installation & Verknüpfungen": "Installation & shortcuts",
+  "Programm in den Benutzerordner installieren": "Install program in the user folder",
+  "Desktop-Verknüpfung anlegen": "Create desktop shortcut",
+  "Startmenü-Verknüpfung anlegen": "Create Start menu shortcut",
+  "Desktop-Verknüpfung angelegt": "Desktop shortcut created",
+  "Startmenü-Verknüpfung angelegt": "Start menu shortcut created",
+  "Installation konnte nicht abgeschlossen werden.": "Installation could not be completed.",
+  "Verknüpfung konnte nicht angelegt werden.": "Could not create the shortcut.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "Copies DoDrag to {path}. The installed version is used on the next start.",
+  "Im Explorer öffnen": "Open in Explorer",
+  "In VS Code öffnen": "Open in VS Code",
+  "Ordner konnte nicht geöffnet werden.": "Could not open the folder."
 }

@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"golang.org/x/sys/windows/registry"
@@ -30,7 +29,7 @@ func syncWindowsAutostart(enabled bool, language string) error {
 		return nil
 	}
 
-	exePath, err := os.Executable()
+	exePath, err := installedExecutable()
 	if err != nil {
 		return localizedError(language, "Programm-Pfad konnte nicht ermittelt werden", err)
 	}

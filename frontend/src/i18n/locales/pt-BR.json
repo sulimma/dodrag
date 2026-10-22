@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "Primeiro dia do próximo mês",
   "Erledigte Tasks ({count})": "Tarefas concluídas ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "Arraste tarefas para cá para marcá-las como concluídas",
-  "Task wieder öffnen": "Reabrir tarefa",
-  "Öffnen": "Abrir",
   "Liste": "Lista",
   "Netzplan": "Diagrama de rede",
   "Gantt": "Gantt",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "Arraste até uma tarefa (definir predecessora), arraste com Alt (remover dependência), ou até uma data ou lembrete à direita",
   "Deaktivieren (Space)": "Desativar (Space)",
   "Aktivieren (Space)": "Ativar (Space)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Predecessora {id} (clique / Ctrl+clique / Shift+clique para selecionar; Del/Backspace para excluir)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Predecessora {id} (clique / Ctrl+clique / Shift+clique para selecionar; Del/Backspace para excluir)",
+  "Installation & Verknüpfungen": "Instalação e atalhos",
+  "Programm in den Benutzerordner installieren": "Instalar o programa na pasta do usuário",
+  "Desktop-Verknüpfung anlegen": "Criar atalho na área de trabalho",
+  "Startmenü-Verknüpfung anlegen": "Criar atalho no menu Iniciar",
+  "Desktop-Verknüpfung angelegt": "Atalho na área de trabalho criado",
+  "Startmenü-Verknüpfung angelegt": "Atalho no menu Iniciar criado",
+  "Installation konnte nicht abgeschlossen werden.": "Não foi possível concluir a instalação.",
+  "Verknüpfung konnte nicht angelegt werden.": "Não foi possível criar o atalho.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "Copia o DoDrag para {path}. A versão instalada será usada na próxima inicialização.",
+  "Im Explorer öffnen": "Abrir no Explorador",
+  "In VS Code öffnen": "Abrir no VS Code",
+  "Ordner konnte nicht geöffnet werden.": "Não foi possível abrir a pasta."
 }

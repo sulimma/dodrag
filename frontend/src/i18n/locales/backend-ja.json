@@ -45,5 +45,20 @@
   "End-to-End Integrationstest durchführen": "エンドツーエンドの統合テストを実施する",
   "SSL-Zertifikat für Subdomain bestellen": "サブドメイン用のSSL証明書を申請する",
   "Freigabe durch Datenschutzbeauftragten abwarten": "データ保護責任者の承認を待つ",
-  "Produktiv-Deployment & Release-Notes versenden": "本番環境へデプロイし、リリースノートを送信する"
+  "Produktiv-Deployment & Release-Notes versenden": "本番環境へデプロイし、リリースノートを送信する",
+  "Benutzerordner konnte nicht ermittelt werden": "ユーザーフォルダーを特定できませんでした",
+  "Programm konnte nicht kopiert werden": "プログラムをコピーできませんでした",
+  "Desktop-Ordner konnte nicht ermittelt werden": "デスクトップフォルダーを特定できませんでした",
+  "Startmenü-Ordner konnte nicht ermittelt werden": "スタートメニューフォルダーを特定できませんでした",
+  "Verknüpfung konnte nicht erstellt werden": "ショートカットを作成できませんでした",
+  "Unbekannte Installationsaktion: {action}": "不明なインストール操作: {action}",
+  "Vorhandene Version überschreiben?": "既存のバージョンを上書きしますか？",
+  "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "保存先には既に DoDrag が存在します。上書きしますか？",
+  "Ja": "はい",
+  "Nein": "いいえ",
+  "Überschreiben konnte nicht bestätigt werden": "上書きを確認できませんでした",
+  "Ordner nicht gefunden: {path}": "フォルダーが見つかりません: {path}",
+  "Ordner konnte nicht geöffnet werden": "フォルダーを開けませんでした",
+  "Visual Studio Code wurde nicht gefunden": "Visual Studio Code が見つかりません",
+  "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code を開けませんでした"
 }

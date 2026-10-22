@@ -16,9 +16,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// Build-time identity, overridable via: go build -ldflags "-X main.buildVersion=0.1.4 -X main.buildTime=..."
+// Build-time identity, overridable via: go build -ldflags "-X main.buildVersion=0.1.4rc2 -X main.buildTime=..."
 var (
-	buildVersion = "0.1.4"
+	buildVersion = "0.1.4rc2"
 	buildTime    = ""
 )
 
@@ -28,6 +28,16 @@ type DatabaseEntry struct {
 	Path   string `json:"path"`
 	IsDemo bool   `json:"isDemo"`
 	Exists bool   `json:"exists"`
+}
+
+// SetupState describes whether the executable and its shortcuts are installed.
+type SetupState struct {
+	CurrentExe        string `json:"currentExe"`
+	CurrentDir        string `json:"currentDir"`
+	InstallPath       string `json:"installPath"`
+	ProgramInstalled  bool   `json:"programInstalled"`
+	DesktopShortcut   bool   `json:"desktopShortcut"`
+	StartMenuShortcut bool   `json:"startMenuShortcut"`
 }
 
 // AppSettings stores known databases, the currently active database, autostart flag, and dock monitor/corner in %APPDATA%\DoDrag\settings.json.
@@ -42,6 +52,7 @@ type AppSettings struct {
 	DatabaseReady      bool            `json:"databaseReady,omitempty"`
 	Version            string          `json:"version,omitempty"`
 	BuildTime          string          `json:"buildTime,omitempty"`
+	Setup              SetupState      `json:"setup"`
 }
 
 type persistedSettings struct {
@@ -460,6 +471,7 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 		DatabaseReady:      a.store != nil,
 		Version:            buildVersion,
 		BuildTime:          buildTime,
+		Setup:              computeSetupState(),
 		KnownDatabases:     make([]DatabaseEntry, len(a.settings.KnownDatabases)),
 	}
 	for i, entry := range a.settings.KnownDatabases {
@@ -681,6 +693,51 @@ func (a *App) SetUILanguage(language string) (AppSettings, error) {
 	a.mu.Unlock()
 	a.refreshJumpList()
 	return settings, nil
+}
+
+// RunSetupAction performs one installation step and returns the refreshed setup state.
+func (a *App) RunSetupAction(action string) (AppSettings, error) {
+	language := a.currentUILanguage()
+	switch action {
+	case setupActionInstall:
+		installed, err := installProgram(a.ctx, language)
+		if err != nil {
+			settings, _ := a.GetSettings()
+			return settings, err
+		}
+		if installed {
+			a.mu.Lock()
+			autostart := a.settings.Autostart
+			a.mu.Unlock()
+			if autostart {
+				if err := syncWindowsAutostart(true, language); err != nil {
+					settings, _ := a.GetSettings()
+					return settings, err
+				}
+			}
+		}
+	case setupActionDesktopShortcut, setupActionStartMenuShortcut:
+		resolve := desktopShortcutPath
+		if action == setupActionStartMenuShortcut {
+			resolve = startMenuShortcutPath
+		}
+		path, err := resolve()
+		if err == nil {
+			var target string
+			target, err = installedExecutable()
+			if err == nil {
+				err = createShortcut(path, target, language)
+			}
+		}
+		if err != nil {
+			settings, _ := a.GetSettings()
+			return settings, err
+		}
+	default:
+		settings, _ := a.GetSettings()
+		return settings, errors.New(backendText(language, "Unbekannte Installationsaktion: {action}", "action", action))
+	}
+	return a.GetSettings()
 }
 
 // SelectFolderDialog opens a native folder picker dialog (e.g. to choose a Google Drive directory).

@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "Erster Tag des Folgemonats",
   "Erledigte Tasks ({count})": "Erledigte Tasks ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "Tasks hierher ziehen, um sie als erledigt abzulegen",
-  "Task wieder öffnen": "Task wieder öffnen",
-  "Öffnen": "Öffnen",
   "Liste": "Liste",
   "Netzplan": "Netzplan",
   "Gantt": "Gantt",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts",
   "Deaktivieren (Space)": "Deaktivieren (Space)",
   "Aktivieren (Space)": "Aktivieren (Space)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)",
+  "Installation & Verknüpfungen": "Installation & Verknüpfungen",
+  "Programm in den Benutzerordner installieren": "Programm in den Benutzerordner installieren",
+  "Desktop-Verknüpfung anlegen": "Desktop-Verknüpfung anlegen",
+  "Startmenü-Verknüpfung anlegen": "Startmenü-Verknüpfung anlegen",
+  "Desktop-Verknüpfung angelegt": "Desktop-Verknüpfung angelegt",
+  "Startmenü-Verknüpfung angelegt": "Startmenü-Verknüpfung angelegt",
+  "Installation konnte nicht abgeschlossen werden.": "Installation konnte nicht abgeschlossen werden.",
+  "Verknüpfung konnte nicht angelegt werden.": "Verknüpfung konnte nicht angelegt werden.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.",
+  "Im Explorer öffnen": "Im Explorer öffnen",
+  "In VS Code öffnen": "In VS Code öffnen",
+  "Ordner konnte nicht geöffnet werden.": "Ordner konnte nicht geöffnet werden."
 }

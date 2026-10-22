@@ -7,7 +7,7 @@ import { TaskTitle } from './TaskTitle';
 import type { InlineEditor } from './inlineEditor';
 import { TaskDate } from './TaskDate';
 import { TaskDragHandle } from './TaskDragHandle';
-import { taskInteractions } from './taskInteractions';
+import { taskInteractions, draggedTaskIdOf } from './taskInteractions';
 import type { TaskViewInteractions } from './taskInteractions';
 import { taskAppearanceRole } from './taskAppearance';
 import { t } from '../i18n';
@@ -60,6 +60,7 @@ export function ListView(props: ListViewProps) {
               className="pt-3 pb-1"
               onDragOver={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 e.dataTransfer.dropEffect = 'move';
                 if (activeDropTargetKey !== entry.key) {
                   setActiveDropTargetKey(entry.key);
@@ -72,8 +73,8 @@ export function ListView(props: ListViewProps) {
               }}
               onDrop={(e) => {
                 e.preventDefault();
-                const tId =
-                  draggedTaskId || e.dataTransfer.getData('text/plain');
+                e.stopPropagation();
+                const tId = draggedTaskIdOf(e, draggedTaskId);
                 if (tId) {
                   onSetConfiguredDate(tId, entry.isoDate, entry.dateKey);
                 }

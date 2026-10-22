@@ -45,5 +45,20 @@
   "End-to-End Integrationstest durchführen": "o pali e musi sona pi ilo ali",
   "SSL-Zertifikat für Subdomain bestellen": "o esun e lipu SSL pi nimi ma lili",
   "Freigabe durch Datenschutzbeauftragten abwarten": "o awen e toki pona tan jan pi awen sona",
-  "Produktiv-Deployment & Release-Notes versenden": "o pana e ilo tawa ma suli li pana e lipu pi kama sin"
+  "Produktiv-Deployment & Release-Notes versenden": "o pana e ilo tawa ma suli li pana e lipu pi kama sin",
+  "Benutzerordner konnte nicht ermittelt werden": "poki jan li ken ala sona",
+  "Programm konnte nicht kopiert werden": "mi ken ala pana e ilo",
+  "Desktop-Ordner konnte nicht ermittelt werden": "poki supa li ken ala sona",
+  "Startmenü-Ordner konnte nicht ermittelt werden": "poki pi kulupu open li ken ala sona",
+  "Verknüpfung konnte nicht erstellt werden": "linja lili li ken ala pali",
+  "Unbekannte Installationsaktion: {action}": "pali ilo sin: {action}",
+  "Vorhandene Version überschreiben?": "o weka sin e ilo lon insa?",
+  "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "ilo DoDrag li lon insa. sina wile weka e ona?",
+  "Ja": "lon",
+  "Nein": "ala",
+  "Überschreiben konnte nicht bestätigt werden": "mi ken ala sona e ni",
+  "Ordner nicht gefunden: {path}": "poki li lon ala: {path}",
+  "Ordner konnte nicht geöffnet werden": "poki li ken ala open",
+  "Visual Studio Code wurde nicht gefunden": "ilo VS Code li lon ala",
+  "Visual Studio Code konnte nicht geöffnet werden": "ilo VS Code li ken ala open"
 }

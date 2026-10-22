@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "Перший день наступного місяця",
   "Erledigte Tasks ({count})": "Виконані завдання ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "Перетягніть сюди завдання, щоб позначити його виконаним",
-  "Task wieder öffnen": "Повторно відкрити завдання",
-  "Öffnen": "Відкрити",
   "Liste": "Список",
   "Netzplan": "Мережева діаграма",
   "Gantt": "Діаграма Ґанта",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "Перетягніть на завдання (= задати попередника), перетягніть із Alt (= видалити зв’язок), на дату або нагадування праворуч",
   "Deaktivieren (Space)": "Деактивувати (Space)",
   "Aktivieren (Space)": "Активувати (Space)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Попередник {id} (клацніть / Strg+клацніть / Shift+клацніть, щоб вибрати; Entf/Backspace, щоб видалити)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Попередник {id} (клацніть / Strg+клацніть / Shift+клацніть, щоб вибрати; Entf/Backspace, щоб видалити)",
+  "Installation & Verknüpfungen": "Встановлення та ярлики",
+  "Programm in den Benutzerordner installieren": "Установити програму в папку користувача",
+  "Desktop-Verknüpfung anlegen": "Створити ярлик на робочому столі",
+  "Startmenü-Verknüpfung anlegen": "Створити ярлик у меню «Пуск»",
+  "Desktop-Verknüpfung angelegt": "Ярлик на робочому столі створено",
+  "Startmenü-Verknüpfung angelegt": "Ярлик у меню «Пуск» створено",
+  "Installation konnte nicht abgeschlossen werden.": "Не вдалося завершити встановлення.",
+  "Verknüpfung konnte nicht angelegt werden.": "Не вдалося створити ярлик.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "Копіює DoDrag до {path}. Під час наступного запуску використовуватиметься встановлена версія.",
+  "Im Explorer öffnen": "Відкрити в Проводнику",
+  "In VS Code öffnen": "Відкрити у VS Code",
+  "Ordner konnte nicht geöffnet werden.": "Не вдалося відкрити папку."
 }

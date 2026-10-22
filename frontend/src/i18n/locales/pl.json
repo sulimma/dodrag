@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "Pierwszy dzień następnego miesiąca",
   "Erledigte Tasks ({count})": "Ukończone zadania ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "Przeciągnij tutaj zadania, aby oznaczyć je jako ukończone",
-  "Task wieder öffnen": "Otwórz zadanie ponownie",
-  "Öffnen": "Otwórz",
   "Liste": "Lista",
   "Netzplan": "Diagram sieciowy",
   "Gantt": "Gantt",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "Przeciągnij na zadanie (= ustaw zadanie poprzedzające), z Alt (= usuń połączenie), na datę lub opcję przełożenia terminu po prawej",
   "Deaktivieren (Space)": "Dezaktywuj (Space)",
   "Aktivieren (Space)": "Aktywuj (Space)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Zadanie poprzedzające {id} (kliknięcie / Strg+kliknięcie / Shift+kliknięcie, aby zaznaczyć; Entf/Backspace, aby usunąć)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Zadanie poprzedzające {id} (kliknięcie / Strg+kliknięcie / Shift+kliknięcie, aby zaznaczyć; Entf/Backspace, aby usunąć)",
+  "Installation & Verknüpfungen": "Instalacja i skróty",
+  "Programm in den Benutzerordner installieren": "Zainstaluj program w folderze użytkownika",
+  "Desktop-Verknüpfung anlegen": "Utwórz skrót na pulpicie",
+  "Startmenü-Verknüpfung anlegen": "Utwórz skrót w menu Start",
+  "Desktop-Verknüpfung angelegt": "Utworzono skrót na pulpicie",
+  "Startmenü-Verknüpfung angelegt": "Utworzono skrót w menu Start",
+  "Installation konnte nicht abgeschlossen werden.": "Nie udało się dokończyć instalacji.",
+  "Verknüpfung konnte nicht angelegt werden.": "Nie udało się utworzyć skrótu.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "Kopiuje DoDrag do {path}. Przy następnym uruchomieniu zostanie użyta zainstalowana wersja.",
+  "Im Explorer öffnen": "Otwórz w Eksploratorze",
+  "In VS Code öffnen": "Otwórz w VS Code",
+  "Ordner konnte nicht geöffnet werden.": "Nie można otworzyć folderu."
 }

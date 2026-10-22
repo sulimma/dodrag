@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "Premier jour du mois suivant",
   "Erledigte Tasks ({count})": "Tâches terminées ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "Faites glisser les tâches ici pour les marquer comme terminées",
-  "Task wieder öffnen": "Rouvrir la tâche",
-  "Öffnen": "Ouvrir",
   "Liste": "Liste",
   "Netzplan": "Diagramme de réseau",
   "Gantt": "Gantt",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "Faites glisser sur une tâche pour définir un prédécesseur, avec Alt pour supprimer un lien, ou vers une date ou un rappel à droite",
   "Deaktivieren (Space)": "Désactiver (Espace)",
   "Aktivieren (Space)": "Activer (Espace)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Prédécesseur {id} (clic / Ctrl-clic / Shift-clic pour sélectionner, Suppr/Retour arrière pour supprimer)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Prédécesseur {id} (clic / Ctrl-clic / Shift-clic pour sélectionner, Suppr/Retour arrière pour supprimer)",
+  "Installation & Verknüpfungen": "Installation et raccourcis",
+  "Programm in den Benutzerordner installieren": "Installer le programme dans le dossier utilisateur",
+  "Desktop-Verknüpfung anlegen": "Créer un raccourci sur le Bureau",
+  "Startmenü-Verknüpfung anlegen": "Créer un raccourci dans le menu Démarrer",
+  "Desktop-Verknüpfung angelegt": "Raccourci sur le Bureau créé",
+  "Startmenü-Verknüpfung angelegt": "Raccourci dans le menu Démarrer créé",
+  "Installation konnte nicht abgeschlossen werden.": "L’installation n’a pas pu être terminée.",
+  "Verknüpfung konnte nicht angelegt werden.": "Le raccourci n’a pas pu être créé.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "Copie DoDrag vers {path}. La version installée sera utilisée au prochain démarrage.",
+  "Im Explorer öffnen": "Ouvrir dans l’Explorateur",
+  "In VS Code öffnen": "Ouvrir dans VS Code",
+  "Ordner konnte nicht geöffnet werden.": "Le dossier n’a pas pu être ouvert."
 }

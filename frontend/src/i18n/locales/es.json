@@ -155,8 +155,6 @@
   "Erster Tag des Folgemonats": "El primer día del mes siguiente",
   "Erledigte Tasks ({count})": "Tareas completadas ({count})",
   "Tasks hierher ziehen, um sie als erledigt abzulegen": "Arrastra tareas aquí para marcarlas como completadas",
-  "Task wieder öffnen": "Volver a abrir la tarea",
-  "Öffnen": "Abrir",
   "Liste": "Lista",
   "Netzplan": "Diagrama de red",
   "Gantt": "Gantt",
@@ -171,5 +169,17 @@
   "Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts": "Arrastrar hasta una tarea (= establecer predecesora), arrastrar con Alt (= eliminar relación), hasta una fecha o una opción de posponer a la derecha",
   "Deaktivieren (Space)": "Desactivar (Space)",
   "Aktivieren (Space)": "Activar (Space)",
-  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Predecesora {id} (clic / Strg+clic / Shift+clic para seleccionar, Entf/Backspace para eliminar)"
+  "Vorgänger {id} (Klick / Strg+Klick / Shift+Klick zum Auswählen, Entf/Backspace zum Löschen)": "Predecesora {id} (clic / Strg+clic / Shift+clic para seleccionar, Entf/Backspace para eliminar)",
+  "Installation & Verknüpfungen": "Instalación y accesos directos",
+  "Programm in den Benutzerordner installieren": "Instalar el programa en la carpeta del usuario",
+  "Desktop-Verknüpfung anlegen": "Crear acceso directo en el escritorio",
+  "Startmenü-Verknüpfung anlegen": "Crear acceso directo en el menú Inicio",
+  "Desktop-Verknüpfung angelegt": "Acceso directo en el escritorio creado",
+  "Startmenü-Verknüpfung angelegt": "Acceso directo en el menú Inicio creado",
+  "Installation konnte nicht abgeschlossen werden.": "No se pudo completar la instalación.",
+  "Verknüpfung konnte nicht angelegt werden.": "No se pudo crear el acceso directo.",
+  "Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.": "Copia DoDrag en {path}. La versión instalada se usará en el próximo inicio.",
+  "Im Explorer öffnen": "Abrir en el Explorador",
+  "In VS Code öffnen": "Abrir en VS Code",
+  "Ordner konnte nicht geöffnet werden.": "No se pudo abrir la carpeta."
 }

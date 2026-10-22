@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import type { TaskState } from '../domain/types';
 import { useDatabaseSnapshot } from './useDatabaseSnapshot';
 import { useTaskSelection } from './useTaskSelection';
@@ -35,30 +35,33 @@ export function useTaskDrag(
       e.preventDefault();
       return;
     }
-    const taskIds = selectedTaskIds.includes(taskId)
-      ? selectedTaskIds.filter(id => tasks[id] && !tasks[id].completed)
-      : [taskId];
+    const taskIds = tasks[taskId].completed
+      ? [taskId]
+      : selectedTaskIds.includes(taskId)
+        ? selectedTaskIds.filter(id => tasks[id] && !tasks[id].completed)
+        : [taskId];
     dragIdentity.current = { database: databaseIdentity.current, taskId, taskIds };
     setDraggedTaskId(taskId);
     e.dataTransfer.setData('text/plain', taskId);
     e.dataTransfer.effectAllowed = 'all';
     previewCleanup.current?.();
     previewCleanup.current = taskDragPreview(e.dataTransfer, e.currentTarget as HTMLElement, taskIds, tasks, e.clientX, e.clientY, true);
-    if (!selectedTaskIds.includes(taskId)) setSelectedTaskId(taskId);
+    if (!tasks[taskId].completed && !selectedTaskIds.includes(taskId)) setSelectedTaskId(taskId);
     clearEdgeSelection();
   };
 
-  const endDrag = () => {
+  // Setters only read refs when invoked; keeping the installer stable avoids
+  // reinstalling window listeners on renders that happen during a gesture.
+  const endDrag = useCallback(() => {
     previewCleanup.current?.();
     previewCleanup.current = null;
     dragIdentity.current = null;
     setDraggedTaskId(null);
     setIsAltDrag(false);
     setActiveDropTargetKey(null);
-  };
+  }, [dragIdentity]);
 
-  // Callbacks only use stable setters and refs; DOM drag handlers use current renders.
-  useEffect(() => installTaskPointerDrag(endDrag, setIsAltDrag), [dragIdentity]);
+  useEffect(() => installTaskPointerDrag(endDrag, setIsAltDrag), [endDrag]);
   return {
     draggedTaskId,
     isAltDrag,

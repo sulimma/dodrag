@@ -45,5 +45,20 @@
   "End-to-End Integrationstest durchführen": "End-to-End Integrationstest durchführen",
   "SSL-Zertifikat für Subdomain bestellen": "SSL-Zertifikat für Subdomain bestellen",
   "Freigabe durch Datenschutzbeauftragten abwarten": "Freigabe durch Datenschutzbeauftragten abwarten",
-  "Produktiv-Deployment & Release-Notes versenden": "Produktiv-Deployment & Release-Notes versenden"
+  "Produktiv-Deployment & Release-Notes versenden": "Produktiv-Deployment & Release-Notes versenden",
+  "Benutzerordner konnte nicht ermittelt werden": "Benutzerordner konnte nicht ermittelt werden",
+  "Programm konnte nicht kopiert werden": "Programm konnte nicht kopiert werden",
+  "Desktop-Ordner konnte nicht ermittelt werden": "Desktop-Ordner konnte nicht ermittelt werden",
+  "Startmenü-Ordner konnte nicht ermittelt werden": "Startmenü-Ordner konnte nicht ermittelt werden",
+  "Verknüpfung konnte nicht erstellt werden": "Verknüpfung konnte nicht erstellt werden",
+  "Unbekannte Installationsaktion: {action}": "Unbekannte Installationsaktion: {action}",
+  "Vorhandene Version überschreiben?": "Vorhandene Version überschreiben?",
+  "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?",
+  "Ja": "Ja",
+  "Nein": "Nein",
+  "Überschreiben konnte nicht bestätigt werden": "Überschreiben konnte nicht bestätigt werden",
+  "Ordner nicht gefunden: {path}": "Ordner nicht gefunden: {path}",
+  "Ordner konnte nicht geöffnet werden": "Ordner konnte nicht geöffnet werden",
+  "Visual Studio Code wurde nicht gefunden": "Visual Studio Code wurde nicht gefunden",
+  "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code konnte nicht geöffnet werden"
 }

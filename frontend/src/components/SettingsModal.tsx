@@ -1,8 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Check,
+  Code,
   Database,
+  Download,
   FolderOpen,
+  Menu,
+  Monitor,
   Plus,
   Power,
   Settings,
@@ -26,6 +30,9 @@ interface SettingsModalProps {
   onDeleteDatabase: (dbPath: string, deleteFile: boolean) => Promise<void>;
   onToggleAutostart: (enabled: boolean) => Promise<void>;
   onSetUILanguage?: (language: string) => Promise<void>;
+  onRunSetupAction?: (action: 'install' | 'desktop-shortcut' | 'startmenu-shortcut') => Promise<void>;
+  onOpenFolderInExplorer?: (path: string, isFile: boolean) => Promise<void>;
+  onOpenFolderInVSCode?: (path: string, isFile: boolean) => Promise<void>;
 }
 
 // Build time arrives as RFC3339 (UTC); show it in the local zone, keeping the raw value on parse failure.
@@ -34,6 +41,33 @@ export function formatBuildTime(raw?: string): string {
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return raw;
   return formatDate(parsed, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(', ', ' ');
+}
+
+// One definition for every displayed path: text cursor, selectable text and
+// the same context-menu wiring. Database paths pass isFile so the backend opens
+// the containing folder.
+function PathLabel({
+  path,
+  isFile,
+  onContextMenu,
+  className,
+  children,
+}: {
+  path: string;
+  isFile: boolean;
+  onContextMenu: (event: React.MouseEvent, path: string, isFile: boolean) => void;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`cursor-text select-text ${className ?? ''}`}
+      title={path}
+      onContextMenu={(event) => onContextMenu(event, path, isFile)}
+    >
+      {children ?? path}
+    </div>
+  );
 }
 
 // Manages database selection, creation, deletion, and application settings.
@@ -48,18 +82,33 @@ export function SettingsModal({
   onDeleteDatabase,
   onToggleAutostart,
   onSetUILanguage,
+  onRunSetupAction,
+  onOpenFolderInExplorer,
+  onOpenFolderInVSCode,
 }: SettingsModalProps) {
   const language = useLanguage();
   const [folderPath, setFolderPath] = useState<string>('');
   const [dbName, setDbName] = useState<string>('');
   const [seedDemo, setSeedDemo] = useState(() => !settings.knownDatabases.some(entry => entry.exists));
+  const seedDemoTouched = useRef(false);
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(
     null
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<boolean>(false);
+  const [pathMenu, setPathMenu] = useState<{ x: number; y: number; path: string; isFile: boolean } | null>(null);
 
   const isDbReady = Boolean(settings.databaseReady);
+  const setup = settings.setup;
+  const currentDir = setup?.currentDir;
+  const setupNeeded = Boolean(setup && (!setup.programInstalled || !setup.desktopShortcut || !setup.startMenuShortcut));
+
+  // A database created while this dialog is open (for example the demo database)
+  // must clear the default; an explicit user choice is kept.
+  useEffect(() => {
+    if (!seedDemoTouched.current)
+      setSeedDemo(!settings.knownDatabases.some(entry => entry.exists));
+  }, [settings.knownDatabases]);
 
   const openProjectPage = () => {
     if (window.runtime?.BrowserOpenURL) window.runtime.BrowserOpenURL(PROJECT_URL);
@@ -70,11 +119,15 @@ export function SettingsModal({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.key !== 'Escape') return;
       event.preventDefault();
+      if (pathMenu) {
+        setPathMenu(null);
+        return;
+      }
       if (isDbReady && !busy) onClose();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDbReady, busy, onClose]);
+  }, [isDbReady, busy, onClose, pathMenu]);
 
   const handleBrowseFolder = async () => {
     setErrorMsg(null);
@@ -85,6 +138,46 @@ export function SettingsModal({
       }
     } catch (err: any) {
       setErrorMsg(errorText(t('Ordnerauswahl fehlgeschlagen'), err));
+    }
+  };
+
+  const handleSetupAction = async (action: 'install' | 'desktop-shortcut' | 'startmenu-shortcut') => {
+    if (!onRunSetupAction) return;
+    setErrorMsg(null);
+    setBusy(true);
+    try {
+      await onRunSetupAction(action);
+    } catch (err: any) {
+      setErrorMsg(errorText(
+        action === 'install'
+          ? t('Installation konnte nicht abgeschlossen werden.')
+          : t('Verknüpfung konnte nicht angelegt werden.'),
+        err
+      ));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openPathMenu = (event: React.MouseEvent, path: string, isFile: boolean) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setPathMenu({ x: event.clientX, y: event.clientY, path, isFile });
+  };
+
+  const handlePathAction = async (action: 'explorer' | 'vscode') => {
+    const target = pathMenu;
+    setPathMenu(null);
+    if (!target) return;
+    setErrorMsg(null);
+    setBusy(true);
+    try {
+      if (action === 'explorer') await onOpenFolderInExplorer?.(target.path, target.isFile);
+      else await onOpenFolderInVSCode?.(target.path, target.isFile);
+    } catch (err: any) {
+      setErrorMsg(errorText(t('Ordner konnte nicht geöffnet werden.'), err));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -215,6 +308,52 @@ export function SettingsModal({
             </button>
           )}
 
+          {/* Section 0: Installation & Shortcuts */}
+          {setupNeeded && setup && onRunSetupAction && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                <Download className="w-3.5 h-3.5 text-sky-600" />
+                <span>{t('Installation & Verknüpfungen')}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {!setup.programInstalled && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    title={t('Kopiert DoDrag nach {path}. Beim nächsten Start wird die installierte Version verwendet.', { path: setup.installPath })}
+                    onClick={() => handleSetupAction('install')}
+                    className="px-3 py-1.5 rounded-xl bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 disabled:opacity-40 disabled:pointer-events-none flex items-center gap-1.5 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{t('Programm in den Benutzerordner installieren')}</span>
+                  </button>
+                )}
+                {!setup.desktopShortcut && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleSetupAction('desktop-shortcut')}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 flex items-center gap-1.5"
+                  >
+                    <Monitor className="w-3.5 h-3.5 text-sky-600" />
+                    <span>{t('Desktop-Verknüpfung anlegen')}</span>
+                  </button>
+                )}
+                {!setup.startMenuShortcut && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleSetupAction('startmenu-shortcut')}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 flex items-center gap-1.5"
+                  >
+                    <Menu className="w-3.5 h-3.5 text-sky-600" />
+                    <span>{t('Startmenü-Verknüpfung anlegen')}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Section 1: Known Databases on this PC */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
@@ -283,12 +422,12 @@ export function SettingsModal({
                             </span>
                           )}
                         </div>
-                        <div
+                        <PathLabel
+                          path={entry.path}
+                          isFile
+                          onContextMenu={openPathMenu}
                           className="text-[11px] font-mono text-slate-500 truncate mt-0.5"
-                          title={entry.path}
-                        >
-                          {entry.path}
-                        </div>
+                        />
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -374,7 +513,7 @@ export function SettingsModal({
 
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-xs text-slate-700">
-                <input type="checkbox" checked={seedDemo} onChange={event => setSeedDemo(event.target.checked)} disabled={busy} />
+                <input type="checkbox" checked={seedDemo} onChange={event => { seedDemoTouched.current = true; setSeedDemo(event.target.checked); }} disabled={busy} />
                 {t('Mit Demodaten befuellen')}
               </label>
               <div>
@@ -488,14 +627,27 @@ export function SettingsModal({
 
         {/* Footer */}
         <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={openProjectPage}
-            title={t('GitHub-Projekt im Browser öffnen')}
-            className="text-[11px] text-slate-500 font-mono truncate hover:text-sky-700 hover:underline"
-          >
-            {t('DoDrag v{version} · Build {time}', { version: settings.version || '0.1.2', time: formatBuildTime(settings.buildTime) })}
-          </button>
+          <div className="min-w-0 flex-1">
+            {currentDir && (
+              <PathLabel
+                path={currentDir}
+                isFile={false}
+                onContextMenu={openPathMenu}
+                className="flex items-center gap-1 text-[10px] font-mono text-slate-400 mb-0.5"
+              >
+                <FolderOpen className="w-3 h-3 shrink-0" />
+                <span className="truncate">{currentDir}</span>
+              </PathLabel>
+            )}
+            <button
+              type="button"
+              onClick={openProjectPage}
+              title={t('GitHub-Projekt im Browser öffnen')}
+              className="block max-w-full text-left text-[11px] text-slate-500 font-mono truncate hover:text-sky-700 hover:underline"
+            >
+              {t('DoDrag v{version} · Build {time}', { version: settings.version || '0.1.2', time: formatBuildTime(settings.buildTime) })}
+            </button>
+          </div>
           <button
             type="button"
             disabled={!isDbReady || busy}
@@ -506,6 +658,44 @@ export function SettingsModal({
           </button>
         </div>
       </div>
+
+      {pathMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-[60]"
+            onClick={(event) => { event.stopPropagation(); setPathMenu(null); }}
+            onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setPathMenu(null); }}
+          />
+          <div
+            className="fixed z-[61] min-w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-2xl"
+            style={{
+              left: Math.max(8, Math.min(pathMenu.x, window.innerWidth - 190)),
+              top: Math.max(8, Math.min(pathMenu.y, window.innerHeight - 92)),
+            }}
+            onClick={(event) => event.stopPropagation()}
+            onContextMenu={(event) => event.preventDefault()}
+          >
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => handlePathAction('explorer')}
+              className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-40 flex items-center gap-2"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-sky-600" />
+              <span>{t('Im Explorer öffnen')}</span>
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => handlePathAction('vscode')}
+              className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-40 flex items-center gap-2"
+            >
+              <Code className="w-3.5 h-3.5 text-sky-600" />
+              <span>{t('In VS Code öffnen')}</span>
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

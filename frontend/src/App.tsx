@@ -12,10 +12,13 @@ import { ShortcutHelp } from './components/ShortcutHelp';
 import { Toasts } from './components/Toasts';
 import { DependencyHighlightIndicators } from './components/DependencyHighlightIndicators';
 import type { TaskViewInteractions } from './components/taskInteractions';
+import { draggedTaskIdOf } from './components/taskInteractions';
 import {
   computeDependencyHighlights,
   computeMiniWindowTasks,
+  dateKeyToIsoStart,
   projectEvents,
+  toDateKey,
 } from './domain/projector';
 import { normalizeTitleInput } from './domain/input';
 import { previewPathKeys } from './domain/dependencyPaths';
@@ -89,7 +92,7 @@ export function App() {
     setSelectedTaskId,
     clearEdgeSelection,
   } = selection;
-  const { draggedTaskId, activeDropTargetKey, isAltDrag } = drag;
+  const { draggedTaskId, activeDropTargetKey, isAltDrag, setActiveDropTargetKey } = drag;
   useGlobalShortcuts({
     selection,
     actions,
@@ -230,6 +233,8 @@ export function App() {
       />
     );
   }
+  const listBackgroundKey = 'list-background';
+  const todayKey = toDateKey(now);
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-100/80 text-slate-800 overflow-hidden">
       <AppToolbar
@@ -253,6 +258,26 @@ export function App() {
         <div className="relative flex flex-1 min-w-0 overflow-hidden">
           <main
             ref={listScrollRef}
+            data-task-drop-target={viewMode === 'list' ? listBackgroundKey : undefined}
+            onDragOver={viewMode === 'list' ? (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (draggedTaskId) {
+                event.dataTransfer.dropEffect = 'move';
+                setActiveDropTargetKey(listBackgroundKey);
+              }
+            } : undefined}
+            onDragLeave={viewMode === 'list' ? (event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                setActiveDropTargetKey(null);
+            } : undefined}
+            onDrop={viewMode === 'list' ? (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const taskId = draggedTaskIdOf(event, draggedTaskId);
+              if (taskId && state.tasks[taskId])
+                actions.handleSetConfiguredDate(taskId, dateKeyToIsoStart(todayKey), todayKey, true);
+            } : undefined}
             className={`flex-1 overflow-y-auto overflow-x-auto ${viewMode === 'gantt' ? '' : 'px-6 py-5'}`}
             onClick={(e) => {
               if (
@@ -305,7 +330,6 @@ export function App() {
           interactions={interactions}
           onResubmitTasks={actions.handleResubmitTasks}
           onCompleteTask={actions.handleCompleteTask}
-          onReopenTask={actions.handleReopenTask}
         />
       </div>
       {contextMenu && state.tasks[contextMenu.taskId] && (
@@ -346,6 +370,9 @@ export function App() {
           onDeleteDatabase={database.handleDeleteDatabase}
           onToggleAutostart={database.handleToggleAutostart}
           onSetUILanguage={database.handleSetUILanguage}
+          onRunSetupAction={database.handleRunSetupAction}
+          onOpenFolderInExplorer={(path, isFile) => eventBridge.openFolderInExplorer(path, isFile)}
+          onOpenFolderInVSCode={(path, isFile) => eventBridge.openFolderInVSCode(path, isFile)}
         />
       )}
       <Toasts toasts={toasts} />

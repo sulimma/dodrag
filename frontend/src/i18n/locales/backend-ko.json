@@ -45,5 +45,20 @@
   "End-to-End Integrationstest durchführen": "엔드투엔드 통합 테스트 수행",
   "SSL-Zertifikat für Subdomain bestellen": "하위 도메인용 SSL 인증서 신청",
   "Freigabe durch Datenschutzbeauftragten abwarten": "개인정보 보호 책임자의 승인 대기",
-  "Produktiv-Deployment & Release-Notes versenden": "운영 환경에 배포하고 릴리스 노트 발송"
+  "Produktiv-Deployment & Release-Notes versenden": "운영 환경에 배포하고 릴리스 노트 발송",
+  "Benutzerordner konnte nicht ermittelt werden": "사용자 폴더를 확인할 수 없습니다",
+  "Programm konnte nicht kopiert werden": "프로그램을 복사할 수 없습니다",
+  "Desktop-Ordner konnte nicht ermittelt werden": "바탕 화면 폴더를 확인할 수 없습니다",
+  "Startmenü-Ordner konnte nicht ermittelt werden": "시작 메뉴 폴더를 확인할 수 없습니다",
+  "Verknüpfung konnte nicht erstellt werden": "바로 가기를 만들 수 없습니다",
+  "Unbekannte Installationsaktion: {action}": "알 수 없는 설치 작업: {action}",
+  "Vorhandene Version überschreiben?": "기존 버전을 덮어쓸까요?",
+  "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "대상 위치에 DoDrag 버전이 이미 있습니다. 덮어쓸까요?",
+  "Ja": "예",
+  "Nein": "아니요",
+  "Überschreiben konnte nicht bestätigt werden": "덮어쓰기를 확인할 수 없습니다",
+  "Ordner nicht gefunden: {path}": "폴더를 찾을 수 없습니다: {path}",
+  "Ordner konnte nicht geöffnet werden": "폴더를 열 수 없습니다",
+  "Visual Studio Code wurde nicht gefunden": "Visual Studio Code를 찾을 수 없습니다",
+  "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code를 열 수 없습니다"
 }

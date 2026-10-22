@@ -7,16 +7,19 @@ export interface ModifierKeys {
   shiftKey: boolean;
 }
 
-export interface TaskInteractions {
-  onSelectTask: (id: string, event: ModifierKeys, orderedIds: string[]) => void;
-  selectedTaskIds?: string[];
-  orderedTaskIds?: string[];
+export interface TaskDragDropActions {
   onDragStartTask: (event: React.DragEvent, id: string) => void;
-  isAltDrag: boolean;
   draggedTaskId: string | null;
   setActiveDropTargetKey: (key: string | null) => void;
   onAddPredecessor: (source: string, target: string) => void;
   onRemoveDependencyBetween: (source: string, target: string) => void;
+}
+
+export interface TaskInteractions extends TaskDragDropActions {
+  onSelectTask: (id: string, event: ModifierKeys, orderedIds: string[]) => void;
+  selectedTaskIds?: string[];
+  orderedTaskIds?: string[];
+  isAltDrag: boolean;
   onContextMenuTask: (event: React.MouseEvent, id: string) => void;
 }
 export interface TaskViewInteractions extends TaskInteractions {
@@ -35,26 +38,34 @@ export interface TaskViewInteractions extends TaskInteractions {
   onSetConfiguredDate: (id: string, date: string, label: string) => void;
   onToggleActive: (task: TaskState) => void;
 }
-// Builds the common task DOM handlers shared by all task views.
-export function taskInteractions(
+// Frozen pointer-drag id first; the transfer value only survives local drags.
+export function draggedTaskIdOf(
+  event: Pick<React.DragEvent, 'dataTransfer'>,
+  draggedTaskId: string | null
+) {
+  return draggedTaskId || event.dataTransfer?.getData('text/plain') || null;
+}
+// Pointer drag origins are shared by full rows and the compact completed rows.
+export function taskDragSourceInteractions(
   id: string,
-  key: string,
-  actions: TaskInteractions
+  actions: Pick<TaskDragDropActions, 'onDragStartTask'>
 ) {
   return {
     draggable: false,
     'data-task-drag': id,
-    'data-task-drop-target': key,
-    'data-task-selected': actions.selectedTaskIds?.includes(id) || undefined,
-    onMouseDown: undefined,
     onDragStart: (event: React.DragEvent) => actions.onDragStartTask(event, id),
-    onClick: (event: React.MouseEvent) => {
-      event.stopPropagation();
-      if (!(event.target as HTMLElement).closest('input,button,textarea'))
-        actions.onSelectTask(id, event, actions.orderedTaskIds ?? [id]);
-    },
-    onContextMenu: (event: React.MouseEvent) =>
-      actions.onContextMenuTask(event, id),
+  };
+}
+
+// Drag/drop handlers shared by full task rows.
+export function taskDragDropInteractions(
+  id: string,
+  key: string,
+  actions: TaskDragDropActions
+) {
+  return {
+    ...taskDragSourceInteractions(id, actions),
+    'data-task-drop-target': key,
     onDragOver: (event: React.DragEvent) => {
       event.preventDefault();
       event.stopPropagation();
@@ -70,12 +81,32 @@ export function taskInteractions(
     onDrop: (event: React.DragEvent) => {
       event.preventDefault();
       event.stopPropagation();
-      const source =
-        actions.draggedTaskId || event.dataTransfer.getData('text/plain');
+      const source = draggedTaskIdOf(event, actions.draggedTaskId);
+      // A self drop still applies the frozen group; the mutation layer omits the self edge.
       if (source) {
         if (event.altKey) actions.onRemoveDependencyBetween(source, id);
         else actions.onAddPredecessor(source, id);
       }
     },
+  };
+}
+
+// Builds the common task DOM handlers shared by all task views.
+export function taskInteractions(
+  id: string,
+  key: string,
+  actions: TaskInteractions
+) {
+  return {
+    ...taskDragDropInteractions(id, key, actions),
+    'data-task-selected': actions.selectedTaskIds?.includes(id) || undefined,
+    onMouseDown: undefined,
+    onClick: (event: React.MouseEvent) => {
+      event.stopPropagation();
+      if (!(event.target as HTMLElement).closest('input,button,textarea'))
+        actions.onSelectTask(id, event, actions.orderedTaskIds ?? [id]);
+    },
+    onContextMenu: (event: React.MouseEvent) =>
+      actions.onContextMenuTask(event, id),
   };
 }
