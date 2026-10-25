@@ -147,27 +147,26 @@ export function ListView(props: ListViewProps) {
                 <TaskDragHandle />
               </div>
 
-              {task.predecessorIds.length === 0 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleActive(task);
-                  }}
-                  title={
-                    task.isActive
-                      ? t('Deaktivieren (Space)')
-                      : t('Aktivieren (Space)')
-                  }
-                  className={`p-1 rounded-lg border transition-all ${
-                    task.isActive
-                      ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm'
-                      : 'bg-slate-100 border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-300'
-                  }`}
-                >
-                  <Flame className="w-3.5 h-3.5" />
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={task.predecessorIds.length > 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleActive(task);
+                }}
+                title={
+                  task.isActive
+                    ? t('Deaktivieren (Space)')
+                    : t('Aktivieren (Space)')
+                }
+                className={`p-1 rounded-lg border transition-all ${
+                  task.isActive
+                    ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm'
+                    : 'bg-slate-100 border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-300'
+                } ${task.predecessorIds.length > 0 ? 'invisible' : ''}`}
+              >
+                <Flame className="w-3.5 h-3.5" />
+              </button>
 
               <span
                 className={`font-mono text-xs px-2 py-0.5 rounded-md border shrink-0 ${

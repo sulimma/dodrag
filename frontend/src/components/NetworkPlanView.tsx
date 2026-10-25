@@ -626,23 +626,22 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
             <div className="flex items-center justify-between gap-1.5">
               <div className="flex items-center gap-1.5 min-w-0">
                 <TaskDragHandle />
-                {task.predecessorIds.length === 0 && (
-                  <button
-                    type="button"
-                    aria-label={task.isActive ? t('Deaktivieren (Space)') : t('Aktivieren (Space)')}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleActive(task);
-                    }}
-                    className={`p-0.5 rounded border ${
-                      task.isActive
-                        ? 'bg-emerald-500 text-white border-emerald-600'
-                        : 'bg-slate-100 border-slate-200 text-slate-400 hover:text-emerald-600'
-                    }`}
-                  >
-                    <Flame className="w-3 h-3" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  disabled={task.predecessorIds.length > 0}
+                  aria-label={task.isActive ? t('Deaktivieren (Space)') : t('Aktivieren (Space)')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleActive(task);
+                  }}
+                  className={`p-0.5 rounded border ${
+                    task.isActive
+                      ? 'bg-emerald-500 text-white border-emerald-600'
+                      : 'bg-slate-100 border-slate-200 text-slate-400 hover:text-emerald-600'
+                  } ${task.predecessorIds.length > 0 ? 'invisible' : ''}`}
+                >
+                  <Flame className="w-3 h-3" />
+                </button>
                 <span
                   className={`font-mono text-[11px] px-1.5 py-0.2 rounded border shrink-0 ${
                     task.isActive

@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { GanttView } from './GanttView';
 import { NetworkPlanView } from './NetworkPlanView';
+import { ListView } from './ListView';
 import { localDate } from '../domain/dates';
 import { formatIso8601Display } from '../domain/projector';
 import { TaskState } from '../domain/types';
@@ -63,4 +64,19 @@ it('places incoming edges from further left lower, then orders equal-column sour
   expect(element.textContent).not.toContain('14:30');
   expect(element.querySelector('button[aria-label="Startdatum target bearbeiten"]')).not.toBeNull();
   expect(formatIso8601Display(tasks[3].configuredStart).isoText).toBe('2026-10-19 14:30:12');
+
+  const verifyFlameSlot = (markup: string) => {
+    element.innerHTML = markup;
+    const targetFlame = element.querySelector<HTMLElement>('[data-task-drag="target"] button');
+    const rootFlame = element.querySelector<HTMLElement>('[data-task-drag="left-upper"] button');
+    expect(targetFlame).not.toBeNull();
+    expect(targetFlame!.classList.contains('invisible')).toBe(true);
+    expect((targetFlame as HTMLButtonElement).disabled).toBe(true);
+    expect(rootFlame).not.toBeNull();
+    expect(rootFlame!.classList.contains('invisible')).toBe(false);
+  };
+  verifyFlameSlot(renderToStaticMarkup(<ListView {...props} listEntries={props.listEntries}
+    movedItemKey={null} />));
+  verifyFlameSlot(renderToStaticMarkup(<GanttView {...props} />));
+  verifyFlameSlot(networkMarkup);
 });
