@@ -19,11 +19,11 @@ interface TaskContextMenuProps {
 
 // One menu definition and action path for every layout; Windows owns placement and keyboard input.
 export function taskMenuItems(task: TaskState): TaskMenuItem[] {
-  if (task.completed) return [{ id: 'reopen', label: t('Erneut öffnen'), disabled: false }];
+  if (task.completed) return [{ id: 'reopen', label: t('Erneut öffnen'), shortcut: 'O', disabled: false }];
   return [
-    { id: 'toggle', label: task.isActive ? t('Deaktivieren') : t('Aktivieren (Hervorheben)'), disabled: false },
-    { id: 'today', label: t('Startdatum auf Heute setzen'), disabled: false },
-    { id: 'complete', label: t('Als erledigt markieren'), disabled: false },
+    { id: 'toggle', label: task.isActive ? t('Deaktivieren') : t('Aktivieren (Hervorheben)'), shortcut: `${t('Space')} / A`, disabled: false },
+    { id: 'today', label: t('Startdatum auf Heute setzen'), shortcut: 'T', disabled: false },
+    { id: 'complete', label: t('Als erledigt markieren'), shortcut: 'Del / D', disabled: false },
     ...task.predecessorIds.map(id => ({ id: `remove:${id}`, label: t('Vorgänger {id} lösen', { id }), disabled: false })),
   ];
 }

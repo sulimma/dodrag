@@ -14,6 +14,7 @@ export interface DatabaseEntry {
 export interface TaskMenuItem {
   id: string;
   label: string;
+  shortcut?: string;
   disabled: boolean;
 }
 

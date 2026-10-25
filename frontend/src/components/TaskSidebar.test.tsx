@@ -28,7 +28,7 @@ it('orders completions by instant, separates local days and scrolls to the newes
   const noop = vi.fn();
   const interactions = { selectedTaskId: null, activeDropTargetKey: null, draggedTaskId: null,
     setActiveDropTargetKey: noop, onDragStartTask: noop, onAddPredecessor: noop,
-    onRemoveDependencyBetween: noop, onContextMenuTask: noop };
+    onRemoveDependencyBetween: noop, onContextMenuTask: noop, onSelectTask: noop };
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const height = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(900);
   const element = document.createElement('div');
@@ -83,7 +83,7 @@ it('anchors a visible bottom on resize, keeps a hidden bottom stationary and cap
     act(() => root.render(<TaskSidebar tasks={{}} completedTasks={[]} now={new Date(2027, 0, 2, 12)}
       interactions={{ selectedTaskId: null, activeDropTargetKey: null, draggedTaskId: null,
         setActiveDropTargetKey: noop, onDragStartTask: noop, onAddPredecessor: noop,
-        onRemoveDependencyBetween: noop, onContextMenuTask: noop }}
+        onRemoveDependencyBetween: noop, onContextMenuTask: noop, onSelectTask: noop }}
       onCompleteTask={noop} onResubmitTasks={noop} />));
     const container = element.querySelector<HTMLElement>('.overflow-y-auto')!;
     const scroll = (top: number) => { container.scrollTop = top; container.dispatchEvent(new Event('scroll')); };

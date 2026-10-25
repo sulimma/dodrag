@@ -103,6 +103,7 @@ it('shares native mini context actions and task creation', async () => {
   await act(async () => openContext(button('Alpha')));
   expect(menuActions()).toEqual(fullActions);
   expect(fullActions.map(item => item.id)).toEqual(['toggle', 'today', 'complete']);
+  expect(fullActions.map(item => item.shortcut)).toEqual(['Space / A', 'T', 'Del / D']);
   expect(element.querySelector('.fixed.z-50.w-64')).toBeNull();
   const creation = input('Task hinzufügen (Enter)');
   type(creation, 'New mini task');
@@ -125,7 +126,7 @@ it('offers completed tasks only reopen and preserves their start date', async ()
     new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
   ));
   expect(vi.mocked(api.ShowTaskContextMenu).mock.calls[0][0]).toEqual([
-    { id: 'reopen', label: 'Erneut öffnen', disabled: false },
+    { id: 'reopen', label: 'Erneut öffnen', shortcut: 'O', disabled: false },
   ]);
   expect(vi.mocked(api.AppendBatch).mock.calls[0][0]).toEqual([
     expect.objectContaining({ type: 'TASK_REOPENED', payload: { taskId: '26-101' } }),
@@ -333,17 +334,38 @@ it('keeps settings visible while busy and after an asynchronous error', async ()
   expect(textButton('Fertig')).toBeUndefined();
 });
 
-it('blocks all hidden mini shortcuts without preventing native button keys', async () => {
+it('supports mini navigation, task actions, editors and history without preventing native button keys', async () => {
   await mount();
   click(element.querySelector('span[title="Alpha"]')!);
   await act(async () => click(button('Minimieren (Kompaktansicht in Bildschirmecke)')));
-  for (const shortcut of ['Delete', 'd', 'a', ' ', 'F2', 'e', 'Enter', 'n', '?']) key(shortcut);
-  key('z', document.body, { ctrlKey: true });
-  key('y', document.body, { ctrlKey: true });
-  key('z', document.body, { ctrlKey: true, shiftKey: true });
+  await act(async () => key('Delete'));
   expect(api.AppendBatch).not.toHaveBeenCalled();
-  expect(api.Undo).not.toHaveBeenCalled();
-  expect(api.Redo).not.toHaveBeenCalled();
+  key('ArrowDown');
+  expect(element.querySelector('[data-mini-task-id="26-101"]')!.getAttribute('data-task-selected')).toBe('true');
+  await act(async () => key('a'));
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({ type: 'TASK_ACTIVE_SET', payload: { taskId: '26-101' } });
+  key('ArrowDown');
+  key('F2');
+  expect(input('Titel 26-102')).not.toBeNull();
+  key('Delete', input('Titel 26-102'));
+  expect(api.AppendBatch).toHaveBeenCalledTimes(1);
+  key('Escape', input('Titel 26-102'));
+  await act(async () => key('Delete'));
+  expect(vi.mocked(api.AppendBatch).mock.calls[1][0][0]).toMatchObject({ type: 'TASK_COMPLETED', payload: { taskId: '26-102' } });
+  vi.mocked(api.Undo).mockResolvedValue(history.map(event => ({ ...event, undone: true })));
+  vi.mocked(api.Redo).mockResolvedValue(history.map(event => ({ ...event, undone: true })));
+  await act(async () => key('z', document.body, { ctrlKey: true }));
+  await act(async () => key('y', document.body, { ctrlKey: true }));
+  await act(async () => key('z', document.body, { ctrlKey: true, shiftKey: true }));
+  expect(api.Undo).toHaveBeenCalledTimes(1);
+  expect(api.Redo).toHaveBeenCalledTimes(2);
+  key('n');
+  expect(document.activeElement).toBe(input('Task hinzufügen (Enter)'));
+  key('d', input('Task hinzufügen (Enter)'));
+  expect(api.AppendBatch).toHaveBeenCalledTimes(2);
+  key('?');
+  expect(element.textContent).toContain('Tastenkürzel & Drag-and-Drop Steuerung');
+  key('Escape', input('Task hinzufügen (Enter)'));
   const restore = element.querySelector('button')!;
   for (const shortcut of ['Enter', ' ']) {
     const event = new KeyboardEvent('keydown', { key: shortcut, bubbles: true, cancelable: true });
@@ -354,6 +376,21 @@ it('blocks all hidden mini shortcuts without preventing native button keys', asy
   expect(api.ExitMiniMode).toHaveBeenCalledTimes(1);
   expect(element.textContent).not.toContain('Tastenkürzel & Drag-and-Drop Steuerung');
   expect(input('Titel 26-101')).toBeNull();
+});
+
+it.each(['a', 'd', 'Delete', 'F2'])('routes mini shortcut %s from task-button focus after keyboard navigation', async shortcut => {
+  activeSettings.bootMinimized = true;
+  await mount();
+  const alpha = button('Alpha');
+  act(() => alpha.focus());
+  key('ArrowDown', alpha);
+  expect(element.querySelector('[data-mini-task-id="26-102"]')!.getAttribute('data-task-selected')).toBe('true');
+  await act(async () => key(shortcut, alpha));
+  if (shortcut === 'F2') expect(input('Titel 26-102')).not.toBeNull();
+  else expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
+    type: shortcut === 'a' ? 'TASK_ACTIVE_SET' : 'TASK_COMPLETED', payload: { taskId: '26-102' },
+  });
+  expect(api.ExitMiniMode).not.toHaveBeenCalled();
 });
 
 it.each(['help', 'context'] as const)('Escape dismisses %s with button or input focus but preserves selection', async overlay => {
@@ -443,9 +480,78 @@ it('documents the implemented drag direction, scoped Alt removal, and active sho
   expect(element.textContent).toContain('N: Eingabe für neuen Task fokussieren');
   expect(element.textContent).toContain('Enter (Eingabe): Task anlegen');
   expect(element.textContent).toContain('Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z');
-  expect(element.textContent).toContain('Task-Kürzel gelten bei Auswahl außerhalb von Eingabefeldern und Bedienelementen.');
-  expect(element.textContent).toContain('In Modals und der Mini-Ansicht gibt es keine Task-Kürzel.');
+  expect(element.textContent).toContain('Tastenkürzel gelten im aktiven Fenster, auch in der Mini-Ansicht und bei fokussierten Buttons.');
+  expect(element.textContent).toContain('Einstellungen und Hilfe sperren App-Aktionen.');
+  expect(element.textContent).toContain('Ctrl+M');
   expect(element.textContent).toContain('Escape schließt Hilfe, Kontextmenü oder Editor.');
+});
+
+it.each(['Liste', 'Netzplan', 'Gantt', 'Mini'])('focuses new-task input with N from any button in %s', async view => {
+  await mount();
+  if (view === 'Mini') await act(async () => click(button('Minimieren (Kompaktansicht in Bildschirmecke)')));
+  else await chooseView(view);
+  const creation = element.querySelector<HTMLInputElement>('input[type="text"]')!;
+  for (const target of element.querySelectorAll<HTMLButtonElement>('button')) {
+    act(() => target.focus());
+    key('n', target);
+    expect(document.activeElement).toBe(creation);
+  }
+  const event = new KeyboardEvent('keydown', { key: 'n', bubbles: true, cancelable: true });
+  act(() => creation.dispatchEvent(event));
+  expect(event.defaultPrevented).toBe(false);
+});
+
+it.each(['Liste', 'Netzplan', 'Gantt', 'Mini'])('sets today with T from toolbar focus in %s', async view => {
+  await mount();
+  if (view === 'Mini') {
+    await act(async () => click(button('Minimieren (Kompaktansicht in Bildschirmecke)')));
+    key('ArrowDown');
+  } else {
+    await chooseView(view);
+    click(element.querySelector('[data-task-drag="26-101"]')!);
+  }
+  const toolbarButton = element.querySelector<HTMLButtonElement>('button')!;
+  act(() => toolbarButton.focus());
+  await act(async () => key('t', toolbarButton));
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
+    type: 'TASK_START_DATE_SET', payload: { taskId: '26-101' },
+  });
+  expect((vi.mocked(api.AppendBatch).mock.calls[0][0][0].payload as any).configuredStart.slice(0, 10))
+    .toBe(new Date().toISOString().slice(0, 10));
+});
+
+it('reopens a selected completed task with O while ignoring other task actions', async () => {
+  vi.mocked(api.GetEvents).mockResolvedValue([...history, {
+    seq: 3, id: 'completed-alpha', timestamp: date, undone: false,
+    type: 'TASK_COMPLETED', payload: { taskId: '26-101', completedAt: date },
+  }]);
+  await mount();
+  click(element.querySelector('[data-completed-task="26-101"]')!);
+  const toolbarButton = element.querySelector<HTMLButtonElement>('button')!;
+  for (const shortcut of ['t', 'a', 'd', 'F2']) key(shortcut, toolbarButton);
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+  await act(async () => key('o', toolbarButton));
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
+    type: 'TASK_REOPENED', payload: { taskId: '26-101' },
+  });
+});
+
+it('toggles compact view with Ctrl+M from buttons and inputs, but not in modals', async () => {
+  await mount();
+  await act(async () => key('m', element.querySelector('button')!, { ctrlKey: true }));
+  expect(api.EnterMiniMode).toHaveBeenCalledTimes(1);
+  key('m', input('Task hinzufügen (Enter)'), { ctrlKey: true, repeat: true });
+  expect(api.ExitMiniMode).not.toHaveBeenCalled();
+  await act(async () => key('m', input('Task hinzufügen (Enter)'), { ctrlKey: true }));
+  expect(api.ExitMiniMode).toHaveBeenCalledTimes(1);
+  click(button('Tastenkürzel & Bedienung (?)'));
+  key('m', document.body, { ctrlKey: true }); key('n'); key('t');
+  expect(api.EnterMiniMode).toHaveBeenCalledTimes(1);
+  key('Escape');
+  await openSettings();
+  key('m', document.body, { ctrlKey: true }); key('n'); key('t');
+  expect(api.EnterMiniMode).toHaveBeenCalledTimes(1);
+  expect(api.AppendBatch).not.toHaveBeenCalled();
 });
 
 it('places multiple predecessor actions after completion and preserves their handler arguments', async () => {

@@ -9,6 +9,9 @@ import { TaskTitle } from './TaskTitle';
 
 interface MiniCornerViewProps {
   tasks: TaskState[];
+  selectedTaskId?: string | null;
+  onSelectTask?: (taskId: string) => void;
+  listScrollRef?: React.RefObject<HTMLDivElement>;
   onSelectAndRestore: (taskId: string) => void;
   onRestoreWindow: () => void;
   onResubmitTasks: (id: string, target: QuickResubmitTargetId) => void;
@@ -26,6 +29,9 @@ interface MiniCornerViewProps {
 // Shows a compact task list and restores the main window on interaction.
 export function MiniCornerView({
   tasks,
+  selectedTaskId,
+  onSelectTask,
+  listScrollRef,
   onSelectAndRestore,
   onRestoreWindow,
   onResubmitTasks,
@@ -97,7 +103,7 @@ export function MiniCornerView({
       </div>
 
       {/* Compact Vertical Task List (limited to 4 entries = 112px max height, mouse-wheel scrollable) */}
-      <div className="max-h-[112px] overflow-y-auto divide-y divide-slate-100">
+      <div ref={listScrollRef} className="max-h-[112px] overflow-y-auto divide-y divide-slate-100">
         {tasks.length === 0 ? (
           <div
             onClick={onRestoreWindow}
@@ -109,9 +115,16 @@ export function MiniCornerView({
           tasks.map((task) => (
             <div
               key={task.id}
+              data-mini-task-id={task.id}
+              data-task-selected={selectedTaskId === task.id ? 'true' : undefined}
+              tabIndex={0}
+              onFocus={() => onSelectTask?.(task.id)}
+              onClick={() => onSelectTask?.(task.id)}
               onContextMenu={(event) => onContextMenuTask(event, task.id)}
               className={`group w-full h-7 px-2 flex items-center gap-1 text-xs transition-colors ${
-                task.isActive
+                selectedTaskId === task.id
+                  ? 'bg-sky-100 text-sky-950 ring-1 ring-inset ring-sky-400'
+                  : task.isActive
                   ? 'bg-emerald-50/90 text-emerald-950 font-semibold hover:bg-emerald-100/90'
                   : 'bg-white text-slate-800 hover:bg-sky-50 hover:text-sky-900'
               }`}

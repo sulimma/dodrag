@@ -137,7 +137,7 @@ func trackTaskContextMenu(hwnd uintptr, items []TaskMenuItem, state *taskMenuSta
 		}
 	}()
 	for i, item := range items {
-		label, conversionErr := syscall.UTF16FromString(taskMenuNativeLabel(item.Label))
+		label, conversionErr := syscall.UTF16FromString(taskMenuNativeLabel(item.Label, item.Shortcut))
 		if conversionErr != nil {
 			return "", conversionErr
 		}

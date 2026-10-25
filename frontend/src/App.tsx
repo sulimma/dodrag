@@ -94,6 +94,10 @@ export function App() {
     clearEdgeSelection,
   } = selection;
   const { draggedTaskId, activeDropTargetKey, isAltDrag, setActiveDropTargetKey } = drag;
+  const miniTasks = useMemo(
+    () => computeMiniWindowTasks(state.openTasks, now),
+    [state.openTasks, now]
+  );
   useGlobalShortcuts({
     selection,
     actions,
@@ -102,10 +106,19 @@ export function App() {
     showShortcutsModal,
     setShowShortcutsModal,
     isMiniMode,
+    miniTaskIds: miniTasks.map(task => task.id),
     snapshotReady,
     listScrollRef,
     newTaskInputRef,
     startInlineEdit,
+    onMinimize: () => {
+      if (!isMiniMode) handleEnterMiniMode().catch(error =>
+        pushToast(errorText(t('Kompaktansicht konnte nicht geöffnet werden'), error), 'warning'));
+    },
+    onRestore: () => {
+      if (isMiniMode) handleRestoreFromMiniMode().catch(error =>
+        pushToast(errorText(t('Fenster wiederherstellen'), error), 'warning'));
+    },
   });
 
   useEffect(() => {
@@ -144,10 +157,13 @@ export function App() {
       clearInterval(interval);
     };
   }, []);
-  const miniTasks = useMemo(
-    () => computeMiniWindowTasks(state.openTasks, now),
-    [state.openTasks, now]
-  );
+  useEffect(() => {
+    // Never let invisible main-view task/edge selections drive compact actions.
+    if (isMiniMode) {
+      setSelectedTaskId(null);
+      clearEdgeSelection();
+    }
+  }, [isMiniMode]);
 
   useEffect(() => {
     eventBridge.updateMiniModeHeight(miniTasks.length);
@@ -243,12 +259,18 @@ export function App() {
       <>
         <MiniCornerView
           tasks={miniTasks}
+          selectedTaskId={selectedTaskId}
+          onSelectTask={setSelectedTaskId}
+          listScrollRef={listScrollRef as React.RefObject<HTMLDivElement>}
           onSelectAndRestore={(taskId) => handleRestoreFromMiniMode(taskId)}
           onRestoreWindow={() => handleRestoreFromMiniMode()}
           onResubmitTasks={actions.handleResubmitTasks}
           onCompleteTask={actions.handleCompleteTask}
           onToggleActive={actions.handleToggleActive}
-          onContextMenuTask={selection.onContextMenuTask}
+          onContextMenuTask={(event, id) => {
+            setSelectedTaskId(id);
+            selection.onContextMenuTask(event, id);
+          }}
           titleEditor={titleEditor}
           newTaskTitle={newTaskTitle}
           setNewTaskTitle={setNewTaskTitle}
@@ -257,6 +279,7 @@ export function App() {
           onCreateTask={handleCreateTask}
         />
         {taskContextMenu}
+        <ShortcutHelp open={showShortcutsModal} onClose={() => setShowShortcutsModal(false)} />
         <Toasts toasts={toasts} />
       </>
     );

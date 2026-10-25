@@ -18,6 +18,7 @@ const (
 type TaskMenuItem struct {
 	ID       string `json:"id"`
 	Label    string `json:"label"`
+	Shortcut string `json:"shortcut,omitempty"`
 	Disabled bool   `json:"disabled"`
 }
 
@@ -42,6 +43,9 @@ func validateTaskMenuItems(items []TaskMenuItem) error {
 		if strings.TrimSpace(item.Label) == "" || len(item.Label) > maxTaskMenuLabelBytes || !utf8.ValidString(item.Label) || strings.ContainsAny(item.Label, "\x00\r\n\t") {
 			return fmt.Errorf("invalid task menu label at index %d", i)
 		}
+		if len(item.Shortcut) > maxTaskMenuIDBytes || !utf8.ValidString(item.Shortcut) || strings.ContainsAny(item.Shortcut, "\x00\r\n\t") || (item.Shortcut != "" && strings.TrimSpace(item.Shortcut) == "") {
+			return fmt.Errorf("invalid task menu shortcut at index %d", i)
+		}
 	}
 	return nil
 }
@@ -55,6 +59,11 @@ func (a *App) ShowTaskContextMenu(items []TaskMenuItem) (string, error) {
 	return a.showTaskContextMenuNative(append([]TaskMenuItem(nil), items...))
 }
 
-func taskMenuNativeLabel(label string) string {
-	return strings.ReplaceAll(label, "&", "&&")
+func taskMenuNativeLabel(label, shortcut string) string {
+	label = strings.ReplaceAll(label, "&", "&&")
+	if shortcut != "" {
+		// A tab gives standard Win32 menus their right-aligned shortcut column.
+		label += "\t" + strings.ReplaceAll(shortcut, "&", "&&")
+	}
+	return label
 }

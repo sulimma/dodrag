@@ -28,6 +28,7 @@ interface TaskSidebarProps {
     | 'onAddPredecessor'
     | 'onRemoveDependencyBetween'
     | 'onContextMenuTask'
+    | 'onSelectTask'
   >;
   onCompleteTask: (id: string, fromDrag?: boolean) => void;
   onResubmitTasks: (id: string, target: QuickResubmitTargetId, fromDrag?: boolean) => void;
@@ -200,9 +201,20 @@ export function TaskSidebar({
                 <div
                   {...taskDragSourceInteractions(task.id, dragDropActions)}
                   data-completed-task={task.id}
+                  data-task-selected={interactions.selectedTaskId === task.id ? 'true' : undefined}
+                  tabIndex={0}
+                  onFocus={() => {
+                    if (interactions.selectedTaskId !== task.id) interactions.onSelectTask(task.id, { ctrlKey: false, metaKey: false, shiftKey: false }, completedTasks.map(task => task.id));
+                  }}
+                  onClick={(event) => {
+                    if (interactions.selectedTaskId !== task.id || event.ctrlKey || event.metaKey || event.shiftKey)
+                      interactions.onSelectTask(task.id, event, completedTasks.map(task => task.id));
+                  }}
                   onContextMenu={(event) => interactions.onContextMenuTask(event, task.id)}
                   className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs cursor-pointer hover:border-slate-300 transition-colors ${
                     draggedTaskId === task.id ? 'opacity-40' : ''
+                  } ${
+                    interactions.selectedTaskId === task.id ? 'ring-1 ring-sky-400' : ''
                   }`}
                 >
                   <div className="truncate min-w-0">

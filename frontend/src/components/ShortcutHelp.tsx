@@ -79,6 +79,24 @@ export function ShortcutHelp({
                 </kbd>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
+                <span>{t('Erneut öffnen')}</span>
+                <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">
+                  O
+                </kbd>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
+                <span>{t('Startdatum auf Heute setzen')}</span>
+                <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">
+                  T
+                </kbd>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
+                <span>{t('Kompaktansicht / Hauptansicht wiederherstellen')}</span>
+                <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700 whitespace-normal">
+                  Ctrl+M
+                </kbd>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
                 <span>{t('Undo / Redo')}</span>
                 <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700 whitespace-normal">
                   Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z
@@ -104,7 +122,7 @@ export function ShortcutHelp({
               </div>
             </div>
             <p className="border-t border-slate-100 pt-3 text-[11px] text-slate-500">
-              {t('Task-Kürzel gelten bei Auswahl außerhalb von Eingabefeldern und Bedienelementen. In Modals und der Mini-Ansicht gibt es keine Task-Kürzel. Escape schließt Hilfe, Kontextmenü oder Editor.')}
+              {t('Tastenkürzel gelten im aktiven Fenster, auch in der Mini-Ansicht und bei fokussierten Buttons. In Texteingaben bleiben Buchstaben Texteingaben. Einstellungen und Hilfe sperren App-Aktionen. Escape schließt Hilfe, Kontextmenü oder Editor.')}
             </p>
           </div>
         </div>

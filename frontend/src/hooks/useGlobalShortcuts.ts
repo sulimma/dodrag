@@ -3,6 +3,7 @@ import { projectEvents } from '../domain/projector';
 import { useTaskSelection } from './useTaskSelection';
 import { useTaskMutations } from './useTaskMutations';
 import type { InlineEditor } from '../components/inlineEditor';
+import { t } from '../i18n';
 interface ShortcutContext {
   selection: Pick<
     ReturnType<typeof useTaskSelection>,
@@ -20,16 +21,21 @@ interface ShortcutContext {
     | 'handleRemoveSelectedEdges'
     | 'handleToggleActive'
     | 'handleCompleteTask'
+    | 'handleReopenTask'
+    | 'handleSetConfiguredDate'
   >;
   state: ReturnType<typeof projectEvents>;
   showSettingsModal: boolean;
   showShortcutsModal: boolean;
   setShowShortcutsModal: React.Dispatch<React.SetStateAction<boolean>>;
   isMiniMode: boolean;
+  miniTaskIds: string[];
   snapshotReady: boolean;
   listScrollRef: React.RefObject<HTMLElement>;
   newTaskInputRef: React.RefObject<HTMLInputElement>;
   startInlineEdit: InlineEditor['onStart'];
+  onMinimize: () => void;
+  onRestore: () => void;
 }
 // Routes global keyboard input while respecting editors and overlays.
 export function useGlobalShortcuts({
@@ -40,10 +46,13 @@ export function useGlobalShortcuts({
   showShortcutsModal,
   setShowShortcutsModal,
   isMiniMode,
+  miniTaskIds,
   snapshotReady,
   listScrollRef,
   newTaskInputRef,
   startInlineEdit,
+  onMinimize,
+  onRestore,
 }: ShortcutContext) {
   const {
     selectedTaskId,
@@ -59,6 +68,8 @@ export function useGlobalShortcuts({
     handleRemoveSelectedEdges,
     handleToggleActive,
     handleCompleteTask,
+    handleReopenTask,
+    handleSetConfiguredDate,
   } = actions;
   // Reinstall from each render so native listeners never retain obsolete editors or DB snapshots.
   useEffect(() => {
@@ -73,8 +84,10 @@ export function useGlobalShortcuts({
         }
         return;
       }
-      if (isMiniMode || !snapshotReady) return;
-      const target = e.target as HTMLElement | null;
+      if (!snapshotReady) return;
+      const target = e.target instanceof HTMLElement ? e.target : document.activeElement as HTMLElement | null;
+      const isTextEntryFocused = Boolean(target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable));
       const isInputFocused =
         target &&
         (target.tagName === 'INPUT' ||
@@ -89,7 +102,7 @@ export function useGlobalShortcuts({
         e.key.toLowerCase() === 'z' &&
         !e.shiftKey
       ) {
-        if (!isInputFocused) {
+        if (!isTextEntryFocused) {
           e.preventDefault();
           handleUndo();
           return;
@@ -99,18 +112,20 @@ export function useGlobalShortcuts({
         ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') ||
         ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')
       ) {
-        if (!isInputFocused) {
+        if (!isTextEntryFocused) {
           e.preventDefault();
           handleRedo();
           return;
         }
       }
 
-      const isTextEntryFocused =
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable);
+      if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        if (e.repeat) return;
+        if (isMiniMode) onRestore();
+        else onMinimize();
+        return;
+      }
       if (
         !isTextEntryFocused &&
         (e.key === 'Home' ||
@@ -137,7 +152,9 @@ export function useGlobalShortcuts({
       }
 
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (isInputFocused && !target?.closest('[data-edge-key]')) return;
+      // Letters are app-wide except in text entry; preserve native button activation/select navigation.
+      if (isTextEntryFocused || target?.closest('select') ||
+        (isInputFocused && !target?.closest('[data-edge-key]') && (e.key === 'Enter' || e.key === ' '))) return;
 
       if (e.key === 'Escape') {
         setSelectedTaskId(null);
@@ -150,8 +167,8 @@ export function useGlobalShortcuts({
       // Delete/Backspace on a focused edge, otherwise remove any selected dependencies.
       if (
         (e.key === 'Delete' || e.key === 'Backspace') &&
-        selectedEdgeKeys.length > 0 &&
-        (target?.closest('[data-edge-key]') || !isInputFocused)
+        !isMiniMode && selectedEdgeKeys.length > 0 &&
+        !isTextEntryFocused
       ) {
         e.preventDefault();
         handleRemoveSelectedEdges(selectedEdgeKeys);
@@ -170,7 +187,7 @@ export function useGlobalShortcuts({
         return;
       }
 
-      const taskOrder = state.listEntries
+      const taskOrder = isMiniMode ? miniTaskIds : state.listEntries
         .filter((entry) => entry.kind === 'task')
         .map((entry) => (entry.kind === 'task' ? entry.task.id : ''));
 
@@ -202,8 +219,25 @@ export function useGlobalShortcuts({
         return;
       }
 
-      if (!selectedTaskId || !state.tasks[selectedTaskId]) return;
-      const selTask = state.tasks[selectedTaskId];
+      const taskId = selectedTaskId;
+      if (!taskId || !state.tasks[taskId] || (isMiniMode && !miniTaskIds.includes(taskId))) return;
+      const selTask = state.tasks[taskId];
+
+      if (e.key.toLowerCase() === 'o') {
+        if (selTask.completed) {
+          e.preventDefault();
+          handleReopenTask(selTask.id);
+        }
+        return;
+      }
+      // Completed tasks expose only reopen, matching the native context menu.
+      if (selTask.completed) return;
+
+      if (e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        handleSetConfiguredDate(selTask.id, new Date().toISOString(), t('Heute'));
+        return;
+      }
 
       if (e.key === ' ' || e.key.toLowerCase() === 'a') {
         e.preventDefault();
