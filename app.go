@@ -119,6 +119,10 @@ func (a *App) startup(ctx context.Context) {
 	a.mu.Lock()
 	a.ctx = ctx
 
+	if hwnd := a.ensureWindowHandleLocked(); hwnd != 0 {
+		a.savedRect = applyInitialWindowBoundsNative(hwnd)
+	}
+
 	appDir := "."
 	if configDir, err := os.UserConfigDir(); err == nil {
 		candidate := filepath.Join(configDir, "DoDrag")
@@ -654,7 +658,7 @@ func (a *App) exitMiniModeLocked() {
 
 	if a.ctx != nil {
 		runtime.WindowSetAlwaysOnTop(a.ctx, false)
-		runtime.WindowSetMinSize(a.ctx, 860, 560)
+		runtime.WindowSetMinSize(a.ctx, minimumWindowWidth, minimumWindowHeight)
 	}
 
 	a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, a.savedRect)

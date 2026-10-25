@@ -486,6 +486,34 @@ it('documents the implemented drag direction, scoped Alt removal, and active sho
   expect(element.textContent).toContain('Escape schließt Hilfe, Kontextmenü oder Editor.');
 });
 
+it.each(['main', 'mini'])('keeps syntax and shortcuts in the same blocking dialog in %s', async mode => {
+  let windowMinimized = () => {};
+  window.runtime = { EventsOn: (name, callback) => {
+    if (name === 'window:minimized') windowMinimized = callback;
+    return () => {};
+  } };
+  await mount();
+  click(element.querySelector('span[title="Alpha"]')!);
+  click(element.querySelector('[data-detail-toggle]')!);
+  click(button('Markdown-Syntax'));
+  const dialog = () => element.querySelector<HTMLElement>('[role="dialog"]')!;
+  expect(dialog().querySelector('h3')!.textContent).toBe('Markdown-Syntax');
+  const original = dialog();
+  if (mode === 'mini') await act(async () => windowMinimized());
+  expect(element.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+  expect(dialog().querySelector('h3')!.textContent).toBe('Markdown-Syntax');
+  for (const value of ['Delete', 'a', 'd', 'n', 'ArrowDown']) key(value, dialog().querySelector('button')!);
+  key('z', dialog().querySelector('button')!, { ctrlKey: true });
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+  click([...dialog().querySelectorAll('button')].find(item => item.textContent === 'Tastenkürzel')!);
+  expect(dialog().textContent).toContain('Tastenkürzel & Drag-and-Drop Steuerung');
+  click([...dialog().querySelectorAll('button')].find(item => item.textContent === 'Markdown-Syntax')!);
+  if (mode === 'main') expect(dialog()).toBe(original);
+  key('Escape', dialog().querySelector('button')!);
+  expect(element.querySelector('[role="dialog"]')).toBeNull();
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+});
+
 it.each(['Liste', 'Netzplan', 'Gantt', 'Mini'])('focuses new-task input with N from any button in %s', async view => {
   await mount();
   if (view === 'Mini') await act(async () => click(button('Minimieren (Kompaktansicht in Bildschirmecke)')));

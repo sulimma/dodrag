@@ -7,7 +7,7 @@ import { isImagePath, mediaSource, tokenizeTargets } from './targets';
 function decorate(doc: ProseMirrorNode, taskId: string): DecorationSet {
   const decorations: Decoration[] = [];
   doc.descendants((node, pos, parent) => {
-    if (!node.isText || parent?.type.spec.code || node.marks.some(mark => mark.type.name === 'code' || mark.type.name === 'link')) return;
+    if (!node.isText || parent?.type.spec.code && parent.type.name !== 'targetLiteral' || node.marks.some(mark => mark.type.name === 'code' || mark.type.name === 'link')) return;
     for (const token of tokenizeTargets(node.text ?? '')) {
       decorations.push(Decoration.inline(pos + token.start, pos + token.end, {
         'data-target-kind': token.kind, 'data-target-value': token.value,

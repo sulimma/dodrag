@@ -56,14 +56,15 @@ it('pastes Markdown and HTML through editor menu and preserves UNC paths embedde
   const onContextMenu = vi.fn(); const onChange = vi.fn();
   const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
   const readText = vi.fn(async () => '- [ ] pasted');
-  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText } });
+  const read = vi.fn(async () => [{ types: ['text/plain'], getType: async () => ({ text: async () => '- [ ] pasted' }) }]);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText, read } });
   try {
     await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description=""
       onChange={onChange} onEscape={vi.fn()} onError={vi.fn()} onContextMenu={onContextMenu} />));
     act(() => element.querySelector('.tiptap')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
     await act(async () => (onContextMenu.mock.lastCall![1] as EditorContextMenu).execute('editor:paste'));
     expect(element.querySelector('input[type=checkbox]')).not.toBeNull();
-    readText.mockResolvedValueOnce('<p><strong>HTML</strong></p><p>Open "\\\\Server\\Team Share\\a_b.svg" here</p>');
+    read.mockResolvedValueOnce([{ types: ['text/html'], getType: async () => ({ text: async () => '<p><strong>HTML</strong></p><p>Open "\\\\Server\\Team Share\\a_b.svg" here</p>' }) }]);
     await act(async () => (onContextMenu.mock.lastCall![1] as EditorContextMenu).execute('editor:paste'));
     expect(element.querySelector('strong')!.textContent).toBe('HTML');
     expect(onChange.mock.lastCall![0]).toContain('\\\\Server\\Team Share\\a_b.svg');

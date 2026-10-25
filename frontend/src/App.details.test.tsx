@@ -61,6 +61,9 @@ const panel = () => host.querySelector<HTMLElement>(`aside[aria-label="${t('Task
 const list = () => host.querySelector<HTMLElement>('main')!;
 const toggle = () => panel().querySelector<HTMLButtonElement>(':scope > button[data-detail-toggle]')!;
 const click = (target: Element) => act(() => target.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+const cssWidth = (value: string) => {
+  const control = document.createElement('div'); control.style.width = value; return control.style.width;
+};
 const key = async (target: Element, value: string) => {
   await act(async () => { target.dispatchEvent(new KeyboardEvent('keydown', {
     key: value, bubbles: true, cancelable: true,
@@ -88,22 +91,23 @@ async function mountWithDetails() {
   expect(list().querySelector('span[title="Alpha"]')).not.toBeNull();
 }
 
-it.each([false, true])('keeps the same panel and direct 28px toggle across collapse with selected task=%s', async selected => {
+it.each([false, true])('keeps only the toggle in the narrow collapsed strip with selected task=%s', async selected => {
   await act(async () => root.render(<App />));
   if (selected) click(list().querySelector(`[data-task-drag="${taskId}"]`)!);
   const container = panel(), control = toggle();
   const toolbar = host.querySelector('header')!;
   const detailButtons = () => [...host.querySelectorAll<HTMLButtonElement>('button')].filter(button =>
     [t('Details anzeigen'), t('Details schließen')].includes(button.getAttribute('aria-label') ?? button.title));
-  expect(container.style.width).toBe('28px');
+  expect(container.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
+  expect(container.querySelector(`button[aria-label="${t('Markdown-Syntax')}"]`)).toBeNull();
   expect(container.classList.contains('transition-[width]')).toBe(true);
   expect(container.classList.contains('duration-300')).toBe(true);
   expect(container.querySelector('[data-detail-divider]')).toBeNull();
   expect(control.parentElement).toBe(container);
   expect(control.classList.contains('top-3')).toBe(true);
   expect(control.classList.contains('right-0')).toBe(true);
-  expect(control.classList.contains('p-1')).toBe(true);
-  expect(control.querySelector('svg')!.getAttribute('width')).toBe('20');
+  expect(control.classList.contains('w-7')).toBe(true);
+  expect(control.querySelector('svg')!.classList.contains('w-5')).toBe(true);
   expect(toolbar.contains(control)).toBe(false);
   expect(detailButtons()).toEqual([control]);
   const placeholder = t('Task auswählen, um Details, Beschreibung und Log anzuzeigen');
@@ -119,8 +123,11 @@ it.each([false, true])('keeps the same panel and direct 28px toggle across colla
     expect(panel()).toBe(container); expect(toggle()).toBe(control);
     expect(control.getAttribute('aria-expanded')).toBe('true');
     expect(control.getAttribute('aria-label')).toBe(t('Details schließen'));
+    const syntaxHelp = container.querySelector<HTMLButtonElement>(`button[aria-label="${t('Markdown-Syntax')}"]`)!;
+    expect(syntaxHelp.parentElement).toBe(container);
+    expect(syntaxHelp.classList.contains('right-7')).toBe(true);
     expect(container.style.width).toBe('var(--detail-width)');
-    expect(container.style.getPropertyValue('--detail-width')).toBe('min(480px, max(200px, calc(100vw - 300px)))');
+    expect(container.style.getPropertyValue('--detail-width')).toBe('min(560px, max(200px, calc(100vw - 300px)))');
     const content = container.querySelector('header')!.parentElement!;
     expect(content.style.width).toBe('var(--detail-width)');
     expect(content.classList.contains('left-0')).toBe(true);
@@ -138,7 +145,8 @@ it.each([false, true])('keeps the same panel and direct 28px toggle across colla
     expect(detailButtons()).toEqual([control]);
     click(control);
     expect(panel()).toBe(container); expect(toggle()).toBe(control);
-    expect(container.style.width).toBe('28px');
+    expect(container.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
+    expect(container.querySelector(`button[aria-label="${t('Markdown-Syntax')}"]`)).toBeNull();
   }
   expect(api.AppendBatch).not.toHaveBeenCalled();
 });
@@ -153,15 +161,15 @@ it('retains independent detail and log sizes across task selection and collapse 
     `[role="separator"][aria-orientation="${orientation}"]`,
   )!;
   await key(separator('vertical'), 'ArrowRight');
-  expect(separator('vertical').getAttribute('aria-valuenow')).toBe('490');
+  expect(separator('vertical').getAttribute('aria-valuenow')).toBe('570');
   expect(separator('horizontal').getAttribute('aria-valuenow')).toBe('224');
   await key(separator('horizontal'), 'ArrowUp');
   expect(separator('horizontal').getAttribute('aria-valuenow')).toBe('234');
   const assertSizes = () => {
     expect(panel()).toBe(container); expect(toggle()).toBe(control);
-    expect(separator('vertical').getAttribute('aria-valuenow')).toBe('490');
+    expect(separator('vertical').getAttribute('aria-valuenow')).toBe('570');
     expect(separator('horizontal').getAttribute('aria-valuenow')).toBe('234');
-    expect(container.style.getPropertyValue('--detail-width')).toBe('min(490px, max(200px, calc(100vw - 300px)))');
+    expect(container.style.getPropertyValue('--detail-width')).toBe('min(570px, max(200px, calc(100vw - 300px)))');
     const logArea = container.querySelector<HTMLElement>('[data-task-log]')!.parentElement!;
     const expected = document.createElement('div'); expected.style.height = 'min(234px, max(100px, calc(100% - 290px)))';
     expect(logArea.style.height).toBe(expected.style.height);
@@ -172,7 +180,7 @@ it('retains independent detail and log sizes across task selection and collapse 
   expect(container.querySelector('span[title="Beta"]')).not.toBeNull(); assertSizes();
   click(control);
   expect(container.querySelector('[role="separator"]')).toBeNull();
-  expect(container.style.width).toBe('28px');
+  expect(container.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
   click(list().querySelector(`[data-task-drag="${taskId}"]`)!); click(control);
   expect(container.querySelector('span[title="Alpha"]')).not.toBeNull(); assertSizes();
   expect(api.AppendBatch).not.toHaveBeenCalled(); expect(api.AppendEvent).not.toHaveBeenCalled();
@@ -245,4 +253,23 @@ it.each(['panel', 'list'] as const)('keeps date editing and focus in its %s orig
       configuredStart: new Date(2026, 9, 28, 9).toISOString() },
   });
   expect(editor(area, 'date')).toBeNull();
+});
+
+it('puts live editor undo and redo beside the dates, not among the menus', async () => {
+  await mountWithDetails();
+  const dates = panel().querySelector('[data-detail-dates]')!;
+  const undo = dates.querySelector<HTMLButtonElement>(`button[aria-label="${t('Rückgängig')}"]`)!;
+  const redo = dates.querySelector<HTMLButtonElement>(`button[aria-label="${t('Wiederholen')}"]`)!;
+  expect(undo.disabled).toBe(true); expect(redo.disabled).toBe(true);
+  const menus = panel().querySelector(`[role="group"][aria-label="${t('Textformatierung')}"]`)!;
+  expect(menus.querySelector('[data-editor-history]')).toBeNull();
+  expect(menus.querySelector('button span')!.classList.contains('text-[11px]')).toBe(true);
+  const editor = (panel().querySelector('.tiptap') as HTMLElement & { editor: import('@tiptap/react').Editor }).editor;
+  await act(async () => { editor.commands.insertContent('edited'); });
+  expect(undo.disabled).toBe(false);
+  await act(async () => undo.click());
+  expect(editor.state.doc.textContent).toBe('');
+  expect(redo.disabled).toBe(false);
+  await act(async () => redo.click());
+  expect(editor.state.doc.textContent).toBe('edited');
 });

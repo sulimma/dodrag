@@ -7,7 +7,6 @@ import { App } from './App';
 import type { AppSettings } from './bridge/eventBridge';
 import type { StoredEvent } from './domain/types';
 import { projectEvents } from './domain/projector';
-import { markdownStorage } from './components/editor/TaskDescriptionEditor';
 import { setLanguage } from './i18n';
 
 vi.mock('framer-motion', () => ({
@@ -124,11 +123,13 @@ const storedDescription = () => projectEvents(history, new Date(date)).tasks[tas
 async function typeAndSave(editor: Editor, text: string, check?: () => void) {
   for (const character of text) {
     await act(async () => insertCharacter(editor, character));
-    const expected = markdownStorage(editor).getMarkdown();
+    const expected = editor.getMarkdown();
     check?.();
     await acknowledge();
+    // Input rules may emit insertion and conversion separately in TipTap 3.
+    while (pending.length) await acknowledge();
     expect(storedDescription()).toBe(expected);
-    expect(markdownStorage(editor).getMarkdown()).toBe(expected);
+    expect(editor.getMarkdown()).toBe(expected);
     expect(host.querySelector('.tiptap')).toBe(editor.view.dom);
     check?.();
   }
@@ -169,12 +170,15 @@ it('does not let queued older native snapshots replace a newer live heading or i
   expect(api.AppendBatch).toHaveBeenCalledOnce();
   const liveDocument = editor.state.doc;
   const caret = editor.state.selection.from;
-  for (let index = 0; index < text.length; index++) {
+  let writes = 0;
+  while (pending.length) {
     await acknowledge();
+    writes++;
     expect(editor.state.doc).toBe(liveDocument);
     expect(editor.state.selection.from).toBe(caret);
     expect(dom.querySelector('h1')?.textContent).toBe('Queued');
   }
+  expect(writes).toBeGreaterThanOrEqual(text.length);
   expect(pending).toHaveLength(0);
   expect(storedDescription()).toBe('# Queued');
   await typeAndSave(editor, '!', () => expect(dom.querySelector('h1')).not.toBeNull());
@@ -200,11 +204,11 @@ it('focuses the native drop immediately, appends further typing at the inserted 
     nativeDrop!(120, 250, [path]);
     expect(document.activeElement, 'Drop must focus synchronously, not on a later animation frame').toBe(dom);
     expect(editor.state.doc.textContent).toBe(`${beforeDrop}"${path}"`);
-    expect(editor.state.selection.from).toBe(insertion + path.length + 2);
+    expect(editor.state.selection.from).toBe(editor.state.doc.content.size - 1);
   });
   expect(coords).toHaveBeenCalledWith({ left: 120, top: 250 });
   const dropCommand = await acknowledge();
-  expect(storedDescription()).toBe(markdownStorage(editor).getMarkdown());
+  expect(storedDescription()).toBe(editor.getMarkdown());
   const withDrop = editor.state.doc.textContent;
   await typeAndSave(editor, ' continued', () => expect(document.activeElement).toBe(dom));
   expect(editor.state.doc.textContent).toBe(`${withDrop} continued`);

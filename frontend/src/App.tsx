@@ -10,7 +10,7 @@ import { TaskSidebar } from './components/TaskSidebar';
 import { TaskContextMenu } from './components/TaskContextMenu';
 import { TaskDetailPanel } from './components/TaskDetailPanel';
 import type { InlineEditor } from './components/inlineEditor';
-import { ShortcutHelp } from './components/ShortcutHelp';
+import { ShortcutHelp, type HelpPage } from './components/ShortcutHelp';
 import { Toasts } from './components/Toasts';
 import { DependencyHighlightIndicators } from './components/DependencyHighlightIndicators';
 import type { TaskViewInteractions } from './components/taskInteractions';
@@ -42,6 +42,7 @@ export function App() {
   const [lastMovedKey, setLastMovedKey] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [helpPage, setHelpPage] = useState<HelpPage>('shortcuts');
   const [isMiniMode, setIsMiniMode] = useState(false);
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [editOwner, setEditOwner] = useState<'view' | 'detail'>('view');
@@ -115,7 +116,7 @@ export function App() {
     state,
     showSettingsModal,
     showShortcutsModal,
-    setShowShortcutsModal,
+    setShowShortcutsModal: open => { if (open === true) setHelpPage('shortcuts'); setShowShortcutsModal(open); },
     isMiniMode,
     miniTaskIds: miniTasks.map(task => task.id),
     snapshotReady,
@@ -295,7 +296,7 @@ export function App() {
           onCreateTask={handleCreateTask}
         />
         {taskContextMenu}
-        <ShortcutHelp open={showShortcutsModal} onClose={() => setShowShortcutsModal(false)} />
+        <ShortcutHelp open={showShortcutsModal} initialPage={helpPage} onClose={() => setShowShortcutsModal(false)} />
         <Toasts toasts={toasts} />
       </>
     );
@@ -319,12 +320,13 @@ export function App() {
         onRedo={actions.handleRedo}
         onSettings={database.openSettings}
         onMiniMode={handleEnterMiniMode}
-        onHelp={() => setShowShortcutsModal(true)}
+        onHelp={() => { setHelpPage('shortcuts'); setShowShortcutsModal(true); }}
       />
       <div className="flex-1 flex overflow-hidden">
         <TaskDetailPanel
           open={isDetailPanelOpen}
           onToggle={() => setIsDetailPanelOpen(open => !open)}
+          onSyntaxHelp={() => { setHelpPage('syntax'); setShowShortcutsModal(true); }}
           key={appSettings?.activeDatabasePath ?? ''}
           task={selectedTaskId ? state.tasks[selectedTaskId] ?? null : null}
           interactions={interactions} titleEditor={scopedEditor(editors.titleEditor, 'detail')} dateEditor={scopedEditor(editors.dateEditor, 'detail')}
@@ -428,6 +430,7 @@ export function App() {
       {taskContextMenu}
       <ShortcutHelp
         open={showShortcutsModal}
+        initialPage={helpPage}
         onClose={() => setShowShortcutsModal(false)}
       />
       {showSettingsModal && (

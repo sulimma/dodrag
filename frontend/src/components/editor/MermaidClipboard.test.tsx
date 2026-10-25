@@ -61,15 +61,15 @@ async function selectDiagram(element: HTMLElement, editor: Editor) {
   expect(document.activeElement).toBe(editor.view.dom);
 }
 
-async function clipboardEvent(editor: Editor, action: 'copy' | 'cut' | 'paste', data: ClipboardData) {
+async function clipboardEvent(editor: Editor, action: 'copy' | 'cut' | 'paste', data: ClipboardData, target: HTMLElement = editor.view.dom) {
   // jsdom has no system clipboard shortcut default action. Dispatch the DOM
   // clipboard event that Windows/WebView2 delivers after the unhandled shortcut.
   const key = new KeyboardEvent('keydown', { key: action === 'copy' ? 'c' : action === 'cut' ? 'x' : 'v', ctrlKey: true, bubbles: true, cancelable: true });
   const event = new Event(action, { bubbles: true, cancelable: true });
   Object.defineProperty(event, 'clipboardData', { value: data });
   await act(async () => {
-    editor.view.dom.dispatchEvent(key);
-    editor.view.dom.dispatchEvent(event);
+    target.dispatchEvent(key);
+    target.dispatchEvent(event);
   });
   expect(key.defaultPrevented).toBe(false);
   expect(event.defaultPrevented).toBe(true);
@@ -113,6 +113,24 @@ it.each([
   if (format === 'plain') data.clearData('text/html');
   act(() => { editor.commands.setTextSelection(editor.state.doc.content.size - 1); editor.view.focus(); });
   expect(editor.state.selection.$from.parent.type.name).toBe('paragraph');
+  await clipboardEvent(editor, 'paste', data);
+  await expectPersistedDiagram(editor, onChange, action === 'copy' ? 2 : 1);
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it.each(['copy', 'cut'] as const)('serializes the selected model when %s originates from Mermaid controls rather than the editor root', async action => {
+  const { element, editor, onChange, onError } = await mount();
+  await selectDiagram(element, editor);
+  const control = element.querySelector<HTMLButtonElement>('[data-mermaid-title] button')!;
+  // A native focused control can own the DOM clipboard event while PM retains
+  // the selected block. The browser default would copy the preview's UI text.
+  act(() => control.focus());
+  expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+  const data = new ClipboardData();
+  await clipboardEvent(editor, action, data, control);
+  expectSource(data);
+  expect(data.getData('text/html')).not.toContain('bearbeiten');
+  act(() => { editor.commands.setTextSelection(editor.state.doc.content.size - 1); editor.view.focus(); });
   await clipboardEvent(editor, 'paste', data);
   await expectPersistedDiagram(editor, onChange, action === 'copy' ? 2 : 1);
   expect(onError).not.toHaveBeenCalled();

@@ -41,8 +41,57 @@ The compact, corner-docked view stays out of the way and shows only work that ca
 - **Dependencies at a glance:** list, network-plan, and Gantt views share task interactions and highlight upstream and downstream tasks.
 - **Drag-and-drop planning:** move tasks between dates, connect prerequisites, or remove selected dependency edges with Alt-drag.
 - **Small, traceable edits:** edit titles and dates in place, mark a task active, complete or reopen tasks, and undo or redo changes.
+- **Rich task descriptions:** a TipTap 3 editor with Markdown, checklists, GitHub-style note boxes, Mermaid diagrams, KaTeX mathematics, and Unicode shortcuts. The task log remains plain text.
 - **Native Windows desktop app:** the app stores task history in SQLite and can manage multiple database files. Browser fallback code is an internal development aid, not a supported product target.
 - **Compact corner view:** dock a small always-on-top task window to a screen corner and restore the main window when needed.
+
+## Task descriptions and Markdown
+
+Select a task and expand its detail panel to edit the description. The editor menus cover paragraph styles, formatting, lists, blocks, characters, and Mermaid diagrams. Menu tooltips show the corresponding syntax. Undo and redo buttons sit beside the dates above the editor; **Ctrl+Z**, **Ctrl+Y**, and **Ctrl+Shift+Z** also work while editing.
+
+The main window starts at **1440 × 820 logical outer-window pixels**, limited to the current monitor's available work area. The detail panel starts at 560 pixels wide and can be resized independently of the task log. On sufficiently large screens, this leaves room for a single row of editor menus and a readable task list. Smaller screens, high display scaling, and additional dependency chips can reduce the available title space.
+
+### Supported syntax
+
+- Headings (`#` through `######`), paragraphs, **bold** (`**text**`), *italic* (`*text*`), strikethrough (`~~text~~`), and inline code (`` `code` ``).
+- Bullet lists (`- text`), numbered lists (`1. text`), and checklists (`- [ ] text` / `- [x] text`).
+- Quotes (`> text`), fenced code blocks, links, images, and tables.
+- GitHub-style **Note**, **Important**, **Warning**, **Tip**, and **Caution** boxes with Unicode icons:
+
+  ```markdown
+  > [!TIP]
+  > Keep the next action small.
+  ```
+
+- Inline mathematics (`$E = mc^2$`) and display mathematics (`$$` delimiters on separate lines), rendered with KaTeX. Click a formula or focus it with the keyboard to edit its LaTeX source.
+- Mermaid fenced blocks, rendered as diagrams:
+
+  ````markdown
+  ```mermaid
+  flowchart LR
+    A --> B
+  ```
+  ````
+
+The **Mermaid** menu inserts small templates for 30 bundled diagram families. Diagram previews are displayed at 75% scale. Selecting and copying a whole diagram copies its source, not its preview controls; pasting it into the description creates another diagram block.
+
+The question-mark button beside the expanded detail panel's collapse button opens **syntax help**. Syntax help and keyboard-shortcut help link to each other. The syntax page includes expandable rendered Mermaid examples and a link to the [official Mermaid syntax documentation](https://mermaid.js.org/intro/syntax-reference.html), opened in your default browser. The external documentation may describe features newer than the bundled Mermaid version.
+
+### Unicode and fraction shortcuts
+
+The **Characters** menu groups shortcuts in three-column grids. Each entry shows its rendered symbol and literal input spelling.
+
+| Group | Input → result |
+| --- | --- |
+| Arrows | `->` → →, `<-` → ←, `<->` → ↔, `=>` → ⇒, `<=>` → ⇔ |
+| Typography | `...` → …; ` -- ` → a spaced em dash |
+| Mathematics | `!=` → ≠, `<=` → ≤, `>=` → ≥, `~=` → ≈, `+/-` → ±, `:micro:` → µ |
+| Unicode fractions | `1/2` → ½, `1/4` → ¼, `3/4` → ¾ |
+| Other fractions | Integer `N/D` → inline LaTeX, for example `2/3` → `$\frac{2}{3}$` |
+
+The editor also recognizes all 23 Confluence-style emoticon shortcuts: `:)`, `:(`, `:P`, `:D`, `;)`, `(y)`, `(n)`, `(on)`, `(off)`, `(!)`, `(*)`, `(*r)`, `(*g)`, `(*b)`, `(*y)`, `(/)`, `(x)`, `(i)`, `(+)`, `(-)`, `(?)`, `<3`, and `</3`. These use Unicode symbols rather than image assets; colored stars and status symbols retain their styling.
+
+Symbol and fraction conversions wait for a safe input boundary, so typing `1/23` does not prematurely produce `½3`. They also apply to newly pasted content, but not to code, Mermaid source, mathematics, links, URLs, file paths, or chained dates. Loading an existing description does not rewrite its shortcuts. Fraction parts are limited to 12 digits each; a zero denominator is left unchanged. Backspace immediately after an input-rule conversion restores the typed spelling, and editor undo/redo remains available.
 
 ## Languages and translations
 
@@ -66,7 +115,7 @@ Choose the interface language in **Settings**. On first launch, DoDrag uses the 
 | Esperanto | `eo` | Not verified |
 | Toki Pona | `tok` | Not verified |
 
-The translations are **AI-generated**; only **English and German have been verified**. The other languages may contain linguistic or contextual mistakes. Automated tests check catalog completeness, interpolation parameters, and untranslated app-owned UI text; they do not establish linguistic correctness. Technical error details from Windows or third-party libraries may remain in their original language.
+The translations are **AI-generated**; only **English and German have been verified**. The other languages may contain linguistic or contextual mistakes. Automated tests check catalog completeness, interpolation parameters, and untranslated app-owned UI text; they do not establish linguistic correctness. Technical error details from Windows or third-party libraries may remain in their original language. Some Mermaid diagram types generate English standard labels independently of the selected app language.
 
 ## Getting started
 
@@ -89,7 +138,9 @@ Install Go, Node.js/npm, and the Wails prerequisites for Windows, then run this 
 ./build.ps1
 ```
 
-The script installs frontend dependencies in a local cache, runs the frontend and Go tests, builds the frontend, and packages `dodrag.exe`. It does not start the application. Builds get their version from `build.ps1`; without the script the binary reports `dev` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
+The script installs frontend dependencies in a local cache, runs the frontend and Go tests, builds the frontend, and packages `dodrag.exe` into both `build/bin` and the repository root. It does not start the application. The source build currently reports version **0.2.0**; builds get their version and build timestamp from `build.ps1`. Without build-time values the binary reports `dev` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
+
+Standard validation uses frontend unit/DOM tests, TypeScript checking, Go tests, and native Wails packaging. Targeted Chromium checks are optional aids for SVG geometry or text layout; they do not verify Windows clipboard, WebView2, multi-monitor, or DPI integration.
 
 ## Author and affiliation
 

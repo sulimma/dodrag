@@ -55,6 +55,13 @@ it('loads Mermaid only for Mermaid code, renders strict SVG and exposes in-place
   await act(async () => root.render(<TaskDescriptionEditor {...props} description={'```mermaid\ngraph TD\n  A --> B\n```'} />));
   expect(mermaid.initialize).toHaveBeenCalledWith(expect.objectContaining({ securityLevel: 'strict', startOnLoad: false }));
   expect(mermaid.render).toHaveBeenCalled(); expect(element.querySelector('[role=img] svg')).not.toBeNull();
+  const preview = element.querySelector<HTMLElement>('[role=img]')!;
+  expect(preview.getAttribute('aria-label')).toBe(t('Mermaid-Vorschau'));
+  // jsdom's CSSStyleDeclaration has no zoom support; React assigns the value
+  // directly. The browser test separately verifies real layout shrinking.
+  expect(preview.style.zoom).toBe('0.75');
+  expect(preview.style.transform).toBe('');
+  expect(element.querySelector<HTMLElement>('.mermaid-body')!.style.getPropertyValue('zoom')).toBe('');
   await click(Array.from(element.querySelectorAll('button')).find(button => button.getAttribute('aria-label') === t('Mermaid-Diagramm bearbeiten'))!);
   expect(element.querySelector('[data-mermaid-editing]')).not.toBeNull();
   expect(document.activeElement).toBe(editor.view.dom);

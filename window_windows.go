@@ -35,6 +35,7 @@ var (
 	procGetClassNameW            = user32.NewProc("GetClassNameW")
 	procEnumDisplayMonitors      = user32.NewProc("EnumDisplayMonitors")
 	procGetMonitorInfoW          = user32.NewProc("GetMonitorInfoW")
+	procMonitorFromWindow        = user32.NewProc("MonitorFromWindow")
 	procGetCursorPos             = user32.NewProc("GetCursorPos")
 	procGetSystemMenu            = user32.NewProc("GetSystemMenu")
 	procEnableMenuItem           = user32.NewProc("EnableMenuItem")
@@ -70,6 +71,7 @@ const (
 	swRestore          = 9
 
 	wmSize            = 0x0005
+	wmGetMinMaxInfo   = 0x0024
 	wmDisplayChange   = 0x007E
 	wmNcCalcSize      = 0x0083
 	wmSysCommand      = 0x0112
@@ -129,6 +131,14 @@ type windowPlacement struct {
 	PtMinPosition    winPoint
 	PtMaxPosition    winPoint
 	RcNormalPosition winRect
+}
+
+type winMinMaxInfo struct {
+	Reserved     winPoint
+	MaxSize      winPoint
+	MaxPosition  winPoint
+	MinTrackSize winPoint
+	MaxTrackSize winPoint
 }
 
 type monitorInfoExW struct {
@@ -412,6 +422,15 @@ func installWindowSubclassIfNeeded(hwnd uintptr, app *App) {
 func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) uintptr {
 	app := appInstanceForHooks.Load()
 	switch msg {
+	case wmGetMinMaxInfo:
+		if !inMiniModeAtomic.Load() && lparam != 0 && origWndProc.Load() != 0 {
+			ret, _, _ := procCallWindowProcW.Call(origWndProc.Load(), hwnd, uintptr(msg), wparam, lparam)
+			// Wails' logical minimum must not force the window beyond a small/high-DPI work area.
+			info := (*winMinMaxInfo)(unsafe.Pointer(lparam))
+			capMinimumWindowTrackSize(info, getWindowWorkAreaNative(hwnd))
+			return ret
+		}
+
 	case wmTaskContextMenu:
 		dispatchTaskContextMenu(hwnd, wparam)
 		return 0
@@ -708,6 +727,49 @@ func applyMiniWindowBoundsNative(hwnd uintptr, targetMonitor string, corner stri
 	return mon.DeviceName, resolvedCorner
 }
 
+func getWindowWorkAreaNative(hwnd uintptr) winRect {
+	monitor, _, _ := procMonitorFromWindow.Call(hwnd, 2) // MONITOR_DEFAULTTONEAREST
+	var info monitorInfoExW
+	info.CbSize = uint32(unsafe.Sizeof(info))
+	if result, _, _ := procGetMonitorInfoW.Call(monitor, uintptr(unsafe.Pointer(&info))); result != 0 {
+		return info.RcWork
+	}
+	return getPrimaryWorkArea()
+}
+
+func capMinimumWindowTrackSize(info *winMinMaxInfo, work winRect) {
+	if width := work.Right - work.Left; width > 0 && info.MinTrackSize.X > width {
+		info.MinTrackSize.X = width
+	}
+	if height := work.Bottom - work.Top; height > 0 && info.MinTrackSize.Y > height {
+		info.MinTrackSize.Y = height
+	}
+}
+
+func defaultNormalWindowRect(work winRect, dpi uint32) winRect {
+	if dpi < 72 || dpi > 480 {
+		dpi = 96
+	}
+	w := int32(defaultWindowWidth * int(dpi) / 96)
+	h := int32(defaultWindowHeight * int(dpi) / 96)
+	if w > work.Right-work.Left {
+		w = work.Right - work.Left
+	}
+	if h > work.Bottom-work.Top {
+		h = work.Bottom - work.Top
+	}
+	left := work.Left + (work.Right-work.Left-w)/2
+	top := work.Top + (work.Bottom-work.Top-h)/2
+	return winRect{Left: left, Top: top, Right: left + w, Bottom: top + h}
+}
+
+func applyInitialWindowBoundsNative(hwnd uintptr) winRect {
+	rect := defaultNormalWindowRect(getWindowWorkAreaNative(hwnd), getWindowDPI(hwnd))
+	procSetWindowPos.Call(hwnd, 0, uintptr(rect.Left), uintptr(rect.Top),
+		uintptr(rect.Right-rect.Left), uintptr(rect.Bottom-rect.Top), swpNoZOrder|swpNoActivate)
+	return rect
+}
+
 func restoreNormalWindowBoundsNative(hwnd uintptr, savedStyle uintptr, savedRect winRect) winRect {
 	if hwnd == 0 {
 		return savedRect
@@ -732,27 +794,9 @@ func restoreNormalWindowBoundsNative(hwnd uintptr, savedStyle uintptr, savedRect
 	if w < 600 || h < 400 || !onValidMonitor {
 		monitors := getConnectedMonitors()
 		primary := monitors[0]
-		work := primary.WorkArea
-		scale := float64(primary.DPI) / 96.0
-		if scale <= 0 {
-			scale = 1.0
-		}
-		w = int32(1180.0 * scale)
-		h = int32(820.0 * scale)
-		if w > (work.Right - work.Left) {
-			w = work.Right - work.Left
-		}
-		if h > (work.Bottom - work.Top) {
-			h = work.Bottom - work.Top
-		}
-		left := work.Left + (work.Right-work.Left-w)/2
-		top := work.Top + (work.Bottom-work.Top-h)/2
-		savedRect = winRect{
-			Left:   left,
-			Top:    top,
-			Right:  left + w,
-			Bottom: top + h,
-		}
+		savedRect = defaultNormalWindowRect(primary.WorkArea, primary.DPI)
+		w = savedRect.Right - savedRect.Left
+		h = savedRect.Bottom - savedRect.Top
 	}
 
 	procSetWindowPos.Call(

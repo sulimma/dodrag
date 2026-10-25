@@ -1,48 +1,16 @@
 import Image, { type ImageOptions } from '@tiptap/extension-image';
 import { classifyTarget, mediaSource, tokenizeTargets } from './targets';
 
-const configuredParsers = new WeakSet<object>();
 export const LocalImage = Image.extend<{ getTaskId: () => string } & ImageOptions>({
-  addOptions() { return { ...this.parent?.(), getTaskId: () => '', inline: true, allowBase64: false, HTMLAttributes: {} }; },
-  addStorage() {
-    return {
-      markdown: {
-        serialize(state: any, node: any) {
-          const src = String(node.attrs.src ?? '');
-          const alt = String(node.attrs.alt ?? '').replace(/[\[\]]/g, '');
-          state.write(`![${alt}](<${src}>)`);
-        },
-        parse: {
-          setup(markdown: any) {
-            if (configuredParsers.has(markdown)) return;
-            configuredParsers.add(markdown);
-            markdown.inline.ruler.before('text', 'dodrag-windows-path', (state: any, silent: boolean) => {
-              const match = tokenizeTargets(state.src.slice(state.pos))[0];
-              if (!match || match.kind !== 'path' || state.src.slice(state.pos + match.start).startsWith('![')) return false;
-              // Consume plain prose before a path too, before markdown-it splits at the drive colon.
-              if (/[\n!#$%&*+\-:<=>@[\\\]^_`{}~]/.test(state.src.slice(state.pos, state.pos + match.start))) return false;
-              if (!silent) state.pending += state.src.slice(state.pos, state.pos + match.end);
-              state.pos += match.end;
-              return true;
-            });
-            // Markdown normally unescapes Windows backslashes and rejects drive-letter image URIs.
-            markdown.inline.ruler.before('image', 'dodrag-local-image', (state: any, silent: boolean) => {
-              if (!state.src.startsWith('![', state.pos)) return false;
-              const match = tokenizeTargets(state.src.slice(state.pos))[0];
-              if (!match || match.start !== 0 || !match.image || match.kind !== 'path') return false;
-              if (!silent) {
-                const token = state.push('image', 'img', 0);
-                token.attrs = [['src', match.value], ['alt', match.label ?? '']];
-                const child = new state.Token('text', '', 0); child.content = match.label ?? '';
-                token.children = [child]; token.content = match.label ?? '';
-              }
-              state.pos += match.end;
-              return true;
-            });
-          },
-        },
-      },
-    };
+  addOptions() { return { ...this.parent?.(), getTaskId: () => '', inline: true, allowBase64: false, HTMLAttributes: {}, resize: false }; },
+  renderMarkdown(node) { return `![${String(node.attrs?.alt ?? '').replace(/[\[\]]/g, '')}](<${node.attrs?.src ?? ''}>)`; },
+  markdownTokenizer: {
+    name: 'image', level: 'inline', start: source => source.indexOf('!['),
+    tokenize(source) {
+      const match = tokenizeTargets(source)[0];
+      if (!source.startsWith('![') || !match || match.start !== 0 || match.kind !== 'path') return;
+      return { type: 'image', raw: source.slice(0, match.end), href: match.value, text: match.label ?? '' };
+    },
   },
   addNodeView() {
     const getTaskId = this.options.getTaskId;

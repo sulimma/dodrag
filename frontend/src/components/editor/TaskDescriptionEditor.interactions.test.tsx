@@ -6,6 +6,8 @@ import { closeHistory } from '@tiptap/pm/history';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TaskDescriptionEditor, markdownStorage, type TaskDescriptionEditorHandle } from './TaskDescriptionEditor';
 import { t } from '../../i18n';
+import { MERMAID_TEMPLATES } from './MermaidTemplates';
+import { SYMBOL_GROUPS } from './SymbolReplacements';
 
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
 vi.mock('mermaid', () => ({ default: { initialize: vi.fn(), render: vi.fn(async () => ({ svg: '<svg></svg>' })) } }));
@@ -47,8 +49,13 @@ function type(editor: Editor, text: string) {
 }
 
 function button(element: HTMLElement, label: string) {
-  if (/^Überschrift [123]$/.test(label) && !element.querySelector(`button[aria-label="${t(label)}"]`)) {
-    act(() => element.querySelector<HTMLButtonElement>(`button[aria-label="${t('Überschriften')}"]`)!.click());
+  const group = /^(Überschrift [123]|Absatz)$/.test(label) ? 'Überschriften'
+    : ['Fett', 'Kursiv', 'Durchgestrichen', 'Inline-Code', 'Formel'].includes(label) ? 'Format'
+    : ['Aufzählung', 'Nummerierte Liste', 'Checkliste ein-/ausschalten'].includes(label) ? 'Listen'
+    : ['Zitat', 'Codeblock', 'Formelblock', 'Note', 'Warning', 'Important', 'Tip', 'Caution'].includes(label) ? 'Block'
+    : MERMAID_TEMPLATES.some(item => item.labelKey === label) ? 'Mermaid' : null;
+  if (group && !element.querySelector(`button[aria-label="${t(label)}"]`)) {
+    act(() => element.querySelector<HTMLButtonElement>(`button[aria-label="${t(group)}"]`)!.click());
   }
   return Array.from(element.querySelectorAll<HTMLButtonElement>('button')).find(item => item.getAttribute('aria-label') === t(label))!;
 }
@@ -135,7 +142,7 @@ it.each([
   act(() => editor.commands.setTextSelection({ from: 1, to: 9 }));
   const selection = { from: editor.state.selection.from, to: editor.state.selection.to };
   const target = button(element, label);
-  expect(target.title).toBe(t(label)); expect(target.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+  expect(target.title).not.toBe(''); expect(target.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
   const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
   act(() => target.dispatchEvent(down));
   expect(down.defaultPrevented).toBe(true);
@@ -155,6 +162,17 @@ it.each([
   expect(onError).not.toHaveBeenCalled();
 });
 
+it('inserts the supplied emoticon shortcuts from the insertion menu and keeps their Markdown spelling', async () => {
+  const { editor, element, onError } = await mount();
+  await click(element, 'Sonderzeichen');
+  const target = element.querySelector<HTMLButtonElement>('[data-editor-dropdown] button[title="(*r)"]')!;
+  await act(async () => target.click());
+  expect(editor.state.doc.firstChild!.firstChild!.type.name).toBe('emoticon');
+  expect(editor.state.doc.firstChild!.firstChild!.attrs.shortcut).toBe('(*r)');
+  expect(markdownStorage(editor).getMarkdown()).toBe('(*r)');
+  expect(onError).not.toHaveBeenCalled();
+});
+
 it('reports toolbar failures instead of hiding them', async () => {
   const { editor, element, onError } = await mount('preserved');
   const error = new Error('toolbar command failed');
@@ -170,9 +188,9 @@ it('inserts Mermaid from the toolbar and exposes usable undo and redo', async ()
   const { editor, element } = await mount();
   expect(button(element, 'Rückgängig').disabled).toBe(true);
   expect(button(element, 'Wiederholen').disabled).toBe(true);
-  await click(element, 'Mermaid-Diagramm einfügen');
-  expect(markdownStorage(editor).getMarkdown()).toContain('```mermaid\ngraph TD');
-  expect(button(element, 'Mermaid-Diagramm einfügen').getAttribute('aria-pressed')).toBe('true');
+  await click(element, MERMAID_TEMPLATES[0].labelKey);
+  expect(editor.state.doc.firstChild!.attrs.language).toBe('mermaid');
+  expect(editor.state.doc.firstChild!.textContent).toBe(MERMAID_TEMPLATES[0].source);
   expect(button(element, 'Rückgängig').disabled).toBe(false);
   act(() => editor.view.dispatch(closeHistory(editor.state.tr)));
   await click(element, 'Rückgängig');
@@ -278,7 +296,7 @@ it('focuses dropped paths synchronously, leaves caret after the path and separat
   expect(editor.state.doc.textContent).toBe(inserted);
   expect(onChange.mock.lastCall![1]).toMatchObject({ localUndo: true });
   act(() => editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true })));
-  expect(editor.state.doc.textContent).toBe('before');
+  expect(editor.state.doc.textContent).toBe('before ');
   expect(element.querySelector('[data-description-editor]')!.className).toContain('overflow-hidden');
   expect(element.querySelector('.tiptap')!.parentElement!.className).toContain('overflow-y-auto');
 });
@@ -310,4 +328,132 @@ it('offers headings as a compact disclosure with paragraph reset and dismisses i
   await click(element, 'Überschriften');
   act(() => editor.view.dom.dispatchEvent(new Event('pointerdown', { bubbles: true })));
   expect(button(element, 'Überschriften').getAttribute('aria-expanded')).toBe('false');
+});
+
+it('groups formatting and insertion entries with syntax tooltips and keyboard dismissal', async () => {
+  const { element } = await mount('text');
+  expect(button(element, 'Sonderzeichen').textContent).toBe('Zeichen');
+  expect(button(element, 'Listen').textContent).toBe('Liste');
+  for (const label of ['Überschriften', 'Format', 'Listen', 'Block', 'Sonderzeichen', 'Mermaid']) {
+    expect(button(element, label).getAttribute('aria-expanded')).toBe('false');
+    expect(button(element, label).title).not.toBe('');
+  }
+  await click(element, 'Format');
+  expect(button(element, 'Fett').title).toBe(`**${t('Fett')}**`);
+  expect(button(element, 'Inline-Code').title).toBe('`code`');
+  expect(element.querySelector('[data-editor-dropdown] button[title="$E = mc^2$"]')?.getAttribute('aria-label')).toBe(t('Formel'));
+  await click(element, 'Listen');
+  expect(button(element, 'Format').getAttribute('aria-expanded')).toBe('false');
+  expect(button(element, 'Aufzählung').title).toBe(`- ${t('Text')}`);
+  await click(element, 'Block');
+  expect(element.querySelector(`[data-editor-dropdown] button[aria-label="${t('Formelblock')}"]`)?.getAttribute('title')).toBe('$$\nE = mc^2\n$$');
+  for (const [key, type] of [['Note', 'NOTE'], ['Warning', 'WARNING'], ['Important', 'IMPORTANT'], ['Tip', 'TIP'], ['Caution', 'CAUTION']]) {
+    expect(button(element, key).title).toBe(`> [!${type}]\n> ${t('Text')}`);
+  }
+  act(() => button(element, 'Block').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  expect(button(element, 'Block').getAttribute('aria-expanded')).toBe('false');
+  expect(document.activeElement).toBe(button(element, 'Block'));
+  await click(element, 'Sonderzeichen');
+  expect(element.textContent).toContain(t('Emotion-Shortcuts'));
+  expect(element.querySelectorAll('[data-editor-dropdown] button')).toHaveLength(23 + SYMBOL_GROUPS.reduce((sum, group) => sum + group.items.length, 0));
+  for (const grid of element.querySelectorAll('[data-symbol-group],[data-emoticon-group]')) expect(grid.classList.contains('grid-cols-3')).toBe(true);
+  expect(element.querySelector(`[data-editor-dropdown] button[aria-label="${t('Formel')}"]`)).toBeNull();
+  expect(element.querySelector(`[data-editor-dropdown] button[aria-label="${t('Formelblock')}"]`)).toBeNull();
+  for (const shortcut of [':)', ':(', ':P', ':D', ';)', '(y)', '(n)', '(on)', '(off)', '(!)', '(*)', '(*r)', '(*g)', '(*b)', '(*y)', '(/)', '(x)', '(i)', '(+)', '(-)', '(?)', '<3', '</3']) {
+    const entry = element.querySelector<HTMLButtonElement>(`[data-editor-dropdown] button[title="${shortcut}"]`)!;
+    expect(entry.getAttribute('aria-label')).toBe(shortcut);
+    expect(entry.childNodes).toHaveLength(2);
+    expect(entry.lastChild!.textContent).toBe(shortcut);
+  }
+});
+
+it.each(['Note', 'Warning', 'Important', 'Tip', 'Caution'])('wraps the selected paragraph with %s from the block menu', async key => {
+  const { editor, element, onError } = await mount('selected');
+  await click(element, key);
+  expect(editor.isActive('alert', { type: key.toUpperCase() })).toBe(true);
+  expect(markdownStorage(editor).getMarkdown()).toContain(`> [!${key.toUpperCase()}]`);
+  expect(editor.state.doc.textContent).toBe('selected');
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it('moves through dropdown entries with arrow keys', async () => {
+  const { element } = await mount();
+  act(() => button(element, 'Format').focus());
+  await act(async () => {
+    button(element, 'Format').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    await new Promise(resolve => requestAnimationFrame(resolve));
+  });
+  expect(document.activeElement).toBe(button(element, 'Fett'));
+  await act(async () => {
+    button(element, 'Fett').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }));
+    await new Promise(resolve => requestAnimationFrame(resolve));
+  });
+  expect(document.activeElement).toBe(button(element, 'Formel'));
+});
+
+it('changes an existing alert kind without losing its text or nesting another box', async () => {
+  const { editor, element } = await mount('preserved');
+  await click(element, 'Note');
+  await click(element, 'Warning');
+  expect(editor.state.doc.firstChild!.type.name).toBe('alert');
+  expect(editor.state.doc.firstChild!.attrs.type).toBe('WARNING');
+  expect(editor.state.doc.firstChild!.firstChild!.type.name).toBe('paragraph');
+  expect(editor.state.doc.textContent).toBe('preserved');
+  await click(element, 'Warning');
+  expect(editor.state.doc.firstChild!.type.name).toBe('paragraph');
+});
+
+it.each([['Formel', 'inlineMath'], ['Formelblock', 'blockMath']])('inserts %s with editable LaTeX data', async (label, nodeType) => {
+  const { editor, element, onError } = await mount();
+  await click(element, label);
+  let latex: string | undefined;
+  editor.state.doc.descendants(node => { if (node.type.name === nodeType) latex = node.attrs.latex; });
+  expect(latex).toBe('E = mc^2');
+  expect(markdownStorage(editor).getMarkdown()).toContain('E = mc^2');
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it.each(MERMAID_TEMPLATES)('inserts the tiny $labelKey template from the separate Mermaid menu', async item => {
+  const { editor, element, onError } = await mount();
+  await click(element, 'Mermaid');
+  expect(element.querySelector('[data-symbol-group]')).toBeNull();
+  const entries = element.querySelectorAll('[data-editor-dropdown] button');
+  expect(entries).toHaveLength(MERMAID_TEMPLATES.length);
+  const entry = button(element, item.labelKey);
+  expect(entry.querySelector('code')).toBeNull();
+  expect(entry.textContent).toBe(t(item.labelKey));
+  expect(entry.title).toBe(`\`\`\`mermaid\n${item.source}\n\`\`\``);
+  await act(async () => entry.click());
+  expect(editor.state.doc.firstChild!.attrs.language).toBe('mermaid');
+  expect(editor.state.doc.firstChild!.textContent).toBe(item.source);
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it.each(SYMBOL_GROUPS.flatMap(group => group.items))('inserts special character $shortcut from the three-column palette', async item => {
+  const { editor, element, onError } = await mount();
+  await click(element, 'Sonderzeichen');
+  const entry = [...element.querySelectorAll<HTMLButtonElement>('[data-symbol-group] button')].find(button => button.getAttribute('aria-label') === item.shortcut)!;
+  expect(entry.closest('[data-symbol-group]')?.classList.contains('grid-cols-3')).toBe(true);
+  expect(entry.querySelector('span')?.textContent).toBe(item.symbol);
+  const shortcut = entry.querySelector('code')!;
+  expect(shortcut.textContent).toBe(item.shortcut);
+  expect(shortcut.style.fontVariantLigatures).toBe('none');
+  expect(shortcut.style.fontFeatureSettings).toBe('"liga" 0, "clig" 0, "calt" 0');
+  await act(async () => entry.click());
+  if (item.latex) expect(editor.state.doc.firstChild!.firstChild!.attrs.latex).toBe(item.latex);
+  else expect(editor.state.doc.textContent).toBe(item.symbol);
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it('navigates the three-column special-character palette by rows and columns', async () => {
+  const { element } = await mount();
+  await click(element, 'Sonderzeichen');
+  const entries = [...element.querySelectorAll<HTMLButtonElement>('[data-editor-dropdown] button')];
+  act(() => entries[0].focus());
+  act(() => entries[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })));
+  expect(document.activeElement).toBe(entries[3]);
+  act(() => entries[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })));
+  expect(document.activeElement).toBe(entries[4]);
+  act(() => entries[4].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })));
+  expect(document.activeElement).toBe(entries[3]);
 });

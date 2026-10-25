@@ -76,7 +76,7 @@ export function MermaidBlockView({ node, editor, getPos, deleteNode, selected }:
     });
     return () => { active = false; };
   }, [isMermaid, node.textContent, editing]);
-  if (!isMermaid) return <NodeViewWrapper as="pre"><NodeViewContent as="code" /></NodeViewWrapper>;
+  if (!isMermaid) return <NodeViewWrapper as="pre"><NodeViewContent<'code'> as="code" /></NodeViewWrapper>;
   const edit = () => {
     focusSource.current = true;
     if (editing) {
@@ -141,13 +141,14 @@ export function MermaidBlockView({ node, editor, getPos, deleteNode, selected }:
           }}>{t('löschen')}</button>
         </div>
         {svg && <div role="img" aria-label={t('Mermaid-Vorschau')} className="overflow-auto [&_svg]:max-w-full"
+          style={{ zoom: 0.75 }}
           onClick={select} onDoubleClick={edit} dangerouslySetInnerHTML={{ __html: svg }} />}
         {failure && <div role="alert" className="text-xs text-red-700 whitespace-pre-wrap">
           {t('Mermaid-Diagramm konnte nicht gerendert werden')}{': '}{failure}
         </div>}
       </div>
       <pre className={editing ? 'mt-2 whitespace-pre-wrap text-xs' : 'hidden'}>
-        <NodeViewContent as="code" aria-label={t('Mermaid-Quelltext')} />
+        <NodeViewContent<'code'> as="code" aria-label={t('Mermaid-Quelltext')} />
       </pre>
     </div>
     <button type="button" contentEditable={false} className="mermaid-insert" data-mermaid-insert="after"

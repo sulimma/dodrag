@@ -11,15 +11,23 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// Wails sizes are logical outer-window dimensions on Windows.
+const (
+	defaultWindowWidth  = 1440
+	defaultWindowHeight = 820
+	minimumWindowWidth  = 860
+	minimumWindowHeight = 560
+)
+
 func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
 		Title:     "DoDrag",
-		Width:     1180,
-		Height:    820,
-		MinWidth:  860,
-		MinHeight: 560,
+		Width:     defaultWindowWidth,
+		Height:    defaultWindowHeight,
+		MinWidth:  minimumWindowWidth,
+		MinHeight: minimumWindowHeight,
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
 			Middleware: app.previewAssetMiddleware,

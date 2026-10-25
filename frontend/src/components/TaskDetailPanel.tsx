@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Flame, RotateCcw, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ArrowRight, Check, Flame, RotateCcw, PanelLeftClose, PanelLeftOpen, CircleHelp } from 'lucide-react';
 import { eventBridge } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';
 import { t, formatDate } from '../i18n';
@@ -24,6 +24,7 @@ interface TaskDetailPanelProps extends TaskMenuActions {
   onClose: () => void;
   open?: boolean;
   onToggle?: () => void;
+  onSyntaxHelp?: () => void;
   onDescriptionChange: (taskId: string, markdown: string, groupId: string) => Promise<void>;
   onAddLog: (taskId: string, text: string) => Promise<void>;
   onRemoveLog: (taskId: string, entryId: string) => Promise<void>;
@@ -38,7 +39,8 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
   const editor = useRef<TaskDescriptionEditorHandle>(null);
   const log = useRef<TaskLogSectionHandle>(null);
   const logArea = useRef<HTMLDivElement>(null);
-  const [detailWidth, setDetailWidth] = useState(480);
+  const [historyTarget, setHistoryTarget] = useState<HTMLDivElement | null>(null);
+  const [detailWidth, setDetailWidth] = useState(560);
   const [logHeight, setLogHeight] = useState(224);
   const widthLimits = (): [number, number] => {
     const available = panel.current?.parentElement?.clientWidth || window.innerWidth;
@@ -98,7 +100,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
       }}
       data-task-drag-disabled={task && (titleEditor.taskId === task.id || dateEditor.taskId === task.id) || undefined}
       data-deletion-preview={open && task && interactions.deletionPreview.some(edge => edge.endsWith(`->${task.id}`)) || undefined}
-      style={{ '--wails-drop-target': open && task ? 'drop' : 'none', '--detail-width': `min(${detailWidth}px, max(200px, calc(100vw - 300px)))`, width: open ? 'var(--detail-width)' : '28px' } as React.CSSProperties}
+      style={{ '--wails-drop-target': open && task ? 'drop' : 'none', '--detail-width': `min(${detailWidth}px, max(200px, calc(100vw - 300px)))`, width: open ? 'var(--detail-width)' : 'calc(1.75rem + 1px)' } as React.CSSProperties}
       onContextMenu={event => void contextMenu(event)}
       onMouseDown={event => {
         if (!(event.target as HTMLElement).closest('input,textarea,button,a,select,[contenteditable="true"],[data-task-selectable-text]')) panel.current?.focus();
@@ -106,16 +108,21 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
       className={`relative shrink-0 overflow-hidden border-r min-h-0 bg-white/95 outline-none transition-[width] duration-300 ease-in-out motion-reduce:transition-none ${appearance === 'drop' && open ? 'border-amber-400 ring-2 ring-inset ring-amber-400/50 bg-amber-50' : 'border-slate-200'}`}>
         {open && <ResizeHandle orientation="vertical" label={t('Breite der Detailansicht ändern')}
           value={panel.current?.getBoundingClientRect().width || detailWidth} limits={widthLimits} onChange={setDetailWidth} />}
+        {open && props.onSyntaxHelp && <button type="button" title={t('Markdown-Syntax')} aria-label={t('Markdown-Syntax')}
+          onClick={props.onSyntaxHelp}
+          className="absolute top-3 right-7 z-20 flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-200 focus-visible:outline focus-visible:outline-sky-500">
+          <CircleHelp className="h-5 w-5" aria-hidden="true" />
+        </button>}
         <button data-detail-toggle type="button" title={open ? t('Details schließen') : t('Details anzeigen')}
           aria-label={open ? t('Details schließen') : t('Details anzeigen')} aria-expanded={open}
           onClick={props.onToggle ?? props.onClose}
-          className="absolute top-3 right-0 z-20 p-1 rounded-l text-slate-500 hover:bg-slate-200 focus-visible:outline focus-visible:outline-sky-500">
-          {open ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+          className="absolute top-3 right-0 z-20 flex h-7 w-7 items-center justify-center rounded-l text-slate-500 hover:bg-slate-200 focus-visible:outline focus-visible:outline-sky-500">
+          {open ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
         </button>
       {open && <div className="absolute inset-y-0 left-0 flex flex-col min-h-0" style={{ width: 'var(--detail-width)', containerType: 'inline-size', containerName: 'task-detail' }}>
       <style>{dateLabelCSS}</style>
       <header className="p-3 border-b border-slate-200 space-y-3 shrink-0">
-        <div className="flex items-center gap-2 pr-6">
+        <div className={`flex items-center gap-2 ${props.onSyntaxHelp ? 'pr-12' : 'pr-6'}`}>
           {task && <><TaskDragHandle /><span className="font-mono text-xs px-2 py-1 bg-slate-100 rounded">{task.id}</span>
             <TaskChecklistBadge progress={task.checklistProgress} />
             {!task.completed && <button type="button" title={task.isActive ? t('Deaktivieren (Space)') : t('Aktivieren (Space)')}
@@ -132,11 +139,12 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
             <ArrowRight className="w-3 h-3 shrink-0" aria-hidden="true" />
             <span className="detail-date-label">{t('Berechnet')}:</span>
             <span className="font-mono" title={t('Berechnet')}>{formatDate(task.calculatedStart ?? task.effectiveStart)}</span>
+            <div ref={setHistoryTarget} className="ml-auto flex shrink-0" data-detail-history />
           </div></>}
       </header>
       {!task ? <p className="p-6 text-sm text-slate-400">{t('Task auswählen, um Details, Beschreibung und Log anzuzeigen')}</p> : <>
         <section className="flex flex-col flex-1 min-h-0 overflow-hidden" data-task-selectable-text="true">
-          <TaskDescriptionEditor ref={editor} taskId={task.id} description={task.description}
+          <TaskDescriptionEditor ref={editor} taskId={task.id} description={task.description} historyTarget={historyTarget}
             onChange={(markdown, metadata) => {
               const discrete = metadata?.historyBoundary || metadata?.localUndo;
               const group = discrete ? crypto.randomUUID() : descriptionGroup.current;

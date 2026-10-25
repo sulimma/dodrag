@@ -106,18 +106,21 @@ const render = (props: React.ComponentProps<typeof TaskDetailPanel>) => act(() =
 const cssHeight = (value: string) => {
   const control = document.createElement('div'); control.style.height = value; return control.style.height;
 };
-it('keeps one direct 28px toggle and full-width content without a divider strip', () => {
+const cssWidth = (value: string) => {
+  const control = document.createElement('div'); control.style.width = value; return control.style.width;
+};
+it('keeps one rem-sized toggle plus its border and full-width content without a divider strip', () => {
   const props = { ...makeProps(), onToggle: vi.fn() };
   render({ ...props, open: false });
   const pane = host.querySelector<HTMLElement>('aside')!;
   const toggle = pane.querySelector<HTMLButtonElement>(':scope > button[data-detail-toggle]')!;
   expect(host.querySelector('[data-detail-divider]')).toBeNull();
   expect(toggle.parentElement).toBe(pane);
-  expect(pane.style.width).toBe('28px');
+  expect(pane.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
   expect(pane.className).toContain('transition-[width]');
   expect(toggle.className).toContain('top-3 right-0');
-  expect(toggle.classList.contains('p-1')).toBe(true);
-  expect(toggle.querySelector('svg')!.getAttribute('width')).toBe('20');
+  expect(toggle.classList.contains('w-7')).toBe(true);
+  expect(toggle.querySelector('svg')!.classList.contains('w-5')).toBe(true);
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
   expect(host.querySelector('[data-editor]')).toBeNull();
   act(() => toggle.click());
@@ -125,7 +128,7 @@ it('keeps one direct 28px toggle and full-width content without a divider strip'
   render({ ...props, open: true });
   expect(pane.querySelector(':scope > button[data-detail-toggle]')).toBe(toggle);
   expect(pane.style.width).toBe('var(--detail-width)');
-  expect(pane.style.getPropertyValue('--detail-width')).toBe('min(480px, max(200px, calc(100vw - 300px)))');
+  expect(pane.style.getPropertyValue('--detail-width')).toBe('min(560px, max(200px, calc(100vw - 300px)))');
   const resize = pane.querySelector<HTMLElement>(':scope > [data-resize-handle="vertical"]')!;
   expect(resize.classList.contains('right-0')).toBe(true);
   expect(resize.classList.contains('top-12')).toBe(true);
@@ -139,7 +142,7 @@ it('keeps one direct 28px toggle and full-width content without a divider strip'
   expect(host.querySelector('[data-editor]')).not.toBeNull();
   render({ ...props, open: false });
   expect(pane.querySelector(':scope > button[data-detail-toggle]')).toBe(toggle);
-  expect(pane.style.width).toBe('28px');
+  expect(pane.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
 });
 
 it.each([null, '2026-10-28T10:00:00Z'])('keeps configured and effective dates in one responsive row with calculatedStart=%s', calculatedStart => {
@@ -211,13 +214,13 @@ it('resizes panel and log independently with real mouse pointers without startin
   try {
     pointer(vertical, 'pointerdown', 100, 100); pointer(window, 'pointermove', 140, 900);
     pointer(window, 'pointerup', 140, 900);
-    expect(vertical.getAttribute('aria-valuenow')).toBe('520');
+    expect(vertical.getAttribute('aria-valuenow')).toBe('600');
     expect(horizontal.getAttribute('aria-valuenow')).toBe('224');
-    expect(pane.style.getPropertyValue('--detail-width')).toBe('min(520px, max(200px, calc(100vw - 300px)))');
+    expect(pane.style.getPropertyValue('--detail-width')).toBe('min(600px, max(200px, calc(100vw - 300px)))');
     pointer(horizontal, 'pointerdown', 100, 200); pointer(window, 'pointermove', 900, 160);
     pointer(window, 'pointerup', 900, 160);
     expect(horizontal.getAttribute('aria-valuenow')).toBe('264');
-    expect(vertical.getAttribute('aria-valuenow')).toBe('520');
+    expect(vertical.getAttribute('aria-valuenow')).toBe('600');
     expect(logArea.style.height).toBe(cssHeight('min(264px, max(100px, calc(100% - 290px)))'));
     expect(props.interactions.onDragStartTask).not.toHaveBeenCalled();
     expect(end).not.toHaveBeenCalled();
@@ -476,4 +479,26 @@ it('keeps global task and undo shortcuts out of editor descendants but enables t
   expect(key(panel, 'a').defaultPrevented).toBe(true);
   expect(key(panel, 'z', true).defaultPrevented).toBe(true);
   expect(actions.handleToggleActive).toHaveBeenCalledWith(task); expect(actions.handleUndo).toHaveBeenCalledOnce();
+});
+
+it.each([true, false])('shows syntax help only in the expanded detail panel while open=%s', open => {
+  const onSyntaxHelp = vi.fn();
+  render({ ...makeProps(), open, onSyntaxHelp });
+  const help = host.querySelector<HTMLButtonElement>(`button[aria-label="${t('Markdown-Syntax')}"]`)!;
+  if (!open) {
+    expect(help).toBeNull();
+    expect(host.querySelector<HTMLElement>('aside')!.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
+    expect(host.querySelectorAll('aside > button')).toHaveLength(1);
+    return;
+  }
+  expect(help.title).toBe(t('Markdown-Syntax'));
+  expect(help.classList.contains('right-7')).toBe(true);
+  expect(host.querySelector('[data-detail-toggle]')!.classList.contains('right-0')).toBe(true);
+  for (const control of [help, host.querySelector('[data-detail-toggle]')!]) {
+    expect(control.classList.contains('w-7')).toBe(true);
+    expect(control.classList.contains('h-7')).toBe(true);
+    expect(control.querySelector('svg')!.classList.contains('w-5')).toBe(true);
+  }
+  act(() => help.click());
+  expect(onSyntaxHelp).toHaveBeenCalledOnce();
 });
