@@ -21,6 +21,19 @@ const timestamp = v.pipe(
       probe.getUTCMonth() === month - 1 && probe.getUTCDate() === date;
   })
 );
+const utcTimestamp = v.pipe(timestamp, v.check(value => value.endsWith('Z')));
+
+// Only the browser legacy loader may convert validated RFC3339 offsets. Keep the
+// fractional digits verbatim: Date serialization would truncate nanoseconds.
+export function normalizeLegacyTimestamp(input: unknown): string {
+  const value = v.parse(timestamp, input);
+  if (value.endsWith('Z')) return value;
+  const fraction = /\.\d+/.exec(value)?.[0] ?? '';
+  const instant = new Date(Date.parse(value.replace(/\.\d+/, '')));
+  const year = instant.getUTCFullYear();
+  const utc = `${String(year).padStart(4, '0')}-${String(instant.getUTCMonth() + 1).padStart(2, '0')}-${String(instant.getUTCDate()).padStart(2, '0')}T${String(instant.getUTCHours()).padStart(2, '0')}:${String(instant.getUTCMinutes()).padStart(2, '0')}:${String(instant.getUTCSeconds()).padStart(2, '0')}${fraction}Z`;
+  return v.parse(utcTimestamp, utc);
+}
 const title = v.pipe(v.string(), v.minLength(1), v.check(value => value.trim().length > 0));
 export const MAX_DESCRIPTION_BYTES = 256 * 1024;
 const description = v.pipe(v.string(), v.check(value => {
@@ -34,16 +47,16 @@ const description = v.pipe(v.string(), v.check(value => {
   return true;
 }));
 export const CommandSchema = v.variant('type', [
-  v.object({ type: v.literal('TASK_CREATED'), payload: v.strictObject({ taskId: id, title, configuredStart: timestamp, createdAt: timestamp }) }),
+  v.object({ type: v.literal('TASK_CREATED'), payload: v.strictObject({ taskId: id, title, configuredStart: timestamp, createdAt: utcTimestamp }) }),
   v.object({ type: v.literal('TASK_RENAMED'), payload: v.strictObject({ taskId: id, title }) }),
   v.object({ type: v.literal('TASK_DESCRIPTION_SET'), payload: v.strictObject({ taskId: id, description }) }),
-  v.object({ type: v.literal('TASK_LOG_ADDED'), payload: v.strictObject({ taskId: id, entryId: id, text: title, createdAt: timestamp }) }),
+  v.object({ type: v.literal('TASK_LOG_ADDED'), payload: v.strictObject({ taskId: id, entryId: id, text: title, createdAt: utcTimestamp }) }),
   v.object({ type: v.literal('TASK_LOG_REMOVED'), payload: v.strictObject({ taskId: id, entryId: id }) }),
   v.object({ type: v.literal('TASK_START_DATE_SET'), payload: v.strictObject({ taskId: id, configuredStart: timestamp }) }),
   v.object({ type: v.literal('DEPENDENCY_ADDED'), payload: v.strictObject({ taskId: id, predecessorId: id }) }),
   v.object({ type: v.literal('DEPENDENCY_REMOVED'), payload: v.strictObject({ taskId: id, predecessorId: id }) }),
   v.object({ type: v.literal('TASK_ACTIVE_SET'), payload: v.strictObject({ taskId: id, isActive: v.boolean() }) }),
-  v.object({ type: v.literal('TASK_COMPLETED'), payload: v.strictObject({ taskId: id, completedAt: timestamp }) }),
+  v.object({ type: v.literal('TASK_COMPLETED'), payload: v.strictObject({ taskId: id, completedAt: utcTimestamp }) }),
   v.object({ type: v.literal('TASK_REOPENED'), payload: v.strictObject({ taskId: id }) }),
 ]);
 export type EventCommand = v.InferOutput<typeof CommandSchema>;
@@ -55,7 +68,7 @@ export function parseStoredEvent(input: unknown): StoredEvent {
   const metadata = v.parse(v.object({
     seq: v.pipe(v.number(), v.safeInteger(), v.minValue(1)),
     id,
-    timestamp,
+    timestamp: utcTimestamp,
     undone: v.boolean(),
     groupId: v.optional(v.pipe(v.string(), v.check(value => [...value].length <= 256))),
   }), input);

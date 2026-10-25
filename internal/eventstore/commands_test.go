@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -301,8 +302,15 @@ func TestPersistedTimestampConformance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := validatePayload("TASK_CREATED", payload); (err == nil) != tc.valid {
-				t.Fatalf("payload valid=%v: %v", tc.valid, err)
+			if _, err := validatePayload("TASK_CREATED", payload); (err == nil) != (tc.valid && strings.HasSuffix(tc.value, "Z")) {
+				t.Fatalf("UTC payload valid=%v: %v", tc.valid, err)
+			}
+			start, _ := json.Marshal(map[string]string{"taskId": "a", "configuredStart": tc.value})
+			if _, err := validatePayload("TASK_START_DATE_SET", start); (err == nil) != tc.valid {
+				t.Fatal("start timestamp rule", err)
+			}
+			if _, err := parseUTCEventTime(tc.value); (err == nil) != (tc.valid && strings.HasSuffix(tc.value, "Z")) {
+				t.Fatal("UTC metadata rule", err)
 			}
 			path := filepath.Join(t.TempDir(), "time.db")
 			s, err := NewStoreWithOptions(path, false)
@@ -318,8 +326,9 @@ func TestPersistedTimestampConformance(t *testing.T) {
 			if opened != nil {
 				opened.Close()
 			}
-			if (err == nil) != tc.valid {
-				t.Fatalf("activation valid=%v: %v", tc.valid, err)
+			_, normalizeErr := normalizeTime(tc.value)
+			if (err == nil) != (tc.valid && normalizeErr == nil) {
+				t.Fatalf("activation valid=%v (UTC representability=%v): %v", tc.valid, normalizeErr, err)
 			}
 		})
 	}

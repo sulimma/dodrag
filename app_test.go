@@ -144,6 +144,47 @@ func TestDatabaseLifecycle(t *testing.T) {
 		t.Fatal("demo not seeded")
 	}
 }
+func TestSwitchLegacyDatabaseNormalizesUTCAndResetsCachedTasks(t *testing.T) {
+	a := testApp(t)
+	settings, err := a.CreateDatabase("", "current", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := settings.ActiveDatabasePath
+	if _, err := a.AppendEvent("same", "TASK_CREATED", `{"taskId":"a","title":"current","configuredStart":"2026-10-25T09:00:00Z","createdAt":"2026-10-25T09:00:00Z"}`); err != nil {
+		t.Fatal(err)
+	}
+	legacy := filepath.Join(a.appDir, "legacy.db")
+	db, err := sql.Open("sqlite", legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT NOT NULL UNIQUE,timestamp TEXT NOT NULL,type TEXT NOT NULL,payload TEXT NOT NULL,undone INTEGER NOT NULL DEFAULT 0);
+		INSERT INTO events(id,timestamp,type,payload) VALUES('same','2026-10-25T09:00:00.000000001+02:00','TASK_CREATED','{"taskId":"a","title":"legacy","configuredStart":"2026-10-25T09:00:00+02:00","createdAt":"2026-10-25T09:00:00.000000001+02:00"}');`)
+	db.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.settings.KnownDatabases = append(a.settings.KnownDatabases, DatabaseEntry{Name: "legacy", Path: legacy})
+	if _, err := a.SwitchDatabase(legacy); err != nil {
+		t.Fatal(err)
+	}
+	events, err := a.GetEvents()
+	if err != nil || len(events) != 1 || events[0].Timestamp != "2026-10-25T07:00:00.000000001Z" ||
+		!strings.Contains(string(events[0].Payload), `"title":"legacy"`) ||
+		!strings.Contains(string(events[0].Payload), `"createdAt":"2026-10-25T07:00:00.000000001Z"`) ||
+		!strings.Contains(string(events[0].Payload), `"configuredStart":"2026-10-25T09:00:00+02:00"`) {
+		t.Fatal("legacy database migration or cache isolation failed", events, err)
+	}
+	if _, err := a.SwitchDatabase(current); err != nil {
+		t.Fatal(err)
+	}
+	events, err = a.GetEvents()
+	if err != nil || len(events) != 1 || !strings.Contains(string(events[0].Payload), `"title":"current"`) {
+		t.Fatal("database switch retained foreign cache", events, err)
+	}
+}
+
 func TestIncompatibleDatabaseKeepsActive(t *testing.T) {
 	a := testApp(t)
 	if _, err := a.CreateDatabase("", "good", false); err != nil {

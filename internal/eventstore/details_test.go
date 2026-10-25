@@ -42,7 +42,7 @@ func TestDescriptionPayloadByteLimit(t *testing.T) {
 }
 
 func TestLogPayloadValidation(t *testing.T) {
-	base := map[string]string{"taskId": "a", "entryId": "note-1", "text": " note\n", "createdAt": "2028-02-29T23:59:59.123456789+02:00"}
+	base := map[string]string{"taskId": "a", "entryId": "note-1", "text": " note\n", "createdAt": "2028-02-29T23:59:59.123456789Z"}
 	for _, tc := range []struct {
 		field, value string
 	}{
@@ -51,6 +51,7 @@ func TestLogPayloadValidation(t *testing.T) {
 		{"text", ""}, {"text", " \t\r\n"},
 		{"createdAt", "2027-02-29T09:00:00Z"}, {"createdAt", "2026-10-17T09:00:00"},
 		{"createdAt", "2026-10-17T09:00:00+24:00"},
+		{"createdAt", "2026-10-17T09:00:00+02:00"},
 	} {
 		payload := make(map[string]string)
 		for key, value := range base {
@@ -195,7 +196,7 @@ func TestTaskDetailsReplayCoalescingAndHistory(t *testing.T) {
 	}
 	notes := []taskLogEntry{
 		{id: "late", text: " late ", createdAt: "2026-10-17T10:00:00Z"},
-		{id: "nano2", text: "second", createdAt: "2026-10-17T11:00:00.123456789+02:00"},
+		{id: "nano2", text: "second", createdAt: "2026-10-17T09:00:00.123456789Z"},
 		{id: "nano1", text: "first", createdAt: "2026-10-17T09:00:00.123456788Z"},
 		{id: "tie", text: "equal instant", createdAt: "2026-10-17T09:00:00.123456789Z"},
 	}
@@ -203,7 +204,7 @@ func TestTaskDetailsReplayCoalescingAndHistory(t *testing.T) {
 		appendCommand("log-"+note.id, "TASK_LOG_ADDED", map[string]string{"taskId": "a", "entryId": note.id, "text": note.text, "createdAt": note.createdAt}, "")
 	}
 	notes[0].text = "late"
-	want := []taskLogEntry{notes[2], notes[1], notes[3], notes[0]}
+	want := notes
 	_, tasks, err = s.readReplay(s.db)
 	if err != nil || !reflect.DeepEqual(tasks["a"].logEntries, want) {
 		t.Fatal("log chronology/precision/stable ties incorrect", tasks["a"].logEntries, err)
@@ -220,7 +221,7 @@ func TestTaskDetailsReplayCoalescingAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, tasks, err = s.readReplay(s.db)
-	if err != nil || !reflect.DeepEqual(tasks["a"].logEntries, []taskLogEntry{notes[2], notes[1], notes[0]}) {
+	if err != nil || !reflect.DeepEqual(tasks["a"].logEntries, notes[:3]) {
 		t.Fatal("log undo removed incorrect note", err)
 	}
 	if _, err := s.Redo(); err != nil {

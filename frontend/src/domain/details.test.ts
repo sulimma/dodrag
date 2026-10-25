@@ -22,13 +22,14 @@ describe('task details validation and replay', () => {
     else expect(() => parseCommand(command)).toThrow();
   });
 
-  it('validates log IDs, nonblank text and RFC3339 timestamps without rewriting stored text', () => {
+  it('validates log IDs, nonblank text and strict UTC timestamps without rewriting stored text', () => {
     const payload = { taskId: 'a', entryId: 'note-1', text: ' note\n', createdAt: iso };
     expect(parseCommand({ type: 'TASK_LOG_ADDED', payload }).payload).toEqual(payload);
     for (const override of [
       { entryId: '' }, { entryId: 'constructor' }, { entryId: '__proto__' }, { entryId: 'space id' }, { entryId: 'a'.repeat(129) },
       { text: '' }, { text: ' \n\t' }, { createdAt: '2027-02-29T09:00:00Z' }, { createdAt: '2026-10-17T09:00:00' },
       { createdAt: '2026-10-17T09:00:00+24:00' }, { createdAt: '2026-10-17T09:00:00.1234567890Z' },
+      { createdAt: '2026-10-17T09:00:00+02:00' },
     ]) expect(() => parseCommand({ type: 'TASK_LOG_ADDED', payload: { ...payload, ...override } })).toThrow();
     expect(() => parseCommand({ type: 'TASK_DESCRIPTION_SET', payload: { taskId: 'a', description: null } })).toThrow();
     expect(() => parseCommand({ type: 'TASK_LOG_ADDED', payload: { ...payload, extra: true } })).toThrow();
@@ -88,10 +89,10 @@ describe('task details validation and replay', () => {
     expect(() => applyCommand(tasks, { type: 'TASK_DESCRIPTION_SET', payload: { taskId: 'missing', description: '' } })).toThrow();
   });
 
-  it('sorts logs by instant including offsets/nanoseconds and stable ties, and excludes undone additions', () => {
+  it('appends logs in sequence order despite backward clocks/nanoseconds and excludes undone additions', () => {
     const notes = [
       { entryId: 'late', text: ' late ', createdAt: '2026-10-17T10:00:00Z' },
-      { entryId: 'nano2', text: 'second', createdAt: '2026-10-17T11:00:00.123456789+02:00' },
+      { entryId: 'nano2', text: 'second', createdAt: '2026-10-17T09:00:00.123456789Z' },
       { entryId: 'nano1', text: 'first', createdAt: '2026-10-17T09:00:00.123456788Z' },
       { entryId: 'tie', text: 'same instant', createdAt: '2026-10-17T09:00:00.123456789Z' },
     ];
@@ -100,17 +101,17 @@ describe('task details validation and replay', () => {
     const replay = replayCommands(events);
     expect(replay.tasks.get('a')!.logEntries.find(entry => entry.id === 'late')!.text).toBe('late');
     expect(projectEvents(events, new Date(iso)).tasks.a.logEntries.find(entry => entry.id === 'late')!.text).toBe('late');
-    expect(replay.tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['nano1', 'nano2', 'tie', 'late']);
+    expect(replay.tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['late', 'nano2', 'nano1', 'tie']);
     const undone = events.map(event => event.seq === 5 ? { ...event, undone: true } : event);
-    expect(projectEvents(undone, new Date(iso)).tasks.a.logEntries.map(entry => entry.id)).toEqual(['nano1', 'nano2', 'late']);
+    expect(projectEvents(undone, new Date(iso)).tasks.a.logEntries.map(entry => entry.id)).toEqual(['late', 'nano2', 'nano1']);
     expect(projectEvents(events, new Date(iso)).tasks.a.logEntries).toHaveLength(4);
     const copy = copyReplayTasks(replay);
     expect(() => applyCommand(copy, commands[0])).toThrow();
     copy.get('a')!.logEntries[0].text = 'mutated copy';
-    expect(replay.tasks.get('a')!.logEntries[0].text).toBe('first');
+    expect(replay.tasks.get('a')!.logEntries[0].text).toBe('late');
     const projection = projectEvents(events, new Date(iso));
     projection.tasks.a.logEntries[0].text = 'mutated projection';
-    expect(projectEvents(events, new Date(iso)).tasks.a.logEntries[0].text).toBe('first');
+    expect(projectEvents(events, new Date(iso)).tasks.a.logEntries[0].text).toBe('late');
     expect(() => applyCommand(copy, { type: 'TASK_LOG_ADDED', payload: { ...notes[0], taskId: 'missing' } })).toThrow();
   });
 });

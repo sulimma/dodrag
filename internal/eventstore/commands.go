@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -108,6 +107,10 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 			if strings.TrimSpace(value) == "" {
 				return nil, fmt.Errorf("empty log text")
 			}
+		case "createdAt", "completedAt":
+			if _, err := parseUTCEventTime(value); err != nil {
+				return nil, fmt.Errorf("invalid %s: %w", field, err)
+			}
 		default:
 			if _, err := parseEventTime(value); err != nil {
 				return nil, fmt.Errorf("invalid %s: %w", field, err)
@@ -154,11 +157,6 @@ func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]int
 			}
 		}
 		t.logEntries = append(t.logEntries, taskLogEntry{id: entryID, text: strings.TrimSpace(p["text"].(string)), createdAt: p["createdAt"].(string)})
-		sort.SliceStable(t.logEntries, func(i, j int) bool {
-			a, _ := parseEventTime(t.logEntries[i].createdAt)
-			b, _ := parseEventTime(t.logEntries[j].createdAt)
-			return a.Before(b)
-		})
 	case "TASK_LOG_REMOVED":
 		entryID := p["entryId"].(string)
 		index := -1
@@ -245,21 +243,39 @@ func (s *Store) AppendEvent(id, kind, payload string) ([]Event, error) {
 	return s.AppendBatch([]Command{{ID: id, Type: kind, Payload: json.RawMessage(payload)}})
 }
 func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
-	events, tasks, err := s.readReplay(s.db)
+	if err := s.checkOpen(); err != nil {
+		return nil, err
+	}
+	owner := s
+	working := *s
+	s = &working
+	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, err
 	}
+	defer rollbackCache(tx, owner)
+	if err := s.ensureCache(tx); err != nil {
+		owner.ready = false
+		return nil, err
+	}
+	if !s.ready {
+		owner.ready = false
+	}
+	events := s.events
+	// Copy the map and only clone task objects touched by this batch.
+	tasks := make(map[string]*task, len(s.tasks))
+	for id, t := range s.tasks {
+		tasks[id] = t
+	}
+	touched := make(map[string]bool)
 	changed := make([]Command, 0, len(commands))
 	payloads := make(map[string]map[string]interface{}, len(commands))
-	ids := make(map[string]bool, len(events)+len(commands))
-	for _, event := range events {
-		ids[event.ID] = true
-	}
+	ids := make(map[string]bool, len(commands))
 	for _, command := range commands {
 		if err := checkID(command.ID); err != nil {
 			return nil, err
 		}
-		if utf8.RuneCountInString(command.GroupID) > 256 || ids[command.ID] {
+		if utf8.RuneCountInString(command.GroupID) > 256 || ids[command.ID] || s.ids[command.ID] {
 			return nil, fmt.Errorf("invalid group or duplicate event ID: %s", command.ID)
 		}
 		ids[command.ID] = true
@@ -267,23 +283,45 @@ func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
 		if err != nil {
 			return nil, err
 		}
+		id := p["taskId"].(string)
+		if !touched[id] && tasks[id] != nil {
+			tasks[id] = cloneTask(tasks[id])
+			touched[id] = true
+		}
 		effect, err := applyCommand(tasks, command.Type, p)
 		if err != nil {
 			return nil, err
 		}
 		if effect {
+			command.Payload = append(json.RawMessage(nil), command.Payload...)
 			changed = append(changed, command)
 			payloads[command.ID] = p
 		}
 	}
 	if len(changed) == 0 {
-		return events, nil
+		stamp, err := readChangeStamp(tx)
+		if err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			s.ready = false
+			return nil, err
+		}
+		s.stamp, s.ready = stamp, true
+		*owner = *s
+		return copyEvents(events), nil
 	}
-	tx, err := s.db.Begin()
-	if err != nil {
-		return nil, err
+	var earliest int64
+	workingEvents := make([]Event, 0, len(events)+len(changed))
+	for _, event := range events {
+		if event.Undone {
+			if earliest == 0 || event.Seq < earliest {
+				earliest = event.Seq
+			}
+			continue
+		}
+		workingEvents = append(workingEvents, event)
 	}
-	defer tx.Rollback()
 	if _, err := tx.Exec(`DELETE FROM events WHERE undone = 1`); err != nil {
 		return nil, err
 	}
@@ -301,6 +339,11 @@ func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
 				if _, err := tx.Exec(`UPDATE events SET payload = ?, timestamp = ? WHERE seq = ?`, string(command.Payload), ts, last.Seq); err != nil {
 					return nil, err
 				}
+				if earliest == 0 || last.Seq < earliest {
+					earliest = last.Seq
+				}
+				workingEvents[len(workingEvents)-1].Payload = command.Payload
+				workingEvents[len(workingEvents)-1].Timestamp = ts
 				continue
 			}
 		}
@@ -314,16 +357,49 @@ func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
 		if batchGroup != "" {
 			group = batchGroup
 		}
-		if _, err := tx.Exec(`INSERT INTO events (id, timestamp, type, payload, undone, group_id) VALUES (?, ?, ?, ?, 0, ?)`, command.ID, ts, command.Type, string(command.Payload), group); err != nil {
+		result, err := tx.Exec(`INSERT INTO events (id, timestamp, type, payload, undone, group_id) VALUES (?, ?, ?, ?, 0, ?)`, command.ID, ts, command.Type, string(command.Payload), group)
+		if err != nil {
 			return nil, err
 		}
+		seq, err := result.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+		workingEvents = append(workingEvents, Event{Seq: seq, ID: command.ID, Timestamp: ts, Type: command.Type, Payload: command.Payload, GroupID: group})
+	}
+	if err := s.invalidateSnapshots(tx, earliest); err != nil {
+		return nil, err
+	}
+	newSnapshots, err := s.writeSnapshots(tx, workingEvents, earliest)
+	if err != nil {
+		return nil, err
+	}
+	stamp, err := readChangeStamp(tx)
+	if err != nil {
+		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	s.dropSnapshots(earliest)
+	for seq, state := range newSnapshots {
+		s.snapshots[seq] = state
+	}
+	s.retainSnapshots()
+	if earliest != 0 {
+		s.ids = make(map[string]bool, len(workingEvents))
+		for _, ev := range workingEvents {
+			s.ids[ev.ID] = true
+		}
+	} else {
+		for _, ev := range workingEvents[len(events):] {
+			s.ids[ev.ID] = true
+		}
+	}
+	s.events, s.tasks, s.stamp, s.ready = workingEvents, tasks, stamp, true
 	s.groupID = changed[len(changed)-1].GroupID
-	// The incoming commands were already validated against the replayed state.
-	return s.readEvents(s.db)
+	*owner = *s
+	return copyEvents(s.events), nil
 }
 
 // Final Kahn validation covers completed tasks and every persisted dependency.

@@ -1,8 +1,8 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { eventBridge } from './eventBridge';
+import { eventBridge, normalizeEvents } from './eventBridge';
 import { dependencyPathEdges } from '../domain/dependencyPaths';
 import { projectEvents } from '../domain/projector';
-import { parseCommand } from '../domain/eventSchema';
+import { normalizeLegacyTimestamp, parseCommand } from '../domain/eventSchema';
 import { StoredEvent } from '../domain/types';
 import { getLanguage, setLanguage } from '../i18n';
 const key = 'dodrag_sqlite_fallback_events_v1';
@@ -14,6 +14,66 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
 });
 const create = () => eventBridge.appendEvent('TASK_CREATED', { taskId: 't1', title: 'A', configuredStart: '2026-10-17T09:00:00Z', createdAt: '2026-10-17T09:00:00Z' });
+it('loads only validated legacy browser timestamps as UTC without losing fractional precision', async () => {
+  const offset = '2026-10-25T00:30:00.123456789+02:00';
+  const utc = '2026-10-24T22:30:00.123456789Z';
+  const legacy = [{ seq: 1, id: 'legacy', timestamp: offset, undone: false, type: 'TASK_CREATED',
+    payload: { taskId: 't1', title: 'Original', createdAt: offset, configuredStart: offset } },
+  { seq: 2, id: 'completed', timestamp: offset, undone: false, type: 'TASK_COMPLETED',
+    payload: { taskId: 't1', completedAt: offset } }];
+  expect(() => normalizeEvents(legacy)).toThrow();
+  storage.set(key, JSON.stringify(legacy));
+  const normalized = await eventBridge.getEvents();
+  expect(normalized[0].timestamp).toBe(utc);
+  expect(normalized[0].payload).toMatchObject({ createdAt: utc, configuredStart: offset, title: 'Original' });
+  expect(normalized[1].payload).toMatchObject({ completedAt: utc });
+  expect(JSON.parse(storage.get(key)!)).toEqual(normalized);
+  expect(normalizeLegacyTimestamp('2026-01-01T00:00:00.000000001-00:30')).toBe('2026-01-01T00:30:00.000000001Z');
+  expect(normalizeLegacyTimestamp('0001-01-01T00:00:00.1200+00:00')).toBe('0001-01-01T00:00:00.1200Z');
+  expect(() => normalizeLegacyTimestamp('2026-02-30T00:00:00+02:00')).toThrow();
+  const invalid = JSON.stringify([...legacy, { ...legacy[1], seq: 3, id: 'invalid', payload: { taskId: 'missing', completedAt: offset } }]);
+  storage.set(key, invalid);
+  await expect(eventBridge.getEvents()).rejects.toThrow('Unknown task');
+  expect(storage.get(key)).toBe(invalid);
+});
+
+it('keeps sequence/log creation order under backward clock and prunes redo on a new append', async () => {
+  try {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-25T12:00:00Z'));
+    await create();
+    const first = await eventBridge.appendEvent('TASK_LOG_ADDED', { taskId: 't1', entryId: 'first', text: 'First', createdAt: new Date().toISOString() });
+    vi.setSystemTime(new Date('2026-10-24T12:00:00Z'));
+    const next = await eventBridge.appendEvent('TASK_LOG_ADDED', { taskId: 't1', entryId: 'second', text: 'Second', createdAt: new Date().toISOString() });
+    expect(next.map(event => event.seq)).toEqual([1, 2, 3]);
+    expect(next[2].timestamp < next[1].timestamp).toBe(true);
+    expect(projectEvents(next).tasks.t1.logEntries.map(entry => entry.id)).toEqual(['first', 'second']);
+    expect(projectEvents(first).tasks.t1.logEntries.map(entry => entry.id)).toEqual(['first']);
+    await eventBridge.undo();
+    const pruned = await eventBridge.appendEvent('TASK_RENAMED', { taskId: 't1', title: 'New branch' });
+    expect(pruned.map(event => event.seq)).toEqual([1, 2, 4]);
+    expect(projectEvents(pruned).canRedo).toBe(false);
+  } finally { vi.useRealTimers(); }
+});
+
+it('never reuses changed native database payloads with identical seq/id/timestamp', async () => {
+  const iso = '2026-10-25T09:00:00Z';
+  const raw: StoredEvent[] = [{ seq: 1, id: 'same', timestamp: iso, undone: false, type: 'TASK_CREATED',
+    payload: { taskId: 't1', title: 'Database A', createdAt: iso, configuredStart: iso } }];
+  const get = vi.fn(async () => JSON.parse(JSON.stringify(raw)));
+  const switchDatabase = vi.fn(async () => ({ activeDatabasePath: 'B.db' }));
+  vi.stubGlobal('window', { go: { main: { App: { GetEvents: get, SwitchDatabase: switchDatabase } } } });
+  const first = await eventBridge.getEvents();
+  await eventBridge.switchDatabase('B.db');
+  raw[0] = { ...raw[0], payload: { ...raw[0].payload, title: 'Database B' } } as StoredEvent;
+  const second = await eventBridge.getEvents();
+  expect(projectEvents(second).tasks.t1.title).toBe('Database B');
+  expect(projectEvents(first).tasks.t1.title).toBe('Database A');
+  raw[0] = { ...raw[0], timestamp: 'invalid' };
+  await expect(eventBridge.getEvents()).rejects.toThrow();
+  expect(projectEvents(second).tasks.t1.title).toBe('Database B');
+});
+
 it('coalesces description typing and replays log addition with undo and redo', async () => {
   await create();
   await eventBridge.appendEvent('TASK_DESCRIPTION_SET', { taskId: 't1', description: '- [ ] First' }, 'description');

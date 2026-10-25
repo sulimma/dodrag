@@ -1,7 +1,7 @@
 import type { EventType, StoredEvent } from '../domain/types';
-import { parseCommand, parseStoredEvent } from '../domain/eventSchema';
+import { normalizeLegacyTimestamp, parseCommand } from '../domain/eventSchema';
 import type { EventCommand } from '../domain/eventSchema';
-import { applyCommand, copyReplayTasks, replayCommands } from '../domain/commands';
+import { applyCommand, copyReplayTasks, normalizeReplayEvents, replayCommands } from '../domain/commands';
 import { resolveLanguage, setLanguage, supportedLanguages, t } from '../i18n';
 
 export interface DatabaseEntry {
@@ -106,16 +106,9 @@ function isWailsAvailable(): boolean {
   return Boolean(window?.go?.main?.App);
 }
 
-const normalizedCache = new WeakMap<object, StoredEvent[]>();
-
 export function normalizeEvents(rawList: unknown): StoredEvent[] {
   if (!Array.isArray(rawList)) throw new Error(t('Event history must be an array'));
-  const cached = normalizedCache.get(rawList);
-  if (cached) return cached;
-  const events = rawList.map((item: unknown) => parseStoredEvent(item));
-  replayCommands(events);
-  normalizedCache.set(rawList, events);
-  return events;
+  return normalizeReplayEvents(rawList);
 }
 
 function createInitialBrowserDemoEvents(): StoredEvent[] {
@@ -226,13 +219,35 @@ function loadBrowserEvents(): StoredEvent[] {
   if (raw === null) {
     return [];
   }
-  return normalizeEvents(JSON.parse(raw));
+  const parsed: unknown = JSON.parse(raw);
+  if (!Array.isArray(parsed)) return normalizeEvents(parsed);
+  let changed = false;
+  const migrated = parsed.map(item => {
+    if (!item || typeof item !== 'object') return item;
+    const event = { ...item };
+    const timestamp = normalizeLegacyTimestamp(event.timestamp);
+    changed ||= timestamp !== event.timestamp;
+    event.timestamp = timestamp;
+    const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+    const field = event.type === 'TASK_CREATED' || event.type === 'TASK_LOG_ADDED' ? 'createdAt' :
+      event.type === 'TASK_COMPLETED' ? 'completedAt' : undefined;
+    if (field && payload && typeof payload === 'object') {
+      const value = normalizeLegacyTimestamp(payload[field]);
+      changed ||= value !== payload[field];
+      event.payload = { ...payload, [field]: value };
+    }
+    return event;
+  });
+  const events = normalizeEvents(migrated);
+  // Do not rewrite even a partially migrated corrupt history.
+  if (changed) localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(events));
+  return events;
 }
 
 function saveBrowserEvents(events: StoredEvent[]): StoredEvent[] {
-  replayCommands(events);
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(events));
-  return events;
+  const normalized = normalizeEvents(events);
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(normalized));
+  return normalized;
 }
 
 let browserGroup = '';

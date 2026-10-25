@@ -22,28 +22,38 @@ export interface ReplayState {
   readonly activeEventCount: number;
   readonly canRedo: boolean;
 }
-// Event arrays are immutable history versions. Minute ticks reuse their domain state.
-const replayCache = new WeakMap<readonly StoredEvent[], ReplayState>();
+interface ReplayCacheEntry {
+  events: StoredEvent[];
+  state: ReplayState;
+  ids: ReadonlySet<string>;
+  tailBefore?: ReplayTask;
+}
+// Only our frozen, detached history versions can bypass input verification.
+const replayCache = new WeakMap<readonly StoredEvent[], ReplayCacheEntry>();
+const rawPayloadStrings = new WeakMap<StoredEvent, string>();
+let latestReplay: ReplayCacheEntry | undefined;
+const coalescingTypes = new Set(['TASK_RENAMED', 'TASK_START_DATE_SET', 'TASK_ACTIVE_SET', 'TASK_DESCRIPTION_SET']);
 
-export function replayCommands(events: readonly StoredEvent[]): ReplayState {
-  const cached = replayCache.get(events);
-  if (cached) return cached;
-  const tasks = new Map<string, MutableTask>();
-  const ids = new Set<string>();
-  let previousSeq = 0;
-  let activeEventCount = 0;
-  let canRedo = false;
-  for (const input of events) {
-    const event = parseStoredEvent(input);
-    if (ids.has(event.id) || event.seq <= previousSeq) throw new Error(t('Duplicate ID or unordered event sequence'));
-    ids.add(event.id);
-    previousSeq = event.seq;
-    canRedo ||= event.undone;
-    if (event.undone) continue;
-    activeEventCount++;
-    // Historical intermediate cycles are allowed; validate only the final graph.
-    applyCommand(tasks, event, false);
+function sameEvent(input: unknown, event: StoredEvent): boolean {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return false;
+  const raw = input as Record<string, unknown>;
+  if (raw.seq !== event.seq || raw.id !== event.id || raw.timestamp !== event.timestamp ||
+      raw.type !== event.type || raw.undone !== event.undone || raw.groupId !== event.groupId) return false;
+  if (typeof raw.payload === 'string') {
+    return raw.payload === rawPayloadStrings.get(event) || raw.payload === JSON.stringify(event.payload);
   }
+  if (!raw.payload || typeof raw.payload !== 'object' || Array.isArray(raw.payload)) return false;
+  const payload = raw.payload as Record<string, unknown>;
+  const keys = Object.keys(event.payload);
+  return Object.keys(payload).length === keys.length && keys.every(key =>
+    Object.prototype.hasOwnProperty.call(payload, key) && payload[key] === (event.payload as Record<string, unknown>)[key]);
+}
+
+function cloneTask(task: ReplayTask): MutableTask {
+  return { ...task, predecessors: new Set(task.predecessors), logEntries: task.logEntries.map(entry => ({ ...entry })) };
+}
+
+function orderTasks(tasks: ReadonlyMap<string, ReplayTask>): ReplayTask[] {
   const successors = new Map<string, string[]>();
   const degree = new Map<string, number>();
   const queue: ReplayTask[] = [];
@@ -63,9 +73,99 @@ export function replayCommands(events: readonly StoredEvent[]): ReplayState {
     }
   }
   if (queue.length !== tasks.size) throw new Error(t('Dependency cycle in final event history'));
-  const state: ReplayState = { tasks, orderedTasks: queue, activeEventCount, canRedo };
-  replayCache.set(events, state);
-  return state;
+  return queue;
+}
+
+export function normalizeReplayEvents(input: readonly unknown[]): StoredEvent[] {
+  const cached = replayCache.get(input as readonly StoredEvent[]);
+  if (cached) return cached.events;
+  const previous = latestReplay;
+  // Full transport still imposes an O(E) identity check/serialization ceiling.
+  // A future delta transport can remove it without weakening this input boundary.
+  let prefix = 0;
+  const events = input.map((raw, index) => {
+    const old = previous?.events[index];
+    if (old && sameEvent(raw, old)) {
+      if (prefix === index) prefix++;
+      return old;
+    }
+    const event = parseStoredEvent(raw);
+    Object.freeze(event.payload);
+    Object.freeze(event);
+    // Go JSON maps and the command schema use different key orders. Remember
+    // only the exact string that produced this validated, detached event.
+    const payload = (raw as Record<string, unknown>).payload;
+    if (typeof payload === 'string') rawPayloadStrings.set(event, payload);
+    return event;
+  });
+  if (previous && prefix === events.length && events.length === previous.events.length) return previous.events;
+  const append = previous && prefix === previous.events.length && events.length > prefix;
+  const oldTail = previous?.events[previous.events.length - 1];
+  const newTail = events[events.length - 1];
+  const coalesce = previous && events.length === previous.events.length && prefix === events.length - 1 &&
+    previous.tailBefore && oldTail && newTail && !oldTail.undone && !newTail.undone &&
+    coalescingTypes.has(newTail.type) && newTail.type === oldTail.type &&
+    newTail.seq === oldTail.seq && newTail.id === oldTail.id && newTail.groupId === oldTail.groupId &&
+    newTail.payload.taskId === oldTail.payload.taskId;
+  const incremental = append || coalesce;
+  const tasks = incremental ? new Map(previous!.state.tasks) as Map<string, MutableTask> : new Map<string, MutableTask>();
+  const copied = new Set<string>();
+  const ids = append ? new Set(previous!.ids) : new Set<string>();
+  let previousSeq = append ? oldTail?.seq ?? 0 : 0;
+  let activeEventCount = incremental ? previous!.state.activeEventCount : 0;
+  let canRedo = incremental ? previous!.state.canRedo : false;
+  let tailBefore: ReplayTask | undefined;
+  let topologyChanged = !incremental;
+  const start = append ? prefix : coalesce ? events.length - 1 : 0;
+  if (coalesce) {
+    tasks.set(newTail.payload.taskId, cloneTask(previous!.tailBefore!));
+    copied.add(newTail.payload.taskId);
+    activeEventCount--;
+  }
+  for (let index = 0; index < events.length; index++) {
+    const event = events[index];
+    // Coalescing also verifies metadata order/IDs; the unchanged prefix is trusted.
+    if (!append) {
+      if (ids.has(event.id) || event.seq <= previousSeq) throw new Error(t('Duplicate ID or unordered event sequence'));
+      ids.add(event.id);
+      previousSeq = event.seq;
+    } else if (index >= start) {
+      if (ids.has(event.id) || event.seq <= previousSeq) throw new Error(t('Duplicate ID or unordered event sequence'));
+      ids.add(event.id);
+      previousSeq = event.seq;
+    }
+    if (index < start) continue;
+    canRedo ||= event.undone;
+    if (event.undone) continue;
+    activeEventCount++;
+    const taskId = event.payload.taskId;
+    if (index === events.length - 1 && coalescingTypes.has(event.type)) tailBefore = tasks.get(taskId);
+    if (incremental && !copied.has(taskId) && tasks.has(taskId)) {
+      tasks.set(taskId, cloneTask(tasks.get(taskId)!));
+      copied.add(taskId);
+    } else if (tailBefore) {
+      // A full replay or repeated edits in this batch may own a mutable task.
+      tailBefore = cloneTask(tailBefore);
+    }
+    topologyChanged ||= event.type === 'DEPENDENCY_ADDED' || event.type === 'DEPENDENCY_REMOVED';
+    // Historical intermediate cycles are allowed; validate only the final graph.
+    applyCommand(tasks, event, false);
+  }
+  const orderedTasks = topologyChanged ? orderTasks(tasks) : [
+    ...previous!.state.orderedTasks.map(task => tasks.get(task.id)!),
+    ...[...tasks.values()].filter(task => !previous!.state.tasks.has(task.id)),
+  ];
+  const state: ReplayState = { tasks, orderedTasks, activeEventCount, canRedo };
+  Object.freeze(events);
+  const entry = { events, state, ids, tailBefore };
+  // Publish only after parsing, application and final topology all succeeded.
+  replayCache.set(events, entry);
+  latestReplay = entry;
+  return events;
+}
+
+export function replayCommands(events: readonly StoredEvent[]): ReplayState {
+  return replayCache.get(normalizeReplayEvents(events))!.state;
 }
 
 export function copyReplayTasks(state: ReplayState): Map<string, MutableTask> {
@@ -109,12 +209,6 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
         throw new Error(t('Duplicate log entry ID: {id}', { id: entryId }));
       }
       task.logEntries.push({ id: entryId, text: text.trim(), createdAt });
-      task.logEntries.sort((a, b) => {
-        // Date.parse truncates sub-millisecond precision; RFC3339 permits nanoseconds.
-        const remainder = (value: string) => (/\.(\d+)/.exec(value)?.[1] ?? '').padEnd(9, '0').slice(3);
-        return Date.parse(a.createdAt) - Date.parse(b.createdAt) ||
-          Number(remainder(a.createdAt)) - Number(remainder(b.createdAt));
-      });
       break;
     }
     case 'TASK_LOG_REMOVED': {

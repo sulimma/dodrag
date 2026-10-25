@@ -103,13 +103,18 @@ const timestamps: [string, boolean][] = [
   ['2026-10-17T09:00:00', false],
 ];
 it.each(timestamps)('enforces persisted timestamp %s (valid=%s)', (timestamp, valid) => {
-  const command = { type: 'TASK_CREATED', payload: { taskId: 'a', title: 'A', createdAt: timestamp, configuredStart: timestamp } };
+  const command = { type: 'TASK_CREATED', payload: { taskId: 'a', title: 'A', createdAt: iso, configuredStart: timestamp } };
   const event = { ...stored([create('a')])[0], timestamp };
-  if (valid) {
-    expect(() => parseCommand(command)).not.toThrow();
-    expect(() => parseStoredEvent(event)).not.toThrow();
-  } else {
-    expect(() => parseCommand(command)).toThrow();
-    expect(() => parseStoredEvent(event)).toThrow();
+  if (valid) expect(() => parseCommand(command)).not.toThrow();
+  else expect(() => parseCommand(command)).toThrow();
+  const utc = valid && timestamp.endsWith('Z');
+  for (const parse of [
+    () => parseStoredEvent(event),
+    () => parseCommand({ ...command, payload: { ...command.payload, createdAt: timestamp, configuredStart: iso } }),
+    () => parseCommand({ type: 'TASK_COMPLETED', payload: { taskId: 'a', completedAt: timestamp } }),
+    () => parseCommand({ type: 'TASK_LOG_ADDED', payload: { taskId: 'a', entryId: 'note', text: 'Note', createdAt: timestamp } }),
+  ]) {
+    if (utc) expect(parse).not.toThrow();
+    else expect(parse).toThrow();
   }
 });

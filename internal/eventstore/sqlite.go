@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -24,9 +25,20 @@ type Event struct {
 }
 
 // Store manages the SQLite event log.
+// Concurrency ceiling (ponytail): App's mutex must serialize all Store calls,
+// including Close. The pinned SQLite connection is not a Store-level mutex.
 type Store struct {
-	db      *sql.DB
-	groupID string
+	db        *sql.DB
+	groupID   string
+	events    []Event
+	tasks     map[string]*task
+	ids       map[string]bool
+	snapshots map[int64]snapshotState
+	stamp     changeStamp
+	ready     bool
+	closed    bool
+	// Benchmarks only; production stores always retain snapshot writes.
+	skipSnapshots bool
 }
 
 // NewStore opens or creates the SQLite database at dbPath, initializes the schema, and seeds demo data if empty.
@@ -41,6 +53,8 @@ func NewStoreWithOptions(dbPath string, seedDemo bool, translateTitle ...func(st
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+	// total_changes() is connection-local; keep the change detector on one connection.
+	db.SetMaxOpenConns(1)
 
 	schema := `
 	CREATE TABLE IF NOT EXISTS events (
@@ -66,7 +80,7 @@ func NewStoreWithOptions(dbPath string, seedDemo bool, translateTitle ...func(st
 		return nil, fmt.Errorf("enable WAL: %w", err)
 	}
 	s := &Store{db: db}
-	if _, err := s.GetEvents(); err != nil {
+	if err := s.normalizeLegacyTimes(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("validate event store: %w", err)
 	}
@@ -76,11 +90,21 @@ func NewStoreWithOptions(dbPath string, seedDemo bool, translateTitle ...func(st
 			return nil, fmt.Errorf("seed initial data: %w", err)
 		}
 	}
+	if _, err := s.GetEvents(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("validate event store: %w", err)
+	}
 
 	return s, nil
 }
 
-func validateSchema(db *sql.DB) error {
+type schemaReader interface {
+	eventReader
+	QueryRow(string, ...interface{}) *sql.Row
+	Exec(string, ...interface{}) (sql.Result, error)
+}
+
+func validateSchema(db schemaReader) error {
 	rows, err := db.Query(`PRAGMA table_xinfo(events)`)
 	if err != nil {
 		return err
@@ -185,7 +209,9 @@ func validateSchema(db *sql.DB) error {
 
 // Close closes the underlying SQLite connection.
 func (s *Store) Close() error {
-	if s.db != nil {
+	if s.db != nil && !s.closed {
+		s.closed = true
+		s.ready = false
 		return s.db.Close()
 	}
 	return nil
@@ -193,8 +219,35 @@ func (s *Store) Close() error {
 
 // GetEvents returns all events ordered by sequence number ascending.
 func (s *Store) GetEvents() ([]Event, error) {
-	events, _, err := s.readReplay(s.db)
-	return events, err
+	if err := s.checkOpen(); err != nil {
+		return nil, err
+	}
+	owner := s
+	working := *s
+	s = &working
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackCache(tx, owner)
+	if err := s.ensureCache(tx); err != nil {
+		owner.ready = false
+		return nil, err
+	}
+	if !s.ready {
+		owner.ready = false
+	}
+	stamp, err := readChangeStamp(tx)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		s.ready = false
+		return nil, err
+	}
+	s.stamp, s.ready = stamp, true
+	*owner = *s
+	return copyEvents(s.events), nil
 }
 
 type eventReader interface {
@@ -202,6 +255,10 @@ type eventReader interface {
 }
 
 func (s *Store) readEvents(reader eventReader) ([]Event, error) {
+	return s.readEventsWithUTC(reader, true)
+}
+
+func (s *Store) readEventsWithUTC(reader eventReader, strict bool) ([]Event, error) {
 	rows, err := reader.Query(`SELECT seq, id, timestamp, type, payload, undone, group_id FROM events ORDER BY seq ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("query events: %w", err)
@@ -227,7 +284,11 @@ func (s *Store) readEvents(reader eventReader) ([]Event, error) {
 		if ev.Seq < 1 || ev.Seq > 9007199254740991 || utf8.RuneCountInString(ev.GroupID) > 256 {
 			return nil, fmt.Errorf("invalid event metadata at %d", ev.Seq)
 		}
-		if _, err := parseEventTime(ev.Timestamp); err != nil {
+		parse := parseEventTime
+		if strict {
+			parse = parseUTCEventTime
+		}
+		if _, err := parse(ev.Timestamp); err != nil {
 			return nil, err
 		}
 		events = append(events, ev)
@@ -246,24 +307,32 @@ func (s *Store) readReplay(reader eventReader) ([]Event, map[string]*task, error
 	if err != nil {
 		return nil, nil, err
 	}
+	tasks, err := replayEvents(events, nil, 0)
+	return events, tasks, err
+}
+
+func replayEvents(events []Event, initial map[string]*task, after int64) (map[string]*task, error) {
 	tasks := make(map[string]*task)
-	for _, event := range events {
+	if initial != nil {
+		tasks = initial
+	}
+	for _, event := range events[sort.Search(len(events), func(i int) bool { return events[i].Seq > after }):] {
 		payload, err := validatePayload(event.Type, event.Payload)
 		if err != nil {
-			return nil, nil, fmt.Errorf("event %d: %w", event.Seq, err)
+			return nil, fmt.Errorf("event %d: %w", event.Seq, err)
 		}
 		if event.Undone {
 			continue
 		}
 		// Only the final replay graph must be acyclic, not historical intermediates.
 		if _, err := applyValidatedCommand(tasks, event.Type, payload, false); err != nil {
-			return nil, nil, fmt.Errorf("event %d: %w", event.Seq, err)
+			return nil, fmt.Errorf("event %d: %w", event.Seq, err)
 		}
 	}
 	if err := validateTopology(tasks); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return events, tasks, nil
+	return tasks, nil
 }
 
 func isCoalescableEventType(eventType string) bool {
@@ -290,6 +359,14 @@ func parseEventTime(ts string) (time.Time, error) {
 	return time.Parse(time.RFC3339Nano, ts)
 }
 
+func parseUTCEventTime(ts string) (time.Time, error) {
+	t, err := parseEventTime(ts)
+	if err == nil && !strings.HasSuffix(ts, "Z") {
+		err = fmt.Errorf("timestamp must be UTC Z: %q", ts)
+	}
+	return t, err
+}
+
 // Undo marks the latest active group as undone, only if its target state is valid.
 func (s *Store) Undo() ([]Event, error) {
 	return s.setHistoryUndone(true)
@@ -301,14 +378,23 @@ func (s *Store) Redo() ([]Event, error) {
 }
 
 func (s *Store) setHistoryUndone(undone bool) ([]Event, error) {
-	s.groupID = ""
+	if err := s.checkOpen(); err != nil {
+		return nil, err
+	}
+	owner := s
+	working := *s
+	s = &working
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback()
-	if _, _, err := s.readReplay(tx); err != nil {
+	defer rollbackCache(tx, owner)
+	if err := s.ensureCache(tx); err != nil {
+		owner.ready = false
 		return nil, err
+	}
+	if !s.ready {
+		owner.ready = false
 	}
 	order := "ASC"
 	if undone {
@@ -325,14 +411,36 @@ func (s *Store) setHistoryUndone(undone bool) ([]Event, error) {
 			return nil, err
 		}
 	}
-	events, _, err := s.readReplay(tx)
+	events := append([]Event{}, s.events...)
+	var earliest int64
+	if err == nil {
+		for i := range events {
+			if events[i].Seq == seq || group != "" && events[i].GroupID == group {
+				events[i].Undone = undone
+				if earliest == 0 || events[i].Seq < earliest {
+					earliest = events[i].Seq
+				}
+			}
+		}
+	}
+	if err := s.invalidateSnapshots(tx, earliest); err != nil {
+		return nil, err
+	}
+	tasks, err := s.replayFromSnapshot(events, earliest)
 	if err != nil {
 		return nil, fmt.Errorf("history change rejected: %w", err)
+	}
+	stamp, err := readChangeStamp(tx)
+	if err != nil {
+		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	return events, nil
+	s.dropSnapshots(earliest)
+	s.events, s.tasks, s.stamp, s.groupID, s.ready = events, tasks, stamp, "", true
+	*owner = *s
+	return copyEvents(events), nil
 }
 
 func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
@@ -371,7 +479,7 @@ func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
 				"taskId":          t1,
 				"title":           "API-Zugangsdaten vom Kunden anfordern",
 				"configuredStart": today.Format(time.RFC3339),
-				"createdAt":       now.Add(-5 * time.Minute).Format(time.RFC3339),
+				"createdAt":       now.Add(-5 * time.Minute).UTC().Format(time.RFC3339),
 			},
 		},
 		{
@@ -389,7 +497,7 @@ func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
 				"taskId":          t2,
 				"title":           "OAuth-Webhook im Staging-System konfigurieren",
 				"configuredStart": today.Format(time.RFC3339),
-				"createdAt":       now.Add(-4 * time.Minute).Format(time.RFC3339),
+				"createdAt":       now.Add(-4 * time.Minute).UTC().Format(time.RFC3339),
 			},
 		},
 		{
@@ -407,7 +515,7 @@ func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
 				"taskId":          t3,
 				"title":           "End-to-End Integrationstest durchführen",
 				"configuredStart": today.Format(time.RFC3339),
-				"createdAt":       now.Add(-3 * time.Minute).Format(time.RFC3339),
+				"createdAt":       now.Add(-3 * time.Minute).UTC().Format(time.RFC3339),
 			},
 		},
 		{
@@ -417,7 +525,7 @@ func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
 				"taskId":          t4,
 				"title":           "SSL-Zertifikat für Subdomain bestellen",
 				"configuredStart": today.Format(time.RFC3339),
-				"createdAt":       now.Add(-2 * time.Minute).Format(time.RFC3339),
+				"createdAt":       now.Add(-2 * time.Minute).UTC().Format(time.RFC3339),
 			},
 		},
 		{
@@ -427,7 +535,7 @@ func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
 				"taskId":          t5,
 				"title":           "Freigabe durch Datenschutzbeauftragten abwarten",
 				"configuredStart": inTwoDays.Format(time.RFC3339),
-				"createdAt":       now.Add(-1 * time.Minute).Format(time.RFC3339),
+				"createdAt":       now.Add(-1 * time.Minute).UTC().Format(time.RFC3339),
 			},
 		},
 		{
@@ -437,7 +545,7 @@ func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
 				"taskId":          t6,
 				"title":           "Produktiv-Deployment & Release-Notes versenden",
 				"configuredStart": inFiveDays.Format(time.RFC3339),
-				"createdAt":       now.Format(time.RFC3339),
+				"createdAt":       now.UTC().Format(time.RFC3339),
 			},
 		},
 		{
