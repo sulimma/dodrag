@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "Percorso assoluto non valido",
+  "Pfad konnte nicht geoeffnet werden": "Impossibile aprire il percorso",
+  "Ungueltige HTTP(S)-URL": "URL HTTP(S) non valido",
+  "Browser konnte nicht geoeffnet werden": "Impossibile aprire il browser",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Impossibile aprire Visual Studio Code",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "Modifica salvata, ma impossibile pulire la cache delle anteprime",
+  "Vorschau-Cache konnte nicht bereinigt werden": "Impossibile pulire la cache delle anteprime",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "Impossibile aprire la cache delle anteprime",
+  "Bildvorschau konnte nicht geladen werden": "Impossibile caricare l'anteprima dell'immagine",
   "Demo-Datenbank": "Database demo",
   "Settings konnten nicht geladen werden": "Impossibile caricare le impostazioni",
   "Settings lesen ({path})": "Lettura delle impostazioni ({path})",

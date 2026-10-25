@@ -6,6 +6,7 @@ import appIcon from '../assets/app-icon.png';
 import { t } from '../i18n';
 import type { InlineEditor } from './inlineEditor';
 import { TaskTitle } from './TaskTitle';
+import { TaskChecklistBadge } from './TaskChecklistBadge';
 
 interface MiniCornerViewProps {
   tasks: TaskState[];
@@ -141,6 +142,7 @@ export function MiniCornerView({
                   {task.title}
                 </button>
               )}
+              <TaskChecklistBadge progress={task.checklistProgress} compact />
               <div className="flex items-center gap-0.5 shrink-0 invisible group-hover:visible group-focus-within:visible">
                 <button
                   type="button"

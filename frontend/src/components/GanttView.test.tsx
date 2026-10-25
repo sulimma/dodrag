@@ -13,6 +13,7 @@ import { TaskState } from '../domain/types';
 it('places incoming edges from further left lower, then orders equal-column sources by row', () => {
   const task = (id: string, day: number, predecessorIds: string[] = []): TaskState => ({
     id, title: id, creationOrder: 0,
+    description: '', logEntries: [], checklistProgress: null,
     createdAt: '2026-10-17T12:00:00Z',
     configuredStart: localDate(2026, 10, day, 14, 30, 12).toISOString(),
     calculatedStart: null,

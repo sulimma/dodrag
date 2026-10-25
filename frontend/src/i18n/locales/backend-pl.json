@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "Nieprawidłowa ścieżka bezwzględna",
+  "Pfad konnte nicht geoeffnet werden": "Nie udało się otworzyć ścieżki",
+  "Ungueltige HTTP(S)-URL": "Nieprawidłowy adres URL HTTP(S)",
+  "Browser konnte nicht geoeffnet werden": "Nie udało się otworzyć przeglądarki",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Nie udało się otworzyć Visual Studio Code",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "Zmiana została zapisana, ale nie udało się wyczyścić pamięci podręcznej podglądów",
+  "Vorschau-Cache konnte nicht bereinigt werden": "Nie udało się wyczyścić pamięci podręcznej podglądów",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "Nie udało się otworzyć pamięci podręcznej podglądów",
+  "Bildvorschau konnte nicht geladen werden": "Nie udało się wczytać podglądu obrazu",
   "Demo-Datenbank": "Baza demonstracyjna",
   "Settings konnten nicht geladen werden": "Nie udało się wczytać ustawień",
   "Settings lesen ({path})": "Odczyt ustawień ({path})",

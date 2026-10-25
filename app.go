@@ -52,6 +52,8 @@ type AppSettings struct {
 	DatabaseReady      bool            `json:"databaseReady,omitempty"`
 	Version            string          `json:"version,omitempty"`
 	BuildTime          string          `json:"buildTime,omitempty"`
+	PreviewCacheDir    string          `json:"previewCacheDir,omitempty"`
+	PreviewCacheError  string          `json:"previewCacheError,omitempty"`
 	Setup              SetupState      `json:"setup"`
 }
 
@@ -90,6 +92,10 @@ type App struct {
 	watchCancel           context.CancelFunc
 	watchDone             chan struct{}
 	taskMenus             taskMenuState
+	// Lock order: mu, then previewMu. Image processing never holds mu.
+	previewMu         sync.Mutex
+	previewCacheDir   string
+	previewCacheError string
 }
 
 // NewApp creates a new App application struct.
@@ -507,6 +513,8 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 		DatabaseReady:      a.store != nil,
 		Version:            buildVersion,
 		BuildTime:          buildTime,
+		PreviewCacheDir:    a.previewCacheDirectory(),
+		PreviewCacheError:  a.previewCacheError,
 		Setup:              computeSetupState(),
 		KnownDatabases:     make([]DatabaseEntry, len(a.settings.KnownDatabases)),
 	}
@@ -1125,6 +1133,9 @@ func (a *App) AppendEvent(id string, eventType string, payloadJSON string) ([]ev
 		return []eventstore.Event{}, errors.New(a.textLocked("keine Datenbank geöffnet"))
 	}
 	events, err := a.store.AppendEvent(id, eventType, payloadJSON)
+	if err == nil && eventType == "TASK_COMPLETED" {
+		a.cleanupCompletedPreviewsLocked(events, map[string]bool{id: true})
+	}
 	return events, a.errorLocked("Änderung konnte nicht gespeichert werden", err)
 }
 
@@ -1135,6 +1146,15 @@ func (a *App) AppendBatch(commands []eventstore.Command) ([]eventstore.Event, er
 		return nil, errors.New(a.textLocked("keine Datenbank geöffnet"))
 	}
 	events, err := a.store.AppendBatch(commands)
+	if err == nil {
+		candidates := make(map[string]bool)
+		for _, command := range commands {
+			if command.Type == "TASK_COMPLETED" {
+				candidates[command.ID] = true
+			}
+		}
+		a.cleanupCompletedPreviewsLocked(events, candidates)
+	}
 	return events, a.errorLocked("Änderungen konnten nicht gespeichert werden", err)
 }
 
@@ -1156,6 +1176,19 @@ func (a *App) Redo() ([]eventstore.Event, error) {
 	if a.store == nil {
 		return []eventstore.Event{}, nil
 	}
+	before, err := a.store.GetEvents()
+	if err != nil {
+		return nil, a.errorLocked("Wiederholen fehlgeschlagen", err)
+	}
+	candidates := make(map[string]bool)
+	for _, event := range before {
+		if event.Undone && event.Type == "TASK_COMPLETED" {
+			candidates[event.ID] = true
+		}
+	}
 	events, err := a.store.Redo()
+	if err == nil {
+		a.cleanupCompletedPreviewsLocked(events, candidates)
+	}
 	return events, a.errorLocked("Wiederholen fehlgeschlagen", err)
 }

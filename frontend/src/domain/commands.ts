@@ -1,10 +1,12 @@
 import { EventCommand, parseStoredEvent } from './eventSchema';
-import type { StoredEvent } from './types';
+import type { StoredEvent, TaskLogEntry } from './types';
 import { t } from '../i18n';
 
 export interface ReplayTask {
   readonly id: string;
   readonly title: string;
+  readonly description: string;
+  readonly logEntries: readonly TaskLogEntry[];
   readonly creationOrder: number;
   readonly createdAt: string;
   readonly configuredStart: string;
@@ -13,7 +15,7 @@ export interface ReplayTask {
   readonly isActive: boolean;
   readonly predecessors: ReadonlySet<string>;
 }
-type MutableTask = { -readonly [K in keyof ReplayTask]: ReplayTask[K] } & { predecessors: Set<string> };
+type MutableTask = { -readonly [K in keyof ReplayTask]: ReplayTask[K] } & { predecessors: Set<string>; logEntries: TaskLogEntry[] };
 export interface ReplayState {
   readonly tasks: ReadonlyMap<string, ReplayTask>;
   readonly orderedTasks: readonly ReplayTask[];
@@ -67,7 +69,9 @@ export function replayCommands(events: readonly StoredEvent[]): ReplayState {
 }
 
 export function copyReplayTasks(state: ReplayState): Map<string, MutableTask> {
-  return new Map([...state.tasks].map(([id, task]) => [id, { ...task, predecessors: new Set(task.predecessors) }]));
+  return new Map([...state.tasks].map(([id, task]) => [id, {
+    ...task, predecessors: new Set(task.predecessors), logEntries: task.logEntries.map(entry => ({ ...entry })),
+  }]));
 }
 
 export function applyCommand(tasks: Map<string, MutableTask>, command: EventCommand, checkCycle = true): boolean {
@@ -78,6 +82,8 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
     tasks.set(p.taskId, {
       id: p.taskId,
       title: command.payload.title,
+      description: '',
+      logEntries: [],
       creationOrder: tasks.size + 1,
       createdAt: command.payload.createdAt,
       configuredStart: command.payload.configuredStart,
@@ -93,6 +99,30 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
       if (task.title === command.payload.title) return false;
       task.title = command.payload.title;
       break;
+    case 'TASK_DESCRIPTION_SET':
+      if (task.description === command.payload.description) return false;
+      task.description = command.payload.description;
+      break;
+    case 'TASK_LOG_ADDED': {
+      const { entryId, text, createdAt } = command.payload;
+      if (task.logEntries.some(entry => entry.id === entryId)) {
+        throw new Error(t('Duplicate log entry ID: {id}', { id: entryId }));
+      }
+      task.logEntries.push({ id: entryId, text: text.trim(), createdAt });
+      task.logEntries.sort((a, b) => {
+        // Date.parse truncates sub-millisecond precision; RFC3339 permits nanoseconds.
+        const remainder = (value: string) => (/\.(\d+)/.exec(value)?.[1] ?? '').padEnd(9, '0').slice(3);
+        return Date.parse(a.createdAt) - Date.parse(b.createdAt) ||
+          Number(remainder(a.createdAt)) - Number(remainder(b.createdAt));
+      });
+      break;
+    }
+    case 'TASK_LOG_REMOVED': {
+      const index = task.logEntries.findIndex(entry => entry.id === command.payload.entryId);
+      if (index < 0) return false;
+      task.logEntries.splice(index, 1);
+      break;
+    }
     case 'TASK_START_DATE_SET':
       if (Date.parse(task.configuredStart) === Date.parse(command.payload.configuredStart)) return false;
       task.configuredStart = command.payload.configuredStart;

@@ -268,7 +268,7 @@ func (s *Store) readReplay(reader eventReader) ([]Event, map[string]*task, error
 
 func isCoalescableEventType(eventType string) bool {
 	switch eventType {
-	case "TASK_RENAMED", "TASK_START_DATE_SET", "TASK_ACTIVE_SET":
+	case "TASK_RENAMED", "TASK_START_DATE_SET", "TASK_ACTIVE_SET", "TASK_DESCRIPTION_SET":
 		return true
 	default:
 		return false

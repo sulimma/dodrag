@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "Chemin absolu invalide",
+  "Pfad konnte nicht geoeffnet werden": "Impossible d'ouvrir le chemin",
+  "Ungueltige HTTP(S)-URL": "URL HTTP(S) invalide",
+  "Browser konnte nicht geoeffnet werden": "Impossible d'ouvrir le navigateur",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Impossible d'ouvrir Visual Studio Code",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "Modification enregistrée, mais impossible de nettoyer le cache des aperçus",
+  "Vorschau-Cache konnte nicht bereinigt werden": "Impossible de nettoyer le cache des aperçus",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "Impossible d'ouvrir le cache des aperçus",
+  "Bildvorschau konnte nicht geladen werden": "Impossible de charger l'aperçu de l'image",
   "Demo-Datenbank": "Base de données de démonstration",
   "Settings konnten nicht geladen werden": "Impossible de charger les paramètres",
   "Settings lesen ({path})": "Lire les paramètres ({path})",

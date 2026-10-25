@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "Ungültiger absoluter Pfad",
+  "Pfad konnte nicht geoeffnet werden": "Pfad konnte nicht geöffnet werden",
+  "Ungueltige HTTP(S)-URL": "Ungültige HTTP(S)-URL",
+  "Browser konnte nicht geoeffnet werden": "Browser konnte nicht geöffnet werden",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Visual Studio Code konnte nicht geöffnet werden",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "Änderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden",
+  "Vorschau-Cache konnte nicht bereinigt werden": "Vorschau-Cache konnte nicht bereinigt werden",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "Vorschau-Cache konnte nicht geöffnet werden",
+  "Bildvorschau konnte nicht geladen werden": "Bildvorschau konnte nicht geladen werden",
   "Demo-Datenbank": "Demo-Datenbank",
   "Settings konnten nicht geladen werden": "Settings konnten nicht geladen werden",
   "Settings lesen ({path})": "Settings lesen ({path})",

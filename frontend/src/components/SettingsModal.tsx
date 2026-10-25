@@ -94,6 +94,7 @@ export function SettingsModal({
     null
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [cacheStatus, setCacheStatus] = useState(false);
   const [busy, setBusy] = useState<boolean>(false);
   const pathMenuRequest = useRef<object | null>(null);
   const mounted = useRef(true);
@@ -201,6 +202,57 @@ export function SettingsModal({
       if (mounted.current) setErrorMsg(errorText(t('Ordner konnte nicht geöffnet werden.'), err));
     } finally {
       if (mounted.current) setBusy(false);
+    }
+  };
+
+  const handleCacheAction = async (action: 'clear' | 'explorer') => {
+    if (busyRef.current || !mounted.current) return;
+    pathMenuRequest.current = null;
+    busyRef.current = true;
+    setBusy(true);
+    setErrorMsg(null);
+    setCacheStatus(false);
+    try {
+      if (action === 'clear') {
+        await eventBridge.clearPreviewCache();
+        if (mounted.current) setCacheStatus(true);
+      } else {
+        await eventBridge.openPreviewCacheInExplorer();
+      }
+    } catch (err) {
+      if (mounted.current) setErrorMsg(errorText(
+        action === 'clear'
+          ? t('Vorschau-Cache konnte nicht gelöscht werden.')
+          : t('Ordner konnte nicht geöffnet werden.'),
+        err
+      ));
+    } finally {
+      if (mounted.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
+  };
+
+  const openCacheMenu = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const request = {};
+    pathMenuRequest.current = request;
+    const items = [{
+      id: 'open-cache-explorer',
+      label: t('Cache-Ordner im File-Explorer öffnen'),
+      disabled: busyRef.current,
+    }];
+    try {
+      const id = await eventBridge.showTaskContextMenu(items);
+      if (pathMenuRequest.current !== request) return;
+      pathMenuRequest.current = null;
+      if (id === 'open-cache-explorer' && !items[0].disabled) await handleCacheAction('explorer');
+    } catch (err) {
+      if (pathMenuRequest.current !== request) return;
+      pathMenuRequest.current = null;
+      setErrorMsg(errorText(t('Kontextmenü konnte nicht geöffnet werden'), err));
     }
   };
 
@@ -645,6 +697,20 @@ export function SettingsModal({
               }}>
               {supportedLanguages.map(code => <option key={code} value={code} lang={code}>{languageNames[code]}</option>)}
             </select>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2" onContextMenu={openCacheMenu}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => handleCacheAction('clear')}
+              className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-40 flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>{t('Cache löschen')}</span>
+            </button>
+            {cacheStatus && (
+              <p role="status" className="text-xs text-emerald-700">{t('Vorschau-Cache wurde gelöscht.')}</p>
+            )}
           </div>
         </div>
 

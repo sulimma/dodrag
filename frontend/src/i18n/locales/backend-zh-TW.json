@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "無效的絕對路徑",
+  "Pfad konnte nicht geoeffnet werden": "無法開啟路徑",
+  "Ungueltige HTTP(S)-URL": "無效的 HTTP(S) URL",
+  "Browser konnte nicht geoeffnet werden": "無法開啟瀏覽器",
+  "Visual Studio Code konnte nicht geoeffnet werden": "無法開啟 Visual Studio Code",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "變更已儲存，但無法清理預覽快取",
+  "Vorschau-Cache konnte nicht bereinigt werden": "無法清理預覽快取",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "無法開啟預覽快取",
+  "Bildvorschau konnte nicht geladen werden": "無法載入影像預覽",
   "Demo-Datenbank": "示範資料庫",
   "Settings konnten nicht geladen werden": "無法載入設定",
   "Settings lesen ({path})": "讀取設定（{path}）",

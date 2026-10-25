@@ -7,6 +7,7 @@ import { TaskTitle } from './TaskTitle';
 import type { InlineEditor } from './inlineEditor';
 import { TaskDate } from './TaskDate';
 import { TaskDragHandle } from './TaskDragHandle';
+import { TaskChecklistBadge } from './TaskChecklistBadge';
 import { taskInteractions, draggedTaskIdOf } from './taskInteractions';
 import type { TaskViewInteractions } from './taskInteractions';
 import { taskAppearanceRole } from './taskAppearance';
@@ -43,7 +44,7 @@ export function ListView(props: ListViewProps) {
   return (
     <SmoothFlipList
       movedItemKey={movedItemKey}
-      className="max-w-3xl mx-auto space-y-2 pb-16"
+      className="w-full space-y-2 pb-16"
     >
       {listEntries.map((entry) => {
         if (entry.kind === 'date') {
@@ -190,6 +191,7 @@ export function ListView(props: ListViewProps) {
 
             {/* Right section: Selectable Predecessor chips (Ctrl/Shift multi-select, Del/Backspace) & In-Place Editable Configured Date */}
             <div className="flex items-center gap-2 shrink-0">
+              <TaskChecklistBadge progress={task.checklistProgress} />
               {task.predecessorIds.length > 0 && (
                 <div className="flex items-center gap-1">
                   {task.allPredecessorIds

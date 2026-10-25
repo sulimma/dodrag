@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "Nevalida absoluta vojo",
+  "Pfad konnte nicht geoeffnet werden": "Ne eblis malfermi la vojon",
+  "Ungueltige HTTP(S)-URL": "Nevalida HTTP(S)-URL",
+  "Browser konnte nicht geoeffnet werden": "Ne eblis malfermi la retumilon",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Ne eblis malfermi Visual Studio Code",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "Ŝanĝo konservita, sed ne eblis purigi la antaŭrigardan kaŝmemoron",
+  "Vorschau-Cache konnte nicht bereinigt werden": "Ne eblis purigi la antaŭrigardan kaŝmemoron",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "Ne eblis malfermi la antaŭrigardan kaŝmemoron",
+  "Bildvorschau konnte nicht geladen werden": "Ne eblis ŝarĝi la bildan antaŭrigardon",
   "Demo-Datenbank": "Demonstra datumbazo",
   "Settings konnten nicht geladen werden": "Ne eblis ŝarĝi agordojn",
   "Settings lesen ({path})": "Legi agordojn ({path})",

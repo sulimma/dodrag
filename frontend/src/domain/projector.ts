@@ -1,4 +1,5 @@
 import {
+  ChecklistProgress,
   HighlightRole,
   ListEntry,
   ProjectedState,
@@ -8,6 +9,31 @@ import {
 import { calendarDistance, localDate } from './dates';
 import { replayCommands } from './commands';
 import { t, locale, formatDate, formatNumber } from '../i18n';
+
+export function computeChecklistProgress(markdown: string): ChecklistProgress | null {
+  let fence: { marker: string; length: number } | null = null;
+  let checked = 0;
+  let total = 0;
+  for (const line of markdown.split(/\r?\n/)) {
+    const match = /^[ \t]*(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      if (match && match[1][0] === fence.marker && match[1].length >= fence.length && /^[ \t]*$/.test(match[2])) {
+        fence = null;
+      }
+      continue;
+    }
+    if (match && (match[1][0] !== '`' || !match[2].includes('`'))) {
+      fence = { marker: match[1][0], length: match[1].length };
+      continue;
+    }
+    const item = /^[ \t]*[-*+][ \t]+\[([ xX])\][ \t]+/.exec(line);
+    if (item) {
+      total++;
+      if (item[1] !== ' ') checked++;
+    }
+  }
+  return total ? { checked, total } : null;
+}
 
 function compareTaskDates(a: TaskState, b: TaskState): number {
   return Date.parse(a.effectiveStart) - Date.parse(b.effectiveStart) ||
@@ -305,6 +331,9 @@ export function projectEvents(
     const taskState: TaskState = {
       id: raw.id,
       title: raw.title,
+      description: raw.description,
+      logEntries: raw.logEntries.map(entry => ({ ...entry })),
+      checklistProgress: computeChecklistProgress(raw.description),
       creationOrder: raw.creationOrder,
       createdAt: raw.createdAt,
       configuredStart: raw.configuredStart,

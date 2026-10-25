@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	github.com/wailsapp/wails/v2 v2.9.2
+	golang.org/x/image v0.12.0
 	golang.org/x/sys v0.22.0
 	modernc.org/sqlite v1.34.4
 )

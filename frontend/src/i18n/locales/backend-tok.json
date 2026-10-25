@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "nimi pi nasin lipu tan open li ike",
+  "Pfad konnte nicht geoeffnet werden": "ken ala open e nasin lipu",
+  "Ungueltige HTTP(S)-URL": "nimi pi lipu HTTP(S) li ike",
+  "Browser konnte nicht geoeffnet werden": "ken ala open e ilo pi lipu kulupu",
+  "Visual Studio Code konnte nicht geoeffnet werden": "ken ala open e ilo Visual Studio Code",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "ante li awen. taso ken ala weka e sona awen tenpo pi lukin",
+  "Vorschau-Cache konnte nicht bereinigt werden": "ken ala weka e sona awen tenpo pi lukin",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "ken ala open e sona awen tenpo pi lukin",
+  "Bildvorschau konnte nicht geladen werden": "ken ala kama jo e lukin pi sitelen musi",
   "Demo-Datenbank": "lipu pali pi pana sona",
   "Settings konnten nicht geladen werden": "ken ala kama jo e ante nasin",
   "Settings lesen ({path})": "lukin e ante nasin ({path})",

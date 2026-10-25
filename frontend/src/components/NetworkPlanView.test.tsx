@@ -8,6 +8,7 @@ import { TaskState } from '../domain/types';
 it('lays out complete same-day dependency levels at responsive widths and across midnight', () => {
   const task = (id: string, day: number, predecessorIds: string[] = []): TaskState => ({
     id, title: id, creationOrder: 0, createdAt: new Date(2026, 9, 10).toISOString(),
+    description: '', logEntries: [], checklistProgress: null,
     configuredStart: new Date(2026, 9, day, 9).toISOString(), calculatedStart: null,
     effectiveStart: new Date(2026, 9, day, 9).toISOString(), effectiveDateKey: `2026-10-${day}`,
     predecessorIds, allPredecessorIds: predecessorIds, successorIds: [],

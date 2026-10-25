@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -19,9 +20,17 @@ type Command struct {
 }
 type task struct {
 	title, start      string
+	description       string
+	logEntries        []taskLogEntry
 	active, completed bool
 	predecessors      map[string]bool
 }
+
+type taskLogEntry struct {
+	id, text, createdAt string
+}
+
+const maxDescriptionBytes = 256 * 1024
 
 var validID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
 
@@ -32,6 +41,9 @@ func checkID(id string) error {
 	return nil
 }
 func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
+	if kind == "TASK_DESCRIPTION_SET" && !utf8.Valid(raw) {
+		return nil, fmt.Errorf("description payload must be valid UTF-8")
+	}
 	var p map[string]interface{}
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	if err := dec.Decode(&p); err != nil {
@@ -47,6 +59,12 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 		fields = append(fields, "title", "configuredStart", "createdAt")
 	case "TASK_RENAMED":
 		fields = append(fields, "title")
+	case "TASK_DESCRIPTION_SET":
+		fields = append(fields, "description")
+	case "TASK_LOG_ADDED":
+		fields = append(fields, "entryId", "text", "createdAt")
+	case "TASK_LOG_REMOVED":
+		fields = append(fields, "entryId")
 	case "TASK_START_DATE_SET":
 		fields = append(fields, "configuredStart")
 	case "DEPENDENCY_ADDED", "DEPENDENCY_REMOVED":
@@ -74,13 +92,21 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 			return nil, fmt.Errorf("%s must be string", field)
 		}
 		switch field {
-		case "taskId", "predecessorId":
+		case "taskId", "predecessorId", "entryId":
 			if err := checkID(value); err != nil {
 				return nil, err
 			}
 		case "title":
 			if strings.TrimSpace(value) == "" {
 				return nil, fmt.Errorf("empty title")
+			}
+		case "description":
+			if !utf8.ValidString(value) || len(value) > maxDescriptionBytes {
+				return nil, fmt.Errorf("description must be valid UTF-8 and at most %d bytes", maxDescriptionBytes)
+			}
+		case "text":
+			if strings.TrimSpace(value) == "" {
+				return nil, fmt.Errorf("empty log text")
 			}
 		default:
 			if _, err := parseEventTime(value); err != nil {
@@ -101,7 +127,7 @@ func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]int
 		if t != nil {
 			return false, fmt.Errorf("duplicate task: %s", id)
 		}
-		tasks[id] = &task{title: p["title"].(string), start: p["configuredStart"].(string), predecessors: make(map[string]bool)}
+		tasks[id] = &task{title: p["title"].(string), start: p["configuredStart"].(string), logEntries: []taskLogEntry{}, predecessors: make(map[string]bool)}
 		return true, nil
 	}
 	if t == nil {
@@ -114,6 +140,38 @@ func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]int
 			return false, nil
 		}
 		t.title = value
+	case "TASK_DESCRIPTION_SET":
+		value := p["description"].(string)
+		if t.description == value {
+			return false, nil
+		}
+		t.description = value
+	case "TASK_LOG_ADDED":
+		entryID := p["entryId"].(string)
+		for _, entry := range t.logEntries {
+			if entry.id == entryID {
+				return false, fmt.Errorf("duplicate log entry ID: %s", entryID)
+			}
+		}
+		t.logEntries = append(t.logEntries, taskLogEntry{id: entryID, text: strings.TrimSpace(p["text"].(string)), createdAt: p["createdAt"].(string)})
+		sort.SliceStable(t.logEntries, func(i, j int) bool {
+			a, _ := parseEventTime(t.logEntries[i].createdAt)
+			b, _ := parseEventTime(t.logEntries[j].createdAt)
+			return a.Before(b)
+		})
+	case "TASK_LOG_REMOVED":
+		entryID := p["entryId"].(string)
+		index := -1
+		for i, entry := range t.logEntries {
+			if entry.id == entryID {
+				index = i
+				break
+			}
+		}
+		if index < 0 {
+			return false, nil
+		}
+		t.logEntries = append(t.logEntries[:index], t.logEntries[index+1:]...)
 	case "TASK_START_DATE_SET":
 		value := p["configuredStart"].(string)
 		old, _ := parseEventTime(t.start)

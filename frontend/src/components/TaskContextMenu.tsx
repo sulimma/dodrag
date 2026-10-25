@@ -17,6 +17,17 @@ interface TaskContextMenuProps {
   onError: (error: unknown) => void;
 }
 
+export type TaskMenuActions = Pick<TaskContextMenuProps, 'onToggleActive' | 'onSetConfiguredDate' | 'onRemovePredecessor' | 'onCompleteTask' | 'onReopenTask'>;
+
+export function executeTaskMenuAction(id: string, task: TaskState, actions: TaskMenuActions) {
+  if (!taskMenuItems(task).some(item => item.id === id && !item.disabled)) return;
+  if (id === 'reopen') actions.onReopenTask(task.id);
+  else if (id === 'toggle') actions.onToggleActive(task);
+  else if (id === 'today') actions.onSetConfiguredDate(task.id, new Date().toISOString(), t('Heute'));
+  else if (id === 'complete') actions.onCompleteTask(task.id);
+  else if (id.startsWith('remove:')) actions.onRemovePredecessor(task.id, id.slice(7));
+}
+
 // One menu definition and action path for every layout; Windows owns placement and keyboard input.
 export function taskMenuItems(task: TaskState): TaskMenuItem[] {
   if (task.completed) return [{ id: 'reopen', label: t('Erneut öffnen'), shortcut: 'O', disabled: false }];
@@ -44,11 +55,7 @@ export function TaskContextMenu(props: TaskContextMenuProps) {
         const item = taskMenuItems(active.task).find(item => item.id === id && !item.disabled);
         active.onClose();
         if (!item || !items.some(item => item.id === id && !item.disabled)) return;
-        if (id === 'reopen') active.onReopenTask(active.task.id);
-        else if (id === 'toggle') active.onToggleActive(active.task);
-        else if (id === 'today') active.onSetConfiguredDate(active.task.id, new Date().toISOString(), t('Heute'));
-        else if (id === 'complete') active.onCompleteTask(active.task.id);
-        else if (id.startsWith('remove:')) active.onRemovePredecessor(active.task.id, id.slice(7));
+        executeTaskMenuAction(id, active.task, active);
       } catch (error) {
         if (current) {
           latest.current.onClose();

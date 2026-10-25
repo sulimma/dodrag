@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "Некоректний абсолютний шлях",
+  "Pfad konnte nicht geoeffnet werden": "Не вдалося відкрити шлях",
+  "Ungueltige HTTP(S)-URL": "Некоректна HTTP(S) URL-адреса",
+  "Browser konnte nicht geoeffnet werden": "Не вдалося відкрити браузер",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Не вдалося відкрити Visual Studio Code",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "Зміну збережено, але не вдалося очистити кеш попереднього перегляду",
+  "Vorschau-Cache konnte nicht bereinigt werden": "Не вдалося очистити кеш попереднього перегляду",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "Не вдалося відкрити кеш попереднього перегляду",
+  "Bildvorschau konnte nicht geladen werden": "Не вдалося завантажити попередній перегляд зображення",
   "Demo-Datenbank": "Демонстраційна база даних",
   "Settings konnten nicht geladen werden": "Не вдалося завантажити налаштування",
   "Settings lesen ({path})": "Читання налаштувань ({path})",

@@ -19,14 +19,23 @@ export function useDatabaseSnapshot(
   const snapshotConfirmed = useRef(false);
   const confirmedEvents = useRef<StoredEvent[]>([]);
   const databaseIdentity = useRef('');
+  const mutationQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const queuedMutations = useRef(0);
   // Refs gate asynchronous writes immediately; render state only controls the UI.
   const mutate = async (
     operation: () => Promise<StoredEvent[]>
   ): Promise<StoredEvent[] | null> => {
-    if (mutationBusy.current || !snapshotConfirmed.current) return null;
+    if (!snapshotConfirmed.current || (mutationBusy.current && !queuedMutations.current)) return null;
+    queuedMutations.current++;
     mutationBusy.current = true;
     const database = databaseIdentity.current;
+    const previous = mutationQueue.current;
+    let release!: () => void;
+    mutationQueue.current = new Promise<void>(resolve => { release = resolve; });
+    await previous;
     try {
+      if (database !== databaseIdentity.current || !snapshotConfirmed.current)
+        throw new Error(t('Datenbank wurde gewechselt'));
       const updated = await operation();
       if (database !== databaseIdentity.current)
         throw new Error(t('Datenbank wurde gewechselt'));
@@ -37,7 +46,9 @@ export function useDatabaseSnapshot(
       pushToast(errorText(t('Änderung konnte nicht gespeichert werden'), error), 'warning');
       return null;
     } finally {
-      mutationBusy.current = false;
+      queuedMutations.current--;
+      mutationBusy.current = queuedMutations.current > 0;
+      release();
     }
   };
   const invalidateSnapshot = () => {

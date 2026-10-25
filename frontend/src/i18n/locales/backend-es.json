@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "Ruta absoluta no válida",
+  "Pfad konnte nicht geoeffnet werden": "No se pudo abrir la ruta",
+  "Ungueltige HTTP(S)-URL": "URL HTTP(S) no válida",
+  "Browser konnte nicht geoeffnet werden": "No se pudo abrir el navegador",
+  "Visual Studio Code konnte nicht geoeffnet werden": "No se pudo abrir Visual Studio Code",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "Cambio guardado, pero no se pudo limpiar la caché de vistas previas",
+  "Vorschau-Cache konnte nicht bereinigt werden": "No se pudo limpiar la caché de vistas previas",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "No se pudo abrir la caché de vistas previas",
+  "Bildvorschau konnte nicht geladen werden": "No se pudo cargar la vista previa de la imagen",
   "Demo-Datenbank": "Base de datos de demostración",
   "Settings konnten nicht geladen werden": "No se pudo cargar la configuración",
   "Settings lesen ({path})": "Leer la configuración ({path})",

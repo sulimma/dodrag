@@ -9,9 +9,23 @@ export type StoredEvent = EventCommand & {
   groupId?: string;
 };
 
+export interface TaskLogEntry {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface ChecklistProgress {
+  checked: number;
+  total: number;
+}
+
 export interface TaskState {
   id: string; // e.g. "26-125"
   title: string;
+  description: string;
+  logEntries: TaskLogEntry[];
+  checklistProgress: ChecklistProgress | null;
   creationOrder: number; // Immutable sequence index for stable topological sorting
   createdAt: string;
   configuredStart: string; // ISO timestamp

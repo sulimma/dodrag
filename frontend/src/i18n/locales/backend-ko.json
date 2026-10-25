@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "유효하지 않은 절대 경로",
+  "Pfad konnte nicht geoeffnet werden": "경로를 열지 못했습니다",
+  "Ungueltige HTTP(S)-URL": "유효하지 않은 HTTP(S) URL",
+  "Browser konnte nicht geoeffnet werden": "브라우저를 열지 못했습니다",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Visual Studio Code를 열지 못했습니다",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "변경 사항은 저장되었지만 미리 보기 캐시를 정리하지 못했습니다",
+  "Vorschau-Cache konnte nicht bereinigt werden": "미리 보기 캐시를 정리하지 못했습니다",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "미리 보기 캐시를 열지 못했습니다",
+  "Bildvorschau konnte nicht geladen werden": "이미지 미리 보기를 불러오지 못했습니다",
   "Demo-Datenbank": "데모 데이터베이스",
   "Settings konnten nicht geladen werden": "설정을 불러오지 못했습니다",
   "Settings lesen ({path})": "설정 파일을 읽는 중 오류가 발생했습니다 ({path})",

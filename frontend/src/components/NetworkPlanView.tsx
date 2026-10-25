@@ -12,6 +12,7 @@ import { TaskTitle } from './TaskTitle';
 import type { InlineEditor } from './inlineEditor';
 import { taskAppearanceRole } from './taskAppearance';
 import { TaskDate } from './TaskDate';
+import { TaskChecklistBadge } from './TaskChecklistBadge';
 import { taskInteractions, draggedTaskIdOf } from './taskInteractions';
 import type { TaskViewInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
@@ -636,8 +637,8 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
               isBeingDragged ? 'opacity-35' : ''
             }`}
           >
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 min-w-0">
                 <TaskDragHandle />
                 <button
                   type="button"
@@ -667,7 +668,10 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
                 </span>
               </div>
 
-               <TaskDate task={task} editor={dateEditor} compact />
+              <div className="flex items-center gap-1 shrink-0">
+                <TaskChecklistBadge progress={task.checklistProgress} compact />
+                <TaskDate task={task} editor={dateEditor} compact />
+              </div>
             </div>
 
             <div className="text-xs font-medium text-slate-900 truncate pl-1">

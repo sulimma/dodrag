@@ -137,6 +137,12 @@ func trackTaskContextMenu(hwnd uintptr, items []TaskMenuItem, state *taskMenuSta
 		}
 	}()
 	for i, item := range items {
+		if item.Separator {
+			if ok, _, appendErr := procAppendMenuW.Call(menu, mfSeparator, 0, 0); ok == 0 {
+				return "", taskMenuWin32Error("AppendMenuW", appendErr)
+			}
+			continue
+		}
 		label, conversionErr := syscall.UTF16FromString(taskMenuNativeLabel(item.Label, item.Shortcut))
 		if conversionErr != nil {
 			return "", conversionErr
@@ -166,7 +172,7 @@ func trackTaskContextMenu(hwnd uintptr, items []TaskMenuItem, state *taskMenuSta
 	if command == 0 {
 		return "", nil
 	}
-	if command > uintptr(len(items)) || items[command-1].Disabled {
+	if command > uintptr(len(items)) || items[command-1].Disabled || items[command-1].Separator {
 		return "", errors.New("TrackPopupMenuEx returned an invalid command")
 	}
 	return items[command-1].ID, nil

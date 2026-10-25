@@ -9,6 +9,7 @@ import {
 } from '../domain/projector';
 import type { HighlightRole, ListEntry, TaskState } from '../domain/types';
 import { TaskTitle } from './TaskTitle';
+import { TaskChecklistBadge } from './TaskChecklistBadge';
 import type { InlineEditor } from './inlineEditor';
 import { taskAppearanceRole } from './taskAppearance';
 import { taskInteractions } from './taskInteractions';
@@ -444,7 +445,7 @@ export function GanttView(props: GanttViewProps) {
               </span>
               <span
                 title={task.title}
-                className={`text-xs truncate min-w-0 ${
+                className={`text-xs truncate min-w-0 flex-1 ${
                   task.isActive
                     ? 'font-semibold text-emerald-950'
                     : 'font-medium text-slate-900'
@@ -452,6 +453,7 @@ export function GanttView(props: GanttViewProps) {
               >
                 <TaskTitle task={task} editor={titleEditor} className="block truncate" />
               </span>
+              <TaskChecklistBadge progress={task.checklistProgress} compact />
             </div>
           );
         })}

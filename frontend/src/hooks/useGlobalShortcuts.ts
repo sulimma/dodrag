@@ -87,12 +87,12 @@ export function useGlobalShortcuts({
       if (!snapshotReady) return;
       const target = e.target instanceof HTMLElement ? e.target : document.activeElement as HTMLElement | null;
       const isTextEntryFocused = Boolean(target &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable));
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable || target.closest('[contenteditable="true"]')));
       const isInputFocused =
         target &&
         (target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
-          target.isContentEditable ||
+           isTextEntryFocused ||
           Boolean(
             target.closest('button,a,select,[role="button"],[role="switch"]')
           ));

@@ -8,6 +8,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { AppToolbar, type ViewMode } from './components/AppToolbar';
 import { TaskSidebar } from './components/TaskSidebar';
 import { TaskContextMenu } from './components/TaskContextMenu';
+import { TaskDetailPanel } from './components/TaskDetailPanel';
+import type { InlineEditor } from './components/inlineEditor';
 import { ShortcutHelp } from './components/ShortcutHelp';
 import { Toasts } from './components/Toasts';
 import { DependencyHighlightIndicators } from './components/DependencyHighlightIndicators';
@@ -41,6 +43,8 @@ export function App() {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [isMiniMode, setIsMiniMode] = useState(false);
+  const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
+  const [editOwner, setEditOwner] = useState<'view' | 'detail'>('view');
   const newTaskInputRef = useRef<HTMLInputElement>(null);
   const listScrollRef = useRef<HTMLElement>(null);
   // Frozen drag members/database remain available until drop callbacks consume them.
@@ -72,7 +76,14 @@ export function App() {
     setLastMovedKey,
     () => selection.setContextMenu(null)
   );
-  const { titleEditor, dateEditor, startInlineEdit } = editors;
+  const scopedEditor = (editor: InlineEditor, owner: 'view' | 'detail'): InlineEditor => ({
+    ...editor,
+    taskId: editOwner === owner ? editor.taskId : null,
+    onStart: task => { setEditOwner(owner); editor.onStart(task); },
+  });
+  // A single editing session has one visible input, not two competing autofocus effects.
+  const titleEditor = scopedEditor(editors.titleEditor, 'view');
+  const dateEditor = scopedEditor(editors.dateEditor, 'view');
   const drag = useTaskDrag(database, selection, state.tasks, dragIdentity);
   const actions = useTaskMutations(
     database,
@@ -110,7 +121,10 @@ export function App() {
     snapshotReady,
     listScrollRef,
     newTaskInputRef,
-    startInlineEdit,
+    startInlineEdit: task => {
+      setEditOwner(isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]') ? 'detail' : 'view');
+      editors.startInlineEdit(task);
+    },
     onMinimize: () => {
       if (!isMiniMode) handleEnterMiniMode().catch(error =>
         pushToast(errorText(t('Kompaktansicht konnte nicht geöffnet werden'), error), 'warning'));
@@ -149,11 +163,13 @@ export function App() {
     const unsubRestore = eventBridge.onWindowRestored(() => {
       setIsMiniMode(false);
     });
+    const unsubCacheWarning = eventBridge.onPreviewCacheWarning(message => pushToast(message, 'warning'));
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => {
       current = false;
       unsubMinimize();
       unsubRestore();
+      unsubCacheWarning();
       clearInterval(interval);
     };
   }, []);
@@ -306,6 +322,32 @@ export function App() {
         onHelp={() => setShowShortcutsModal(true)}
       />
       <div className="flex-1 flex overflow-hidden">
+        <TaskDetailPanel
+          open={isDetailPanelOpen}
+          onToggle={() => setIsDetailPanelOpen(open => !open)}
+          key={appSettings?.activeDatabasePath ?? ''}
+          task={selectedTaskId ? state.tasks[selectedTaskId] ?? null : null}
+          interactions={interactions} titleEditor={scopedEditor(editors.titleEditor, 'detail')} dateEditor={scopedEditor(editors.dateEditor, 'detail')}
+          onClose={() => setIsDetailPanelOpen(false)}
+          onToggleActive={actions.handleToggleActive}
+          onCompleteTask={actions.handleCompleteTask} onReopenTask={actions.handleReopenTask}
+          onSetConfiguredDate={actions.handleSetConfiguredDate} onRemovePredecessor={actions.handleRemovePredecessor}
+          onDescriptionChange={async (taskId, description, groupId) => {
+            const result = await mutate(() => eventBridge.appendEvent('TASK_DESCRIPTION_SET', { taskId, description }, groupId));
+            if (!result) throw new Error(t('Beschreibung konnte nicht gespeichert werden'));
+          }}
+          onAddLog={async (taskId, text) => {
+            const result = await mutate(() => eventBridge.appendEvent('TASK_LOG_ADDED', {
+              taskId, entryId: crypto.randomUUID(), text, createdAt: new Date().toISOString(),
+            }));
+            if (!result) throw new Error(t('Log-Eintrag konnte nicht gespeichert werden'));
+          }}
+          onRemoveLog={async (taskId, entryId) => {
+            const result = await mutate(() => eventBridge.appendEvent('TASK_LOG_REMOVED', { taskId, entryId }));
+            if (!result) throw new Error(t('Änderung konnte nicht gespeichert werden'));
+          }}
+          onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')}
+        />
         <div className="relative flex flex-1 min-w-0 overflow-hidden">
           <main
             ref={listScrollRef}

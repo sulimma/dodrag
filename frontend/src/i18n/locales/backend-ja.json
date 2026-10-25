@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "無効な絶対パス",
+  "Pfad konnte nicht geoeffnet werden": "パスを開けませんでした",
+  "Ungueltige HTTP(S)-URL": "無効な HTTP(S) URL",
+  "Browser konnte nicht geoeffnet werden": "ブラウザーを開けませんでした",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Visual Studio Code を開けませんでした",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "変更は保存されましたが、プレビューキャッシュを削除できませんでした",
+  "Vorschau-Cache konnte nicht bereinigt werden": "プレビューキャッシュを削除できませんでした",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "プレビューキャッシュを開けませんでした",
+  "Bildvorschau konnte nicht geladen werden": "画像のプレビューを読み込めませんでした",
   "Demo-Datenbank": "デモデータベース",
   "Settings konnten nicht geladen werden": "設定を読み込めませんでした",
   "Settings lesen ({path})": "設定ファイルを読み込めませんでした（{path}）",

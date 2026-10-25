@@ -22,9 +22,23 @@ const timestamp = v.pipe(
   })
 );
 const title = v.pipe(v.string(), v.minLength(1), v.check(value => value.trim().length > 0));
+export const MAX_DESCRIPTION_BYTES = 256 * 1024;
+const description = v.pipe(v.string(), v.check(value => {
+  let bytes = 0;
+  for (const character of value) {
+    const point = character.codePointAt(0)!;
+    if (point >= 0xd800 && point <= 0xdfff) return false;
+    bytes += point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4;
+    if (bytes > MAX_DESCRIPTION_BYTES) return false;
+  }
+  return true;
+}));
 export const CommandSchema = v.variant('type', [
   v.object({ type: v.literal('TASK_CREATED'), payload: v.strictObject({ taskId: id, title, configuredStart: timestamp, createdAt: timestamp }) }),
   v.object({ type: v.literal('TASK_RENAMED'), payload: v.strictObject({ taskId: id, title }) }),
+  v.object({ type: v.literal('TASK_DESCRIPTION_SET'), payload: v.strictObject({ taskId: id, description }) }),
+  v.object({ type: v.literal('TASK_LOG_ADDED'), payload: v.strictObject({ taskId: id, entryId: id, text: title, createdAt: timestamp }) }),
+  v.object({ type: v.literal('TASK_LOG_REMOVED'), payload: v.strictObject({ taskId: id, entryId: id }) }),
   v.object({ type: v.literal('TASK_START_DATE_SET'), payload: v.strictObject({ taskId: id, configuredStart: timestamp }) }),
   v.object({ type: v.literal('DEPENDENCY_ADDED'), payload: v.strictObject({ taskId: id, predecessorId: id }) }),
   v.object({ type: v.literal('DEPENDENCY_REMOVED'), payload: v.strictObject({ taskId: id, predecessorId: id }) }),

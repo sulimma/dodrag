@@ -16,10 +16,11 @@ const (
 
 // TaskMenuItem carries an action ID and an already translated display label.
 type TaskMenuItem struct {
-	ID       string `json:"id"`
-	Label    string `json:"label"`
-	Shortcut string `json:"shortcut,omitempty"`
-	Disabled bool   `json:"disabled"`
+	ID        string `json:"id"`
+	Label     string `json:"label"`
+	Shortcut  string `json:"shortcut,omitempty"`
+	Disabled  bool   `json:"disabled"`
+	Separator bool   `json:"separator,omitempty"`
 }
 
 type taskMenuState struct {
@@ -33,6 +34,15 @@ func validateTaskMenuItems(items []TaskMenuItem) error {
 	}
 	ids := make(map[string]bool, len(items))
 	for i, item := range items {
+		if item.Separator {
+			if item.Label != "" || item.Shortcut != "" || item.Disabled {
+				return fmt.Errorf("separator must not carry action fields at index %d", i)
+			}
+			if item.ID != "" && (strings.TrimSpace(item.ID) == "" || len(item.ID) > maxTaskMenuIDBytes || !utf8.ValidString(item.ID) || strings.ContainsRune(item.ID, 0)) {
+				return fmt.Errorf("invalid separator ID at index %d", i)
+			}
+			continue
+		}
 		if strings.TrimSpace(item.ID) == "" || len(item.ID) > maxTaskMenuIDBytes || !utf8.ValidString(item.ID) || strings.ContainsRune(item.ID, 0) {
 			return fmt.Errorf("invalid task menu ID at index %d", i)
 		}

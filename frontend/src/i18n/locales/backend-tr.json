@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "Geçersiz mutlak yol",
+  "Pfad konnte nicht geoeffnet werden": "Yol açılamadı",
+  "Ungueltige HTTP(S)-URL": "Geçersiz HTTP(S) URL'si",
+  "Browser konnte nicht geoeffnet werden": "Tarayıcı açılamadı",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Visual Studio Code açılamadı",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "Değişiklik kaydedildi ancak önizleme önbelleği temizlenemedi",
+  "Vorschau-Cache konnte nicht bereinigt werden": "Önizleme önbelleği temizlenemedi",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "Önizleme önbelleği açılamadı",
+  "Bildvorschau konnte nicht geladen werden": "Resim önizlemesi yüklenemedi",
   "Demo-Datenbank": "Demo veritabanı",
   "Settings konnten nicht geladen werden": "Ayarlar yüklenemedi",
   "Settings lesen ({path})": "Ayarları okuma ({path})",

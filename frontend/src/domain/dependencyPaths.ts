@@ -36,6 +36,6 @@ export function edgesWithPreview(reduced: DependencyEdge[], tasks: TaskState[], 
 }
 
 export function previewPathKeys(tasks: Record<string, TaskState>, source: string | null, dropKey: string | null, shift: boolean): string[] {
-  const target = /^(?:task|net-task|gantt-task|gantt-list-task):(.+)$/.exec(dropKey ?? '')?.[1];
+  const target = /^(?:task|net-task|gantt-task|gantt-list-task|detail-task):(.+)$/.exec(dropKey ?? '')?.[1];
   return shift && source && target ? dependencyPathEdges(tasks,source,target).map(edgeKey) : [];
 }

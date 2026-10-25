@@ -21,7 +21,14 @@ func main() {
 		MinWidth:  860,
 		MinHeight: 560,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:     assets,
+			Middleware: app.previewAssetMiddleware,
+		},
+		DragAndDrop: &options.DragAndDrop{
+			EnableFileDrop:     true,
+			DisableWebViewDrop: false,
+			CSSDropProperty:    "--wails-drop-target",
+			CSSDropValue:       "drop",
 		},
 		BackgroundColour: &options.RGBA{R: 248, G: 250, B: 252, A: 1},
 		OnStartup:        app.startup,

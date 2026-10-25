@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "Invalid absolute path",
+  "Pfad konnte nicht geoeffnet werden": "Path could not be opened",
+  "Ungueltige HTTP(S)-URL": "Invalid HTTP(S) URL",
+  "Browser konnte nicht geoeffnet werden": "Browser could not be opened",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Visual Studio Code could not be opened",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "Change saved, but preview cache could not be cleaned",
+  "Vorschau-Cache konnte nicht bereinigt werden": "Preview cache could not be cleaned",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "Preview cache could not be opened",
+  "Bildvorschau konnte nicht geladen werden": "Image preview could not be loaded",
   "Demo-Datenbank": "Demo database",
   "Settings konnten nicht geladen werden": "Could not load settings",
   "Settings lesen ({path})": "Read settings ({path})",

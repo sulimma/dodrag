@@ -1,4 +1,13 @@
 {
+  "Ungueltiger absoluter Pfad": "Caminho absoluto inválido",
+  "Pfad konnte nicht geoeffnet werden": "Não foi possível abrir o caminho",
+  "Ungueltige HTTP(S)-URL": "URL HTTP(S) inválida",
+  "Browser konnte nicht geoeffnet werden": "Não foi possível abrir o navegador",
+  "Visual Studio Code konnte nicht geoeffnet werden": "Não foi possível abrir o Visual Studio Code",
+  "Aenderung gespeichert, Vorschau-Cache konnte nicht bereinigt werden": "Alteração salva, mas não foi possível limpar o cache de prévias",
+  "Vorschau-Cache konnte nicht bereinigt werden": "Não foi possível limpar o cache de prévias",
+  "Vorschau-Cache konnte nicht geoeffnet werden": "Não foi possível abrir o cache de prévias",
+  "Bildvorschau konnte nicht geladen werden": "Não foi possível carregar a prévia da imagem",
   "Demo-Datenbank": "Banco de dados de demonstração",
   "Settings konnten nicht geladen werden": "Não foi possível carregar as configurações",
   "Settings lesen ({path})": "Falha ao ler as configurações ({path})",

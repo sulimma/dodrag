@@ -16,6 +16,7 @@ export interface TaskMenuItem {
   label: string;
   shortcut?: string;
   disabled: boolean;
+  separator?: boolean;
 }
 
 export interface SetupState {
@@ -38,6 +39,8 @@ export interface AppSettings {
   buildTime?: string;
   uiLanguage?: string;
   setup?: SetupState;
+  previewCacheDir?: string;
+  previewCacheError?: string;
 }
 
 declare global {
@@ -45,6 +48,8 @@ declare global {
     runtime?: {
       EventsOn?: (eventName: string, callback: (...data: any[]) => void) => () => void;
       BrowserOpenURL?: (url: string) => void;
+      OnFileDrop?: (callback: (x: number, y: number, paths: string[]) => void, useDropTarget?: boolean) => void;
+      OnFileDropOff?: () => void;
     };
     go?: {
       main?: {
@@ -73,6 +78,11 @@ declare global {
           RunSetupAction?: (action: string) => Promise<AppSettings>;
           OpenFolderInExplorer?: (path: string, isFile: boolean) => Promise<void>;
           OpenFolderInVSCode?: (path: string, isFile: boolean) => Promise<void>;
+          OpenPathInExplorer?: (path: string) => Promise<void>;
+          OpenPathInVSCode?: (path: string) => Promise<void>;
+          OpenExternalURL?: (url: string) => Promise<void>;
+          ClearPreviewCache?: () => Promise<void>;
+          OpenPreviewCacheInExplorer?: () => Promise<void>;
           EnterMiniMode: (
             corner: string,
             itemCount: number
@@ -276,7 +286,7 @@ export const eventBridge = {
       const timestamp = new Date().toISOString();
       const coalesce = effective.length === 1 && groupId && browserGroup === groupId &&
         last && last.type === command.type && last.payload.taskId === command.payload.taskId &&
-        ['TASK_RENAMED', 'TASK_START_DATE_SET', 'TASK_ACTIVE_SET'].includes(command.type);
+        ['TASK_RENAMED', 'TASK_START_DATE_SET', 'TASK_ACTIVE_SET', 'TASK_DESCRIPTION_SET'].includes(command.type);
       if (coalesce) {
         current[current.length - 1] = {
           ...command, seq: last.seq, id: last.id, groupId: last.groupId, timestamp, undone: false,
@@ -414,6 +424,36 @@ export const eventBridge = {
     return '';
   },
 
+  async openPathInExplorer(path: string): Promise<void> {
+    if (isWailsAvailable()) await window.go!.main!.App!.OpenPathInExplorer!(path);
+  },
+
+  async openPathInVSCode(path: string): Promise<void> {
+    if (isWailsAvailable()) await window.go!.main!.App!.OpenPathInVSCode!(path);
+  },
+
+  async openExternalURL(url: string): Promise<void> {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error(t('Ungültige URL'));
+    if (isWailsAvailable()) await window.go!.main!.App!.OpenExternalURL!(url);
+  },
+
+  async clearPreviewCache(): Promise<void> {
+    if (isWailsAvailable()) await window.go!.main!.App!.ClearPreviewCache!();
+  },
+
+  async openPreviewCacheInExplorer(): Promise<void> {
+    if (isWailsAvailable()) await window.go!.main!.App!.OpenPreviewCacheInExplorer!();
+  },
+
+  onFileDrop(callback: (x: number, y: number, paths: string[]) => void): () => void {
+    // Wails 2.9.2 resolves Windows paths in a window-level bubbling drop handler.
+    // Child file-drop handlers may preventDefault, but must not stopPropagation.
+    // Coordinates are client CSS pixels; the CSS target property is inherited.
+    window.runtime?.OnFileDrop?.(callback, true);
+    return () => window.runtime?.OnFileDropOff?.();
+  },
+
   async createDatabase(
     folderPath: string,
     dbName: string,
@@ -529,6 +569,10 @@ export const eventBridge = {
       return window.runtime.EventsOn('window:minimized', callback);
     }
     return () => {};
+  },
+
+  onPreviewCacheWarning(callback: (message: string) => void): () => void {
+    return window.runtime?.EventsOn?.('preview:cache-warning', callback) ?? (() => {});
   },
 
   onWindowRestored(callback: () => void): () => void {

@@ -21,6 +21,7 @@ it('keeps diamond inner edges and unrelated branches, including redundant source
   expect(dependencyPathEdges(tasks,'A','D').map(edgeKey)).toEqual(['A->B','A->C','A->D']);
   expect(dependencyPathEdges(tasks,'D','A').map(edgeKey)).toEqual(['A->D','B->D','C->D']);
   const preview=previewPathKeys(tasks,'A','net-task:D',true);
+  expect(previewPathKeys(tasks,'A','detail-task:D',true)).toEqual(preview);
   expect(edgesWithPreview([{from:'B',to:'D'}],Object.values(tasks),preview).map(edgeKey)).toEqual(['B->D','A->B','A->C','A->D']);
   for (const [source,target,shift] of [[null,'net-task:D',true],['A',null,true],['A','net-task:D',false],['A','net-task:Z',true]] as const) expect(previewPathKeys(tasks,source,target,shift)).toEqual([]);
 });

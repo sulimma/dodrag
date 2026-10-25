@@ -107,3 +107,45 @@ func findVSCode() (string, error) {
 	}
 	return "", windows.ERROR_FILE_NOT_FOUND
 }
+
+func explorerPathCommand(path string, isDir bool) *exec.Cmd {
+	if isDir {
+		return exec.Command("explorer.exe", path)
+	}
+	return exec.Command("explorer.exe", "/select,"+path)
+}
+
+func (a *App) OpenPathInExplorer(targetPath string) error {
+	language := a.currentUILanguage()
+	path, info, err := existingPath(targetPath, language)
+	if err != nil {
+		return err
+	}
+	cmd := explorerPathCommand(path, info.IsDir())
+	if err := cmd.Start(); err != nil {
+		return localizedError(language, "Pfad konnte nicht geoeffnet werden", err)
+	}
+	return localizedError(language, "Pfad konnte nicht geoeffnet werden", cmd.Process.Release())
+}
+
+func (a *App) OpenPathInVSCode(targetPath string) error {
+	language := a.currentUILanguage()
+	path, _, err := existingPath(targetPath, language)
+	if err != nil {
+		return err
+	}
+	codePath, err := findVSCode()
+	if err == nil && (strings.EqualFold(filepath.Ext(codePath), ".cmd") || strings.EqualFold(filepath.Ext(codePath), ".bat")) {
+		// Do not send user-controlled paths through cmd.exe's second parsing pass.
+		codePath = filepath.Join(filepath.Dir(codePath), "..", "Code.exe")
+		_, err = os.Stat(codePath)
+	}
+	if err != nil {
+		return errors.New(backendText(language, "Visual Studio Code wurde nicht gefunden"))
+	}
+	cmd := vscodeCommand(codePath, path)
+	if err := cmd.Start(); err != nil {
+		return localizedError(language, "Visual Studio Code konnte nicht geoeffnet werden", err)
+	}
+	return localizedError(language, "Visual Studio Code konnte nicht geoeffnet werden", cmd.Process.Release())
+}

@@ -14,6 +14,29 @@ beforeEach(() => {
   vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
 });
 const create = () => eventBridge.appendEvent('TASK_CREATED', { taskId: 't1', title: 'A', configuredStart: '2026-10-17T09:00:00Z', createdAt: '2026-10-17T09:00:00Z' });
+it('coalesces description typing and replays log addition with undo and redo', async () => {
+  await create();
+  await eventBridge.appendEvent('TASK_DESCRIPTION_SET', { taskId: 't1', description: '- [ ] First' }, 'description');
+  const typed = await eventBridge.appendEvent('TASK_DESCRIPTION_SET', { taskId: 't1', description: '- [x] First' }, 'description');
+  expect(typed).toHaveLength(2);
+  expect(projectEvents(typed).tasks.t1.checklistProgress).toEqual({ checked: 1, total: 1 });
+  expect(projectEvents(await eventBridge.undo()).tasks.t1.description).toBe('');
+  expect(projectEvents(await eventBridge.redo()).tasks.t1.description).toBe('- [x] First');
+  await eventBridge.appendEvent('TASK_LOG_ADDED', { taskId: 't1', entryId: 'log-1', text: ' Note ', createdAt: '2026-10-17T10:00:00Z' });
+  expect(projectEvents(await eventBridge.undo()).tasks.t1.logEntries).toEqual([]);
+  expect(projectEvents(await eventBridge.redo()).tasks.t1.logEntries[0].text).toBe('Note');
+});
+
+it('restricts URL actions and subscribes native file drops only at registered targets', async () => {
+  await expect(eventBridge.openExternalURL('javascript:alert(1)')).rejects.toThrow();
+  const callback = vi.fn(), onDrop = vi.fn(), off = vi.fn();
+  vi.stubGlobal('window', { runtime: { OnFileDrop: onDrop, OnFileDropOff: off } });
+  const unsubscribe = eventBridge.onFileDrop(callback);
+  expect(onDrop).toHaveBeenCalledWith(callback, true);
+  unsubscribe();
+  expect(off).toHaveBeenCalledOnce();
+});
+
 it('rejects duplicate IDs and invalid booleans', async () => {
   await create(); await expect(create()).rejects.toThrow();
   expect(() => parseCommand({ type: 'TASK_ACTIVE_SET', payload: { taskId: 't1', isActive: 'false' } })).toThrow();
