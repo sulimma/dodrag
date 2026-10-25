@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { GanttView } from './GanttView';
@@ -70,8 +71,8 @@ it('places incoming edges from further left lower, then orders equal-column sour
     const targetFlame = element.querySelector<HTMLElement>('[data-task-drag="target"] button');
     const rootFlame = element.querySelector<HTMLElement>('[data-task-drag="left-upper"] button');
     expect(targetFlame).not.toBeNull();
-    expect(targetFlame!.classList.contains('invisible')).toBe(true);
-    expect((targetFlame as HTMLButtonElement).disabled).toBe(true);
+    expect(targetFlame!.classList.contains('invisible')).toBe(false);
+    expect((targetFlame as HTMLButtonElement).disabled).toBe(false);
     expect(rootFlame).not.toBeNull();
     expect(rootFlame!.classList.contains('invisible')).toBe(false);
   };
@@ -79,4 +80,43 @@ it('places incoming edges from further left lower, then orders equal-column sour
     movedItemKey={null} />));
   verifyFlameSlot(renderToStaticMarkup(<GanttView {...props} />));
   verifyFlameSlot(networkMarkup);
+
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  document.body.append(element);
+  const root = createRoot(element);
+  const toggle = vi.fn();
+  try {
+    for (const view of [<ListView {...props} movedItemKey={null} onToggleActive={toggle} />,
+      <GanttView {...props} onToggleActive={toggle} />,
+      <NetworkPlanView {...props} onToggleActive={toggle} />]) {
+      act(() => root.render(view));
+      const flame = element.querySelector<HTMLButtonElement>('[data-task-drag="target"] button')!;
+      expect(flame.disabled).toBe(false);
+      act(() => flame.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+      expect(toggle).toHaveBeenLastCalledWith(tasks[3]);
+    }
+    expect(toggle).toHaveBeenCalledTimes(3);
+
+    const activeTasks = tasks.map(task => ({ ...task, isActive: ['target', 'other'].includes(task.id) }));
+    const activeProps = { ...props, openTasks: activeTasks,
+      listEntries: activeTasks.map(task => ({ kind: 'task' as const, key: task.id, task })) };
+    act(() => root.render(<GanttView {...activeProps} />));
+    const node = (id: string) => element.querySelector<HTMLElement>(`[data-gantt-node="${id}"]`)!;
+    expect([...element.querySelectorAll('[data-gantt-list] [data-task-drag]')]
+      .map(row => row.getAttribute('data-task-drag'))).toEqual(['target', 'other', 'left-upper', 'near', 'left-lower']);
+    expect(node('target').style.left).toBe(node('left-upper').style.left);
+    expect(node('other').style.left).toBe(node('left-upper').style.left);
+    expect(parseFloat(node('target').style.top)).toBeLessThan(parseFloat(node('left-upper').style.top));
+    const backward = points('near->target');
+    const [prevX, prevY, endX, endY] = backward.slice(-4);
+    expect(endX).toBe(parseFloat(node('target').style.left) + parseFloat(node('target').style.width) + 8);
+    expect(prevX).toBeGreaterThan(endX);
+    expect(prevY).toBe(endY);
+    expect(backward[1]).toBeGreaterThan(endY);
+    expect(activeTasks[3].predecessorIds).toEqual(['left-upper', 'near', 'left-lower']);
+    expect(activeTasks[3].effectiveDateKey).toBe('2026-10-19');
+  } finally {
+    act(() => root.unmount()); element.remove(); vi.unstubAllGlobals();
+  }
 });

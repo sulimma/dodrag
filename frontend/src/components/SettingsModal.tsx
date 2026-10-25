@@ -668,7 +668,7 @@ export function SettingsModal({
               title={t('GitHub-Projekt im Browser öffnen')}
               className="block max-w-full text-left text-[11px] text-slate-500 font-mono truncate hover:text-sky-700 hover:underline"
             >
-              {t('DoDrag v{version} · Build {time}', { version: settings.version || '0.1.2', time: formatBuildTime(settings.buildTime) })}
+              {t('DoDrag v{version} · Build {time}', { version: settings.version || 'dev', time: formatBuildTime(settings.buildTime) })}
             </button>
           </div>
           <button

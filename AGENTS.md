@@ -12,8 +12,8 @@ Diese Hinweise beruhen auf tatsaechlichen Build-/Testerfahrungen vom 2026-10-17.
 
 ## Versionierung
 
-- Dieses Projekt verwendet SemVer (`MAJOR.MINOR.PATCH`). Aktueller Stand: `0.1.4`. Solange `MAJOR` 0 ist, ist die API als instabil zu behandeln.
-- Version und Build-Zeitpunkt werden zur Buildzeit per `-ldflags "-X main.buildVersion=... -X main.buildTime=..."` in `app.go` gesetzt und ueber `GetSettings` an das Frontend geliefert. `build.ps1` setzt beide Werte beim Wails-Packaging. `main.buildVersion` faellt ohne ldflags auf `0.1.4` zurueck, `main.buildTime` bleibt dann leer. Der Settings-Dialog zeigt beides im Footer an; ohne ldflags also Version ohne Zeitpunkt.
+- Dieses Projekt verwendet SemVer (`MAJOR.MINOR.PATCH`). Aktueller Stand: `0.1.5`. Solange `MAJOR` 0 ist, ist die API als instabil zu behandeln.
+- Version und Build-Zeitpunkt werden zur Buildzeit per `-ldflags "-X main.buildVersion=... -X main.buildTime=..."` in `app.go` gesetzt und ueber `GetSettings` an das Frontend geliefert. `build.ps1` setzt beide Werte beim Wails-Packaging. `main.buildVersion` faellt ohne ldflags auf `dev` zurueck, `main.buildTime` bleibt dann leer. Der Settings-Dialog zeigt beides im Footer an; ohne ldflags also `dev` ohne Zeitpunkt.
 
 ## Internationalisierung
 
@@ -55,9 +55,9 @@ Diese Hinweise beruhen auf tatsaechlichen Build-/Testerfahrungen vom 2026-10-17.
 
 ## Native Drag- und SVG-Fallen
 
-- Shift vor einem Drag direkt auf auswaehlbarem Titeltext startete in Chromium nicht zuverlaessig einen nativen Drag, auch nach temporaerem `user-select: none`. Die expliziten Nicht-Text-Draggriffe (`data-drag-handle`) funktionierten mit echten Mausereignissen in Liste, Netzplan und Gantt. Normale Text-/Inputauswahl bleibt absichtlich erhalten.
-- Ein synthetisch ausgeloestes `dragstart` prueft nicht, ob Shift+Mousedown einen nativen Drag starten kann. Fuer diesen Fehler echte `mouse.down/move/up`-Ablaeufe verwenden, sowohl Shift vor als auch waehrend des Drags.
-- Native Dragloops koennen normale Keyevents unterdruecken. Modifier auch aus Dragereignissen auswerten; die Shift-Freigabe aktualisiert die Vorschau gegebenenfalls erst beim naechsten `dragover`. Dragende und Escape-Abbruch separat testen.
-- Shift-Loeschung ist quellbezogen, nicht "alle Kanten des Pfades": Bei A->B->C plus A->C entfernt Drag A auf C nur A->B/A->C; B->C bleibt. Vorschau und Commit muessen denselben berechneten Satz verwenden. Normalerweise transitiv ausgeblendete, aber real gespeicherte betroffene Kanten muessen in der Vorschau sichtbar werden.
+- Pointer-Drag (`taskPointerDrag.ts`) steuert das Ziehen von Tasks in Liste, Netzplan und Gantt; nicht-textuelle Bereiche und die expliziten Draggriffe (`data-drag-handle`) starten das Ziehen, waehrend normale Text-/Inputauswahl (`data-task-selectable-text`) erhalten bleibt.
+- Ein synthetisch ausgeloestes `dragstart` prueft keinen vollstaendigen Pointer-Ablauf. Fuer Interaktionstests echte Pointer-/Maus-Ablaeufe verwenden, sowohl Alt vor als auch waehrend des Drags.
+- Modifier auch waehrend des Drags auswerten (`altKey`); Dragende, Blur und Escape-Abbruch separat testen.
+- Alt-Loeschung ist quellbezogen, nicht "alle Kanten des Pfades": Bei A->B->C plus A->C entfernt Alt-Drag A auf C nur A->B/A->C; B->C bleibt. Vorschau und Commit muessen denselben berechneten Satz verwenden. Normalerweise transitiv ausgeblendete, aber real gespeicherte betroffene Kanten muessen in der Vorschau sichtbar werden.
 - SVG-Marker skalieren standardmaessig mit der Strichbreite. Fuer konstante Pfeilkopfgeometrie `markerUnits="userSpaceOnUse"` beibehalten: Stammende an Dreiecksbasis, Spitze am Knotenrand, Endtangente senkrecht zur Zielseite. Nicht nur Markerorientierung pruefen; auch Bezier-Endtangente bei Hindernisrouting und rechtem Gantt-Eingang testen.
 - Echte Chromiumtests ersetzen keine Windows-WebView2-, Mehrmonitor-/DPI-, WINDOWPLACEMENT-, COM-/Registry- oder OS-Clipboard-Pruefung. Diese Grenzen im Ergebnis ausdruecklich nennen, wenn kein solcher Lauf erfolgt ist.

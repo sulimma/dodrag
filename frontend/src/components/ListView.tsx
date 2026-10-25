@@ -149,7 +149,6 @@ export function ListView(props: ListViewProps) {
 
               <button
                 type="button"
-                disabled={task.predecessorIds.length > 0}
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggleActive(task);
@@ -163,7 +162,7 @@ export function ListView(props: ListViewProps) {
                   task.isActive
                     ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm'
                     : 'bg-slate-100 border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-300'
-                } ${task.predecessorIds.length > 0 ? 'invisible' : ''}`}
+                }`}
               >
                 <Flame className="w-3.5 h-3.5" />
               </button>

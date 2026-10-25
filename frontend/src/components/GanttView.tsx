@@ -148,7 +148,7 @@ export function GanttView(props: GanttViewProps) {
       cur.setDate(cur.getDate() + 1);
     }
 
-    // Extract topologically ordered tasks from listEntries so predecessors appear above successors
+    // Preserve list priority within the active and inactive rows.
     const orderedTasks: TaskState[] = [];
     const seen = new Set<string>();
     for (const entry of listEntries) {
@@ -162,13 +162,14 @@ export function GanttView(props: GanttViewProps) {
         orderedTasks.push(t);
       }
     }
+    orderedTasks.sort((a, b) => Number(b.isActive) - Number(a.isActive));
 
     const bars: Record<string, GanttBarItem> = {};
     const barList: GanttBarItem[] = [];
 
     orderedTasks.forEach((task, rIdx) => {
       const effKey =
-        task.effectiveDateKey < todayKey ? todayKey : task.effectiveDateKey;
+        task.isActive || task.effectiveDateKey < todayKey ? todayKey : task.effectiveDateKey;
       const cIdx = dateKeyToCol.get(effKey);
       if (cIdx === undefined) return;
 
@@ -425,7 +426,6 @@ export function GanttView(props: GanttViewProps) {
               <TaskDragHandle />
               <button
                 type="button"
-                disabled={task.predecessorIds.length > 0}
                 aria-label={task.isActive ? t('Deaktivieren (Space)') : t('Aktivieren (Space)')}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -435,7 +435,7 @@ export function GanttView(props: GanttViewProps) {
                   task.isActive
                     ? 'bg-emerald-500 text-white border-emerald-600'
                     : 'bg-slate-100 border-slate-200 text-slate-400 hover:text-emerald-600'
-                } ${task.predecessorIds.length > 0 ? 'invisible' : ''}`}
+                }`}
               >
                 <Flame className="w-3 h-3" />
               </button>

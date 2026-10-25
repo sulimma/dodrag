@@ -5,6 +5,33 @@ import { projectEvents } from '../domain/projector';
 import type { StoredEvent } from '../domain/types';
 import { eventBridge } from '../bridge/eventBridge';
 
+it('toggles activity with predecessors without changing the configured date and marks the moving row', async () => {
+  const now = new Date('2026-10-19T09:00:00.000Z');
+  const events: StoredEvent[] = ['A', 'B'].map((taskId, i) => ({
+    seq: i + 1, id: taskId, timestamp: now.toISOString(), undone: false, type: 'TASK_CREATED',
+    payload: { taskId, title: taskId, configuredStart: '2026-11-01T09:00:00.000Z', createdAt: now.toISOString() },
+  }));
+  events.push({ seq: 3, id: 'dep', timestamp: now.toISOString(), undone: false,
+    type: 'DEPENDENCY_ADDED', payload: { taskId: 'B', predecessorId: 'A' } });
+  const append = vi.spyOn(eventBridge, 'appendEvent').mockResolvedValue(events);
+  const moved = vi.fn();
+  const toast = vi.fn();
+  const refresh = vi.fn();
+  try {
+    const state = projectEvents(events, now);
+    const actions = useTaskMutations({ databaseIdentity: { current: 'A.db' }, confirmedEvents: { current: events },
+      mutate: operation => operation() }, { selectedTaskIds: [], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn() },
+      state, now, { current: null }, moved, toast, refresh);
+    await actions.handleToggleActive(state.tasks.B);
+    expect(append).toHaveBeenCalledWith('TASK_ACTIVE_SET', { taskId: 'B', isActive: true });
+    await actions.handleToggleActive({ ...state.tasks.B, isActive: true });
+    expect(append).toHaveBeenLastCalledWith('TASK_ACTIVE_SET', { taskId: 'B', isActive: false });
+    expect(moved).toHaveBeenCalledWith('task:B');
+    expect(refresh).toHaveBeenCalledWith(expect.any(Date));
+    expect(toast).not.toHaveBeenCalled();
+  } finally { append.mockRestore(); }
+});
+
 it('guards every group drop with the frozen database and source identity', async () => {
   const now = new Date('2026-10-19T09:00:00.000Z');
   const events: StoredEvent[] = ['A', 'B', 'C'].map((taskId, index) => ({

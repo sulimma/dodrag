@@ -21,7 +21,7 @@ interface TaskContextMenuProps {
 export function taskMenuItems(task: TaskState): TaskMenuItem[] {
   if (task.completed) return [{ id: 'reopen', label: t('Erneut öffnen'), disabled: false }];
   return [
-    { id: 'toggle', label: task.isActive ? t('Deaktivieren') : t('Aktivieren (Hervorheben)'), disabled: task.predecessorIds.length > 0 },
+    { id: 'toggle', label: task.isActive ? t('Deaktivieren') : t('Aktivieren (Hervorheben)'), disabled: false },
     { id: 'today', label: t('Startdatum auf Heute setzen'), disabled: false },
     { id: 'complete', label: t('Als erledigt markieren'), disabled: false },
     ...task.predecessorIds.map(id => ({ id: `remove:${id}`, label: t('Vorgänger {id} lösen', { id }), disabled: false })),

@@ -55,7 +55,7 @@ export function ShortcutHelp({
                 </kbd>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
-                <span>{t('Task aktivieren / deaktivieren (ohne Vorgänger)')}</span>
+                <span>{t('Task aktivieren / deaktivieren')}</span>
                 <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">
                   {t('Space / A / Rechtsklick')}
                 </kbd>

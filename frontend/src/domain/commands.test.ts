@@ -19,6 +19,22 @@ const transientCycle = () => stored([
   { type: 'DEPENDENCY_REMOVED', payload: { taskId: 'a', predecessorId: 'b' } },
 ]);
 
+it('activates tasks with open predecessors before and after adding dependencies', () => {
+  for (const activateFirst of [false, true]) {
+    const active: EventCommand = { type: 'TASK_ACTIVE_SET', payload: { taskId: 'b', isActive: true } };
+    const dependency: EventCommand = { type: 'DEPENDENCY_ADDED', payload: { taskId: 'b', predecessorId: 'a' } };
+    const tasks = copyReplayTasks(replayCommands(stored([
+      create('a'), create('b'), ...(activateFirst ? [active, dependency] : [dependency, active]),
+    ])));
+    expect(tasks.get('b')!.isActive).toBe(true);
+    expect(tasks.get('b')!.predecessors.has('a')).toBe(true);
+    expect(applyCommand(tasks, { type: 'TASK_ACTIVE_SET', payload: { taskId: 'b', isActive: false } })).toBe(true);
+    expect(tasks.get('b')!.configuredStart).toBe(iso);
+    applyCommand(tasks, { type: 'TASK_COMPLETED', payload: { taskId: 'b', completedAt: iso } });
+    expect(() => applyCommand(tasks, active)).toThrow();
+  }
+});
+
 it('allows historical intermediate cycles but rejects final cycles, including completed tasks', () => {
   const events = transientCycle();
   expect(replayCommands(events).tasks.get('b')!.predecessors.has('a')).toBe(true);

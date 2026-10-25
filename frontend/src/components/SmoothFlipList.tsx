@@ -99,7 +99,11 @@ export function SmoothFlipList({
             }
           );
           animationsRef.current.set(key, anim);
-          anim.onfinish = () => { if (animationsRef.current.get(key) === anim) animationsRef.current.delete(key); };
+          const cleanupInsert = () => {
+            if (animationsRef.current.get(key) === anim) animationsRef.current.delete(key);
+          };
+          anim.onfinish = cleanupInsert;
+          anim.oncancel = cleanupInsert;
           continue;
         }
 

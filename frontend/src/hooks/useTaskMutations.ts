@@ -28,7 +28,8 @@ export function useTaskMutations(
   now: Date,
   dragIdentity: React.MutableRefObject<DragIdentity | null>,
   setLastMovedKey: (key: string) => void,
-  pushToast: PushToast
+  pushToast: PushToast,
+  refreshNow?: (now: Date) => void
 ) {
   const { mutate, databaseIdentity, confirmedEvents } = database;
   const { selectedTaskIds, setSelectedTaskIds, clearEdgeSelection } = selection;
@@ -44,14 +45,9 @@ export function useTaskMutations(
       ? { type: 'TASK_REOPENED' as const, payload: { taskId: id } }
       : null;
   const handleToggleActive = async (task: TaskState) => {
-    if (task.predecessorIds.length > 0) {
-      pushToast(
-        t('Task {id} hat noch offene Vorgänger und kann nicht aktiviert werden.', { id: task.id }),
-        'warning'
-      );
-      return;
-    }
     const nextActive = !task.isActive;
+    setLastMovedKey(`task:${task.id}`);
+    refreshNow?.(new Date());
     await mutate(() =>
       eventBridge.appendEvent('TASK_ACTIVE_SET', {
         taskId: task.id,

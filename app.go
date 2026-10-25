@@ -16,9 +16,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// Build-time identity, overridable via: go build -ldflags "-X main.buildVersion=0.1.4rc2 -X main.buildTime=..."
+// Build-time identity, overridable via: go build -ldflags "-X main.buildVersion=0.1.5 -X main.buildTime=..."
 var (
-	buildVersion = "0.1.4rc2"
+	buildVersion = "dev"
 	buildTime    = ""
 )
 

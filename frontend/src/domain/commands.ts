@@ -99,9 +99,8 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
       break;
     case 'TASK_ACTIVE_SET':
       if (task.isActive === command.payload.isActive) return false;
-      if (command.payload.isActive &&
-        (task.completed || [...task.predecessors].some(id => !tasks.get(id)?.completed))) {
-        throw new Error(t('Task has open predecessors or is completed'));
+      if (command.payload.isActive && task.completed) {
+        throw new Error(t('Task is completed'));
       }
       task.isActive = command.payload.isActive;
       break;

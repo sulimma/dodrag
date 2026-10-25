@@ -66,22 +66,29 @@ const CANVAS_PAD_X = 16;
 const CANVAS_PAD_Y = 18;
 
 /**
- * One cubic Bézier with a vertical target tangent and a small bow for aligned
+ * One cubic Bézier with a direction-dependent target tangent and a small bow for aligned
  * endpoints. Obstacles may adjust its curvature, but never add waypoints.
  */
 export function buildCleanEdgePath(
   startPt: { x: number; y: number },
   endPt: { x: number; y: number },
-  intermediateObstacles: PositionedNode[]
+  intermediateObstacles: PositionedNode[],
+  direction = { x: 0, y: 1 }
 ): string {
-  endPt = arrowBase(endPt, { x: 0, y: 1 });
+  endPt = arrowBase(endPt, direction);
   const dx = endPt.x - startPt.x;
+  const deltaY = endPt.y - startPt.y;
   // A 36-unit control offset bows a vertical edge by at most 16 SVG units.
-  const startControlX = startPt.x + (dx < 0 ? -1 : 1) * Math.max(0, 36 - Math.abs(dx));
+  const bowX = direction.x === 0 ? (dx < 0 ? -1 : 1) * Math.max(0, 36 - Math.abs(dx)) : 0;
+  const bowY = direction.y === 0 ? (deltaY < 0 ? -1 : 1) * Math.max(0, 36 - Math.abs(deltaY)) : 0;
   let bestPath = '';
   let bestScore = Infinity;
   for (const factor of [0.42, 0.28, 0.56]) {
-    const dy = Math.max(8, Math.abs(endPt.y - startPt.y) * factor);
+    const distance = Math.max(8, Math.abs(direction.x === 0 ? deltaY : dx) * factor);
+    const startControlX = startPt.x + direction.x * distance + bowX;
+    const startControlY = startPt.y + direction.y * distance + bowY;
+    const endControlX = endPt.x - direction.x * distance;
+    const endControlY = endPt.y - direction.y * distance;
     let score = factor === 0.42 ? 0 : 0.25;
     // ponytail: 24 samples are a soft collision heuristic, not clearance proof.
     // Crossings are allowed; use curve/rectangle intersection if that changes.
@@ -89,9 +96,9 @@ export function buildCleanEdgePath(
       const t = i / 24;
       const u = 1 - t;
       const x = u ** 3 * startPt.x + 3 * u * u * t * startControlX
-        + (3 * u * t * t + t ** 3) * endPt.x;
-      const y = u ** 3 * startPt.y + 3 * u * u * t * (startPt.y + dy)
-        + 3 * u * t * t * (endPt.y - dy) + t ** 3 * endPt.y;
+        + 3 * u * t * t * endControlX + t ** 3 * endPt.x;
+      const y = u ** 3 * startPt.y + 3 * u * u * t * startControlY
+        + 3 * u * t * t * endControlY + t ** 3 * endPt.y;
       if (intermediateObstacles.some((obs) =>
         x >= obs.x - 8 && x <= obs.x + obs.width + 8
         && y >= obs.y - 5 && y <= obs.y + obs.height + 5
@@ -99,7 +106,7 @@ export function buildCleanEdgePath(
     }
     if (score < bestScore) {
       bestScore = score;
-      bestPath = `M ${startPt.x} ${startPt.y} C ${startControlX} ${startPt.y + dy}, ${endPt.x} ${endPt.y - dy}, ${endPt.x} ${endPt.y}`;
+      bestPath = `M ${startPt.x} ${startPt.y} C ${startControlX} ${startControlY}, ${endControlX} ${endControlY}, ${endPt.x} ${endPt.y}`;
     }
     if (bestScore === 0) break;
   }
@@ -151,7 +158,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
     // 1. Collect all relevant date layers (Today + each open task's effectiveDateKey)
     const dateKeysSet = new Set<string>([todayKey]);
     for (const t of openTasks) {
-      const dk = t.effectiveDateKey < todayKey ? todayKey : t.effectiveDateKey;
+      const dk = t.isActive || t.effectiveDateKey < todayKey ? todayKey : t.effectiveDateKey;
       dateKeysSet.add(dk);
     }
     const sortedDateKeys = Array.from(dateKeysSet).sort();
@@ -176,7 +183,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
     // 3. Group tasks by their exact date rank
     const rows: TaskState[][] = sortedDateKeys.map(() => []);
     for (const t of openTasks) {
-      const dk = t.effectiveDateKey < todayKey ? todayKey : t.effectiveDateKey;
+      const dk = t.isActive || t.effectiveDateKey < todayKey ? todayKey : t.effectiveDateKey;
       const r = dateKeyToRank.get(dk) ?? 0;
       rows[r].push(t);
     }
@@ -197,8 +204,10 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
     // Compute levels topologically, then preserve openTasks priority within levels.
     // Wrap each entire level before starting the next, including unrelated nodes.
     const daySlices = rows.map((row) => {
+      const active = row.filter(task => task.isActive);
+      const inactive = row.filter(task => !task.isActive);
       const levelOf = new Map<string, number>();
-      for (const task of stableTopology(row)) {
+      for (const task of stableTopology(inactive)) {
         let level = 0;
         for (const id of task.predecessorIds) {
           const predecessorLevel = levelOf.get(id);
@@ -207,12 +216,12 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
         levelOf.set(task.id, level);
       }
       const levels: TaskState[][] = [];
-      for (const task of row) {
+      for (const task of inactive) {
         const level = levelOf.get(task.id)!;
         (levels[level] ??= []).push(task);
       }
       const slices: TaskState[][] = [];
-      for (const level of levels) {
+      for (const level of [active, ...levels]) {
         for (let start = 0; start < level.length; start += maxCols) {
           slices.push(level.slice(start, start + maxCols));
         }
@@ -366,7 +375,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
       }));
     }
 
-    // 6. Downward endpoints keep curves outside their own cards. Intermediate
+    // 6. Facing ports keep forward, backward and same-row curves outside their cards. Intermediate
     // obstacles only influence the existing soft curvature heuristic.
     const allNodes = Object.values(nodes);
     const routedEdges: RoutedEdge[] = [];
@@ -376,13 +385,17 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
       const toNode = nodes[edge.to];
       if (!fromNode || !toNode) continue;
 
+      const sameRow = fromNode.y === toNode.y;
+      const direction = sameRow
+        ? { x: toNode.cx > fromNode.cx ? 1 : -1, y: 0 }
+        : { x: 0, y: toNode.cy > fromNode.cy ? 1 : -1 };
       const startPt = {
-        x: fromNode.cx,
-        y: fromNode.y + fromNode.height,
+        x: fromNode.cx + direction.x * fromNode.width / 2,
+        y: fromNode.cy + direction.y * fromNode.height / 2,
       };
       const endPt = {
-        x: toNode.cx,
-        y: toNode.y,
+        x: toNode.cx - direction.x * toNode.width / 2,
+        y: toNode.cy - direction.y * toNode.height / 2,
       };
 
       // Any node vertically between fromNode and toNode (including other sub-rows in the same day) is a potential obstacle
@@ -399,7 +412,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
       routedEdges.push({
         from: edge.from,
         to: edge.to,
-        pathD: buildCleanEdgePath(startPt, endPt, intermediateObstacles),
+        pathD: buildCleanEdgePath(startPt, endPt, intermediateObstacles, direction),
       });
     }
 
@@ -628,7 +641,6 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
                 <TaskDragHandle />
                 <button
                   type="button"
-                  disabled={task.predecessorIds.length > 0}
                   aria-label={task.isActive ? t('Deaktivieren (Space)') : t('Aktivieren (Space)')}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -638,7 +650,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
                     task.isActive
                       ? 'bg-emerald-500 text-white border-emerald-600'
                       : 'bg-slate-100 border-slate-200 text-slate-400 hover:text-emerald-600'
-                  } ${task.predecessorIds.length > 0 ? 'invisible' : ''}`}
+                  }`}
                 >
                   <Flame className="w-3 h-3" />
                 </button>

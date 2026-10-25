@@ -3,6 +3,7 @@ import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { MiniCornerView } from './MiniCornerView';
+import { taskMenuItems } from './TaskContextMenu';
 import { projectEvents } from '../domain/projector';
 
 it('shows compact hover/focus actions, targets the task and never restores for an action', () => {
@@ -12,6 +13,8 @@ it('shows compact hover/focus actions, targets the task and never restores for a
     type: 'TASK_CREATED', payload: { taskId: 'A', title: 'Task A',
       configuredStart: now.toISOString(), createdAt: now.toISOString() },
   }], now).tasks.A;
+  task.predecessorIds = ['P'];
+  task.allPredecessorIds = ['P'];
   const restore = vi.fn(), toggle = vi.fn(), resubmit = vi.fn(), complete = vi.fn();
   const context = vi.fn(), create = vi.fn();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -40,6 +43,9 @@ it('shows compact hover/focus actions, targets the task and never restores for a
     expect(actions.classList.contains('group-focus-within:visible')).toBe(true);
     const buttons = actions.querySelectorAll('button');
     expect(buttons).toHaveLength(3);
+    expect(buttons[0].disabled).toBe(false);
+    expect(taskMenuItems(task).find(item => item.id === 'toggle')).toMatchObject({ disabled: false });
+    expect(taskMenuItems(task).find(item => item.id === 'remove:P')).toBeDefined();
     click(buttons[0]); click(buttons[1]); click(buttons[2]);
     expect(toggle).toHaveBeenCalledWith(task);
     expect(resubmit).toHaveBeenCalledWith('A', 'plus_1d');
@@ -49,6 +55,12 @@ it('shows compact hover/focus actions, targets the task and never restores for a
     render();
     expect(buttons[0].getAttribute('aria-pressed')).toBe('true');
     expect(buttons[0].getAttribute('aria-label')).toBe('Deaktivieren');
+    expect(buttons[0].disabled).toBe(false);
+    click(buttons[0]);
+    expect(toggle).toHaveBeenCalledTimes(2);
+    expect(taskMenuItems(task).find(item => item.id === 'toggle')).toMatchObject({ label: 'Deaktivieren', disabled: false });
+    expect(taskMenuItems({ ...task, completed: true }).map(item => item.id)).toEqual(['reopen']);
+    expect(task.predecessorIds).toEqual(['P']);
     const title = element.querySelector('[title="Task A"]')!;
     act(() => title.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
     expect(context).toHaveBeenCalledWith(expect.anything(), 'A');

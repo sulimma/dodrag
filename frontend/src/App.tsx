@@ -81,7 +81,8 @@ export function App() {
     now,
     dragIdentity,
     setLastMovedKey,
-    pushToast
+    pushToast,
+    setNow
   );
   const {
     selectedTaskId,

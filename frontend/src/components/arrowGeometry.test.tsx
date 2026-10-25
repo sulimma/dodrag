@@ -30,6 +30,26 @@ it('keeps network edges to one bounded cubic even with alternating obstacles',()
     expect(y0).toBeLessThan(y1);expect(y1).toBeLessThan(y2);expect(y2).toBeLessThan(y3);
   }
 });
+it('uses signed bottom and side entry tangents for backward and same-row network edges',()=>{
+  for (const direction of [{x:0,y:-1},{x:1,y:0},{x:-1,y:0}]) {
+    const start={x:200,y:240};
+    const tip={x:start.x+direction.x*180,y:start.y+direction.y*180};
+    for (const obstacles of [[],[{x:180,y:140,width:60,height:40}]]) {
+      const path=buildCleanEdgePath(start,tip,obstacles as any,direction);
+      expect(path.match(/[A-Za-z]/g)).toEqual(['M','C']);
+      const [x0,y0,x1,y1,x2,y2,x3,y3]=numbers(path);
+      expect({x:x3,y:y3}).toEqual(arrowBase(tip,direction));
+      if (direction.x===0) {
+        expect(x2).toBe(x3);expect(y2).toBeGreaterThan(y3);expect(y1).toBeLessThan(y0);
+      } else {
+        expect(y2).toBe(y3);expect(Math.sign(x3-x2)).toBe(direction.x);
+        expect(Math.sign(x1-x0)).toBe(direction.x);
+      }
+      expect(x3+direction.x*ARROW_DEPTH).toBe(tip.x);
+      expect(y3+direction.y*ARROW_DEPTH).toBe(tip.y);
+    }
+  }
+});
 it('bows aligned and nearly aligned edges instead of drawing overlapping straight stems',()=>{
   for (const dx of [0,1,-1,20,-20]) for (const height of [100,340,680]) {
     const path=buildCleanEdgePath({x:60,y:0},{x:60+dx,y:height},[]);

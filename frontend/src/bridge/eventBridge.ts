@@ -356,7 +356,7 @@ export const eventBridge = {
       activeDatabasePath: '',
       autostart: false,
       databaseReady: false,
-      version: '0.1.2',
+      version: 'dev',
       uiLanguage,
     };
     localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settings));

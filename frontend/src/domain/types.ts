@@ -15,13 +15,13 @@ export interface TaskState {
   creationOrder: number; // Immutable sequence index for stable topological sorting
   createdAt: string;
   configuredStart: string; // ISO timestamp
-  calculatedStart: string | null; // Latest effective timestamp of all predecessors + 1 calendar day, or null
-  effectiveStart: string; // Computed timestamp: max(configuredStart, calculatedStart)
+  calculatedStart: string | null; // Now for active tasks; otherwise latest effective predecessor timestamp + 1 calendar day, or null
+  effectiveStart: string; // Now for active tasks; otherwise max(configuredStart, calculatedStart)
   effectiveDateKey: string; // YYYY-MM-DD in local time
   predecessorIds: string[]; // Open predecessor IDs
   allPredecessorIds: string[]; // All configured predecessor IDs (including completed)
   successorIds: string[]; // Direct open successor IDs
-  isActive: boolean; // Active flag (only effective when predecessorIds.length === 0)
+  isActive: boolean; // Any open task can be active, regardless of predecessors
   completed: boolean;
   completedAt?: string;
   isDeemphasized: boolean; // Presentation: later than first populated date, future today, or blocked.

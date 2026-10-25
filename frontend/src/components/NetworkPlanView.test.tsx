@@ -49,14 +49,24 @@ it('lays out complete same-day dependency levels at responsive widths and across
     for (const path of element.querySelectorAll('g[data-edge-key] path[marker-end]')) {
       const [from, to] = path.parentElement!.getAttribute('data-edge-key')!.split('->');
       const source = bounds(from), target = bounds(to);
-      expect(target.y).toBeGreaterThan(source.y + source.height);
+      const direction = source.y === target.y
+        ? { x: target.x > source.x ? 1 : -1, y: 0 }
+        : { x: 0, y: target.y > source.y ? 1 : -1 };
       const [x0, y0, x1, y1, x2, y2, x3, y3] = path.getAttribute('d')!.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
-      expect([x0, y0]).toEqual([source.x + source.width / 2, source.y + source.height]);
-      expect([x3, y3 + 8]).toEqual([target.x + target.width / 2, target.y]);
-      expect(x2).toBe(x3); expect(y2).toBeLessThan(y3);
-      // The cubic's entire convex hull lies between its own endpoint cards.
-      expect(Math.min(y0, y1, y2, y3)).toBeGreaterThanOrEqual(source.y + source.height);
-      expect(Math.max(y0, y1, y2, y3)).toBeLessThan(target.y);
+      expect([x0, y0]).toEqual([source.x + source.width / 2 + direction.x * source.width / 2,
+        source.y + source.height / 2 + direction.y * source.height / 2]);
+      expect([x3 + direction.x * 8, y3 + direction.y * 8]).toEqual([
+        target.x + target.width / 2 - direction.x * target.width / 2,
+        target.y + target.height / 2 - direction.y * target.height / 2]);
+      if (direction.x === 0) {
+        expect(x2).toBe(x3); expect(Math.sign(y3 - y2)).toBe(direction.y);
+        expect(Math.sign(y1 - y0)).toBe(direction.y);
+        expect(Math.min(y0, y1, y2, y3)).toBeGreaterThanOrEqual(Math.min(source.y + source.height, target.y + target.height));
+        expect(Math.max(y0, y1, y2, y3)).toBeLessThanOrEqual(Math.max(source.y, target.y));
+      } else {
+        expect(y2).toBe(y3); expect(Math.sign(x3 - x2)).toBe(direction.x);
+        expect(Math.sign(x1 - x0)).toBe(direction.x);
+      }
       for (let i = 1; i <= 1000; i++) {
         const t = i / 1000, u = 1 - t;
         const x = u ** 3 * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t ** 3 * x3;
@@ -97,6 +107,36 @@ it('lays out complete same-day dependency levels at responsive widths and across
     expect(element.textContent).not.toContain('2026-10-17');
     expect(element.textContent).toContain('2026-10-18');
     expect(bounds('F').y - bounds('E').y).toBe(76);
+    verifyEdges();
+
+    const activeTasks = tasks.map(task => ({ ...task, isActive: ['C', 'B', 'F'].includes(task.id) }));
+    const activeProps = { ...props, openTasks: activeTasks };
+    act(() => root.render(<NetworkPlanView {...activeProps} />));
+    // Active priority, not topology: C stays before its active predecessor B.
+    expect(bounds('C').y).toBe(bounds('B').y);
+    expect(bounds('C').x).toBeLessThan(bounds('B').x);
+    expect(bounds('F').y).toBe(bounds('C').y);
+    expect(bounds('A').y).toBeGreaterThan(bounds('F').y + 56);
+    expect(bounds('E').y).toBeGreaterThan(bounds('D').y + 56);
+    expect(element.querySelector('[data-task-drop-target="2026-10-17"]')).not.toBeNull();
+    expect(element.querySelector('[data-task-drop-target="2026-10-18"]')).toBeNull();
+    expect(element.querySelector('[data-edge-key="A->B"]')).not.toBeNull();
+    verifyEdges();
+    const flame = element.querySelector<HTMLButtonElement>('[data-task-drag="C"] button')!;
+    expect(flame.disabled).toBe(false);
+    act(() => flame.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(noop).toHaveBeenLastCalledWith(activeTasks[0]);
+    width = 400;
+    act(() => resize());
+    expect(bounds('C').y).toBeLessThan(bounds('B').y);
+    expect(bounds('B').y).toBeLessThan(bounds('F').y);
+    expect(bounds('F').y).toBeLessThan(bounds('X').y);
+    verifyEdges();
+    expect(activeTasks[0].predecessorIds).toEqual(['A', 'B']);
+    expect(activeTasks[8].effectiveDateKey).toBe('2026-10-18');
+    act(() => root.render(<NetworkPlanView {...activeProps} now={new Date(2026, 9, 18, 0, 1)} />));
+    expect(element.textContent).not.toContain('2026-10-17');
+    expect(bounds('F').y).toBeLessThan(bounds('X').y);
     verifyEdges();
   } finally {
     act(() => root.unmount()); element.remove(); clientWidth.mockRestore(); vi.unstubAllGlobals();

@@ -244,15 +244,17 @@ export function projectEvents(
   // Calculate once in topological order, without recursion.
   const calculatedStartCache: Record<string, string | null> = Object.create(null);
   const effectiveStartCache: Record<string, string> = Object.create(null);
+  const activeStart = now.toISOString();
   for (const raw of replay.orderedTasks) {
     let latest: string | null = null;
     for (const pred of raw.predecessors) {
       const value = effectiveStartCache[pred];
       if (!latest || Date.parse(value) > Date.parse(latest)) latest = value;
     }
-    const calculated = latest ? addCalendarDays(latest, 1) : null;
+    const active = raw.isActive && !raw.completed;
+    const calculated = active ? activeStart : latest ? addCalendarDays(latest, 1) : null;
     calculatedStartCache[raw.id] = calculated;
-    effectiveStartCache[raw.id] = calculated && Date.parse(calculated) > Date.parse(raw.configuredStart) ? calculated : raw.configuredStart;
+    effectiveStartCache[raw.id] = active ? activeStart : calculated && Date.parse(calculated) > Date.parse(raw.configuredStart) ? calculated : raw.configuredStart;
   }
 
   function computeDates(taskId: string): { calculated: string | null; effective: string } {
@@ -298,8 +300,7 @@ export function projectEvents(
       (effectiveDateKey === todayKey && effectiveDate.getTime() > nowMs + 60_000);
     const hasOpenPredecessors = openPreds.length > 0;
 
-    // Only tasks without open predecessors can remain active
-    const effectiveIsActive = raw.isActive && !hasOpenPredecessors && !raw.completed;
+    const effectiveIsActive = raw.isActive && !raw.completed;
 
     const taskState: TaskState = {
       id: raw.id,
@@ -316,7 +317,7 @@ export function projectEvents(
       isActive: effectiveIsActive,
       completed: raw.completed,
       completedAt: raw.completedAt,
-      isDeemphasized: isFutureStart || hasOpenPredecessors,
+      isDeemphasized: !effectiveIsActive && (isFutureStart || hasOpenPredecessors),
     };
 
     tasks[id] = taskState;
@@ -327,7 +328,7 @@ export function projectEvents(
     }
   }
 
-  openTasks.sort(compareTaskDates);
+  openTasks.sort((a, b) => Number(b.isActive) - Number(a.isActive) || compareTaskDates(a, b));
   completedTasks.sort((a, b) =>
     Date.parse(a.completedAt ?? a.createdAt) - Date.parse(b.completedAt ?? b.createdAt) ||
     (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
@@ -625,7 +626,7 @@ export function calculateQuickResubmitDate(
 
 /**
  * Returns the tasks to display in the compact corner-docked minimized window:
- * - Only tasks that can currently be worked on (no open predecessors: predecessorIds.length === 0).
+ * - Active tasks and inactive tasks without open predecessors.
  * - Active tasks regardless of date, plus tasks due today/overdue; if none are due, all eligible tasks.
  * - Active tasks come first; within each group, sort by effective timestamp, then task ID.
  */
@@ -634,17 +635,17 @@ export function computeMiniWindowTasks(
   now: Date = new Date()
 ): TaskState[] {
   const todayKey = toDateKey(now);
-  const withoutPreds = openTasks.filter(
-    (t) => !t.completed && t.predecessorIds.length === 0
+  const eligible = openTasks.filter(
+    (t) => !t.completed && (t.isActive || t.predecessorIds.length === 0)
   );
 
-  const todayStartable = withoutPreds.filter(
-    (t) => t.effectiveDateKey <= todayKey
+  const todayStartable = eligible.filter(
+    (t) => !t.isActive && t.effectiveDateKey <= todayKey
   );
 
   const pool = todayStartable.length > 0
-    ? withoutPreds.filter((t) => t.isActive || t.effectiveDateKey <= todayKey)
-    : withoutPreds;
+    ? eligible.filter((t) => t.isActive || t.effectiveDateKey <= todayKey)
+    : eligible;
 
   return [...pool].sort((a, b) => Number(b.isActive) - Number(a.isActive) || compareTaskDates(a, b));
 }

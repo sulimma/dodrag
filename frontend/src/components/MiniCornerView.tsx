@@ -132,11 +132,10 @@ export function MiniCornerView({
                 <button
                   type="button"
                   onClick={() => onToggleActive(task)}
-                  disabled={task.predecessorIds.length > 0}
                   aria-pressed={task.isActive}
                   aria-label={task.isActive ? t('Deaktivieren') : t('Aktivieren (Hervorheben)')}
                   title={task.isActive ? t('Deaktivieren') : t('Aktivieren (Hervorheben)')}
-                  className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer disabled:opacity-40 ${task.isActive ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-100'}`}
+                  className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer ${task.isActive ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-100'}`}
                 >
                   <Flame className="w-3.5 h-3.5" />
                 </button>

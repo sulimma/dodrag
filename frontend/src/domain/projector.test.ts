@@ -43,7 +43,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     expect(after.tasks.c.predecessorIds).toEqual(['b']);
   });
 
-  it('sorts full timestamps then IDs, including overdue, active and completed tasks', () => {
+  it('sorts active tasks first, then full timestamps and IDs; completed tasks by completion', () => {
     const dates = [
       ['26-108', '2026-10-17T18:41:31+02:00'],
       ['26-104', '2026-10-17T14:39:31+02:00'],
@@ -59,7 +59,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       type: 'TASK_ACTIVE_SET', payload: { taskId: '26-108', isActive: true } });
     const now = new Date('2026-10-18T12:00:00Z');
     const state = projectEvents(events, now);
-    const expected = ['26-101', '26-102', '26-103', '26-104', '26-108'];
+    const expected = ['26-108', '26-101', '26-102', '26-103', '26-104'];
     expect(state.openTasks.map(t => t.id)).toEqual(expected);
     expect(state.listEntries.flatMap(e => e.kind === 'task' ? [e.task.id] : [])).toEqual(expected);
     expect(computeMiniWindowTasks([...state.openTasks].reverse(), now).map(t => t.id)).toEqual([
@@ -77,6 +77,39 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       type: 'TASK_COMPLETED', payload: { taskId, completedAt: `2026-10-18T12:00:0${i}Z` },
     }))], now);
     expect(completed.completedTasks.map(t => t.id)).toEqual(expected);
+  });
+
+  it('overrides both dates while active, keeps dependencies, and restores the chain when deactivated', () => {
+    const future = '2026-11-01T09:00:00.000Z';
+    const events: StoredEvent[] = ['a', 'b', 'c', 'overdue'].map((taskId, i) => ({
+      seq: i + 1, id: `create-${taskId}`, timestamp: todayIso, undone: false,
+      type: 'TASK_CREATED', payload: { taskId, title: taskId,
+        configuredStart: taskId === 'a' || taskId === 'b' ? future : todayIso, createdAt: todayIso },
+    }));
+    for (const [taskId, predecessorId] of [['b', 'a'], ['c', 'b']]) {
+      events.push({ seq: events.length + 1, id: `dep-${taskId}`, timestamp: todayIso, undone: false,
+        type: 'DEPENDENCY_ADDED', payload: { taskId, predecessorId } });
+    }
+    const before = projectEvents(events, fixedNow);
+    const activeEvents: StoredEvent[] = [...events, { seq: 7, id: 'activate', timestamp: todayIso, undone: false,
+      type: 'TASK_ACTIVE_SET', payload: { taskId: 'b', isActive: true } }];
+    const active = projectEvents(activeEvents, fixedNow);
+    expect(active.tasks.b).toMatchObject({ isActive: true, isDeemphasized: false,
+      calculatedStart: fixedNow.toISOString(), effectiveStart: fixedNow.toISOString(),
+      effectiveDateKey: toDateKey(fixedNow), configuredStart: future, predecessorIds: ['a'] });
+    expect(active.openTasks[0].id).toBe('b');
+    expect(active.listEntries.flatMap(e => e.kind === 'task' ? [e.task.id] : [])[0]).toBe('b');
+    expect(computeMiniWindowTasks(active.openTasks, fixedNow)[0].id).toBe('b');
+    const nextDay = new Date(fixedNow);
+    nextDay.setDate(nextDay.getDate() + 1);
+    expect(active.tasks.c.calculatedStart).toBe(nextDay.toISOString());
+    const later = new Date('2026-10-17T10:00:00.000Z');
+    expect(projectEvents(activeEvents, later).tasks.b.effectiveStart).toBe(later.toISOString());
+    const inactive = projectEvents([...activeEvents, { seq: 8, id: 'deactivate', timestamp: todayIso, undone: false,
+      type: 'TASK_ACTIVE_SET', payload: { taskId: 'b', isActive: false } }], fixedNow);
+    expect(inactive.tasks.b).toEqual(before.tasks.b);
+    expect(inactive.tasks.c).toEqual(before.tasks.c);
+    expect(inactive.openTasks.map(t => t.id)).toEqual(before.openTasks.map(t => t.id));
   });
 
   it('preserves local time when adding a calendar day across DST and year boundaries', () => {

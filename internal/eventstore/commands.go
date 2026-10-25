@@ -131,11 +131,6 @@ func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]int
 			if t.completed {
 				return false, fmt.Errorf("completed task cannot be activated")
 			}
-			for pred := range t.predecessors {
-				if !tasks[pred].completed {
-					return false, fmt.Errorf("task has open predecessors")
-				}
-			}
 		}
 		t.active = value
 	case "TASK_COMPLETED":

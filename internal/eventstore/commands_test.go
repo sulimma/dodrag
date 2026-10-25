@@ -9,6 +9,46 @@ import (
 	"time"
 )
 
+func TestActivateWithOpenPredecessor(t *testing.T) {
+	s, err := NewStoreWithOptions(filepath.Join(t.TempDir(), "active.db"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	commands := []Command{
+		{ID: "a", Type: "TASK_CREATED", Payload: json.RawMessage(`{"taskId":"a","title":"A","configuredStart":"2026-11-01T09:00:00Z","createdAt":"2026-10-17T09:00:00Z"}`)},
+		{ID: "b", Type: "TASK_CREATED", Payload: json.RawMessage(`{"taskId":"b","title":"B","configuredStart":"2026-11-02T09:00:00Z","createdAt":"2026-10-17T09:00:00Z"}`)},
+		{ID: "dep", Type: "DEPENDENCY_ADDED", Payload: json.RawMessage(`{"taskId":"b","predecessorId":"a"}`)},
+		{ID: "active", Type: "TASK_ACTIVE_SET", Payload: json.RawMessage(`{"taskId":"b","isActive":true}`)},
+	}
+	if _, err := s.AppendBatch(commands); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AppendEvent("inactive", "TASK_ACTIVE_SET", `{"taskId":"b","isActive":false}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	_, tasks, err := s.readReplay(s.db)
+	if err != nil || !tasks["b"].active || len(tasks["b"].predecessors) != 1 || tasks["b"].start != "2026-11-02T09:00:00Z" {
+		t.Fatal("activation lost on replay or altered stored scheduling", err)
+	}
+	if _, err := s.Redo(); err != nil {
+		t.Fatal(err)
+	}
+	_, tasks, err = s.readReplay(s.db)
+	if err != nil || tasks["b"].active {
+		t.Fatal("deactivation not restored by redo", err)
+	}
+	if _, err := s.AppendEvent("done", "TASK_COMPLETED", `{"taskId":"b","completedAt":"2026-10-17T09:00:00Z"}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AppendEvent("invalid", "TASK_ACTIVE_SET", `{"taskId":"b","isActive":true}`); err == nil {
+		t.Fatal("completed task activated")
+	}
+}
+
 func TestValidatedMutations(t *testing.T) {
 	s, err := NewStoreWithOptions(filepath.Join(t.TempDir(), "test.db"), false)
 	if err != nil {
