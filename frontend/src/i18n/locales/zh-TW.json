@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "不支援的語言：{language}",
   "{context}: {detail}": "{context}：{detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "無法開啟精簡檢視",
+  "Erneut öffnen": "重新開啟",
+  "Kontextmenü konnte nicht geöffnet werden": "無法開啟快顯功能表",
   "Anwendung konnte nicht geladen werden": "無法載入應用程式",
   "Event history must be an array": "事件記錄必須是陣列",
   "Invalid edit group": "無效的編輯群組",

@@ -5,6 +5,8 @@ Diese Hinweise beruhen auf tatsaechlichen Build-/Testerfahrungen vom 2026-10-17.
 ## Produktziel und Testumfang
 
 - DoDrag ist eine native Windows-Desktop-App. Browserbetrieb ist kein Produktziel und kein regulärer Testumfang.
+- Konsistenz zwischen Ansichten steuert die Erwartungen der Nutzer: Dieselben Tasks muessen auch bei anderem Erscheinungsbild dieselben Kontextmenues und Aktionsregeln haben, einschliesslich der Miniaturansicht. Gemeinsame Komponenten und Handler wiederverwenden und ansichtsuebergreifend testen; Abweichungen nicht stillschweigend einfuehren.
+- Kontextmenues einheitlich als native Windows-Popups anzeigen, damit sie auch ueber die Grenzen des Mini-Fensters hinausreichen. Gemeinsame Menue- und Aktionsdefinitionen statt paralleler HTML-/Win32-Varianten verwenden. Erledigte Tasks bieten ausschliesslich erneutes Oeffnen; Titelbearbeitung gehoert nicht ins Task-Kontextmenue.
 - Standardtests sind Frontend-Unit-/DOM-Tests, Typecheck, Go-Tests und der native Wails-Build. Browser-/Chromiumtests nicht routinemaessig ausfuehren.
 - Browser-Tests sind nur zulaessig, wenn ein konkreter App-Test damit deutlich einfacher oder zuverlässiger ist als im nativen Umfeld. Den Browserlauf dann als begrenzten Test kennzeichnen; er verifiziert keine WebView2-, Windows-, Registry-, COM-, DPI- oder OS-Integration.
 

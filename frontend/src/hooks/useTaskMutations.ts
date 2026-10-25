@@ -218,6 +218,13 @@ export function useTaskMutations(
     await mutate(() => eventBridge.undo());
   };
 
+  const handleReopenTask = async (taskId: string) => {
+    const task = projectEvents(confirmedEvents.current, now).tasks[taskId];
+    if (!task?.completed) return;
+    setLastMovedKey(`task:${taskId}`);
+    await mutate(() => eventBridge.appendEvent('TASK_REOPENED', { taskId }));
+  };
+
   const handleRedo = async () => {
     if (!state.canRedo) return;
     await mutate(() => eventBridge.redo());
@@ -231,6 +238,7 @@ export function useTaskMutations(
     handleRemoveSelectedEdges,
     handleRemoveDependencyBetween,
     handleCompleteTask,
+    handleReopenTask,
     handleUndo,
     handleRedo,
   };

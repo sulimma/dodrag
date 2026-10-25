@@ -27,6 +27,7 @@ interface TaskSidebarProps {
     | 'onDragStartTask'
     | 'onAddPredecessor'
     | 'onRemoveDependencyBetween'
+    | 'onContextMenuTask'
   >;
   onCompleteTask: (id: string, fromDrag?: boolean) => void;
   onResubmitTasks: (id: string, target: QuickResubmitTargetId, fromDrag?: boolean) => void;
@@ -199,6 +200,7 @@ export function TaskSidebar({
                 <div
                   {...taskDragSourceInteractions(task.id, dragDropActions)}
                   data-completed-task={task.id}
+                  onContextMenu={(event) => interactions.onContextMenuTask(event, task.id)}
                   className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs cursor-pointer hover:border-slate-300 transition-colors ${
                     draggedTaskId === task.id ? 'opacity-40' : ''
                   }`}

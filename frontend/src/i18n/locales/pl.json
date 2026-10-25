@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "Nieobsługiwany język: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "Nie udało się otworzyć widoku kompaktowego",
+  "Erneut öffnen": "Otwórz ponownie",
+  "Kontextmenü konnte nicht geöffnet werden": "Nie udało się otworzyć menu kontekstowego",
   "Anwendung konnte nicht geladen werden": "Nie udało się wczytać aplikacji",
   "Event history must be an array": "Historia zdarzeń musi być tablicą",
   "Invalid edit group": "Nieprawidłowa grupa zmian",

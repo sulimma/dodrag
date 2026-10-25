@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "지원하지 않는 언어입니다: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "컴팩트 보기를 열지 못했습니다",
+  "Erneut öffnen": "다시 열기",
+  "Kontextmenü konnte nicht geöffnet werden": "컨텍스트 메뉴를 열지 못했습니다",
   "Anwendung konnte nicht geladen werden": "애플리케이션을 불러오지 못했습니다",
   "Event history must be an array": "이벤트 기록은 배열이어야 합니다",
   "Invalid edit group": "잘못된 편집 그룹입니다",

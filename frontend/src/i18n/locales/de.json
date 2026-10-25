@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "Nicht unterstützte Sprache: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "Kompaktansicht konnte nicht geöffnet werden",
+  "Erneut öffnen": "Erneut öffnen",
+  "Kontextmenü konnte nicht geöffnet werden": "Kontextmenü konnte nicht geöffnet werden",
   "Anwendung konnte nicht geladen werden": "Anwendung konnte nicht geladen werden",
   "Event history must be an array": "Event history must be an array",
   "Invalid edit group": "Invalid edit group",

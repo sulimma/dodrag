@@ -57,25 +57,100 @@ it('shows only setup actions that are still needed', () => {
   act(()=>root.unmount());element.remove();
 });
 
-it('opens the database folder and install folder from the path context menu', async () => {
+it('uses native path menus for database and install folders and handles cancellation, errors and stale responses', async () => {
   const element=document.createElement('div');document.body.append(element);const root=createRoot(element);
   const settings:AppSettings={knownDatabases:[{name:'Aufgaben',path:'C:\\data\\tasks.db',isDemo:false,exists:true}],activeDatabasePath:'C:\\data\\tasks.db',autostart:false,databaseReady:true,setup:{currentExe:'C:\\Apps\\DoDrag\\DoDrag.exe',currentDir:'C:\\Apps\\DoDrag',installPath:'C:\\Apps\\DoDrag\\DoDrag.exe',programInstalled:true,desktopShortcut:true,startMenuShortcut:true}};
   const explorer=vi.fn(async()=>{});
-  const props={onClose:vi.fn(),onSelectFolder:async()=>'',onCreateDatabase:async()=>{},onOpenExistingDatabase:async()=>{},onSwitchDatabase:async()=>{},onDeleteDatabase:async()=>{},onToggleAutostart:async()=>{},onOpenFolderInExplorer:explorer,onOpenFolderInVSCode:vi.fn(async()=>{})};
-  act(()=>root.render(<SettingsModal settings={settings} {...props}/>));
-  const findDiv=(text:string)=>Array.from(element.querySelectorAll('div')).find(node=>node.textContent===text) as HTMLElement;
-  const menuButton=(text:string)=>Array.from(element.querySelectorAll('button')).find(button=>button.textContent===text) as HTMLButtonElement;
-  expect(findDiv('C:\\data\\tasks.db').className).toContain('cursor-text');
-  expect(findDiv('C:\\Apps\\DoDrag').className).toContain('cursor-text');
+  const props={onClose:vi.fn(),onSelectFolder:async()=>'',onCreateDatabase:async()=>{},onOpenExistingDatabase:async()=>{},onSwitchDatabase:vi.fn(async()=>{}),onDeleteDatabase:async()=>{},onToggleAutostart:async()=>{},onOpenFolderInExplorer:explorer,onOpenFolderInVSCode:vi.fn(async()=>{})};
+  const showMenu=vi.fn(async()=> '');
+  vi.stubGlobal('go',{main:{App:{ShowTaskContextMenu:showMenu}}});
+  let unmounted=false;
+  try {
+    act(()=>root.render(<SettingsModal settings={settings} {...props}/>));
+    const findDiv=(text:string)=>Array.from(element.querySelectorAll('div')).find(node=>node.textContent===text) as HTMLElement;
+    const openMenu=async(path:string)=>{
+      const event=new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:20,clientY:20});
+      await act(async()=>{ findDiv(path).dispatchEvent(event); });
+      expect(event.defaultPrevented).toBe(true);
+    };
+    expect(findDiv('C:\\data\\tasks.db').className).toContain('cursor-text');
+    expect(findDiv('C:\\Apps\\DoDrag').className).toContain('cursor-text');
 
-  await act(async()=>{ findDiv('C:\\data\\tasks.db').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:20,clientY:20})); });
-  await act(async()=>{ menuButton('Im Explorer öffnen').click(); });
-  expect(explorer).toHaveBeenLastCalledWith('C:\\data\\tasks.db', true);
+    showMenu.mockResolvedValueOnce('explorer');
+    await openMenu('C:\\data\\tasks.db');
+    expect(showMenu).toHaveBeenLastCalledWith([
+      {id:'explorer',label:'Im Explorer öffnen',disabled:false},
+      {id:'vscode',label:'In VS Code öffnen',disabled:false},
+    ]);
+    expect(element.textContent).not.toContain('Im Explorer öffnen');
+    expect(explorer).toHaveBeenLastCalledWith('C:\\data\\tasks.db',true);
+    expect(props.onSwitchDatabase).not.toHaveBeenCalled();
 
-  await act(async()=>{ findDiv('C:\\Apps\\DoDrag').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,clientX:20,clientY:20})); });
-  await act(async()=>{ menuButton('Im Explorer öffnen').click(); });
-  expect(explorer).toHaveBeenLastCalledWith('C:\\Apps\\DoDrag', false);
-  act(()=>root.unmount());element.remove();
+    showMenu.mockResolvedValueOnce('explorer');
+    await openMenu('C:\\Apps\\DoDrag');
+    expect(explorer).toHaveBeenLastCalledWith('C:\\Apps\\DoDrag',false);
+    showMenu.mockResolvedValueOnce('vscode');
+    await openMenu('C:\\data\\tasks.db');
+    expect(props.onOpenFolderInVSCode).toHaveBeenLastCalledWith('C:\\data\\tasks.db',true);
+    showMenu.mockResolvedValueOnce('vscode');
+    await openMenu('C:\\Apps\\DoDrag');
+    expect(props.onOpenFolderInVSCode).toHaveBeenLastCalledWith('C:\\Apps\\DoDrag',false);
+
+    await openMenu('C:\\Apps\\DoDrag');
+    showMenu.mockResolvedValueOnce('unknown');
+    await openMenu('C:\\Apps\\DoDrag');
+    expect(explorer).toHaveBeenCalledTimes(2);
+    expect(props.onOpenFolderInVSCode).toHaveBeenCalledTimes(2);
+    expect(element.textContent).not.toContain('Kontextmenü konnte nicht geöffnet werden');
+    expect(element.textContent).not.toContain('Ordner konnte nicht geöffnet werden.');
+
+    act(()=>root.render(<SettingsModal settings={settings} {...props} onOpenFolderInVSCode={undefined}/>));
+    showMenu.mockResolvedValueOnce('vscode');
+    await openMenu('C:\\Apps\\DoDrag');
+    expect(showMenu).toHaveBeenLastCalledWith([
+      {id:'explorer',label:'Im Explorer öffnen',disabled:false},
+      {id:'vscode',label:'In VS Code öffnen',disabled:true},
+    ]);
+    expect(props.onOpenFolderInVSCode).toHaveBeenCalledTimes(2);
+    act(()=>root.render(<SettingsModal settings={settings} {...props}/>));
+
+    let finishOldMenu!:(id:string)=>void;
+    showMenu.mockImplementationOnce(()=>new Promise(resolve=>{finishOldMenu=resolve;}));
+    await openMenu('C:\\data\\tasks.db');
+    showMenu.mockResolvedValueOnce('explorer');
+    await openMenu('C:\\Apps\\DoDrag');
+    await act(async()=>{finishOldMenu('vscode');});
+    expect(explorer).toHaveBeenCalledTimes(3);
+    expect(props.onOpenFolderInVSCode).toHaveBeenCalledTimes(2);
+
+    let rejectOldMenu!:(error:Error)=>void;
+    showMenu.mockImplementationOnce(()=>new Promise((_,reject)=>{rejectOldMenu=reject;}));
+    await openMenu('C:\\data\\tasks.db');
+    await openMenu('C:\\Apps\\DoDrag');
+    await act(async()=>{rejectOldMenu(new Error('stale failure'));});
+    expect(element.textContent).not.toContain('stale failure');
+
+    showMenu.mockRejectedValueOnce(new Error('native failure'));
+    await openMenu('C:\\Apps\\DoDrag');
+    expect(element.textContent).toContain('Kontextmenü konnte nicht geöffnet werden');
+    expect(element.textContent).toContain('native failure');
+    explorer.mockRejectedValueOnce(new Error('path failure'));
+    showMenu.mockResolvedValueOnce('explorer');
+    await openMenu('C:\\Apps\\DoDrag');
+    expect(element.textContent).toContain('Ordner konnte nicht geöffnet werden.');
+    expect(element.textContent).toContain('path failure');
+
+    showMenu.mockImplementationOnce(()=>new Promise(resolve=>{finishOldMenu=resolve;}));
+    await openMenu('C:\\data\\tasks.db');
+    act(()=>root.unmount());unmounted=true;
+    await act(async()=>{finishOldMenu('vscode');});
+    expect(props.onOpenFolderInVSCode).toHaveBeenCalledTimes(2);
+  } finally {
+    if (!unmounted) act(()=>root.unmount());
+    element.remove();
+    vi.unstubAllGlobals();
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+  }
 });
 
 it('formats an RFC3339 build timestamp for local display and preserves unparsable input', () => {

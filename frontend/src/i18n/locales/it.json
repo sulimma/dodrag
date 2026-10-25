@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "Lingua non supportata: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "Impossibile aprire la vista compatta",
+  "Erneut öffnen": "Riapri",
+  "Kontextmenü konnte nicht geöffnet werden": "Impossibile aprire il menu contestuale",
   "Anwendung konnte nicht geladen werden": "Impossibile caricare l'applicazione",
   "Event history must be an array": "La cronologia degli eventi deve essere un array",
   "Invalid edit group": "Gruppo di modifiche non valido",

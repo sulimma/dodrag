@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "Nesubtenata lingvo: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "Ne eblis malfermi kompaktan vidon",
+  "Erneut öffnen": "Remalfermi",
+  "Kontextmenü konnte nicht geöffnet werden": "Ne eblis malfermi la kuntekstan menuon",
   "Anwendung konnte nicht geladen werden": "Ne eblis ŝarĝi la aplikaĵon",
   "Event history must be an array": "Eventhistorio devas esti tabelo",
   "Invalid edit group": "Nevalida redaktogrupo",

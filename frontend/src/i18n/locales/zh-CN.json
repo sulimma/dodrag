@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "不支持的语言：{language}",
   "{context}: {detail}": "{context}：{detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "无法打开紧凑视图",
+  "Erneut öffnen": "重新打开",
+  "Kontextmenü konnte nicht geöffnet werden": "无法打开上下文菜单",
   "Anwendung konnte nicht geladen werden": "无法加载应用程序",
   "Event history must be an array": "事件历史记录必须是数组",
   "Invalid edit group": "无效的编辑组",

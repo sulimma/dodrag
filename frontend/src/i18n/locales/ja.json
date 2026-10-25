@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "未対応の言語です: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "コンパクト表示を開けませんでした",
+  "Erneut öffnen": "再度開く",
+  "Kontextmenü konnte nicht geöffnet werden": "コンテキストメニューを開けませんでした",
   "Anwendung konnte nicht geladen werden": "アプリケーションを読み込めませんでした",
   "Event history must be an array": "イベント履歴は配列である必要があります",
   "Invalid edit group": "編集グループが無効です",

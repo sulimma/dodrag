@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "Idioma não compatível: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "Não foi possível abrir a visualização compacta",
+  "Erneut öffnen": "Reabrir",
+  "Kontextmenü konnte nicht geöffnet werden": "Não foi possível abrir o menu de contexto",
   "Anwendung konnte nicht geladen werden": "Não foi possível carregar o aplicativo",
   "Event history must be an array": "O histórico de eventos deve ser uma lista",
   "Invalid edit group": "Grupo de edição inválido",

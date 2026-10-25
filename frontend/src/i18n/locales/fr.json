@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "Langue non prise en charge : {language}",
   "{context}: {detail}": "{context} : {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "Impossible d'ouvrir la vue compacte",
+  "Erneut öffnen": "Rouvrir",
+  "Kontextmenü konnte nicht geöffnet werden": "Impossible d'ouvrir le menu contextuel",
   "Anwendung konnte nicht geladen werden": "Impossible de charger l'application",
   "Event history must be an array": "L'historique des événements doit être un tableau",
   "Invalid edit group": "Groupe de modifications invalide",

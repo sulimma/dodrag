@@ -31,6 +31,7 @@ var (
 	procIsIconic                 = user32.NewProc("IsIconic")
 	procShowWindow               = user32.NewProc("ShowWindow")
 	procSetForegroundWindow      = user32.NewProc("SetForegroundWindow")
+	procGetForegroundWindow      = user32.NewProc("GetForegroundWindow")
 	procGetClassNameW            = user32.NewProc("GetClassNameW")
 	procEnumDisplayMonitors      = user32.NewProc("EnumDisplayMonitors")
 	procGetMonitorInfoW          = user32.NewProc("GetMonitorInfoW")
@@ -411,6 +412,23 @@ func installWindowSubclassIfNeeded(hwnd uintptr, app *App) {
 func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) uintptr {
 	app := appInstanceForHooks.Load()
 	switch msg {
+	case wmTaskContextMenu:
+		dispatchTaskContextMenu(hwnd, wparam)
+		return 0
+
+	case wmEndTaskContextMenu:
+		if app != nil && app.taskMenus.closed.Load() {
+			procEndMenu.Call()
+		}
+		return 0
+
+	case wmNcDestroy:
+		if app != nil {
+			app.closeTaskContextMenusNative()
+			// A posted message can no longer reach an HWND being destroyed.
+			procEndMenu.Call()
+		}
+
 	case wmNcCalcSize:
 		if inMiniModeAtomic.Load() {
 			// Frameless 100% client area in mini mode with 0px invisible border
@@ -589,6 +607,11 @@ func isWindowMinimizedNative(hwnd uintptr) bool {
 	return ret != 0
 }
 
+func getForegroundWindowNative() uintptr {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	return hwnd
+}
+
 func getWindowRectNative(hwnd uintptr) (winRect, bool) {
 	var r winRect
 	if hwnd == 0 {
@@ -606,7 +629,7 @@ func getWindowStyleNative(hwnd uintptr) uintptr {
 	return style
 }
 
-func applyMiniWindowBoundsNative(hwnd uintptr, targetMonitor string, corner string, logicalW int, logicalH int) (string, string) {
+func applyMiniWindowBoundsNative(hwnd uintptr, targetMonitor string, corner string, logicalW int, logicalH int, activate bool) (string, string) {
 	if hwnd == 0 {
 		return targetMonitor, corner
 	}
@@ -649,6 +672,10 @@ func applyMiniWindowBoundsNative(hwnd uintptr, targetMonitor string, corner stri
 		procSetWindowLongPtrW.Call(hwnd, gwlStyle, framelessStyle)
 	}
 
+	flags := uintptr(swpFrameChanged | swpShowWindow)
+	if !activate {
+		flags |= swpNoActivate
+	}
 	procSetWindowPos.Call(
 		hwnd,
 		hwndTopMost,
@@ -656,7 +683,7 @@ func applyMiniWindowBoundsNative(hwnd uintptr, targetMonitor string, corner stri
 		uintptr(y),
 		uintptr(physW),
 		uintptr(physH),
-		swpFrameChanged|swpShowWindow,
+		flags,
 	)
 
 	// Re-apply target monitor DPI & position in case moving across monitors with different DPIs adjusted dimensions

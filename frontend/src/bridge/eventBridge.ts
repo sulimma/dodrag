@@ -11,6 +11,12 @@ export interface DatabaseEntry {
   exists: boolean;
 }
 
+export interface TaskMenuItem {
+  id: string;
+  label: string;
+  disabled: boolean;
+}
+
 export interface SetupState {
   currentExe: string;
   currentDir?: string;
@@ -75,6 +81,7 @@ declare global {
             itemCount: number
           ) => Promise<string>;
           ExitMiniMode: () => Promise<void>;
+          ShowTaskContextMenu: (items: TaskMenuItem[]) => Promise<string>;
         };
       };
     };
@@ -481,6 +488,11 @@ export const eventBridge = {
     };
     localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(next));
     return next;
+  },
+
+  async showTaskContextMenu(items: TaskMenuItem[]): Promise<string> {
+    if (isWailsAvailable()) return window.go!.main!.App!.ShowTaskContextMenu(items);
+    return '';
   },
 
   async enterMiniMode(corner: string, itemCount: number): Promise<string> {

@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "Desteklenmeyen dil: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "Kompakt görünüm açılamadı",
+  "Erneut öffnen": "Yeniden aç",
+  "Kontextmenü konnte nicht geöffnet werden": "Bağlam menüsü açılamadı",
   "Anwendung konnte nicht geladen werden": "Uygulama yüklenemedi",
   "Event history must be an array": "Olay geçmişi bir dizi olmalıdır",
   "Invalid edit group": "Geçersiz düzenleme grubu",

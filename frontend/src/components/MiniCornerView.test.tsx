@@ -13,16 +13,28 @@ it('shows compact hover/focus actions, targets the task and never restores for a
       configuredStart: now.toISOString(), createdAt: now.toISOString() },
   }], now).tasks.A;
   const restore = vi.fn(), toggle = vi.fn(), resubmit = vi.fn(), complete = vi.fn();
+  const context = vi.fn(), create = vi.fn();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const element = document.createElement('div');
   document.body.append(element);
   const root = createRoot(element);
   const render = () => act(() => root.render(<MiniCornerView tasks={[task]}
     onSelectAndRestore={restore} onRestoreWindow={restore}
-    onToggleActive={toggle} onResubmitTasks={resubmit} onCompleteTask={complete} />));
+    onToggleActive={toggle} onResubmitTasks={resubmit} onCompleteTask={complete}
+    onContextMenuTask={context} titleEditor={{ taskId: null, value: '', onChange: vi.fn(),
+      onStart: vi.fn(), onCommit: vi.fn(), onCancel: vi.fn() }}
+    newTaskTitle="" setNewTaskTitle={vi.fn()} newTaskInputRef={React.createRef()}
+    snapshotReady={true} onCreateTask={create} />));
   const click = (button: Element) => act(() => button.dispatchEvent(new MouseEvent('click', { bubbles: true })));
   try {
     render();
+    expect(element.querySelector('.font-bold')!.textContent).toBe('DoDrag');
+    const input = element.querySelector('input')!;
+    expect(input.disabled).toBe(false);
+    expect(input.closest('[style]')!.getAttribute('style')).toContain('--wails-draggable: no-drag');
+    expect(input.classList.contains('select-text')).toBe(true);
+    act(() => input.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(create).toHaveBeenCalledTimes(1);
     const actions = element.querySelector('.group-hover\\:visible')!;
     expect(actions.classList.contains('invisible')).toBe(true);
     expect(actions.classList.contains('group-focus-within:visible')).toBe(true);
@@ -39,7 +51,7 @@ it('shows compact hover/focus actions, targets the task and never restores for a
     expect(buttons[0].getAttribute('aria-label')).toBe('Deaktivieren');
     const title = element.querySelector('[title="Task A"]')!;
     act(() => title.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
-    expect(element.querySelector('.fixed')).toBeNull();
+    expect(context).toHaveBeenCalledWith(expect.anything(), 'A');
     click(title);
     expect(restore).toHaveBeenCalledWith('A');
   } finally {

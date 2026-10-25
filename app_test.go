@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -8,7 +9,72 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestAutoMiniUnfocusedTimer(t *testing.T) {
+	start := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	a := &App{}
+	for _, tc := range []struct {
+		name       string
+		after      time.Duration
+		foreground bool
+		mini       bool
+		want       bool
+		wantSince  time.Time
+	}{
+		{"foreground", 0, true, false, false, time.Time{}},
+		{"focus lost", time.Minute, false, false, false, start.Add(time.Minute)},
+		{"below threshold", 11*time.Minute - time.Nanosecond, false, false, false, start.Add(time.Minute)},
+		{"at threshold", 11 * time.Minute, false, false, true, start.Add(time.Minute)},
+		{"focus resets expired timer", 12 * time.Minute, true, false, false, time.Time{}},
+		{"new unfocused period", 13 * time.Minute, false, false, false, start.Add(13 * time.Minute)},
+		{"new period below threshold", 22 * time.Minute, false, false, false, start.Add(13 * time.Minute)},
+		{"mini clears timer", 23 * time.Minute, false, true, false, time.Time{}},
+		{"mini remains exempt", 24 * time.Hour, false, true, false, time.Time{}},
+		{"restored starts fresh", 25 * time.Hour, false, false, false, start.Add(25 * time.Hour)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a.isMiniMode = tc.mini
+			if got := a.shouldAutoMiniLocked(start.Add(tc.after), tc.foreground); got != tc.want {
+				t.Fatalf("auto mini = %v, want %v", got, tc.want)
+			}
+			if !a.unfocusedSince.Equal(tc.wantSince) {
+				t.Fatalf("unfocused since = %v, want %v", a.unfocusedSince, tc.wantSince)
+			}
+		})
+	}
+}
+
+func TestShutdownStopsNativeWatcher(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	a := &App{watchCancel: cancel, watchDone: done, unfocusedSince: time.Now()}
+	go func() {
+		defer close(done)
+		a.watchNativeMinimize(ctx)
+	}()
+	stopped := make(chan struct{})
+	go func() {
+		a.shutdown(context.Background())
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("shutdown did not stop watcher")
+	}
+	select {
+	case <-done:
+	default:
+		t.Fatal("shutdown returned before watcher stopped")
+	}
+	if !a.unfocusedSince.IsZero() {
+		t.Fatal("shutdown retained unfocused timer")
+	}
+	// Repeated shutdown must not block on an already stopped watcher.
+	a.shutdown(context.Background())
+}
 
 func TestMiniLogicalSize(t *testing.T) {
 	for _, tc := range []struct{ count, height int }{{0, 58}, {1, 58}, {2, 86}, {4, 142}, {8, 142}} {

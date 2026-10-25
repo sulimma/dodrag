@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Check,
-  Code,
   Database,
   Download,
   FolderOpen,
@@ -14,7 +13,7 @@ import {
   AlertTriangle,
   X,
 } from 'lucide-react';
-import type { AppSettings, DatabaseEntry } from '../bridge/eventBridge';
+import { eventBridge, type AppSettings, type DatabaseEntry } from '../bridge/eventBridge';
 import { t, formatDate, useLanguage, supportedLanguages, languageNames, errorText } from '../i18n';
 
 const PROJECT_URL = 'https://github.com/sulimma/dodrag';
@@ -96,7 +95,18 @@ export function SettingsModal({
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<boolean>(false);
-  const [pathMenu, setPathMenu] = useState<{ x: number; y: number; path: string; isFile: boolean } | null>(null);
+  const pathMenuRequest = useRef<object | null>(null);
+  const mounted = useRef(true);
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      pathMenuRequest.current = null;
+    };
+  }, []);
 
   const isDbReady = Boolean(settings.databaseReady);
   const setup = settings.setup;
@@ -119,15 +129,15 @@ export function SettingsModal({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.key !== 'Escape') return;
       event.preventDefault();
-      if (pathMenu) {
-        setPathMenu(null);
+      if (pathMenuRequest.current) {
+        pathMenuRequest.current = null;
         return;
       }
       if (isDbReady && !busy) onClose();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDbReady, busy, onClose, pathMenu]);
+  }, [isDbReady, busy, onClose]);
 
   const handleBrowseFolder = async () => {
     setErrorMsg(null);
@@ -159,25 +169,38 @@ export function SettingsModal({
     }
   };
 
-  const openPathMenu = (event: React.MouseEvent, path: string, isFile: boolean) => {
+  const openPathMenu = async (event: React.MouseEvent, path: string, isFile: boolean) => {
     event.preventDefault();
     event.stopPropagation();
-    setPathMenu({ x: event.clientX, y: event.clientY, path, isFile });
+    const request = {};
+    pathMenuRequest.current = request;
+    const items = [
+      { id: 'explorer', label: t('Im Explorer öffnen'), disabled: busy || !onOpenFolderInExplorer },
+      { id: 'vscode', label: t('In VS Code öffnen'), disabled: busy || !onOpenFolderInVSCode },
+    ];
+    try {
+      const id = await eventBridge.showTaskContextMenu(items);
+      if (pathMenuRequest.current !== request) return;
+      pathMenuRequest.current = null;
+      if (busyRef.current || !items.some(item => item.id === id && !item.disabled)) return;
+      if (id === 'explorer' || id === 'vscode') await handlePathAction(id, { path, isFile });
+    } catch (err) {
+      if (pathMenuRequest.current !== request) return;
+      pathMenuRequest.current = null;
+      setErrorMsg(errorText(t('Kontextmenü konnte nicht geöffnet werden'), err));
+    }
   };
 
-  const handlePathAction = async (action: 'explorer' | 'vscode') => {
-    const target = pathMenu;
-    setPathMenu(null);
-    if (!target) return;
+  const handlePathAction = async (action: 'explorer' | 'vscode', target: { path: string; isFile: boolean }) => {
     setErrorMsg(null);
     setBusy(true);
     try {
       if (action === 'explorer') await onOpenFolderInExplorer?.(target.path, target.isFile);
       else await onOpenFolderInVSCode?.(target.path, target.isFile);
     } catch (err: any) {
-      setErrorMsg(errorText(t('Ordner konnte nicht geöffnet werden.'), err));
+      if (mounted.current) setErrorMsg(errorText(t('Ordner konnte nicht geöffnet werden.'), err));
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   };
 
@@ -659,43 +682,6 @@ export function SettingsModal({
         </div>
       </div>
 
-      {pathMenu && (
-        <>
-          <div
-            className="fixed inset-0 z-[60]"
-            onClick={(event) => { event.stopPropagation(); setPathMenu(null); }}
-            onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setPathMenu(null); }}
-          />
-          <div
-            className="fixed z-[61] min-w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-2xl"
-            style={{
-              left: Math.max(8, Math.min(pathMenu.x, window.innerWidth - 190)),
-              top: Math.max(8, Math.min(pathMenu.y, window.innerHeight - 92)),
-            }}
-            onClick={(event) => event.stopPropagation()}
-            onContextMenu={(event) => event.preventDefault()}
-          >
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => handlePathAction('explorer')}
-              className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-40 flex items-center gap-2"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-sky-600" />
-              <span>{t('Im Explorer öffnen')}</span>
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => handlePathAction('vscode')}
-              className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-40 flex items-center gap-2"
-            >
-              <Code className="w-3.5 h-3.5 text-sky-600" />
-              <span>{t('In VS Code öffnen')}</span>
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }

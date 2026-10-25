@@ -63,7 +63,7 @@ export function useGlobalShortcuts({
   // Reinstall from each render so native listeners never retain obsolete editors or DB snapshots.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || isMiniMode || showSettingsModal) return;
+      if (e.defaultPrevented || showSettingsModal) return;
       // Dismiss the top overlay before focus/shortcut guards, without acting below it.
       if (showShortcutsModal || contextMenu) {
         if (e.key === 'Escape') {
@@ -73,7 +73,7 @@ export function useGlobalShortcuts({
         }
         return;
       }
-      if (!snapshotReady) return;
+      if (isMiniMode || !snapshotReady) return;
       const target = e.target as HTMLElement | null;
       const isInputFocused =
         target &&

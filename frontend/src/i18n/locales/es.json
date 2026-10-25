@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "Idioma no compatible: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "No se pudo abrir la vista compacta",
+  "Erneut öffnen": "Volver a abrir",
+  "Kontextmenü konnte nicht geöffnet werden": "No se pudo abrir el menú contextual",
   "Anwendung konnte nicht geladen werden": "No se pudo cargar la aplicación",
   "Event history must be an array": "El historial de eventos debe ser una matriz",
   "Invalid edit group": "Grupo de edición no válido",

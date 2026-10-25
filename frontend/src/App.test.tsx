@@ -64,6 +64,7 @@ beforeEach(() => {
     SetAutostart: vi.fn(async () => activeSettings),
     SelectFolderDialog: vi.fn(async () => ''),
     EnterMiniMode: vi.fn(async () => ''), ExitMiniMode: vi.fn(async () => {}),
+    ShowTaskContextMenu: vi.fn(async () => ''),
     UpdateMiniModeHeight: vi.fn(async () => {}), SnapMiniWindowToNearestCorner: vi.fn(async () => ''),
   };
   window.go = { main: { App: api } };
@@ -89,6 +90,83 @@ function key(key: string, target: EventTarget = document.body, modifiers = {}) {
   act(() => target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })));
 }
 function input(label: string) { return element.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!; }
+it('shares native mini context actions and task creation', async () => {
+  await mount();
+  const openContext = (target: Element) => act(() => target.dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 100, clientY: 40 })
+  ));
+  await act(async () => openContext(element.querySelector('[data-task-drag="26-101"]')!));
+  const menuActions = () => vi.mocked(api.ShowTaskContextMenu).mock.calls.at(-1)![0];
+  const fullActions = menuActions();
+  expect(fullActions.length).toBeGreaterThan(0);
+  await act(async () => click(button('Minimieren (Kompaktansicht in Bildschirmecke)')));
+  await act(async () => openContext(button('Alpha')));
+  expect(menuActions()).toEqual(fullActions);
+  expect(fullActions.map(item => item.id)).toEqual(['toggle', 'today', 'complete']);
+  expect(element.querySelector('.fixed.z-50.w-64')).toBeNull();
+  const creation = input('Task hinzufügen (Enter)');
+  type(creation, 'New mini task');
+  await act(async () => creation.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
+    type: 'TASK_CREATED', payload: { title: 'New mini task' },
+  });
+  expect(creation.value).toBe('');
+  expect(api.ExitMiniMode).not.toHaveBeenCalled();
+});
+
+it('offers completed tasks only reopen and preserves their start date', async () => {
+  vi.mocked(api.GetEvents).mockResolvedValue([...history, {
+    seq: 3, id: 'completed-alpha', timestamp: date, undone: false,
+    type: 'TASK_COMPLETED', payload: { taskId: '26-101', completedAt: date },
+  }]);
+  vi.mocked(api.ShowTaskContextMenu).mockResolvedValueOnce('reopen');
+  await mount();
+  await act(async () => element.querySelector('[data-completed-task="26-101"]')!.dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+  ));
+  expect(vi.mocked(api.ShowTaskContextMenu).mock.calls[0][0]).toEqual([
+    { id: 'reopen', label: 'Erneut öffnen', disabled: false },
+  ]);
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0]).toEqual([
+    expect.objectContaining({ type: 'TASK_REOPENED', payload: { taskId: '26-101' } }),
+  ]);
+});
+
+it('opens exactly one native menu under StrictMode and ignores unknown actions', async () => {
+  vi.mocked(api.ShowTaskContextMenu).mockResolvedValueOnce('edit-title');
+  await act(async () => root.render(<React.StrictMode><App /></React.StrictMode>));
+  await act(async () => element.querySelector('[data-task-drag="26-101"]')!.dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+  ));
+  expect(api.ShowTaskContextMenu).toHaveBeenCalledTimes(1);
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+  expect(input('Titel 26-101')).toBeNull();
+});
+
+it('ignores a native menu response after the database changes', async () => {
+  const response = deferred<string>();
+  vi.mocked(api.ShowTaskContextMenu).mockReturnValueOnce(response.promise);
+  await mount();
+  await act(async () => element.querySelector('[data-task-drag="26-101"]')!.dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+  ));
+  await openSettings();
+  await act(async () => click(textButton('Verwenden')));
+  await act(async () => response.resolve('complete'));
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+});
+
+it('preserves a failed mini task creation draft and displays the error', async () => {
+  activeSettings.bootMinimized = true;
+  await mount();
+  vi.mocked(api.AppendBatch).mockRejectedValueOnce(new Error('Mini save failed'));
+  const creation = input('Task hinzufügen (Enter)');
+  type(creation, 'Keep this draft');
+  await act(async () => creation.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(creation.value).toBe('Keep this draft');
+  expect(element.textContent).toContain('Mini save failed');
+});
+
 function type(target: HTMLInputElement, value: string) {
   act(() => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(target, value);
@@ -347,9 +425,8 @@ it.each(['Liste', 'Netzplan', 'Gantt'])('preserves selection and context parity 
   click(row());
   await act(async () => key('Delete'));
   expect(api.AppendBatch).not.toHaveBeenCalled();
-  act(() => row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
-  expect(element.textContent).toContain('Als erledigt markieren');
-  key('Escape');
+  await act(async () => row().dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  expect(vi.mocked(api.ShowTaskContextMenu).mock.calls[0][0].map(item => item.label)).toContain('Als erledigt markieren');
   await act(async () => key('Delete'));
   expect(api.AppendBatch).toHaveBeenCalledTimes(1);
   expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
@@ -385,16 +462,15 @@ it('places multiple predecessor actions after completion and preserves their han
   }
   vi.mocked(api.GetEvents).mockResolvedValue(events);
   await mount();
-  act(() => element.querySelector('[data-task-drag="26-105"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
-  const menu = element.querySelector('.fixed.z-50.w-64')!;
-  const labels = [...menu.querySelectorAll('button')].map(button => button.textContent?.trim());
+  vi.mocked(api.ShowTaskContextMenu).mockResolvedValueOnce('remove:26-103');
+  await act(async () => element.querySelector('[data-task-drag="26-105"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  const labels = vi.mocked(api.ShowTaskContextMenu).mock.calls[0][0].map(item => item.label);
   const completedIndex = labels.findIndex(label => label?.includes('Als erledigt markieren'));
   expect(completedIndex).toBeGreaterThan(-1);
   expect(labels.slice(completedIndex + 1)).toEqual([
     'Vorgänger 26-101 lösen', 'Vorgänger 26-102 lösen',
     'Vorgänger 26-103 lösen', 'Vorgänger 26-104 lösen',
   ]);
-  await act(async () => click([...menu.querySelectorAll('button')].find(button => button.textContent?.includes('Vorgänger 26-103 lösen'))!));
   expect(api.AppendBatch).toHaveBeenCalledTimes(1);
   expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
     type: 'DEPENDENCY_REMOVED', payload: { taskId: '26-105', predecessorId: '26-103' },
@@ -595,8 +671,8 @@ it.each(['Delete', 'd', 'context'])('completes selected tasks with one atomic ba
   await mount();
   selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
   if (route === 'context') {
-    act(() => element.querySelector('[data-task-drag="26-101"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
-    await act(async () => click(element.querySelector('.fixed.z-50.w-64 button.text-emerald-700')!));
+    vi.mocked(api.ShowTaskContextMenu).mockResolvedValueOnce('complete');
+    await act(async () => element.querySelector('[data-task-drag="26-101"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
   } else await act(async () => key(route));
   expect(api.AppendBatch).toHaveBeenCalledTimes(1);
   const commands = vi.mocked(api.AppendBatch).mock.calls[0][0];

@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "toki ni li ken ala: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "ken ala open e lukin lili",
+  "Erneut öffnen": "open sin",
+  "Kontextmenü konnte nicht geöffnet werden": "ken ala open e lipu nena",
   "Anwendung konnte nicht geladen werden": "ken ala open e ilo",
   "Event history must be an array": "lipu pi ijo pali li o kulupu",
   "Invalid edit group": "kulupu ante ike",

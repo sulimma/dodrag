@@ -3,7 +3,9 @@ import { Maximize2, Flame, Check } from 'lucide-react';
 import type { QuickResubmitTargetId } from '../domain/projector';
 import type { TaskState } from '../domain/types';
 import appIcon from '../assets/app-icon.png';
-import { t, formatNumber } from '../i18n';
+import { t } from '../i18n';
+import type { InlineEditor } from './inlineEditor';
+import { TaskTitle } from './TaskTitle';
 
 interface MiniCornerViewProps {
   tasks: TaskState[];
@@ -12,6 +14,13 @@ interface MiniCornerViewProps {
   onResubmitTasks: (id: string, target: QuickResubmitTargetId) => void;
   onCompleteTask: (id: string) => void;
   onToggleActive: (task: TaskState) => void;
+  onContextMenuTask: (event: React.MouseEvent, id: string) => void;
+  titleEditor: InlineEditor;
+  newTaskTitle: string;
+  setNewTaskTitle: (title: string) => void;
+  newTaskInputRef: React.RefObject<HTMLInputElement>;
+  snapshotReady: boolean;
+  onCreateTask: (event: React.FormEvent) => void;
 }
 
 // Shows a compact task list and restores the main window on interaction.
@@ -22,6 +31,13 @@ export function MiniCornerView({
   onResubmitTasks,
   onCompleteTask,
   onToggleActive,
+  onContextMenuTask,
+  titleEditor,
+  newTaskTitle,
+  setNewTaskTitle,
+  newTaskInputRef,
+  snapshotReady,
+  onCreateTask,
 }: MiniCornerViewProps) {
   return (
     <div className="h-screen w-screen bg-white border border-slate-300 shadow-lg flex flex-col select-none overflow-hidden">
@@ -34,12 +50,12 @@ export function MiniCornerView({
           } as React.CSSProperties
         }
         title={t('Mit der Maus in eine beliebige Bildschirmecke ziehen zum Andocken')}
-        className="h-7 px-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between shrink-0 cursor-move"
+        className="h-7 px-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2 shrink-0 cursor-move"
       >
         <div className="flex items-center gap-1.5 min-w-0 pointer-events-none">
           <img src={appIcon} alt="" draggable={false} className="w-4 h-4 shrink-0" />
           <span className="text-[11px] font-bold text-slate-700 truncate">
-            {t('DoDrag ({count})', { count: formatNumber(tasks.length) })}
+            DoDrag
           </span>
         </div>
 
@@ -52,8 +68,20 @@ export function MiniCornerView({
           }
           onMouseDown={(e) => e.stopPropagation()}
           onMouseUp={(e) => e.stopPropagation()}
-          className="flex items-center shrink-0"
+          className="flex items-center gap-1 flex-1 min-w-0 cursor-default"
         >
+          <form onSubmit={onCreateTask} className="flex-1 min-w-0">
+            <input
+              ref={newTaskInputRef}
+              type="text"
+              disabled={!snapshotReady}
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              aria-label={t('Task hinzufügen (Enter)')}
+              placeholder={t('Task hinzufügen (Enter)')}
+              className="w-full h-5 px-1 text-[11px] select-text rounded border border-slate-300 bg-white focus:outline-none focus:border-sky-500"
+            />
+          </form>
           <button
             type="button"
             onClick={(e) => {
@@ -81,20 +109,25 @@ export function MiniCornerView({
           tasks.map((task) => (
             <div
               key={task.id}
+              onContextMenu={(event) => onContextMenuTask(event, task.id)}
               className={`group w-full h-7 px-2 flex items-center gap-1 text-xs transition-colors ${
                 task.isActive
                   ? 'bg-emerald-50/90 text-emerald-950 font-semibold hover:bg-emerald-100/90'
                   : 'bg-white text-slate-800 hover:bg-sky-50 hover:text-sky-900'
               }`}
             >
-              <button
-                type="button"
-                onClick={() => onSelectAndRestore(task.id)}
-                title={task.title}
-                className="flex-1 min-w-0 h-full truncate text-left cursor-pointer"
-              >
-                {task.title}
-              </button>
+              {titleEditor.taskId === task.id ? (
+                <TaskTitle task={task} editor={titleEditor} className="flex-1 select-text text-xs" />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onSelectAndRestore(task.id)}
+                  title={task.title}
+                  className="flex-1 min-w-0 h-full truncate text-left cursor-pointer"
+                >
+                  {task.title}
+                </button>
+              )}
               <div className="flex items-center gap-0.5 shrink-0 invisible group-hover:visible group-focus-within:visible">
                 <button
                   type="button"

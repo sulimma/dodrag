@@ -129,6 +129,7 @@ export function App() {
         if (current) mutationBusy.current = false;
       });
     const unsubMinimize = eventBridge.onWindowMinimized(() => {
+      setContextMenu(null);
       setIsMiniMode(true);
     });
     const unsubRestore = eventBridge.onWindowRestored(() => {
@@ -189,6 +190,7 @@ export function App() {
     setSelectedTaskId(taskId);
   };
   const handleEnterMiniMode = async () => {
+    setContextMenu(null);
     setIsMiniMode(true);
     await eventBridge.enterMiniMode('', miniTasks.length);
   };
@@ -221,16 +223,41 @@ export function App() {
     onSetConfiguredDate: (id, date, label) => actions.handleSetConfiguredDate(id, date, label, true),
     onToggleActive: actions.handleToggleActive,
   };
+  const taskContextMenu = contextMenu && state.tasks[contextMenu.taskId] && (
+    <TaskContextMenu
+      contextMenu={contextMenu}
+      task={state.tasks[contextMenu.taskId]}
+      databaseKey={appSettings?.activeDatabasePath ?? ''}
+      onClose={() => setContextMenu(null)}
+      onToggleActive={actions.handleToggleActive}
+      onSetConfiguredDate={actions.handleSetConfiguredDate}
+      onRemovePredecessor={actions.handleRemovePredecessor}
+      onCompleteTask={actions.handleCompleteTask}
+      onReopenTask={actions.handleReopenTask}
+      onError={(error) => pushToast(errorText(t('Kontextmenü konnte nicht geöffnet werden'), error), 'warning')}
+    />
+  );
   if (isMiniMode) {
     return (
-      <MiniCornerView
-        tasks={miniTasks}
-        onSelectAndRestore={(taskId) => handleRestoreFromMiniMode(taskId)}
-        onRestoreWindow={() => handleRestoreFromMiniMode()}
-        onResubmitTasks={actions.handleResubmitTasks}
-        onCompleteTask={actions.handleCompleteTask}
-        onToggleActive={actions.handleToggleActive}
-      />
+      <>
+        <MiniCornerView
+          tasks={miniTasks}
+          onSelectAndRestore={(taskId) => handleRestoreFromMiniMode(taskId)}
+          onRestoreWindow={() => handleRestoreFromMiniMode()}
+          onResubmitTasks={actions.handleResubmitTasks}
+          onCompleteTask={actions.handleCompleteTask}
+          onToggleActive={actions.handleToggleActive}
+          onContextMenuTask={selection.onContextMenuTask}
+          titleEditor={titleEditor}
+          newTaskTitle={newTaskTitle}
+          setNewTaskTitle={setNewTaskTitle}
+          newTaskInputRef={newTaskInputRef}
+          snapshotReady={snapshotReady}
+          onCreateTask={handleCreateTask}
+        />
+        {taskContextMenu}
+        <Toasts toasts={toasts} />
+      </>
     );
   }
   const listBackgroundKey = 'list-background';
@@ -332,19 +359,7 @@ export function App() {
           onCompleteTask={actions.handleCompleteTask}
         />
       </div>
-      {contextMenu && state.tasks[contextMenu.taskId] && (
-        <TaskContextMenu
-          contextMenu={contextMenu}
-          task={state.tasks[contextMenu.taskId]}
-          selectedTaskIds={selectedTaskIds}
-          onClose={() => setContextMenu(null)}
-          onToggleActive={actions.handleToggleActive}
-          onEditTitle={startInlineEdit}
-          onSetConfiguredDate={actions.handleSetConfiguredDate}
-          onRemovePredecessor={actions.handleRemovePredecessor}
-          onCompleteTask={actions.handleCompleteTask}
-        />
-      )}
+      {taskContextMenu}
       <ShortcutHelp
         open={showShortcutsModal}
         onClose={() => setShowShortcutsModal(false)}

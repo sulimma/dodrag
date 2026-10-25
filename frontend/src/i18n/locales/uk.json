@@ -3,6 +3,8 @@
   "Nicht unterstützte Sprache: {language}": "Мова не підтримується: {language}",
   "{context}: {detail}": "{context}: {detail}",
   "Kompaktansicht konnte nicht geöffnet werden": "Не вдалося відкрити компактний вигляд",
+  "Erneut öffnen": "Відкрити знову",
+  "Kontextmenü konnte nicht geöffnet werden": "Не вдалося відкрити контекстне меню",
   "Anwendung konnte nicht geladen werden": "Не вдалося завантажити програму",
   "Event history must be an array": "Історія подій має бути масивом",
   "Invalid edit group": "Недійсна група змін",
