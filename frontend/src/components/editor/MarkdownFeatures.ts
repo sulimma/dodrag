@@ -71,7 +71,7 @@ export const Emoticon = Node.create({
 });
 
 export const Alert = Node.create({
-  name: 'alert', group: 'block', content: 'block+', defining: true,
+  name: 'alert', priority: 110, group: 'block', content: 'block+', defining: true,
   addAttributes() { return { type: { default: 'NOTE' } }; },
   parseHTML() { return [{ tag: 'div[data-alert]', contentElement: '[data-alert-content]', getAttrs: element => {
     const type = (element as HTMLElement).dataset.alert;
@@ -79,6 +79,16 @@ export const Alert = Node.create({
   } }]; },
   renderHTML({ node }) { return ['div', { 'data-alert': node.attrs.type }, ['div', { 'data-alert-content': '' }, 0]]; },
   addNodeView() { return ReactNodeViewRenderer(AlertView); },
+  addKeyboardShortcuts() { return { Enter: () => {
+    const { $from, empty } = this.editor.state.selection;
+    if (!empty || $from.parent.type.name !== 'paragraph' || $from.parentOffset !== $from.parent.content.size ||
+      [...$from.marks(), ...(this.editor.state.storedMarks ?? [])].some(mark => ['code', 'link'].includes(mark.type.name))) return false;
+    const match = /^(?:> )?\[!(NOTE|IMPORTANT|WARNING|TIP|CAUTION)\][ \t]*$/.exec($from.parent.textContent);
+    if (!match) return false;
+    const commands = this.editor.chain().deleteRange({ from: $from.start(), to: $from.end() });
+    if ($from.depth > 1 && $from.node($from.depth - 1).type.name === 'blockquote') commands.lift('blockquote');
+    return commands.wrapIn(this.name, { type: match[1] }).run();
+  } }; },
   addInputRules() { return ALERT_TYPES.map(item => new InputRule({
     find: new RegExp(`^(?:> )?\\[!${item.type}\\]\\s$`),
     handler: ({ state, range, chain }) => {

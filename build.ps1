@@ -1,4 +1,9 @@
 # Build and test with a local dependency cache; never stop or start user processes.
+param(
+    [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')]
+    [string]$Version = '0.2.1',
+    [ValidateSet('amd64', 'arm64')][string]$Architecture = 'amd64'
+)
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $env:PATH += ";C:\Program Files\Go\bin;$env:USERPROFILE\go\bin"
@@ -36,15 +41,15 @@ try {
     try {
         # Wails 2.9.2's CLI dependency x/tools is incompatible with Go 1.27.
         $env:GOTOOLCHAIN = "go1.23.12"
-        $buildVersion = "0.2.0"
+        $buildVersion = $Version
         $buildTime = (Get-Date).ToUniversalTime().ToString("o")
         Copy-Item -LiteralPath "frontend\src\assets\app-icon.png" -Destination "build\appicon.png" -Force
         # Wails only generates ICO files when missing; never package an older cached icon.
         if (Test-Path -LiteralPath "build\windows\icon.ico") { Remove-Item -LiteralPath "build\windows\icon.ico" -Force }
-        go run github.com/wailsapp/wails/v2/cmd/wails@v2.9.2 build -s -ldflags "-X main.buildVersion=$buildVersion -X main.buildTime=$buildTime" -o dodrag.exe
+        go run github.com/wailsapp/wails/v2/cmd/wails@v2.9.2 build -s -platform "windows/$Architecture" -ldflags "-X main.buildVersion=$buildVersion -X main.buildTime=$buildTime" -o dodrag.exe
         Assert-NativeSuccess "Wails packaging"
     } finally { $env:GOTOOLCHAIN = $oldToolchain }
     if (-not (Test-Path -LiteralPath "build\bin\dodrag.exe")) { throw "Packaged executable missing" }
-    Copy-Item "build\bin\dodrag.exe" "dodrag.exe" -Force
+    if ($Architecture -eq 'amd64') { Copy-Item "build\bin\dodrag.exe" "dodrag.exe" -Force }
     Write-Host "Build and tests completed. App was not started." -ForegroundColor Green
 } finally { Pop-Location }

@@ -268,6 +268,50 @@ it('converts native DOM beforeinput at the space, not at a lone hash, without re
   expect(onError).not.toHaveBeenCalled();
 });
 
+it('completes symbols and arbitrary fractions on Enter without requiring a trailing space', async () => {
+  const { editor, onError } = await mount();
+  for (const [source, expected] of [
+    ['17/34', '$\\frac{17}{34}$'], ['1/3', '$\\frac{1}{3}$'], ['1/2', '\u00bd'],
+    ['->', '\u2192'], ['=>', '\u21d2'], ['!=', '\u2260'], ['--', '\u2014'],
+  ]) {
+    await domType(editor, source);
+    const index = editor.state.doc.childCount - 1;
+    act(() => editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+    expect(editor.markdown!.serialize(editor.state.doc.child(index).toJSON()), source).toBe(expected);
+    expect(editor.state.doc.lastChild!.textContent).toBe('');
+    expect(editor.state.selection.$from.parent).toBe(editor.state.doc.lastChild);
+  }
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it.each(['[!TIP]', '> [!TIP]'])('opens a typed alert on Enter: %s', async source => {
+  const { editor, element } = await mount();
+  await domType(editor, source);
+  act(() => editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+  await domType(editor, 'Keep the next action small');
+  expect(element.querySelector('[data-alert="TIP"]')).not.toBeNull();
+  expect(editor.getMarkdown()).toBe('> [!TIP]\n> Keep the next action small');
+  expect(editor.state.doc.textContent).toBe('Keep the next action small');
+});
+
+it('keeps Enter replacements out of code, links, paths, dates and unfinished math', async () => {
+  for (const source of ['dir/1/2', '12/34/56', '1/0', '$1/2', '-->']) {
+    const { editor } = await mount();
+    await domType(editor, source);
+    act(() => editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+    expect(editor.state.doc.firstChild!.textContent).toBe(source);
+    expect(editor.view.dom.querySelector('[data-type=inline-math]')).toBeNull();
+  }
+  const { editor } = await mount();
+  act(() => { editor.commands.toggleCodeBlock(); type(editor, '[!TIP] 1/2 ->'); });
+  act(() => editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+  expect(editor.state.doc.firstChild!.type.name).toBe('codeBlock');
+  expect(editor.state.doc.firstChild!.textContent).toBe('[!TIP] 1/2 ->\n');
+  const linked = await mount('[1/2](https://host.test)');
+  act(() => { linked.editor.commands.setTextSelection(4); linked.editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+  expect(linked.editor.state.doc.firstChild!.textContent).toBe('1/2');
+});
+
 it('does not intercept composition text and lets the existing compositionend rules convert the completed prefix', async () => {
   const { editor } = await mount();
   act(() => { editor.view.focus(); editor.view.dom.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })); });

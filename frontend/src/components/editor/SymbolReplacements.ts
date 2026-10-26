@@ -21,7 +21,7 @@ export const SYMBOL_GROUPS: readonly { labelKey: string; items: readonly SymbolR
 
 const items = SYMBOL_GROUPS.flatMap(group => group.items).sort((a, b) => b.shortcut.length - a.shortcut.length);
 const escapeRE = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const replacementRE = new RegExp(`${items.filter(item => !item.shortcut.includes('/') || item.shortcut === '+/-').map(item => escapeRE(item.shortcut)).join('|')}|[0-9]+/[0-9]+`, 'g');
+const replacementRE = new RegExp(`${items.filter(item => !item.shortcut.includes('/') || item.shortcut === '+/-').map(item => escapeRE(item.shortcut)).join('|')}|--|[0-9]+/[0-9]+`, 'g');
 interface Replacement { from: number; to: number; content: JSONContent }
 
 function replacements(text: string, complete: boolean): Replacement[] {
@@ -41,6 +41,7 @@ function replacements(text: string, complete: boolean): Replacement[] {
       /\//.test(word.replace(match[0], '')) || /[<>=!~+.-]$/.test(prefix) ||
       (before.match(/(?<!\\)\$/g)?.length ?? 0) % 2 || (before.match(/`/g)?.length ?? 0) % 2 ||
       /\[[^\]]*$/.test(before)) continue;
+    if (match[0] === '--' && (!/(?:^|\s)$/.test(before) || !/^(?:\s|$)/.test(after))) continue;
     if (fraction && (!/(?:^|[\s([{])$/.test(before) || !/^(?:$|[\s,;!?:)\]}]|\.(?:\s|$))/.test(after))) continue;
     if (!fraction && match[0] !== ' -- ' && !/^(?:$|[\s,;!?:)\]}]|\.(?!\d))/.test(after)) continue;
     if (!complete && !after && match[0] !== ' -- ') continue;
@@ -49,6 +50,7 @@ function replacements(text: string, complete: boolean): Replacement[] {
     if (fraction && (fraction[1].length > 12 || fraction[2].length > 12 || /^0+$/.test(fraction[2]))) continue;
     const latex = fraction && !item ? `\\frac{${fraction[1]}}{${fraction[2]}}` : item?.latex;
     if (latex) result.push({ from, to, content: { type: 'inlineMath', attrs: { latex } } });
+    else if (match[0] === '--') result.push({ from, to, content: { type: 'text', text: '\u2014' } });
     else if (item) result.push({ from, to, content: { type: 'text', text: item.symbol } });
   }
   return result;
@@ -83,6 +85,25 @@ function replaceJSON(node: JSONContent): JSONContent {
 // Initial content and setContent deliberately bypass replacement: no old-content migration.
 export const SymbolReplacements = Extension.create({
   name: 'symbolReplacements', priority: 90,
+  // Keyboard completion precedes StarterKit; import commands must follow Markdown.
+  addExtensions() { return [Extension.create({ name: 'symbolEnterCompletion', priority: 110,
+  addKeyboardShortcuts() { return { Enter: () => {
+    const { state, view } = this.editor;
+    const { $from, empty } = state.selection;
+    if (!empty || !$from.parent.isTextblock || $from.parentOffset !== $from.parent.content.size ||
+      $from.parent.type.spec.code || [...$from.marks(), ...(state.storedMarks ?? [])].some(mark => ['code', 'link'].includes(mark.type.name))) return false;
+    const text = $from.parent.textBetween(0, $from.parentOffset, '\ufffc', '\ufffc');
+    const match = replacements(text, true).at(-1);
+    if (!match || !/^[.,;!?:)\]}]?$/.test(text.slice(match.to))) return false;
+    const from = $from.start() + match.from;
+    const to = $from.start() + match.to;
+    let protectedText = false;
+    state.doc.nodesBetween(from, to, node => { if (node.marks.some(mark => ['code', 'link'].includes(mark.type.name))) protectedText = true; });
+    if (!protectedText) view.dispatch(state.tr.replaceWith(from, to, state.schema.nodeFromJSON(match.content).mark(state.doc.resolve(from).marks())));
+    // Keep the normal Enter action (paragraph/list split).
+    return false;
+  } }; },
+  })]; },
   addCommands() {
     const imported = (value: unknown, contentType?: string, position?: number) => {
       if (typeof value !== 'string') return value as JSONContent;

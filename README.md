@@ -123,10 +123,10 @@ DoDrag is a Windows desktop application built with [Wails](https://wails.io/), G
 
 #### Download a release
 
-Download the executable for your Windows processor from the [DoDrag v0.1.5 release](https://github.com/sulimma/dodrag/releases/tag/v0.1.5):
+Download the executable for your Windows processor from the [latest DoDrag release](https://github.com/sulimma/dodrag/releases/latest):
 
-- **Most Windows PCs (Intel/AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.5/dodrag-windows-amd64.exe)
-- **Windows on ARM (ARM64):** [`dodrag-windows-arm64.exe`](https://github.com/sulimma/dodrag/releases/download/v0.1.5/dodrag-windows-arm64.exe)
+- **Most Windows PCs (Intel/AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/latest/download/dodrag-windows-amd64.exe)
+- **Windows on ARM (ARM64):** [`dodrag-windows-arm64.exe`](https://github.com/sulimma/dodrag/releases/latest/download/dodrag-windows-arm64.exe)
 
 Save the matching `.exe` and open it to run DoDrag; no installer is required. The settings dialog can copy the program to `%LOCALAPPDATA%\Programs\DoDrag` and create desktop or Start menu shortcuts later.
 
@@ -138,7 +138,7 @@ Install Go, Node.js/npm, and the Wails prerequisites for Windows, then run this 
 ./build.ps1
 ```
 
-The script installs frontend dependencies in a local cache, runs the frontend and Go tests, builds the frontend, and packages `dodrag.exe` into both `build/bin` and the repository root. It does not start the application. The source build currently reports version **0.2.0**; builds get their version and build timestamp from `build.ps1`. Without build-time values the binary reports `dev` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
+The script installs frontend dependencies in a local cache, runs the frontend and Go tests, builds the frontend, and packages `dodrag.exe` into both `build/bin` and the repository root. It does not start the application. The source build currently reports version **0.2.1**; builds get their version and build timestamp from `build.ps1`. Without build-time values the binary reports `dev` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
 
 Standard validation uses frontend unit/DOM tests, TypeScript checking, Go tests, and native Wails packaging. Targeted Chromium checks are optional aids for SVG geometry or text layout; they do not verify Windows clipboard, WebView2, multi-monitor, or DPI integration.
 
