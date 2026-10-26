@@ -12,7 +12,7 @@ import { taskDragSourceInteractions, taskDropTargetInteractions, type TaskViewIn
 import { taskAppearanceRole } from './taskAppearance';
 import { executeTaskMenuAction, taskMenuItems, type TaskMenuActions } from './TaskContextMenu';
 import { TaskDescriptionEditor, type TaskDescriptionEditorHandle } from './editor/TaskDescriptionEditor';
-import type { EditorContextMenu } from './editor/types';
+import type { EditorContextMenu, EditorTarget } from './editor/types';
 import { TaskLogSection, type TaskLogSectionHandle } from './TaskLogSection';
 import { ResizeHandle } from './ResizeHandle';
 
@@ -28,6 +28,7 @@ interface TaskDetailPanelProps extends TaskMenuActions {
   onDescriptionChange: (taskId: string, markdown: string, groupId: string) => Promise<void>;
   onAddLog: (taskId: string, text: string) => Promise<void>;
   onRemoveLog: (taskId: string, entryId: string) => Promise<void>;
+  onCreateSourceTask?: (source: EditorTarget) => void | Promise<void>;
   onError: (error: unknown) => void;
 }
 
@@ -60,6 +61,8 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
     if (latest.current.open === false || !latest.current.task || !panel.current) return;
     const bounds = panel.current.getBoundingClientRect();
     if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) return;
+    const hit = document.elementFromPoint?.(x, y);
+    if (hit && !hit.closest('[data-description-editor], [data-task-log]')) return;
     const logBounds = logArea.current?.getBoundingClientRect();
     try {
       if (logBounds && y >= logBounds.top) log.current?.insertFiles(paths, x, y);
@@ -146,6 +149,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
       {!task ? <p className="p-6 text-sm text-slate-400">{t('Task auswählen, um Details, Beschreibung und Log anzuzeigen')}</p> : <>
         <section className="flex flex-col flex-1 min-h-0 overflow-hidden" data-task-selectable-text="true">
           <TaskDescriptionEditor ref={editor} taskId={task.id} description={task.description} historyTarget={historyTarget}
+            onCreateSourceTask={props.onCreateSourceTask}
             onChange={(markdown, metadata) => {
               const discrete = metadata?.historyBoundary || metadata?.localUndo;
               const group = discrete ? crypto.randomUUID() : descriptionGroup.current;
@@ -158,6 +162,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
           value={logArea.current?.getBoundingClientRect().height || logHeight} limits={heightLimits} onChange={setLogHeight} />
         <div ref={logArea} className="min-h-0 shrink-0 overflow-hidden" style={{ height: `min(${logHeight}px, max(100px, calc(100% - 290px)))` }} data-task-selectable-text="true">
           <TaskLogSection key={task.id} ref={log} taskId={task.id} entries={task.logEntries}
+            onCreateSourceTask={props.onCreateSourceTask}
             onAdd={text => props.onAddLog(task.id, text)} onRemove={entryId => props.onRemoveLog(task.id, entryId)}
             onContextMenu={(event, context) => void contextMenu(event, context)} onError={props.onError} />
         </div>

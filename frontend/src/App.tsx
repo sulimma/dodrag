@@ -33,6 +33,9 @@ import type { DragIdentity } from './hooks/useTaskDrag';
 import { useTaskMutations } from './hooks/useTaskMutations';
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts';
 import { t, useLanguage, errorText } from './i18n';
+import { useSourceDrop } from './hooks/useSourceDrop';
+import { appendTaskSources } from './domain/taskSources';
+import type { EditorTarget } from './components/editor/types';
 
 // Coordinates app state, shared task interactions, and the active view.
 export function App() {
@@ -41,6 +44,7 @@ export function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [lastMovedKey, setLastMovedKey] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const pendingSource = useRef<EditorTarget | null>(null);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [helpPage, setHelpPage] = useState<HelpPage>('shortcuts');
   const [isMiniMode, setIsMiniMode] = useState(false);
@@ -55,6 +59,7 @@ export function App() {
   const database = useDatabaseSnapshot(pushToast, dragIdentity, () => {
     editors.cancelEdit();
     setNewTaskTitle('');
+    pendingSource.current = null;
     selection.reset();
   });
   const {
@@ -106,6 +111,7 @@ export function App() {
     clearEdgeSelection,
   } = selection;
   const { draggedTaskId, activeDropTargetKey, isAltDrag, setActiveDropTargetKey } = drag;
+  useSourceDrop(actions.handleAppendSources, error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning'));
   const miniTasks = useMemo(
     () => computeMiniWindowTasks(state.openTasks, now),
     [state.openTasks, now]
@@ -210,18 +216,25 @@ export function App() {
       confirmedEvents.current,
       new Date()
     ).nextTaskId;
+    const source = pendingSource.current;
     setLastMovedKey(`task:${taskId}`);
     const updated = await mutate(() =>
-      eventBridge.appendEvent('TASK_CREATED', {
-        taskId,
-        title: trimmed,
-        configuredStart: now.toISOString(),
-        createdAt: now.toISOString(),
-      })
+      eventBridge.appendBatch([
+        { type: 'TASK_CREATED', payload: {
+          taskId, title: trimmed, configuredStart: now.toISOString(), createdAt: now.toISOString(),
+        } },
+        ...(source ? [{ type: 'TASK_DESCRIPTION_SET' as const,
+          payload: { taskId, description: appendTaskSources('', [source]) } }] : []),
+      ])
     );
     if (!updated) return;
+    if (pendingSource.current === source) pendingSource.current = null;
     setNewTaskTitle((current) => (current.trim() === trimmed ? '' : current));
     setSelectedTaskId(taskId);
+  };
+  const handleCreateSourceTask = (source: EditorTarget) => {
+    pendingSource.current = source;
+    newTaskInputRef.current?.focus();
   };
   const handleEnterMiniMode = async () => {
     setContextMenu(null);
@@ -350,6 +363,7 @@ export function App() {
             const result = await mutate(() => eventBridge.appendEvent('TASK_LOG_REMOVED', { taskId, entryId }));
             if (!result) throw new Error(t('Änderung konnte nicht gespeichert werden'));
           }}
+          onCreateSourceTask={handleCreateSourceTask}
           onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')}
         />
         <div className="relative flex flex-1 min-w-0 overflow-hidden">
@@ -370,6 +384,7 @@ export function App() {
             } : undefined}
             onDrop={viewMode === 'list' ? (event) => {
               event.preventDefault();
+              if (event.dataTransfer?.types?.includes('Files')) return;
               event.stopPropagation();
               const taskId = draggedTaskIdOf(event, draggedTaskId);
               if (taskId && state.tasks[taskId])

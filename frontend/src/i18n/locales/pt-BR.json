@@ -1,4 +1,9 @@
 {
+  "Mail-App": "Aplicativo de e-mail",
+  "Anrufen": "Ligar",
+  "Neuen Task für diese Quelle erstellen": "Criar uma nova tarefa para esta fonte",
+  "Quelle ziehen": "Arrastar fonte",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "Arrastar fonte (tipo de caminho indisponível)",
   "bearbeiten": "editar",
   "löschen": "excluir",
   "Ungültiger Dateipfad": "Caminho de arquivo inválido",

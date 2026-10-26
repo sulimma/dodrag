@@ -2,17 +2,31 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { isImagePath, mediaSource, tokenizeTargets } from './targets';
+import { classifyTarget, isImagePath, mediaSource, tokenizeTargets } from './targets';
+import { createSourceIcon } from './SourceIcon';
+import { sourceIsPlain } from './MarkdownTargets';
+import type { EditorState } from '@tiptap/pm/state';
 
-function decorate(doc: ProseMirrorNode, taskId: string): DecorationSet {
+function decorate(doc: ProseMirrorNode, taskId: string, state: EditorState): DecorationSet {
   const decorations: Decoration[] = [];
   doc.descendants((node, pos, parent) => {
-    if (!node.isText || parent?.type.spec.code && parent.type.name !== 'targetLiteral' || node.marks.some(mark => mark.type.name === 'code' || mark.type.name === 'link')) return;
+    if (!node.isText || parent?.type.spec.code && parent.type.name !== 'targetLiteral' || node.marks.some(mark => mark.type.name === 'code')) return;
+    const link = node.marks.find(mark => mark.type.name === 'link');
+    if (link) {
+      const target = classifyTarget(String(link.attrs.href ?? ''));
+      const previous = doc.resolve(pos).nodeBefore;
+      if (target && !previous?.marks.some(mark => mark.eq(link))) decorations.push(Decoration.widget(pos,
+        () => createSourceIcon(target), { side: -1, key: `source:${pos}:${target.value}`, stopEvent: () => true }));
+      return;
+    }
     for (const token of tokenizeTargets(node.text ?? '')) {
+      if (sourceIsPlain(state, pos + token.start, pos + token.end)) continue;
       decorations.push(Decoration.inline(pos + token.start, pos + token.end, {
         'data-target-kind': token.kind, 'data-target-value': token.value,
         class: 'dodrag-editor-target text-sky-700 underline cursor-pointer',
       }));
+      decorations.push(Decoration.widget(pos + token.start, () => createSourceIcon(token),
+        { key: `source:${pos + token.start}:${token.value}`, side: -1, stopEvent: () => true }));
       if (token.kind === 'path' && isImagePath(token.value)) {
         decorations.push(Decoration.widget(pos + token.end, () => {
           const image = document.createElement('img');
@@ -38,8 +52,8 @@ export const PathAndUrlExtension = Extension.create<{ getTaskId: () => string }>
     return [new Plugin({
       key: new PluginKey('pathAndUrl'),
       state: {
-        init: (_, state) => decorate(state.doc, getTaskId()),
-        apply: (transaction, old) => transaction.docChanged ? decorate(transaction.doc, getTaskId()) : old,
+        init: (_, state) => decorate(state.doc, getTaskId(), state),
+        apply: (transaction, old, _oldState, state) => transaction.docChanged || transaction.getMeta('source:refresh') ? decorate(state.doc, getTaskId(), state) : old,
       },
       props: { decorations(state) { return this.getState(state); } },
     })];

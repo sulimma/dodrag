@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+[data-source-task-id] { --wails-drop-target: drop; }
+
 @layer base {
   * {
     user-select: text;

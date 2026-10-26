@@ -9,6 +9,7 @@ import { t } from '../i18n';
 const native = vi.hoisted(() => ({ explorer: vi.fn(), vscode: vi.fn(), url: vi.fn() }));
 vi.mock('../bridge/eventBridge', () => ({ eventBridge: {
   openPathInExplorer: native.explorer, openPathInVSCode: native.vscode, openExternalURL: native.url,
+  getPathKind: () => new Promise<'file'>(() => {}),
 } }));
 
 let host: HTMLDivElement, root: Root, props: TaskLogSectionProps;

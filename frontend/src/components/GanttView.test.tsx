@@ -69,6 +69,11 @@ it('places incoming edges from further left lower, then orders equal-column sour
 
   const verifyFlameSlot = (markup: string) => {
     element.innerHTML = markup;
+    for (const task of tasks) {
+      const rows = element.querySelectorAll(`[data-task-drag="${task.id}"]`);
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) expect(row.getAttribute('data-source-task-id')).toBe(task.id);
+    }
     const targetFlame = element.querySelector<HTMLElement>('[data-task-drag="target"] button');
     const rootFlame = element.querySelector<HTMLElement>('[data-task-drag="left-upper"] button');
     expect(targetFlame).not.toBeNull();

@@ -12,7 +12,8 @@ it('uses ISO timestamps, shared link/image targets, file insertion, Enter and Sh
     { id: 'e1', createdAt: '2026-10-25T12:30:00Z', text: 'https://example.org "C:\\a b.svg"' },
   ]} onAdd={onAdd} onRemove={vi.fn()} onContextMenu={onContextMenu} onError={vi.fn()} />));
   expect(element.querySelector('time')!.textContent).toMatch(/^2026-10-25 \d\d:\d\d$/);
-  expect(element.querySelectorAll('[data-target-kind]')).toHaveLength(2);
+  expect(element.querySelectorAll('[data-target-kind]:not([data-source-drag])')).toHaveLength(2);
+  expect(element.querySelectorAll('[data-source-drag]')).toHaveLength(2);
   expect(element.querySelector('img')!.getAttribute('src')).toContain('/dodrag-media?taskId=t1');
   act(() => element.querySelector('img')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
   expect(onContextMenu.mock.lastCall![1].target.value).toBe('C:\\a b.svg');

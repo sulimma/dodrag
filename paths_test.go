@@ -33,18 +33,60 @@ func TestAbsoluteLocalPathAndExistingPath(t *testing.T) {
 }
 
 func TestExternalURLValidation(t *testing.T) {
-	for _, raw := range []string{"https://example.org/path?q=1#hash", "http://localhost:3000", "https://[::1]:443/a", "HTTPS://example.org"} {
+	for _, raw := range []string{"https://example.org/path?q=1#hash", "http://localhost:3000", "https://[::1]:443/a", "HTTPS://example.org", "mailto:person@example.org?subject=Hello%20there", "sip:person@example.org", "sip:12345678", "sip:example.org", "tel:+493012345678", "tel:+49 (30) 1234_5678", "tel:112"} {
 		if _, err := validatedExternalURL(raw); err != nil {
 			t.Errorf("rejected %q: %v", raw, err)
 		}
 	}
-	for _, raw := range []string{"", "javascript:alert(1)", "file:///C:/secret", "cmd:calc", "//example.org", "https:", "https:///path", "https://user:pass@example.org", "https://example.org\r\ncalc", "https://example.org/a b", `https://example.org\bad`, "https://example.org:bad", "https://example.org/%zz"} {
+	for _, raw := range []string{"", "javascript:alert(1)", "file:///C:/secret", "cmd:calc", "//example.org", "https:", "https:///path", "https://user:pass@example.org", "https://example.org\r\ncalc", "https://example.org/a b", `https://example.org\bad`, "https://example.org:bad", "https://example.org/%zz", "mailto:", "mailto://person@example.org", "mailto:person@example.org?subject=x%0d%0aBcc:evil@example.org", "sip:person@example.org?command=evil", "tel:abc", "tel:+1234567890123456", "tel:123?command=evil", "tel:%0acalc", "tel:()", "data:text/plain,evil"} {
 		if _, err := validatedExternalURL(raw); err == nil {
 			t.Errorf("accepted %q", raw)
 		}
 	}
 	if err := (&App{}).OpenExternalURL("https://example.org"); err == nil {
 		t.Fatal("missing native context not reported")
+	}
+	if target, err := validatedExternalURL("tel:+49 (30) 1234_5678"); err != nil || target != "tel:+493012345678" {
+		t.Fatal(target, err)
+	}
+}
+
+func TestEncodedRawEmailDestinations(t *testing.T) {
+	for _, raw := range []string{
+		"mailto:AZaz09.%21%23%24%25%26%27%2A%2B-%2F%3D%3F%5E_%60%7B%7C%7D~@Example.123",
+		"mailto:%22space%20%23%20%3F%20%25%20%2F%20%3A%20%3C%3E%20%28text%29%22@example.org",
+	} {
+		if target, err := validatedExternalURL(raw); err != nil || target != raw {
+			t.Errorf("%q: got %q, %v", raw, target, err)
+		}
+	}
+	for _, raw := range []string{"mailto:a%00b@example.org", "mailto:%22a%0Ab%22@example.org", "mailto:a%7Fb@example.org", "mailto:a\tb@example.org"} {
+		if _, err := validatedExternalURL(raw); err == nil {
+			t.Errorf("accepted control characters in %q", raw)
+		}
+	}
+}
+
+func TestGetPathKindUsesFilesystemNotExtension(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "no-extension")
+	if err := os.WriteFile(file, []byte("test"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	folder := filepath.Join(dir, "folder.txt")
+	if err := os.Mkdir(folder, 0700); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{}
+	for path, want := range map[string]string{file: "file", folder: "directory"} {
+		if got, err := a.GetPathKind(path); err != nil || got != want {
+			t.Fatalf("%q: got %q, %v; want %q", path, got, err, want)
+		}
+	}
+	for _, path := range []string{filepath.Join(dir, "missing"), "relative", `C:\file.txt:stream`, `\\?\C:\file.txt`} {
+		if _, err := a.GetPathKind(path); err == nil {
+			t.Errorf("accepted %q", path)
+		}
 	}
 }
 

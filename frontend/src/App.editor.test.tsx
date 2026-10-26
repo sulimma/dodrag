@@ -28,6 +28,7 @@ let nativeDrop: ((x: number, y: number, paths: string[]) => void) | undefined;
 let onFileDrop: ReturnType<typeof vi.fn>, onFileDropOff: ReturnType<typeof vi.fn>;
 const geometry = ['getClientRects', 'getBoundingClientRect'] as const;
 let originalGeometry: (PropertyDescriptor | undefined)[];
+const originalHitTest = Object.getOwnPropertyDescriptor(document, 'elementFromPoint');
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -70,6 +71,8 @@ afterEach(() => {
   expect(onFileDropOff).toHaveBeenCalledTimes(onFileDrop.mock.calls.length);
   expect(nativeDrop).toBeUndefined();
   delete window.go; delete window.runtime;
+  if (originalHitTest) Object.defineProperty(document, 'elementFromPoint', originalHitTest);
+  else Reflect.deleteProperty(document, 'elementFromPoint');
   geometry.forEach((key, index) => {
     const descriptor = originalGeometry[index];
     if (descriptor) Object.defineProperty(Range.prototype, key, descriptor);
@@ -199,6 +202,7 @@ it('focuses the native drop immediately, appends further typing at the inserted 
   const insertion = editor.state.selection.from;
   const coords = vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: insertion, inside: 0 });
   const path = 'C:\\Files\\dropped document.txt';
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => dom });
   await act(async () => {
     panel.focus(); // Explorer/native window activation does not focus contenteditable.
     nativeDrop!(120, 250, [path]);

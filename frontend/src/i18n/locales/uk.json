@@ -1,4 +1,9 @@
 {
+  "Mail-App": "Поштова програма",
+  "Anrufen": "Зателефонувати",
+  "Neuen Task für diese Quelle erstellen": "Створити нове завдання для цього джерела",
+  "Quelle ziehen": "Перетягнути джерело",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "Перетягнути джерело (тип шляху недоступний)",
   "bearbeiten": "редагувати",
   "löschen": "видалити",
   "Ungültiger Dateipfad": "Недійсний шлях до файлу",

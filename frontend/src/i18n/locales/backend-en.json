@@ -1,4 +1,6 @@
 {
+  "Ungueltige externe URL": "Invalid external URL",
+  "Externe Anwendung konnte nicht geoeffnet werden": "External application could not be opened",
   "Ungueltiger absoluter Pfad": "Invalid absolute path",
   "Pfad konnte nicht geoeffnet werden": "Path could not be opened",
   "Ungueltige HTTP(S)-URL": "Invalid HTTP(S) URL",

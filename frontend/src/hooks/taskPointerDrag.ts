@@ -20,6 +20,7 @@ export function installTaskPointerDrag(onEnd: () => void, onAltChange: (held: bo
   const transfer = {
     effectAllowed: 'all',
     dropEffect: 'move',
+    get types() { return [...values.keys()]; },
     setData: (type: string, value: string) => values.set(type, value),
     getData: (type: string) => values.get(type) ?? '',
     setDragImage: (element: HTMLElement, dx: number, dy: number) => {

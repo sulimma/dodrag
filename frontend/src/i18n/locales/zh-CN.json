@@ -1,4 +1,9 @@
 {
+  "Mail-App": "邮件应用",
+  "Anrufen": "拨打电话",
+  "Neuen Task für diese Quelle erstellen": "为此来源创建新任务",
+  "Quelle ziehen": "拖动来源",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "拖动来源（路径类型不可用）",
   "bearbeiten": "编辑",
   "löschen": "删除",
   "Ungültiger Dateipfad": "无效的文件路径",

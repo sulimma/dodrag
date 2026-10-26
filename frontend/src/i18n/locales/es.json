@@ -1,4 +1,9 @@
 {
+  "Mail-App": "Aplicación de correo",
+  "Anrufen": "Llamar",
+  "Neuen Task für diese Quelle erstellen": "Crear una nueva tarea para esta fuente",
+  "Quelle ziehen": "Arrastrar fuente",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "Arrastrar fuente (tipo de ruta no disponible)",
   "bearbeiten": "editar",
   "löschen": "eliminar",
   "Ungültiger Dateipfad": "Ruta de archivo no válida",

@@ -62,6 +62,7 @@ it('shows compact hover/focus actions, targets the task and never restores for a
     expect(taskMenuItems({ ...task, completed: true }).map(item => item.id)).toEqual(['reopen']);
     expect(task.predecessorIds).toEqual(['P']);
     const title = element.querySelector('[title="Task A"]')!;
+    expect(title.closest('[data-source-task-id]')!.getAttribute('data-source-task-id')).toBe('A');
     act(() => title.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
     expect(context).toHaveBeenCalledWith(expect.anything(), 'A');
     click(title);

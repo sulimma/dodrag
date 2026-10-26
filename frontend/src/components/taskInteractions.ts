@@ -43,6 +43,7 @@ export function draggedTaskIdOf(
   event: Pick<React.DragEvent, 'dataTransfer'>,
   draggedTaskId: string | null
 ) {
+  if (event.dataTransfer?.types?.includes('Files') || event.dataTransfer?.types?.includes('application/x-dodrag-source')) return null;
   return draggedTaskId || event.dataTransfer?.getData('text/plain') || null;
 }
 // Pointer drag origins are shared by full rows and the compact completed rows.
@@ -72,8 +73,10 @@ export function taskDragDropInteractions(
 export function taskDropTargetInteractions(id: string, key: string, actions: TaskDragDropActions) {
   return {
     'data-task-drop-target': key,
+    'data-source-task-id': id,
     onDragOver: (event: React.DragEvent) => {
       event.preventDefault();
+      if (event.dataTransfer?.types?.includes('Files')) return;
       event.stopPropagation();
       if (actions.draggedTaskId) {
         event.dataTransfer.dropEffect = 'move';
@@ -86,6 +89,7 @@ export function taskDropTargetInteractions(id: string, key: string, actions: Tas
     },
     onDrop: (event: React.DragEvent) => {
       event.preventDefault();
+      if (event.dataTransfer?.types?.includes('Files')) return;
       event.stopPropagation();
       const source = draggedTaskIdOf(event, actions.draggedTaskId);
       // A self drop still applies the frozen group; the mutation layer omits the self edge.

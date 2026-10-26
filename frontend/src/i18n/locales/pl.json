@@ -1,4 +1,9 @@
 {
+  "Mail-App": "Aplikacja pocztowa",
+  "Anrufen": "Zadzwoń",
+  "Neuen Task für diese Quelle erstellen": "Utwórz nowe zadanie dla tego źródła",
+  "Quelle ziehen": "Przeciągnij źródło",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "Przeciągnij źródło (typ ścieżki niedostępny)",
   "bearbeiten": "edytuj",
   "löschen": "usuń",
   "Ungültiger Dateipfad": "Nieprawidłowa ścieżka pliku",

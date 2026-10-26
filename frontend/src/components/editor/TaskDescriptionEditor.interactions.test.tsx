@@ -501,3 +501,34 @@ it('navigates the three-column special-character palette by rows and columns', a
   act(() => entries[4].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })));
   expect(document.activeElement).toBe(entries[3]);
 });
+
+it.each(['06917320 2564', '+49 (30) 1234_5678', 'mailto:kolja@solimma.de', 'kolja+tag@solimma.de.extra', '"mail # ? % /"@solimma.de'])('keeps a growing source together: %s', async value => {
+  const { editor, element } = await mount();
+  for (const character of value) {
+    act(() => type(editor, character));
+    expect(element.querySelector('[data-target-literal]')).toBeNull();
+    expect(editor.state.doc.firstChild!.childCount).toBe(1);
+  }
+  expect(editor.state.doc.textContent).toBe(value);
+  expect(editor.state.doc.firstChild!.childCount).toBe(1);
+  expect(element.querySelectorAll('[data-source-drag]')).toHaveLength(1);
+  expect(element.querySelector('[data-source-drag]')!.compareDocumentPosition(element.querySelector('[data-target-kind]:not([data-source-drag])')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  act(() => type(editor, '!'));
+  expect(editor.state.doc.textContent).toBe(`${value}!`);
+  expect(editor.state.doc.firstChild!.firstChild!.type.name).toBe('targetLiteral');
+});
+
+it.each([false, true].flatMap(loaded => ['06917320 2564', 'person+tag@example.org', '"mail # ? % /"@example.org'].map(value => ({ loaded, value }))))('first Backspace removes source formatting, then one character (loaded=$loaded, $value)', async ({ loaded, value }) => {
+  const { editor, element } = await mount(loaded ? value : '');
+  act(() => { if (!loaded) type(editor, value); editor.commands.setTextSelection(editor.state.doc.content.size - 1); });
+  act(() => editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true })));
+  expect(editor.state.doc.textContent).toBe(value);
+  expect(element.querySelector('[data-source-drag]')).toBeNull();
+  act(() => {
+    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }));
+    // jsdom has no native contenteditable delete default action.
+    if (editor.state.doc.textContent === value) editor.view.dispatch(editor.state.tr.delete(editor.state.selection.from - 1, editor.state.selection.from));
+  });
+  expect(editor.state.doc.textContent).toBe(value.slice(0, -1));
+  expect(element.querySelector('[data-source-drag]')).toBeNull();
+});

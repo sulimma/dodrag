@@ -22,9 +22,9 @@ import { LocalImage } from './LocalImage';
 import { MarkdownFeatures, markdownFeaturesCSS } from './MarkdownFeatures';
 import { MarkdownTargets } from './MarkdownTargets';
 import { SymbolReplacements } from './SymbolReplacements';
-import { fileDropText, targetFromElement } from './targets';
+import { fileDropText, SOURCE_MIME, targetFromElement } from './targets';
 import { openTarget, targetMenuItems } from './contextMenu';
-import type { EditorContextMenuCallback, TaskDescriptionEditorHandle } from './types';
+import type { EditorContextMenuCallback, EditorTarget, TaskDescriptionEditorHandle } from './types';
 export type { TaskDescriptionEditorHandle } from './types';
 
 export interface DescriptionChangeMetadata { historyBoundary?: boolean; localUndo?: boolean }
@@ -36,6 +36,7 @@ export interface TaskDescriptionEditorProps {
   onEscape(): void;
   onContextMenu: EditorContextMenuCallback;
   onError(error: unknown): void;
+  onCreateSourceTask?(target: EditorTarget): void | Promise<void>;
   historyTarget?: HTMLElement | null;
 }
 
@@ -77,7 +78,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
     extensions: [StarterKit.configure({ codeBlock: false, link: false, trailingNode: false }), MarkdownTargets,
       CodeBlock.extend({ addNodeView() { return ReactNodeViewRenderer(MermaidBlockView); } }),
       TaskList, MarkdownTaskItem.configure({ nested: true, HTMLAttributes: { 'data-type': 'taskItem' }, a11y: { checkboxLabel: () => t('Checkliste ein-/ausschalten') } }),
-      MarkdownLink.configure({ openOnClick: false, autolink: false, linkOnPaste: false, protocols: ['http', 'https'] }),
+      MarkdownLink.configure({ openOnClick: false, autolink: false, linkOnPaste: false, protocols: ['http', 'https', 'mailto', 'sip', 'tel'] }),
       LocalImage.configure({ getTaskId: () => callbacks.current.taskId }), Table, TableRow, TableHeader, TableCell,
       PathAndUrlExtension.configure({ getTaskId: () => callbacks.current.taskId }),
       ...MarkdownFeatures,
@@ -118,6 +119,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
         },
         paste: view => { view.dispatch(closeHistory(view.state.tr)); return false; },
         drop: (_, event) => {
+          if (event.dataTransfer?.types.includes(SOURCE_MIME)) { event.preventDefault(); return true; }
           if (!event.dataTransfer?.types.includes('Files')) return false;
           // Skip ProseMirror clipboard parsing; Wails resolves native file paths
           // in its window-level bubble listener, so propagation must continue.
@@ -142,7 +144,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
   liveEditor.current = editor;
   useEffect(() => {
     editor?.view.dom.setAttribute('aria-label', t('Beschreibung'));
-    editor?.view.dispatch(editor.state.tr.setMeta('addToHistory', false));
+    editor?.view.dispatch(editor.state.tr.setMeta('addToHistory', false).setMeta('source:refresh', true));
   }, [editor, language]);
   useLayoutEffect(() => {
     if (!editor) return;
@@ -182,6 +184,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
     const target = targetFromElement(event.target);
     const session = taskSession.current;
     const clipboardAction = async (action: string) => {
+      if (target && action === 'source:create') { await callbacks.current.onCreateSourceTask?.(target); return; }
       if (target && ['url:open', 'path:explorer', 'path:vscode'].includes(action)) { await openTarget(target, action); return; }
       const { from, to } = editor.state.selection;
       if (action === 'editor:copy' || action === 'editor:cut') {
@@ -213,7 +216,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
         }
       }
     };
-    const items = target ? targetMenuItems(target) : [{ id: 'editor:cut', label: t('Ausschneiden'), shortcut: 'Ctrl+X', disabled: editor.state.selection.empty },
+    const items = target ? targetMenuItems(target, !!props.onCreateSourceTask) : [{ id: 'editor:cut', label: t('Ausschneiden'), shortcut: 'Ctrl+X', disabled: editor.state.selection.empty },
       { id: 'editor:copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: editor.state.selection.empty },
       { id: 'editor:paste', label: t('Einfügen'), shortcut: 'Ctrl+V', disabled: false }];
     props.onContextMenu(event, { target, items, execute: async action => {

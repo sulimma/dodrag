@@ -1,4 +1,6 @@
 {
+  "Ungueltige externe URL": "URL externe invalide",
+  "Externe Anwendung konnte nicht geoeffnet werden": "Impossible d'ouvrir l'application externe",
   "Ungueltiger absoluter Pfad": "Chemin absolu invalide",
   "Pfad konnte nicht geoeffnet werden": "Impossible d'ouvrir le chemin",
   "Ungueltige HTTP(S)-URL": "URL HTTP(S) invalide",

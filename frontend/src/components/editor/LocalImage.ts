@@ -1,5 +1,6 @@
 import Image, { type ImageOptions } from '@tiptap/extension-image';
 import { classifyTarget, mediaSource, tokenizeTargets } from './targets';
+import { createSourceIcon } from './SourceIcon';
 
 export const LocalImage = Image.extend<{ getTaskId: () => string } & ImageOptions>({
   addOptions() { return { ...this.parent?.(), getTaskId: () => '', inline: true, allowBase64: false, HTMLAttributes: {}, resize: false }; },
@@ -15,14 +16,19 @@ export const LocalImage = Image.extend<{ getTaskId: () => string } & ImageOption
   addNodeView() {
     const getTaskId = this.options.getTaskId;
     return ({ node }) => {
+      const container = document.createElement('span');
+      container.contentEditable = 'false';
       const image = document.createElement('img');
+      container.append(image);
       const update = (next: typeof node) => {
         if (next.type !== node.type) return false;
         const target = classifyTarget(String(next.attrs.src ?? ''));
         if (target) {
-          image.src = target.kind === 'path' ? mediaSource(getTaskId(), target.value) : target.value;
+          image.src = target.kind === 'path' ? mediaSource(getTaskId(), target.value) : /^https?:/i.test(target.value) ? target.value : '';
           image.dataset.targetKind = target.kind; image.dataset.targetValue = target.value;
         } else { image.removeAttribute('src'); delete image.dataset.targetKind; delete image.dataset.targetValue; }
+        container.querySelector('[data-source-drag]')?.remove();
+        if (target) container.prepend(createSourceIcon(target));
         image.alt = String(next.attrs.alt ?? next.attrs.src ?? '');
         return true;
       };
@@ -33,7 +39,7 @@ export const LocalImage = Image.extend<{ getTaskId: () => string } & ImageOption
         if (image.dataset.targetKind === 'path') image.src = mediaSource(getTaskId(), image.dataset.targetValue!);
       };
       this.editor.on('transaction', refresh);
-      return { dom: image, update, destroy: () => this.editor.off('transaction', refresh) };
+      return { dom: container, update, destroy: () => this.editor.off('transaction', refresh) };
     };
   },
 });

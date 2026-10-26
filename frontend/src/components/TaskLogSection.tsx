@@ -4,7 +4,7 @@ import { formatDate, t, useLanguage } from '../i18n';
 import { TargetText } from './editor/TargetText';
 import { fileDropText, targetFromElement } from './editor/targets';
 import { openTarget, targetMenuItems } from './editor/contextMenu';
-import type { EditorContextMenuCallback, TaskLogSectionHandle } from './editor/types';
+import type { EditorContextMenuCallback, EditorTarget, TaskLogSectionHandle } from './editor/types';
 export type { TaskLogSectionHandle } from './editor/types';
 
 export interface TaskLogSectionProps {
@@ -13,6 +13,7 @@ export interface TaskLogSectionProps {
   onRemove(entryId: string): void | Promise<void>;
   taskId: string;
   onContextMenu: EditorContextMenuCallback;
+  onCreateSourceTask?: (source: EditorTarget) => void | Promise<void>;
   onError(error: unknown): void;
 }
 
@@ -66,7 +67,7 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
       const selection = window.getSelection();
       const selectedText = selection?.rangeCount && article?.contains(selection.getRangeAt(0).commonAncestorContainer)
         ? selection.toString() : '';
-      const items = target ? targetMenuItems(target) : field
+      const items = target ? targetMenuItems(target, !!props.onCreateSourceTask) : field
         ? [{ id: 'cut', label: t('Ausschneiden'), disabled: start === end },
           { id: 'copy', label: t('Kopieren'), disabled: start === end },
           { id: 'paste', label: t('Einfügen'), disabled: false }]
@@ -75,6 +76,7 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
       props.onContextMenu(event, { target, items, execute: async action => {
         if (currentTask.current !== props.taskId || !items.some(item => item.id === action && !item.disabled)) return;
         try {
+          if (action === 'source:create' && target) { await props.onCreateSourceTask?.(target); return; }
           if (action === 'delete' && entry) {
             if (currentEntries.current.some(current => current.id === entry.id)) await props.onRemove(entry.id);
             return;

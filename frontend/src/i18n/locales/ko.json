@@ -1,4 +1,9 @@
 {
+  "Mail-App": "메일 앱",
+  "Anrufen": "전화 걸기",
+  "Neuen Task für diese Quelle erstellen": "이 소스에 대한 새 작업 만들기",
+  "Quelle ziehen": "소스 드래그",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "소스 드래그 (경로 유형을 확인할 수 없음)",
   "bearbeiten": "편집",
   "löschen": "삭제",
   "Ungültiger Dateipfad": "잘못된 파일 경로",

@@ -1,4 +1,9 @@
 {
+  "Mail-App": "Application de messagerie",
+  "Anrufen": "Appeler",
+  "Neuen Task für diese Quelle erstellen": "Créer une nouvelle tâche pour cette source",
+  "Quelle ziehen": "Faire glisser la source",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "Faire glisser la source (type de chemin indisponible)",
   "bearbeiten": "modifier",
   "löschen": "supprimer",
   "Ungültiger Dateipfad": "Chemin de fichier invalide",

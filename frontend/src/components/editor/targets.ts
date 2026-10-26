@@ -8,13 +8,57 @@ export interface TargetToken extends EditorTarget {
   label?: string;
 }
 
+const emailAtom = String.raw`[a-z0-9!#$%&'*+/=?^_\x60{|}~-]+`;
+const emailLocal = String.raw`(?:${emailAtom}(?:\.${emailAtom})*|"[^"@\x00-\x1f\x7f-\x9f]+(?<!\\)")`;
+const emailAddress = String.raw`${emailLocal}@[a-z0-9]+(?:\.[a-z0-9]+)+`;
+const rawEmailPattern = new RegExp(`^(${emailLocal})@([a-z0-9]+(?:\\.[a-z0-9]+)+)$`, 'i');
+
 export function classifyTarget(raw: string): EditorTarget | undefined {
-  const value = raw.trim().replace(/^"(.*)"$/, '$1');
-  if (/^https?:\/\/[^\s<>"\\]+$/i.test(value)) return { kind: 'url', value };
+  const email = raw.trim().match(rawEmailPattern);
+  if (email && !/[\x00-\x1f\x7f-\x9f]/.test(raw)) {
+    try {
+      const local = encodeURIComponent(email[1]).replace(/[!'()*]/g, character => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+      return { kind: 'url', value: `mailto:${local}@${email[2]}` };
+    } catch { return; }
+  }
+  let value = raw.trim().replace(/^"(.*)"$/, '$1');
+  if (/^tel:\+?[\d ()_-]+$/i.test(value) && /\d/.test(value.slice(4))) value = `tel:${value.slice(4).replace(/[ ()_-]/g, '')}`;
+  if (/^(?:https?:|mailto:|sip:|tel:)/i.test(value)) {
+    if (/[\s<>"\\\x00-\x1f\x7f]/.test(value) || /%(?![\da-f]{2})/i.test(value)) return;
+    try {
+      if (/[\x00-\x1f\x7f]/.test(decodeURIComponent(value))) return;
+      const url = new URL(value);
+      if (['http:', 'https:'].includes(url.protocol)) {
+        if (!/^https?:\/\/[^/]/i.test(value) || !url.hostname || url.username || url.password) return;
+      } else {
+        if (url.host || value.slice(value.indexOf(':') + 1).startsWith('//') || !url.pathname || url.hash) return;
+        if (url.protocol === 'tel:' && (!/^\+?[\d()_-]+$/.test(url.pathname) || !/\d/.test(url.pathname) || url.search || url.pathname.replace(/\D/g, '').length > 15)) return;
+        if (url.protocol === 'mailto:' && !/^[^@?]+@[^@?]+$/.test(url.pathname)) return;
+        if (url.protocol === 'sip:' && (!/^[\w.+:;=@%\[\]-]+$/.test(url.pathname) || url.search)) return;
+      }
+      return { kind: 'url', value };
+    } catch { return; }
+  }
   if (/^(?:[a-z]:\\|\\\\[^\\\s/:*?"<>|]+\\[^\\/:*?"<>|]+)(?:[^:*?"<>|\r\n]*)$/i.test(value)) {
+    if (/[\x00-\x1f\x7f]/.test(value) || /^\\\\[?.]\\/.test(value)) return;
     return { kind: 'path', value };
   }
+  if (/^\+?[\d(][\d ()_-]*[\d)]$/.test(value) && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length >= 8 && digits.length <= 15) return { kind: 'url', value: `tel:${value.startsWith('+') ? '+' : ''}${digits}` };
+  }
   return undefined;
+}
+
+export const SOURCE_MIME = 'application/x-dodrag-source';
+
+export function parseSourcePayload(raw: string): EditorTarget | undefined {
+  try {
+    const data: unknown = JSON.parse(raw);
+    if (!data || typeof data !== 'object' || !('kind' in data) || !('value' in data) || typeof data.value !== 'string') return;
+    const target = classifyTarget(data.value);
+    return target?.kind === data.kind ? target : undefined;
+  } catch { return; }
 }
 
 export const isImagePath = (path: string): boolean => /\.(?:jpe?g|png|gif|webp|bmp|svg)$/i.test(path);
@@ -24,11 +68,11 @@ export const mediaSource = (taskId: string, path: string): string =>
 // Quoted paths retain whitespace. Bare paths stop at whitespace; no filename guessing.
 export function tokenizeTargets(text: string): TargetToken[] {
   const result: TargetToken[] = [];
-  const pattern = /!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|"([^"\r\n]+)"|((?:[a-z]:\\|\\\\)[^\r\n]*?)|([^\s)]+))\s*\)|"((?:[a-z]:\\|\\\\)[^"\r\n]*)"|https?:\/\/[^\s<>"]+|(?:[a-z]:\\|\\\\)[^\s<>"|:*?]*/gi;
+  const pattern = new RegExp(String.raw`!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|"([^"\r\n]+)"|((?:[a-z]:\\|\\\\)[^\r\n]*?)|([^\s)]+))\s*\)|"((?:[a-z]:\\|\\\\)[^"\r\n]*)"|tel:\+?[\d(][\d ()_-]*[\d)]|(?:https?:\/\/|mailto:|sip:|tel:)[^\s<>"]+|(?:[a-z]:\\|\\\\)[^\s<>"|:*?]*|(?<![a-z0-9!#$%&'*+/=?^_\x60{|}~.@:"\\-])(?<email>${emailAddress})(?![a-z0-9@_-]|\.[a-z0-9.])|(?<![\w+:(/-])\+?[\d(][\d ()_-]*[\d)](?![\w+()-])`, 'gi');
   for (const match of text.matchAll(pattern)) {
     const markdownImage = match[0].startsWith('![');
     let value = markdownImage ? match[2] ?? match[3] ?? match[4] ?? match[5] : match[6] ?? match[0];
-    if (!markdownImage && !match[6]) {
+    if (!markdownImage && !match[6] && !match.groups?.email) {
       value = value.replace(/[.,;!?]+$/, '');
       while (value.endsWith(')') && (value.match(/\)/g)?.length ?? 0) > (value.match(/\(/g)?.length ?? 0)) value = value.slice(0, -1);
     }

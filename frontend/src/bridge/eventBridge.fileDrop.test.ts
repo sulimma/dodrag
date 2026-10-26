@@ -77,6 +77,20 @@ describe.skipIf(!ts.sys.fileExists(sourcePath))('Wails 2.9.2 native drop bridge 
     expect(post).not.toHaveBeenCalled();
   });
 
+  it('shares one transport between app and detail panel until the last subscriber leaves', () => {
+    const app = vi.fn(), panel = vi.fn();
+    unsubscribe = eventBridge.onFileDrop(app);
+    const removePanel = eventBridge.onFileDrop(panel);
+    try {
+      notify(120, 75, ['C:\\Files\\example.txt']);
+      expect(app).toHaveBeenCalledOnce(); expect(panel).toHaveBeenCalledOnce();
+      removePanel();
+      notify(120, 75, ['C:\\Files\\second.txt']);
+      expect(app).toHaveBeenCalledTimes(2); expect(panel).toHaveBeenCalledOnce();
+      drop(); expect(post).toHaveBeenCalledOnce();
+    } finally { removePanel(); }
+  });
+
   it('filters the computed property on the hit element and removes transport listeners on cleanup', () => {
     const callback = vi.fn(); unsubscribe = eventBridge.onFileDrop(callback);
     styles.mockReturnValue({ getPropertyValue: () => 'none' });

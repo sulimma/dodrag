@@ -92,7 +92,9 @@ it('restricts URL actions and subscribes native file drops only at registered ta
   const callback = vi.fn(), onDrop = vi.fn(), off = vi.fn();
   vi.stubGlobal('window', { runtime: { OnFileDrop: onDrop, OnFileDropOff: off } });
   const unsubscribe = eventBridge.onFileDrop(callback);
-  expect(onDrop).toHaveBeenCalledWith(callback, true);
+  expect(onDrop).toHaveBeenCalledWith(expect.any(Function), true);
+  onDrop.mock.calls[0][0](10, 20, ['C:\\file.txt']);
+  expect(callback).toHaveBeenCalledWith(10, 20, ['C:\\file.txt']);
   unsubscribe();
   expect(off).toHaveBeenCalledOnce();
 });

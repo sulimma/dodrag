@@ -117,6 +117,7 @@ export function MiniCornerView({
             <div
               key={task.id}
               data-mini-task-id={task.id}
+              data-source-task-id={task.id}
               data-task-selected={selectedTaskId === task.id ? 'true' : undefined}
               tabIndex={0}
               onFocus={() => onSelectTask?.(task.id)}

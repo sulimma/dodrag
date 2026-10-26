@@ -6,6 +6,8 @@ import { TaskDescriptionEditor, type TaskDescriptionEditorHandle } from './TaskD
 import type { EditorContextMenu } from './types';
 import { getLanguage, setLanguage } from '../../i18n';
 import type { Editor } from '@tiptap/react';
+import { SOURCE_MIME } from './targets';
+import { appendTaskSources } from '../../domain/taskSources';
 
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
 
@@ -111,6 +113,70 @@ it('offers only URL actions on URLs and only editor actions on ordinary content'
     expect((onContextMenu.mock.lastCall![1] as EditorContextMenu).items.map(item => item.id)).toEqual([
       'editor:cut', 'editor:copy', 'editor:paste',
     ]);
+  } finally { act(() => root.unmount()); element.remove(); }
+});
+
+it('roundtrips communication sources, decorates Markdown links and exposes the optional native create action', async () => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onCreateSourceTask = vi.fn(), onChange = vi.fn(), onError = vi.fn();
+  const description = '[mail](mailto:person@example.org)\n\n[sip](sip:person@example.org)\n\n<tel:+493012345678>\n\nCall +49 (30) 1234_5678';
+  try {
+    await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description={description}
+      onChange={onChange} onEscape={vi.fn()} onError={onError} onContextMenu={onContextMenu} onCreateSourceTask={onCreateSourceTask} />));
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    expect(element.querySelectorAll('[data-source-drag]')).toHaveLength(4);
+    expect(dom.editor.getMarkdown()).toContain('+49 (30) 1234_5678');
+    for (const value of ['mailto:person@example.org', 'sip:person@example.org', 'tel:+493012345678']) expect(dom.editor.getMarkdown()).toContain(value);
+    act(() => element.querySelector('a')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+    const menu = onContextMenu.mock.lastCall![1] as EditorContextMenu;
+    expect(menu.items.map(item => item.id)).toEqual(['url:open', 'source:create']);
+    expect(menu.items[0].label).toContain('📧');
+    await act(async () => menu.execute('source:create'));
+    expect(onCreateSourceTask).toHaveBeenCalledOnce();
+    expect(onCreateSourceTask).toHaveBeenCalledWith({ kind: 'url', value: 'mailto:person@example.org' });
+    const before = dom.editor.getMarkdown();
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'dataTransfer', { value: { types: [SOURCE_MIME] } });
+    act(() => dom.dispatchEvent(drop));
+    expect(drop.defaultPrevented).toBe(true);
+    expect(dom.editor.getMarkdown()).toBe(before);
+    expect(onChange).not.toHaveBeenCalled(); expect(onError).not.toHaveBeenCalled();
+  } finally { act(() => root.unmount()); element.remove(); }
+});
+
+it.each([
+  ["AZaz09.!#$%&'*+-/=?^_`{|}~@Example.123", 'mailto:AZaz09.%21%23%24%25%26%27%2A%2B-%2F%3D%3F%5E_%60%7B%7C%7D~@Example.123'],
+  ['"mail # ? % /"@example.org', 'mailto:%22mail%20%23%20%3F%20%25%20%2F%22@example.org'],
+])('roundtrips raw email text and uses its encoded destination for the native menu: %s', async (address, destination) => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onChange = vi.fn(), onError = vi.fn();
+  try {
+    await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description={address}
+      onChange={onChange} onEscape={vi.fn()} onError={onError} onContextMenu={onContextMenu} />));
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    expect(dom.editor.state.doc.textContent).toBe(address);
+    expect(dom.editor.getMarkdown()).toBe(address);
+    const source = element.querySelector('[data-source-drag]')!;
+    const target = element.querySelector('[data-target-kind]:not([data-source-drag])')!;
+    expect(source.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(target.textContent).toBe(address);
+    act(() => target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+    expect((onContextMenu.mock.lastCall![1] as EditorContextMenu).target).toEqual({ kind: 'url', value: destination });
+    expect(onChange).not.toHaveBeenCalled(); expect(onError).not.toHaveBeenCalled();
+  } finally { act(() => root.unmount()); element.remove(); }
+});
+
+it('appends sources as separate paragraphs outside an existing list', async () => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const description = appendTaskSources('- item', [{ kind: 'url', value: 'mailto:person@example.org' }, { kind: 'path', value: 'C:\\source.txt' }]);
+  try {
+    await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description={description}
+      onChange={vi.fn()} onEscape={vi.fn()} onError={vi.fn()} onContextMenu={vi.fn()} />));
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    expect(dom.editor.state.doc.content.content.map(node => node.type.name)).toEqual(['bulletList', 'paragraph', 'paragraph']);
+    expect(dom.editor.state.doc.firstChild!.textContent).toBe('item');
+    expect(element.querySelectorAll('ul [data-source-drag]')).toHaveLength(0);
+    expect(element.querySelectorAll('.tiptap > p [data-source-drag]')).toHaveLength(2);
   } finally { act(() => root.unmount()); element.remove(); }
 });
 

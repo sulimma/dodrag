@@ -1,4 +1,9 @@
 {
+  "Mail-App": "Mail-App",
+  "Anrufen": "Anrufen",
+  "Neuen Task für diese Quelle erstellen": "Neuen Task für diese Quelle erstellen",
+  "Quelle ziehen": "Quelle ziehen",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "Quelle ziehen (Pfadtyp nicht verfügbar)",
   "bearbeiten": "bearbeiten",
   "löschen": "löschen",
   "Ungültiger Dateipfad": "Ungültiger Dateipfad",

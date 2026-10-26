@@ -14,6 +14,8 @@ import { useTaskSelection } from './useTaskSelection';
 import type { DragIdentity } from './useTaskDrag';
 import type { PushToast } from './useToasts';
 import { t, formatNumber } from '../i18n';
+import { appendTaskSources } from '../domain/taskSources';
+import type { EditorTarget } from '../components/editor/types';
 // Applies task commands and coordinates their selection and drag effects.
 export function useTaskMutations(
   database: Pick<
@@ -44,6 +46,20 @@ export function useTaskMutations(
     tasks[id].completed
       ? { type: 'TASK_REOPENED' as const, payload: { taskId: id } }
       : null;
+  const handleAppendSources = async (taskId: string, sources: readonly EditorTarget[]) => {
+    const ids = taskGroup(taskId, false);
+    if (!ids.length || !sources.length) return;
+    const frozenSources = sources.map(source => ({ ...source }));
+    appendTaskSources('', frozenSources);
+    await mutate(() => {
+      // Read after preceding queued editor saves, never overwrite a newer description.
+      const current = projectEvents(confirmedEvents.current, new Date());
+      return eventBridge.appendBatch(ids.filter(id => current.tasks[id]).map(id => ({
+        type: 'TASK_DESCRIPTION_SET' as const,
+        payload: { taskId: id, description: appendTaskSources(current.tasks[id].description, frozenSources) },
+      })));
+    });
+  };
   const handleToggleActive = async (task: TaskState) => {
     const nextActive = !task.isActive;
     setLastMovedKey(`task:${task.id}`);
@@ -226,6 +242,7 @@ export function useTaskMutations(
     await mutate(() => eventBridge.redo());
   };
   return {
+    handleAppendSources,
     handleToggleActive,
     handleSetConfiguredDate,
     handleResubmitTasks,

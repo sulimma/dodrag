@@ -7,7 +7,7 @@ const drop = (handlers: ReturnType<typeof taskInteractions>, altKey = false) => 
     currentTarget: { contains: () => false } as unknown as HTMLElement,
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
-    dataTransfer: { getData: () => 'A', dropEffect: '' },
+    dataTransfer: { types: ['text/plain'], getData: () => 'A', dropEffect: '' },
   };
   handlers.onDrop(event as any);
   return event;
@@ -24,6 +24,23 @@ it('forwards every drop source so the mutation layer owns self-edge and group fi
   expect(add).toHaveBeenCalledWith('A', 'B');
   drop(foreign, true);
   expect(remove).toHaveBeenCalledWith('A', 'B');
+});
+it('exposes a source marker and lets native Files drops bubble without creating dependencies', () => {
+  const add = vi.fn(), remove = vi.fn(), highlight = vi.fn();
+  const handlers = taskInteractions('B', 'task:B', {
+    onDragStartTask: vi.fn(), draggedTaskId: 'A', setActiveDropTargetKey: highlight,
+    onAddPredecessor: add, onRemoveDependencyBetween: remove,
+    onSelectTask: vi.fn(), isAltDrag: false, onContextMenuTask: vi.fn(),
+  });
+  expect(handlers['data-source-task-id']).toBe('B');
+  const event = { preventDefault: vi.fn(), stopPropagation: vi.fn(), altKey: true,
+    dataTransfer: { types: ['Files'], getData: vi.fn(() => 'A'), dropEffect: 'copy' } };
+  handlers.onDragOver(event as any); handlers.onDrop(event as any);
+  expect(event.preventDefault).toHaveBeenCalledTimes(2);
+  expect(event.stopPropagation).not.toHaveBeenCalled();
+  expect(event.dataTransfer.getData).not.toHaveBeenCalled();
+  expect(event.dataTransfer.dropEffect).toBe('copy');
+  expect(highlight).not.toHaveBeenCalled(); expect(add).not.toHaveBeenCalled(); expect(remove).not.toHaveBeenCalled();
 });
 it('prefers the frozen drag id and falls back to the local transfer value', () => {
   const transfer = { getData: () => 'A' } as unknown as DataTransfer;

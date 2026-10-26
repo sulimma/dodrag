@@ -1,4 +1,9 @@
 {
+  "Mail-App": "Mail app",
+  "Anrufen": "Call",
+  "Neuen Task für diese Quelle erstellen": "Create a new task for this source",
+  "Quelle ziehen": "Drag source",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "Drag source (path type unavailable)",
   "bearbeiten": "edit",
   "löschen": "delete",
   "Ungültiger Dateipfad": "Invalid file path",

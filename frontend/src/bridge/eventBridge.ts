@@ -81,6 +81,7 @@ declare global {
           OpenPathInExplorer?: (path: string) => Promise<void>;
           OpenPathInVSCode?: (path: string) => Promise<void>;
           OpenExternalURL?: (url: string) => Promise<void>;
+          GetPathKind?: (path: string) => Promise<'file' | 'directory'>;
           ClearPreviewCache?: () => Promise<void>;
           OpenPreviewCacheInExplorer?: () => Promise<void>;
           EnterMiniMode: (
@@ -101,6 +102,7 @@ declare global {
 
 const LOCAL_STORAGE_KEY = 'dodrag_sqlite_fallback_events_v1';
 const LOCAL_SETTINGS_KEY = 'dodrag_settings_fallback_v1';
+const fileDropSubscribers = new Set<(x: number, y: number, paths: string[]) => void>();
 
 function isWailsAvailable(): boolean {
   return Boolean(window?.go?.main?.App);
@@ -449,8 +451,12 @@ export const eventBridge = {
 
   async openExternalURL(url: string): Promise<void> {
     const parsed = new URL(url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error(t('Ungültige URL'));
+    if (!['http:', 'https:', 'mailto:', 'sip:', 'tel:'].includes(parsed.protocol)) throw new Error(t('Ungültige URL'));
     if (isWailsAvailable()) await window.go!.main!.App!.OpenExternalURL!(url);
+  },
+
+  async getPathKind(path: string): Promise<'file' | 'directory' | undefined> {
+    return window.go?.main?.App?.GetPathKind?.(path);
   },
 
   async clearPreviewCache(): Promise<void> {
@@ -465,8 +471,14 @@ export const eventBridge = {
     // Wails 2.9.2 resolves Windows paths in a window-level bubbling drop handler.
     // Child file-drop handlers may preventDefault, but must not stopPropagation.
     // Coordinates are client CSS pixels; the CSS target property is inherited.
-    window.runtime?.OnFileDrop?.(callback, true);
-    return () => window.runtime?.OnFileDropOff?.();
+    if (!fileDropSubscribers.size) window.runtime?.OnFileDrop?.((x, y, paths) => {
+      for (const subscriber of fileDropSubscribers) subscriber(x, y, paths);
+    }, true);
+    fileDropSubscribers.add(callback);
+    return () => {
+      fileDropSubscribers.delete(callback);
+      if (!fileDropSubscribers.size) window.runtime?.OnFileDropOff?.();
+    };
   },
 
   async createDatabase(

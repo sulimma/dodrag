@@ -1,4 +1,9 @@
 {
+  "Mail-App": "メールアプリ",
+  "Anrufen": "電話をかける",
+  "Neuen Task für diese Quelle erstellen": "このソースの新しいタスクを作成",
+  "Quelle ziehen": "ソースをドラッグ",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "ソースをドラッグ（パスの種類を取得できません）",
   "bearbeiten": "編集",
   "löschen": "削除",
   "Ungültiger Dateipfad": "無効なファイルパス",

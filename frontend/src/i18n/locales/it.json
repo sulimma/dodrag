@@ -1,4 +1,9 @@
 {
+  "Mail-App": "App di posta",
+  "Anrufen": "Chiama",
+  "Neuen Task für diese Quelle erstellen": "Crea una nuova attività per questa fonte",
+  "Quelle ziehen": "Trascina la fonte",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "Trascina la fonte (tipo di percorso non disponibile)",
   "bearbeiten": "modifica",
   "löschen": "elimina",
   "Ungültiger Dateipfad": "Percorso del file non valido",

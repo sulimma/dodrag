@@ -201,6 +201,7 @@ export function TaskSidebar({
                 <div
                   {...taskDragSourceInteractions(task.id, dragDropActions)}
                   data-completed-task={task.id}
+                  data-source-task-id={task.id}
                   data-task-selected={interactions.selectedTaskId === task.id ? 'true' : undefined}
                   tabIndex={0}
                   onFocus={() => {

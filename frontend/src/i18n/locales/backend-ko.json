@@ -1,4 +1,6 @@
 {
+  "Ungueltige externe URL": "유효하지 않은 외부 URL",
+  "Externe Anwendung konnte nicht geoeffnet werden": "외부 애플리케이션을 열지 못했습니다",
   "Ungueltiger absoluter Pfad": "유효하지 않은 절대 경로",
   "Pfad konnte nicht geoeffnet werden": "경로를 열지 못했습니다",
   "Ungueltige HTTP(S)-URL": "유효하지 않은 HTTP(S) URL",

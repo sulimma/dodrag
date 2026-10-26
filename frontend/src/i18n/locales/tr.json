@@ -1,4 +1,9 @@
 {
+  "Mail-App": "E-posta uygulaması",
+  "Anrufen": "Ara",
+  "Neuen Task für diese Quelle erstellen": "Bu kaynak için yeni görev oluştur",
+  "Quelle ziehen": "Kaynağı sürükle",
+  "Quelle ziehen (Pfadtyp nicht verfügbar)": "Kaynağı sürükle (yol türü kullanılamıyor)",
   "bearbeiten": "düzenle",
   "löschen": "sil",
   "Ungültiger Dateipfad": "Geçersiz dosya yolu",
