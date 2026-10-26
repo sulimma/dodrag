@@ -19,7 +19,11 @@ export function taskDragPreview(
   const sourceRect = source.getBoundingClientRect();
   let fallbackY = Math.max(sourceRect.bottom, ...nodes.map(node => node.getBoundingClientRect().bottom)) + 8;
   const items = taskIds.map(id => {
-    const matchingNode = nodes.find(element => element.dataset.taskDrag === id);
+    // The same task can be rendered in both the detail header and the main view.
+    // Clone the pressed source itself, and use its view for other group members.
+    const matchingNode = id === source.dataset.taskDrag ? source :
+      nodes.find(element => element.dataset.taskDrag === id &&
+        !!element.closest('[data-task-detail-panel]') === !!source.closest('[data-task-detail-panel]'));
     const node = matchingNode ?? source;
     const rect = node.getBoundingClientRect();
     const clone = node.cloneNode(true) as HTMLElement;

@@ -219,6 +219,8 @@
   "Gantt": "Діаграма Ґанта",
   "Neues kleines TODO eingeben... (Taste N)": "Введіть нове завдання... (клавіша N)",
   "Task hinzufügen (Enter)": "Додати завдання (Enter)",
+  "Offene Tasks": "Відкриті завдання",
+  "Offene Tasks: {count} ({delta} seit gestern)": "Відкриті завдання: {count} ({delta} з учора)",
   "Rückgängig (Ctrl+Z)": "Скасувати (Ctrl+Z)",
   "Undo": "Скасувати",
   "Wiederherstellen (Ctrl+Y)": "Повторити (Ctrl+Y)",

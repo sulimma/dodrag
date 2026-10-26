@@ -17,6 +17,8 @@ interface AppToolbarProps {
   viewMode: ViewMode;
   setViewMode: (view: ViewMode) => void;
   nextTaskId: string;
+  openTaskCount: number;
+  openTaskDelta: number;
   canUndo: boolean;
   canRedo: boolean;
   snapshotReady: boolean;
@@ -35,6 +37,8 @@ export function AppToolbar({
   viewMode,
   setViewMode,
   nextTaskId,
+  openTaskCount,
+  openTaskDelta,
   canUndo,
   canRedo,
   snapshotReady,
@@ -132,6 +136,13 @@ export function AppToolbar({
 
       {/* Undo/Redo & Controls */}
       <div className="flex items-center gap-2">
+        {/* Open tasks and the change since yesterday; fewer open tasks is the good direction. */}
+        <span className="text-xs tabular-nums px-1 text-slate-700"
+          aria-label={t('Offene Tasks: {count} ({delta} seit gestern)', { count: String(openTaskCount), delta: openTaskDelta > 0 ? `+${openTaskDelta}` : String(openTaskDelta) })}
+          title={t('Offene Tasks')}>
+          {openTaskCount} <span className={openTaskDelta < 0 ? 'text-emerald-600' : openTaskDelta > 0 ? 'text-red-600' : 'text-sky-600'}>
+            ({openTaskDelta > 0 ? `+${openTaskDelta}` : openTaskDelta})</span>
+        </span>
         <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1">
           <button
             onClick={onUndo}

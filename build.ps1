@@ -1,7 +1,7 @@
 # Build and test with a local dependency cache; never stop or start user processes.
 param(
     [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')]
-    [string]$Version = '0.2.1',
+    [string]$Version = '0.2.2',
     [ValidateSet('amd64', 'arm64')][string]$Architecture = 'amd64'
 )
 $ErrorActionPreference = "Stop"

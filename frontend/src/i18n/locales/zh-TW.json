@@ -219,6 +219,8 @@
   "Gantt": "甘特圖",
   "Neues kleines TODO eingeben... (Taste N)": "輸入新的待辦事項…（按 N）",
   "Task hinzufügen (Enter)": "新增任務（Enter）",
+  "Offene Tasks": "未完成任務",
+  "Offene Tasks: {count} ({delta} seit gestern)": "未完成任務：{count}（較昨日 {delta}）",
   "Rückgängig (Ctrl+Z)": "復原（Ctrl+Z）",
   "Undo": "復原",
   "Wiederherstellen (Ctrl+Y)": "重做（Ctrl+Y）",

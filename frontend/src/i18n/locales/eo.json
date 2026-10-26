@@ -219,6 +219,8 @@
   "Gantt": "Gantt",
   "Neues kleines TODO eingeben... (Taste N)": "Enigu novan etan farendaĵon... (klavo N)",
   "Task hinzufügen (Enter)": "Aldoni taskon (Enenigo)",
+  "Offene Tasks": "Malfermitaj taskoj",
+  "Offene Tasks: {count} ({delta} seit gestern)": "Malfermitaj taskoj: {count} ({delta} ekde hieraŭ)",
   "Rückgängig (Ctrl+Z)": "Malfari (Ctrl+Z)",
   "Undo": "Malfari",
   "Wiederherstellen (Ctrl+Y)": "Refari (Ctrl+Y)",

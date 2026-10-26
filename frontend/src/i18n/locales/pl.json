@@ -219,6 +219,8 @@
   "Gantt": "Gantt",
   "Neues kleines TODO eingeben... (Taste N)": "Wpisz nowe małe TODO... (klawisz N)",
   "Task hinzufügen (Enter)": "Dodaj zadanie (Enter)",
+  "Offene Tasks": "Otwarte zadania",
+  "Offene Tasks: {count} ({delta} seit gestern)": "Otwarte zadania: {count} ({delta} od wczoraj)",
   "Rückgängig (Ctrl+Z)": "Cofnij (Ctrl+Z)",
   "Undo": "Cofnij",
   "Wiederherstellen (Ctrl+Y)": "Ponów (Ctrl+Y)",

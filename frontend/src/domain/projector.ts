@@ -219,6 +219,29 @@ export function wouldCreateCycle(
 }
 
 /**
+ * Counts open tasks in the current, corrected history before today. Undo/redo
+ * intentionally revises this baseline retroactively; its timestamps are not
+ * stored, so this is not an exact snapshot of what was displayed yesterday.
+ * This ambiguity is accepted for the lightweight daily indicator. A regular
+ * TASK_REOPENED event today changes today's count, not yesterday's baseline.
+ */
+export function openTaskCountAtDayStart(events: readonly StoredEvent[], now: Date = new Date()): number {
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const wasCompleted = new Set<string>();
+  let count = 0;
+  for (const event of events) {
+    // Sequence order does not guarantee timestamp order after clock corrections.
+    if (Date.parse(event.timestamp) >= startOfToday) continue;
+    if (event.undone) continue;
+    const taskId = event.payload.taskId;
+    if (event.type === 'TASK_CREATED') count++;
+    else if (event.type === 'TASK_COMPLETED' && !wasCompleted.has(taskId)) { wasCompleted.add(taskId); count--; }
+    else if (event.type === 'TASK_REOPENED' && wasCompleted.delete(taskId)) count++;
+  }
+  return count;
+}
+
+/**
  * Projects an ordered list of StoredEvents into the deterministic application state.
  */
 export function projectEvents(
@@ -271,14 +294,21 @@ export function projectEvents(
   const calculatedStartCache: Record<string, string | null> = Object.create(null);
   const effectiveStartCache: Record<string, string> = Object.create(null);
   const activeStart = now.toISOString();
+  // Whole local calendar days only: a dependent task is due the day after its
+  // predecessor's visible day, so an active task today never schedules its
+  // successors into today's remaining hours. Future predecessor days stay exact.
+  const todayStart = dateKeyToIsoStart(toDateKey(now));
+  const successorDueAfter = (iso: string) =>
+    toDateKey(new Date(iso)) > toDateKey(now) ? iso : todayStart;
   for (const raw of replay.orderedTasks) {
     let latest: string | null = null;
-    for (const pred of raw.predecessors) {
+    // Completed predecessors no longer block the task, just as in the visible graph.
+    for (const pred of openPredsMap[raw.id]) {
       const value = effectiveStartCache[pred];
       if (!latest || Date.parse(value) > Date.parse(latest)) latest = value;
     }
     const active = raw.isActive && !raw.completed;
-    const calculated = active ? activeStart : latest ? addCalendarDays(latest, 1) : null;
+    const calculated = active ? activeStart : latest ? addCalendarDays(successorDueAfter(latest), 1) : null;
     calculatedStartCache[raw.id] = calculated;
     effectiveStartCache[raw.id] = active ? activeStart : calculated && Date.parse(calculated) > Date.parse(raw.configuredStart) ? calculated : raw.configuredStart;
   }
@@ -375,6 +405,7 @@ export function projectEvents(
     canRedo,
     activeEventCount: replay.activeEventCount,
     totalEventCount: events.length,
+    openTaskCountAtYesterdayEnd: openTaskCountAtDayStart(events, now),
     nextTaskId,
   };
 }

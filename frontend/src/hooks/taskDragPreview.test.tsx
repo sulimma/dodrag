@@ -24,6 +24,25 @@ const node = (id: string, x: number, y: number, width = 200, bar = false) => {
 };
 afterEach(() => { document.body.replaceChildren(); vi.restoreAllMocks(); });
 
+it.each([['A'], ['A', 'B']])('uses the pressed row, not the focused detail copy, for members %j', (...ids) => {
+  const panel = document.createElement('aside'); panel.dataset.taskDetailPanel = 'true'; document.body.append(panel);
+  const detail = node('A', 0, 0, 560); detail.textContent = 'Detail header'; panel.append(detail);
+  panel.tabIndex = 0; panel.focus();
+  const source = node('A', 600, 100); source.textContent = 'Pressed row';
+  const other = node('B', 600, 150); other.textContent = 'Other row';
+  const setDragImage = vi.fn();
+  taskDragPreview({ setDragImage } as unknown as DataTransfer, source, ids, tasks, 610, 110, true);
+  const image = setDragImage.mock.calls[0][0] as HTMLElement;
+  expect(image.textContent).toContain('Pressed row');
+  expect(image.textContent).not.toContain('Detail header');
+  expect(image.querySelectorAll('[data-drag-preview-task]')).toHaveLength(ids.length);
+  expect(image.querySelector<HTMLElement>('[data-drag-preview-task="A"]')!.style.width).toBe('200px');
+  if (ids.length > 1) expect(image.textContent).toContain('Other row');
+  document.querySelector('[data-task-drag-preview]')!.remove();
+  taskDragPreview({ setDragImage } as unknown as DataTransfer, detail, ['A'], tasks, 10, 10, true);
+  expect((setDragImage.mock.calls[1][0] as HTMLElement).textContent).toBe('Detail header');
+});
+
 it('clones every frozen member with styles, relative positions and scaled non-first-source hotspot', () => {
   node('A', 100, 100, 800); const source = node('B', 140, 180, 800); node('C', 100, 230);
   const setDragImage = vi.fn();

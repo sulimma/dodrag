@@ -219,6 +219,8 @@
   "Gantt": "Gantt",
   "Neues kleines TODO eingeben... (Taste N)": "Inserisci un nuovo piccolo TODO... (tasto N)",
   "Task hinzufügen (Enter)": "Aggiungi attività (Enter)",
+  "Offene Tasks": "Attività aperte",
+  "Offene Tasks: {count} ({delta} seit gestern)": "Attività aperte: {count} ({delta} da ieri)",
   "Rückgängig (Ctrl+Z)": "Annulla (Ctrl+Z)",
   "Undo": "Annulla",
   "Wiederherstellen (Ctrl+Y)": "Ripeti (Ctrl+Y)",

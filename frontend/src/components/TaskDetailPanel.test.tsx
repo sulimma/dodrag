@@ -397,20 +397,23 @@ it('starts real pointer gestures only on free header/handle, cancels Escape and 
   };
   try {
     const header = host.querySelector('header')!;
-    for (const origin of [host.querySelector('[data-editor]')!, host.querySelector('[data-log]')!]) {
+    expect(host.querySelector('aside')!.hasAttribute('data-task-drag')).toBe(false);
+    expect(header.getAttribute('data-task-drag')).toBe(task.id);
+    for (const origin of [host.querySelector('aside')!, host.querySelector('[data-editor]')!, host.querySelector('[data-log]')!]) {
       pointer(origin, 'pointerdown', 10); pointer(header, 'pointermove', 30);
     }
     expect(props.interactions.onDragStartTask).not.toHaveBeenCalled();
     for (const origin of [header, host.querySelector('[data-drag-handle]')!]) {
       pointer(origin, 'pointerdown', 10); pointer(header, 'pointermove', 30);
       expect(props.interactions.onDragStartTask).toHaveBeenLastCalledWith(expect.anything(), task.id);
+      expect(vi.mocked(props.interactions.onDragStartTask).mock.calls.at(-1)![0].target).toBe(header);
       act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })));
     }
     expect(props.interactions.onDragStartTask).toHaveBeenCalledTimes(2);
     expect(end).toHaveBeenCalledTimes(2);
     render({ ...props, titleEditor: { ...props.titleEditor, taskId: task.id } });
     pointer(header, 'pointerdown', 10); pointer(header, 'pointermove', 30);
-    expect(host.querySelector('aside')!.hasAttribute('data-task-drag-disabled')).toBe(true);
+    expect(header.hasAttribute('data-task-drag-disabled')).toBe(true);
     expect(props.interactions.onDragStartTask).toHaveBeenCalledTimes(2);
   } finally { cleanup(); }
 });
@@ -455,7 +458,7 @@ it('keeps global task and undo shortcuts out of editor descendants but enables t
         clearEdgeSelection: vi.fn(), contextMenu: null, setContextMenu: vi.fn() },
       actions, state: { tasks: { [task.id]: task }, openTasks: [task], completedTasks: [],
         listEntries: [{ kind: 'task', key: task.id, task }], canUndo: true, canRedo: false,
-        activeEventCount: 1, totalEventCount: 1, nextTaskId: '26-102' },
+        activeEventCount: 1, totalEventCount: 1, openTaskCountAtYesterdayEnd: 1, nextTaskId: '26-102' },
       showSettingsModal: false, showShortcutsModal: false, setShowShortcutsModal: vi.fn(),
       isMiniMode: false, miniTaskIds: [], snapshotReady: true,
       listScrollRef: { current: null }, newTaskInputRef: { current: null },

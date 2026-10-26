@@ -219,6 +219,8 @@
   "Gantt": "간트",
   "Neues kleines TODO eingeben... (Taste N)": "새 할 일 입력... (N 키)",
   "Task hinzufügen (Enter)": "작업 추가 (Enter)",
+  "Offene Tasks": "미완료 작업",
+  "Offene Tasks: {count} ({delta} seit gestern)": "미완료 작업: {count} (어제 대비 {delta})",
   "Rückgängig (Ctrl+Z)": "실행 취소 (Ctrl+Z)",
   "Undo": "Undo",
   "Wiederherstellen (Ctrl+Y)": "다시 실행 (Ctrl+Y)",

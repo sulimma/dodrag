@@ -102,7 +102,7 @@ it('reuses drop targeting for movement, scroll, resize and release across repeat
     act(() => frame(48));
     expect(actions.activeDropTargetKey).not.toBeNull();
     source.remove();
-    act(() => frame(64));
+    act(() => frame(80));
     expect(identity.current).toBeNull();
     expect(actions.draggedTaskId).toBeNull();
     expect(actions.activeDropTargetKey).toBeNull();

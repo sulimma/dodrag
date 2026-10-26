@@ -219,6 +219,8 @@
   "Gantt": "Gantt",
   "Neues kleines TODO eingeben... (Taste N)": "Digite uma nova tarefa... (tecla N)",
   "Task hinzufügen (Enter)": "Adicionar tarefa (Enter)",
+  "Offene Tasks": "Tarefas abertas",
+  "Offene Tasks: {count} ({delta} seit gestern)": "Tarefas abertas: {count} ({delta} desde ontem)",
   "Rückgängig (Ctrl+Z)": "Desfazer (Ctrl+Z)",
   "Undo": "Desfazer",
   "Wiederherstellen (Ctrl+Y)": "Refazer (Ctrl+Y)",

@@ -219,6 +219,8 @@
   "Gantt": "Gantt",
   "Neues kleines TODO eingeben... (Taste N)": "Yeni küçük bir TODO girin... (N tuşu)",
   "Task hinzufügen (Enter)": "Görev ekle (Enter)",
+  "Offene Tasks": "Açık görevler",
+  "Offene Tasks: {count} ({delta} seit gestern)": "Açık görevler: {count} (dünden beri {delta})",
   "Rückgängig (Ctrl+Z)": "Geri al (Ctrl+Z)",
   "Undo": "Geri al",
   "Wiederherstellen (Ctrl+Y)": "Yinele (Ctrl+Y)",

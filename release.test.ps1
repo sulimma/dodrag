@@ -14,7 +14,7 @@ try {
             if ($state -eq 'modified') { Add-Content -LiteralPath 'release.ps1' -Value '# test change' }
             # PowerShell 5.1 promotes redirected native stderr under Stop; failure is expected here.
             $ErrorActionPreference = 'Continue'
-            $result = & powershell -NoProfile -ExecutionPolicy Bypass -File "$testRoot\release.ps1" 0.2.1 2>&1
+            $result = & powershell -NoProfile -ExecutionPolicy Bypass -File "$testRoot\release.ps1" 0.2.2 2>&1
             $ErrorActionPreference = 'Stop'
             if ($LASTEXITCODE -eq 0 -or "$result" -notmatch 'All changes must be committed') { throw "Dirty-tree guard failed for $state`: $result" }
             $tags = @(git tag --list)

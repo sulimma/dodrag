@@ -109,7 +109,7 @@ it('offers only URL actions on URLs and only editor actions on ordinary content'
     expect((onContextMenu.mock.lastCall![1] as EditorContextMenu).items.map(item => item.id)).toEqual(['url:open']);
     act(() => element.querySelector('.tiptap')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
     expect((onContextMenu.mock.lastCall![1] as EditorContextMenu).items.map(item => item.id)).toEqual([
-      'editor:cut', 'editor:copy', 'editor:paste', 'editor:toggleChecklist', 'editor:insertMermaid',
+      'editor:cut', 'editor:copy', 'editor:paste',
     ]);
   } finally { act(() => root.unmount()); element.remove(); }
 });

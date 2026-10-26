@@ -309,6 +309,8 @@ export function App() {
         viewMode={viewMode}
         setViewMode={setViewMode}
         nextTaskId={state.nextTaskId}
+        openTaskCount={state.openTasks.length}
+        openTaskDelta={state.openTasks.length - state.openTaskCountAtYesterdayEnd}
         canUndo={state.canUndo}
         canRedo={state.canRedo}
         snapshotReady={snapshotReady}

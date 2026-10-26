@@ -34,13 +34,73 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       seq: events.length + 1, id: 'completed', timestamp: todayIso, undone: false,
       type: 'TASK_COMPLETED', payload: { taskId: 'a', completedAt: todayIso },
     }], fixedNow);
-    for (const state of [before, after]) {
-      expect(state.tasks.c.effectiveStart).toBe('2026-10-19T14:30:12.000Z');
-      expect(state.tasks.d.effectiveStart).toBe('2026-10-20T14:30:12.000Z');
-      expect(state.tasks.e.calculatedStart).toBe('2026-10-21T14:30:12.000Z');
-      expect(state.tasks.e.effectiveStart).toBe(dates.e);
-    }
+    expect(before.tasks.c.effectiveStart).toBe('2026-10-19T14:30:12.000Z');
+    expect(before.tasks.d.effectiveStart).toBe('2026-10-20T14:30:12.000Z');
+    expect(before.tasks.e.calculatedStart).toBe('2026-10-21T14:30:12.000Z');
+    expect(after.tasks.c.effectiveStart).toBe('2026-10-18T18:00:00.000Z');
+    expect(after.tasks.d.effectiveStart).toBe('2026-10-19T18:00:00.000Z');
+    expect(after.tasks.e.calculatedStart).toBe('2026-10-20T18:00:00.000Z');
+    expect(before.tasks.e.effectiveStart).toBe(dates.e);
+    expect(after.tasks.e.effectiveStart).toBe(dates.e);
     expect(after.tasks.c.predecessorIds).toEqual(['b']);
+  });
+
+  it('keeps independent and released tasks on today, and restores scheduling when a predecessor reopens', () => {
+    const now = new Date(2026, 9, 26, 12);
+    const configuredStart = new Date(2026, 9, 25, 21, 27, 16).toISOString();
+    const events: StoredEvent[] = ['a', 'b', 'independent'].map((taskId, i) => ({
+      seq: i + 1, id: `create-${taskId}`, timestamp: configuredStart, undone: false, type: 'TASK_CREATED',
+      payload: { taskId, title: taskId, configuredStart, createdAt: configuredStart },
+    }));
+    events.push({ seq: 4, id: 'dep', timestamp: configuredStart, undone: false, type: 'DEPENDENCY_ADDED',
+      payload: { taskId: 'b', predecessorId: 'a' } });
+    expect(projectEvents(events, now).tasks.b.effectiveDateKey).toBe('2026-10-27');
+    events.push({ seq: 5, id: 'done', timestamp: configuredStart, undone: false, type: 'TASK_COMPLETED',
+      payload: { taskId: 'a', completedAt: configuredStart } });
+    for (const day of [26, 27]) {
+      const state = projectEvents(events, new Date(2026, 9, day, 12));
+      for (const id of ['b', 'independent']) {
+        expect(state.tasks[id].calculatedStart).toBeNull();
+        expect(state.tasks[id].configuredStart).toBe(configuredStart);
+        expect(state.tasks[id].predecessorIds).toEqual([]);
+        expect(state.tasks[id].effectiveDateKey).toBe(`2026-10-${day}`);
+      }
+      expect(state.tasks.b.allPredecessorIds).toEqual(['a']);
+    }
+    events.push({ seq: 6, id: 'reopen', timestamp: now.toISOString(), undone: false, type: 'TASK_REOPENED',
+      payload: { taskId: 'a' } });
+    expect(projectEvents(events, now).tasks.b.effectiveDateKey).toBe('2026-10-27');
+  });
+
+  it('compares future predecessor days in local time, not by their UTC date prefix', () => {
+    const now = new Date(2026, 9, 26, 12);
+    const future = new Date(2026, 9, 27, 0, 30).toISOString();
+    const events: StoredEvent[] = ['a', 'b'].map((taskId, i) => ({
+      seq: i + 1, id: `create-${taskId}`, timestamp: now.toISOString(), undone: false, type: 'TASK_CREATED',
+      payload: { taskId, title: taskId, configuredStart: taskId === 'a' ? future : now.toISOString(), createdAt: now.toISOString() },
+    }));
+    events.push({ seq: 3, id: 'dep', timestamp: now.toISOString(), undone: false, type: 'DEPENDENCY_ADDED',
+      payload: { taskId: 'b', predecessorId: 'a' } });
+    expect(projectEvents(events, now).tasks.b.calculatedStart).toBe(new Date(2026, 9, 28, 0, 30).toISOString());
+  });
+
+  it('schedules the successor on the next calendar day, not the next 24 hours, of an active task', () => {
+    const events: StoredEvent[] = [
+      { seq: 1, id: 'create-a', timestamp: todayIso, undone: false, type: 'TASK_CREATED',
+        payload: { taskId: 'a', title: 'A', configuredStart: '2026-10-30T09:00:00.000Z', createdAt: todayIso } },
+      { seq: 2, id: 'create-b', timestamp: todayIso, undone: false, type: 'TASK_CREATED',
+        payload: { taskId: 'b', title: 'B', configuredStart: todayIso, createdAt: todayIso } },
+      { seq: 3, id: 'active-a', timestamp: todayIso, undone: false, type: 'TASK_ACTIVE_SET',
+        payload: { taskId: 'a', isActive: true } },
+      { seq: 4, id: 'dep', timestamp: todayIso, undone: false, type: 'DEPENDENCY_ADDED',
+        payload: { taskId: 'b', predecessorId: 'a' } },
+    ];
+    // 12:30 local on a 09:00-day task used to produce "today at 12:30 + 24h".
+    const now = new Date(2026, 9, 16, 12, 30);
+    const state = projectEvents(events, now);
+    expect(state.tasks.b.calculatedStart).toBe(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9).toISOString());
+    expect(state.tasks.b.effectiveDateKey).toBe(toDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)));
+    expect(state.tasks.b.isDeemphasized).toBe(true);
   });
 
   it('sorts active tasks first, then full timestamps and IDs; completed tasks by completion', () => {
@@ -79,6 +139,65 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     expect(completed.completedTasks.map(t => t.id)).toEqual(expected);
   });
 
+  it('counts the open tasks at the end of the previous local day for the daily change', () => {
+    const now = new Date(2026, 9, 16, 12);
+    const yesterday = new Date(2026, 9, 15, 20);
+    const yesterdayIso = yesterday.toISOString();
+    const todayIso = new Date(2026, 9, 16, 9).toISOString();
+    const events: StoredEvent[] = ['a', 'b', 'c'].map((taskId, i): StoredEvent => ({
+      seq: i + 1, id: `create-${taskId}`, timestamp: yesterdayIso, undone: false,
+      type: 'TASK_CREATED', payload: { taskId, title: taskId, configuredStart: todayIso, createdAt: yesterdayIso },
+    }));
+    // a, b and c existed before today; d was added today.
+    events.push({ seq: 4, id: 'create-d', timestamp: todayIso, undone: false,
+      type: 'TASK_CREATED', payload: { taskId: 'd', title: 'd', configuredStart: todayIso, createdAt: todayIso } });
+    const beforeCompletion = projectEvents(events, now);
+    expect(beforeCompletion.openTaskCountAtYesterdayEnd).toBe(3);
+    expect(beforeCompletion.openTasks.length - beforeCompletion.openTaskCountAtYesterdayEnd).toBe(1);
+
+    // Completing today lowers the count against yesterday's end.
+    const completedToday = projectEvents([...events, { seq: 5, id: 'done-a', timestamp: todayIso, undone: false,
+      type: 'TASK_COMPLETED', payload: { taskId: 'a', completedAt: todayIso } }], now);
+    expect(completedToday.openTaskCountAtYesterdayEnd).toBe(3);
+    expect(completedToday.openTasks.length - completedToday.openTaskCountAtYesterdayEnd).toBe(0);
+  });
+
+  it('counts earlier timestamps after a later timestamp in sequence order', () => {
+    const now = new Date(2026, 9, 26, 12);
+    const timestamps = [new Date(2026, 9, 26, 0), new Date(2026, 9, 25, 20)];
+    const events: StoredEvent[] = timestamps.map((date, i) => ({
+      seq: i + 1, id: `create-${i}`, timestamp: date.toISOString(), undone: false,
+      type: 'TASK_CREATED', payload: { taskId: `t${i}`, title: `t${i}`,
+        configuredStart: date.toISOString(), createdAt: date.toISOString() },
+    }));
+    const state = projectEvents(events, now);
+    expect(state.openTaskCountAtYesterdayEnd).toBe(1);
+    expect(state.openTasks.length - state.openTaskCountAtYesterdayEnd).toBe(1);
+  });
+
+  it('intentionally treats undo as a historical correction but reopening as a new change', () => {
+    const now = new Date(2026, 9, 26, 12);
+    const yesterdayIso = new Date(2026, 9, 25, 20).toISOString();
+    const events: StoredEvent[] = [
+      { seq: 1, id: 'create-a', timestamp: yesterdayIso, undone: false, type: 'TASK_CREATED',
+        payload: { taskId: 'a', title: 'a', configuredStart: yesterdayIso, createdAt: yesterdayIso } },
+      { seq: 2, id: 'done-a', timestamp: yesterdayIso, undone: false, type: 'TASK_COMPLETED',
+        payload: { taskId: 'a', completedAt: yesterdayIso } },
+    ];
+    const completed = projectEvents(events, now);
+    expect(completed.openTaskCountAtYesterdayEnd).toBe(0);
+
+    const undone = projectEvents(events.map(event => event.type === 'TASK_COMPLETED' ? { ...event, undone: true } : event), now);
+    expect(undone.openTaskCountAtYesterdayEnd).toBe(1);
+    expect(undone.openTasks.length - undone.openTaskCountAtYesterdayEnd).toBe(0);
+
+    const reopened = projectEvents([...events, { seq: 3, id: 'reopen-a', timestamp: now.toISOString(),
+      undone: false, type: 'TASK_REOPENED', payload: { taskId: 'a' } }], now);
+    expect(reopened.openTaskCountAtYesterdayEnd).toBe(0);
+    expect(reopened.openTasks.length - reopened.openTaskCountAtYesterdayEnd).toBe(1);
+    expect(projectEvents(events, now).openTaskCountAtYesterdayEnd).toBe(0);
+  });
+
   it('overrides both dates while active, keeps dependencies, and restores the chain when deactivated', () => {
     const future = '2026-11-01T09:00:00.000Z';
     const events: StoredEvent[] = ['a', 'b', 'c', 'overdue'].map((taskId, i) => ({
@@ -100,9 +219,8 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     expect(active.openTasks[0].id).toBe('b');
     expect(active.listEntries.flatMap(e => e.kind === 'task' ? [e.task.id] : [])[0]).toBe('b');
     expect(computeMiniWindowTasks(active.openTasks, fixedNow)[0].id).toBe('b');
-    const nextDay = new Date(fixedNow);
-    nextDay.setDate(nextDay.getDate() + 1);
-    expect(active.tasks.c.calculatedStart).toBe(nextDay.toISOString());
+    // An active predecessor schedules its successor on the next local day at 09:00.
+    expect(active.tasks.c.calculatedStart).toBe(new Date(fixedNow.getFullYear(), fixedNow.getMonth(), fixedNow.getDate() + 1, 9).toISOString());
     const later = new Date('2026-10-17T10:00:00.000Z');
     expect(projectEvents(activeEvents, later).tasks.b.effectiveStart).toBe(later.toISOString());
     const inactive = projectEvents([...activeEvents, { seq: 8, id: 'deactivate', timestamp: todayIso, undone: false,
@@ -115,7 +233,8 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
   it('preserves local time when adding a calendar day across DST and year boundaries', () => {
     for (const [year, month, day] of [[2027, 3, 27], [2027, 10, 30], [2026, 12, 31]]) {
       const start = localDate(year, month, day, 14, 30, 12).toISOString();
-      const expected = localDate(year, month, day + 1, 14, 30, 12).toISOString();
+      // Successors are due on the following local day at 09:00.
+      const expected = localDate(year, month, day + 1, 9).toISOString();
       const state = projectEvents([
         { seq: 1, id: 'a', timestamp: start, undone: false, type: 'TASK_CREATED', payload: { taskId: 'a', title: 'A', configuredStart: start, createdAt: start } },
         { seq: 2, id: 'b', timestamp: start, undone: false, type: 'TASK_CREATED', payload: { taskId: 'b', title: 'B', configuredStart: start, createdAt: start } },
@@ -126,57 +245,27 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
   });
 
   it('adds one day to the predecessor timestamp', () => {
-    const events: StoredEvent[] = [
-      {
-        seq: 1,
-        id: 'e1',
-        timestamp: todayIso,
-        type: 'TASK_CREATED',
-        payload: {
-          taskId: '26-1',
-          title: 'Task A (Vorgänger)',
-          configuredStart: todayIso,
-          createdAt: todayIso,
-        },
-        undone: false,
-      },
-      {
-        seq: 2,
-        id: 'e2',
-        timestamp: todayIso,
-        type: 'TASK_CREATED',
-        payload: {
-          taskId: '26-2',
-          title: 'Task B (Nachfolger)',
-          configuredStart: todayIso,
-          createdAt: todayIso,
-        },
-        undone: false,
-      },
-      {
-        seq: 3,
-        id: 'e3',
-        timestamp: todayIso,
-        type: 'DEPENDENCY_ADDED',
-        payload: {
-          taskId: '26-2',
-          predecessorId: '26-1',
-        },
-        undone: false,
-      },
-    ];
-
-    const state = projectEvents(events, fixedNow);
+    const base = new Date(2026, 9, 16, 9);
+    const iso = base.toISOString();
+    const create = (taskId: string): StoredEvent => ({ seq: 0, id: `create-${taskId}`, timestamp: iso, undone: false,
+      type: 'TASK_CREATED', payload: { taskId, title: taskId, configuredStart: iso, createdAt: iso } });
+    const state = projectEvents([
+      { ...create('26-1'), seq: 1 },
+      { ...create('26-2'), seq: 2 },
+      { seq: 3, id: 'e3', timestamp: iso, undone: false, type: 'DEPENDENCY_ADDED',
+        payload: { taskId: '26-2', predecessorId: '26-1' } },
+    ], base);
     const taskA = state.tasks['26-1'];
     const taskB = state.tasks['26-2'];
 
     expect(taskA.calculatedStart).toBeNull();
-    expect(taskA.effectiveStart).toBe(todayIso);
-    expect(taskB.calculatedStart).toBe('2026-10-17T09:00:00.000Z');
+    expect(taskA.effectiveStart).toBe(iso);
+    expect(taskB.calculatedStart).toBe(new Date(2026, 9, 17, 9).toISOString());
     expect(taskB.effectiveStart).toBe(taskB.calculatedStart);
     expect(taskB.effectiveDateKey).toBe(toDateKey(new Date(taskB.effectiveStart)));
     expect(taskB.isDeemphasized).toBe(true);
   });
+
 
   it('always displays Today as the first date entry and collapses subsequent consecutive empty dates', () => {
     const futureDayIso = '2026-10-20T09:00:00.000Z';
@@ -286,8 +375,11 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       .filter((id) => id !== '26-2');
 
     expect(unaffectedOrder).toEqual(['26-4', '26-1', '26-3']);
-    expect(updated.openTasks.map(t => t.id)).toEqual(['26-4', '26-1', '26-2', '26-3']);
-    expect(updated.listEntries.flatMap(e => e.kind === 'task' ? [e.task.id] : [])).toEqual(['26-4', '26-1', '26-2', '26-3']);
+    // 26-2 depends on 26-4, so it moves to the day after 26-4's date.
+    const successorDay = new Date(fixedNow.getFullYear(), fixedNow.getMonth(), fixedNow.getDate() + 1, 9);
+    expect(updated.tasks['26-2'].effectiveDateKey).toBe(toDateKey(successorDay));
+    const firstDay = updated.openTasks.map(t => t.id).filter(id => updated.tasks[id].effectiveDateKey < toDateKey(successorDay));
+    expect(firstDay).toEqual(['26-4', '26-1', '26-3']);
   });
 
   it('highlights ONLY true graph predecessors and successors, ignoring unrelated tasks earlier or later in the list', () => {

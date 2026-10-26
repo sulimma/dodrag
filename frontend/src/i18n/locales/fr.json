@@ -219,6 +219,8 @@
   "Gantt": "Gantt",
   "Neues kleines TODO eingeben... (Taste N)": "Saisir une nouvelle tâche... (touche N)",
   "Task hinzufügen (Enter)": "Ajouter une tâche (Entrée)",
+  "Offene Tasks": "Tâches ouvertes",
+  "Offene Tasks: {count} ({delta} seit gestern)": "Tâches ouvertes : {count} ({delta} depuis hier)",
   "Rückgängig (Ctrl+Z)": "Annuler (Ctrl+Z)",
   "Undo": "Annuler",
   "Wiederherstellen (Ctrl+Y)": "Rétablir (Ctrl+Y)",

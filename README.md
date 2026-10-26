@@ -138,7 +138,7 @@ Install Go, Node.js/npm, and the Wails prerequisites for Windows, then run this 
 ./build.ps1
 ```
 
-The script installs frontend dependencies in a local cache, runs the frontend and Go tests, builds the frontend, and packages `dodrag.exe` into both `build/bin` and the repository root. It does not start the application. The source build currently reports version **0.2.1**; builds get their version and build timestamp from `build.ps1`. Without build-time values the binary reports `dev` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
+The script installs frontend dependencies in a local cache, runs the frontend and Go tests, builds the frontend, and packages `dodrag.exe` into both `build/bin` and the repository root. It does not start the application. The source build currently reports version **0.2.2**; builds get their version and build timestamp from `build.ps1`. Without build-time values the binary reports `dev` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
 
 Standard validation uses frontend unit/DOM tests, TypeScript checking, Go tests, and native Wails packaging. Targeted Chromium checks are optional aids for SVG geometry or text layout; they do not verify Windows clipboard, WebView2, multi-monitor, or DPI integration.
 

@@ -219,6 +219,8 @@
   "Gantt": "Gantt",
   "Neues kleines TODO eingeben... (Taste N)": "o sitelen e pali lili sin... (nena N)",
   "Task hinzufügen (Enter)": "pana e pali (Enter)",
+  "Offene Tasks": "pali open",
+  "Offene Tasks: {count} ({delta} seit gestern)": "pali open: {count} ({delta} tan tenpo suno pini)",
   "Rückgängig (Ctrl+Z)": "tawa monsi (Ctrl+Z)",
   "Undo": "tawa monsi",
   "Wiederherstellen (Ctrl+Y)": "tawa sinpin (Ctrl+Y)",

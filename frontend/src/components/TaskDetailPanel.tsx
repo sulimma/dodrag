@@ -8,7 +8,7 @@ import { TaskDate } from './TaskDate';
 import { TaskDragHandle } from './TaskDragHandle';
 import { TaskChecklistBadge } from './TaskChecklistBadge';
 import type { InlineEditor } from './inlineEditor';
-import { taskDragDropInteractions, type TaskViewInteractions } from './taskInteractions';
+import { taskDragSourceInteractions, taskDropTargetInteractions, type TaskViewInteractions } from './taskInteractions';
 import { taskAppearanceRole } from './taskAppearance';
 import { executeTaskMenuAction, taskMenuItems, type TaskMenuActions } from './TaskContextMenu';
 import { TaskDescriptionEditor, type TaskDescriptionEditorHandle } from './editor/TaskDescriptionEditor';
@@ -88,17 +88,16 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
   return (
     <aside ref={panel} tabIndex={0} aria-label={t('Task-Details')}
       data-task-detail-panel="true"
-      {...(task && open ? taskDragDropInteractions(task.id, key, interactions) : {})}
+      {...(task && open ? taskDropTargetInteractions(task.id, key, interactions) : {})}
       onDragOver={event => {
-        if (open && task && interactions.draggedTaskId) taskDragDropInteractions(task.id, key, interactions).onDragOver(event);
+        if (open && task && interactions.draggedTaskId) taskDropTargetInteractions(task.id, key, interactions).onDragOver(event);
         else event.preventDefault(); // Preserve Wails' copy cursor and native target highlighting.
       }}
       onDrop={event => {
         // Explorer paths arrive through Wails, never through untrusted DOM text/plain.
-        if (open && task && interactions.draggedTaskId) taskDragDropInteractions(task.id, key, interactions).onDrop(event);
+        if (open && task && interactions.draggedTaskId) taskDropTargetInteractions(task.id, key, interactions).onDrop(event);
         else event.preventDefault(); // Wails resolves Explorer paths in its window bubble listener.
       }}
-      data-task-drag-disabled={task && (titleEditor.taskId === task.id || dateEditor.taskId === task.id) || undefined}
       data-deletion-preview={open && task && interactions.deletionPreview.some(edge => edge.endsWith(`->${task.id}`)) || undefined}
       style={{ '--wails-drop-target': open && task ? 'drop' : 'none', '--detail-width': `min(${detailWidth}px, max(200px, calc(100vw - 300px)))`, width: open ? 'var(--detail-width)' : 'calc(1.75rem + 1px)' } as React.CSSProperties}
       onContextMenu={event => void contextMenu(event)}
@@ -121,7 +120,9 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
         </button>
       {open && <div className="absolute inset-y-0 left-0 flex flex-col min-h-0" style={{ width: 'var(--detail-width)', containerType: 'inline-size', containerName: 'task-detail' }}>
       <style>{dateLabelCSS}</style>
-      <header className="p-3 border-b border-slate-200 space-y-3 shrink-0">
+      <header {...(task ? taskDragSourceInteractions(task.id, interactions) : {})}
+        data-task-drag-disabled={task && (titleEditor.taskId === task.id || dateEditor.taskId === task.id) || undefined}
+        className={`p-3 border border-slate-200 space-y-3 shrink-0 ${task ? 'cursor-grab rounded bg-slate-50/50' : ''}`}>
         <div className={`flex items-center gap-2 ${props.onSyntaxHelp ? 'pr-12' : 'pr-6'}`}>
           {task && <><TaskDragHandle /><span className="font-mono text-xs px-2 py-1 bg-slate-100 rounded">{task.id}</span>
             <TaskChecklistBadge progress={task.checklistProgress} />

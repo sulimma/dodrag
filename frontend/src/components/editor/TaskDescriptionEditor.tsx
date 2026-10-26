@@ -211,14 +211,11 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
           editor.chain().insertContent(content, { contentType }).command(({ tr }) => { tr.setMeta('description:boundary', true); return true; }).run();
           editor.view.focus();
         }
-      } else if (action === 'editor:toggleChecklist') editor.chain().focus().toggleTaskList().run();
-      else if (action === 'editor:insertMermaid') editor.chain().focus().insertContent({ type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: 'graph TD\n  A --> B' }] }).run();
+      }
     };
     const items = target ? targetMenuItems(target) : [{ id: 'editor:cut', label: t('Ausschneiden'), shortcut: 'Ctrl+X', disabled: editor.state.selection.empty },
       { id: 'editor:copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: editor.state.selection.empty },
-      { id: 'editor:paste', label: t('Einfügen'), shortcut: 'Ctrl+V', disabled: false },
-      { id: 'editor:toggleChecklist', label: t('Checkliste ein-/ausschalten'), disabled: false },
-      { id: 'editor:insertMermaid', label: t('Mermaid-Diagramm einfügen'), disabled: false }];
+      { id: 'editor:paste', label: t('Einfügen'), shortcut: 'Ctrl+V', disabled: false }];
     props.onContextMenu(event, { target, items, execute: async action => {
       if (editor.isDestroyed || session !== taskSession.current || !items.some(item => item.id === action && !item.disabled)) return;
       try { await clipboardAction(action); } catch (error) { callbacks.current.onError(error); }

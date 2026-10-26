@@ -70,6 +70,7 @@ export interface ProjectedState {
   canRedo: boolean;
   activeEventCount: number;
   totalEventCount: number;
+  openTaskCountAtYesterdayEnd: number;
   nextTaskId: string;
 }
 

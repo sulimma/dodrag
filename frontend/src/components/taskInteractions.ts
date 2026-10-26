@@ -65,6 +65,12 @@ export function taskDragDropInteractions(
 ) {
   return {
     ...taskDragSourceInteractions(id, actions),
+    ...taskDropTargetInteractions(id, key, actions),
+  };
+}
+
+export function taskDropTargetInteractions(id: string, key: string, actions: TaskDragDropActions) {
+  return {
     'data-task-drop-target': key,
     onDragOver: (event: React.DragEvent) => {
       event.preventDefault();

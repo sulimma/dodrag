@@ -63,9 +63,10 @@ it.each([false, true])('replays 10k tasks in forward/reverse dependency order (r
   expect(state.orderedTasks.map(task => task.id)).toEqual(commands.map(command => command.payload.taskId));
   expect(normalizeEvents(events)).toBe(normalized);
   expect(replayCommands(normalized)).toBe(state);
-  const first = projectEvents(normalized, new Date(iso));
-  const second = projectEvents(normalized, new Date('2027-01-01T09:00:00Z'));
-  expect(first.tasks.t9999.effectiveStart).toBe(second.tasks.t9999.effectiveStart);
+  const first = projectEvents(normalized, new Date(2026, 9, 26, 12));
+  const second = projectEvents(normalized, new Date(2027, 0, 1, 12));
+  // Inactive successors roll forward one local day per dependency level.
+  expect(first.tasks.t1.effectiveStart).not.toBe(second.tasks.t1.effectiveStart);
   expect(replayCommands(normalized)).toBe(state);
 });
 
