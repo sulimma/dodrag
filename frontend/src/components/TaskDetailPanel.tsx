@@ -29,6 +29,7 @@ interface TaskDetailPanelProps extends TaskMenuActions {
   onDescriptionChange: (taskId: string, markdown: string, groupId: string) => Promise<void>;
   onAddLog: (taskId: string, text: string) => Promise<void>;
   onRemoveLog: (taskId: string, entryId: string) => Promise<void>;
+  onUpdateLog?: (taskId: string, entryId: string, text: string) => Promise<void>;
   onCreateSourceTask?: (source: EditorTarget) => void | Promise<void>;
   onError: (error: unknown) => void;
 }
@@ -165,6 +166,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
           <TaskLogSection key={task.id} ref={log} taskId={task.id} entries={task.logEntries}
             onCreateSourceTask={props.onCreateSourceTask}
             onAdd={text => props.onAddLog(task.id, text)} onRemove={entryId => props.onRemoveLog(task.id, entryId)}
+            onUpdate={props.onUpdateLog ? (entryId, text) => props.onUpdateLog!(task.id, entryId, text) : undefined}
             onContextMenu={(event, context) => void contextMenu(event, context)} onError={props.onError} />
         </div>
       </>}

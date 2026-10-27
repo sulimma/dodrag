@@ -14,8 +14,12 @@ it('renders a focused inline editor with Enter and Escape in the shared title co
   const editor:InlineEditor={taskId:'t1',value:'Unsaved draft',onChange:vi.fn(),onStart:vi.fn(),onCommit:vi.fn(),onCancel:vi.fn()};
   act(()=>root.render(<TaskTitle task={{id:'t1',title:'Original'} as TaskState} editor={editor}/>));
   const input=element.querySelector('input')!;expect(document.activeElement).toBe(input);expect(input.value).toBe('Unsaved draft');
+  act(()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',isComposing:true,bubbles:true})));
+  expect(editor.onCommit).not.toHaveBeenCalled();
   act(()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})));expect(editor.onCommit).toHaveBeenCalledTimes(1);
   act(()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})));expect(editor.onCancel).toHaveBeenCalledTimes(1);
+  act(()=>input.dispatchEvent(new FocusEvent('focusout',{bubbles:true})));
+  expect(editor.onCommit).toHaveBeenCalledTimes(1);
   act(()=>root.unmount());element.remove();
 });
 

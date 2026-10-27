@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TaskLogSection, type TaskLogSectionHandle, type TaskLogSectionProps } from './TaskLogSection';
 import type { EditorContextMenu } from './editor/types';
-import { t } from '../i18n';
+import { getLanguage, setLanguage, t } from '../i18n';
 
 const native = vi.hoisted(() => ({ explorer: vi.fn(), vscode: vi.fn(), url: vi.fn() }));
 vi.mock('../bridge/eventBridge', () => ({ eventBridge: {
@@ -125,13 +125,13 @@ it('ignores stale input menus and pending clipboard changes after switching task
   expect(field().value).toBe('other draft'); expect(readText).not.toHaveBeenCalled();
 });
 
-it('offers copy and delete for ordinary log entries and copies entry text without its timestamp', async () => {
+it('copies ordinary entries with timestamps and copies only selected text when selected', async () => {
   const article = host.querySelector('[data-log-entry="note"]')!;
   expect(menu(article.querySelector('span')!).items).toEqual([
     { id: 'copy', label: t('Kopieren'), disabled: false },
     { id: 'delete', label: t('löschen'), disabled: false },
   ]);
-  await execute('copy'); expect(writeText).toHaveBeenLastCalledWith('Plain note text');
+  await execute('copy'); expect(writeText).toHaveBeenLastCalledWith(`${article.querySelector('time')!.textContent}\nPlain note text`);
   await execute('cut'); await execute('paste'); await execute('complete');
   expect(writeText).toHaveBeenCalledOnce(); expect(readText).not.toHaveBeenCalled();
   const range = document.createRange(); range.setStart(article.querySelector('span')!.firstChild!, 6);
@@ -205,4 +205,161 @@ it('focuses the ready draft after native path insertion', () => {
   act(() => ref.current!.insertFiles(['C:\\folder\\file.txt'])); flushFrames();
   expect(field().value).toBe('before "C:\\folder\\file.txt"');
   expect(document.activeElement).toBe(field()); expect(field().selectionStart).toBe(field().value.length);
+});
+
+function editKey(key: string, shiftKey = false) {
+  const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
+  act(() => field().dispatchEvent(event));
+  return event;
+}
+function editNote() {
+  props = { ...props, onUpdate: props.onUpdate ?? vi.fn() }; render();
+  act(() => host.querySelector('[data-log-entry="note"] span')!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+}
+
+it('single-click edits with retained geometry, no buttons, Enter/Shift+Enter/blur commits and Escape cancellation', async () => {
+  editNote();
+  const timestamp = host.querySelector('time')!.getAttribute('datetime');
+  expect(field().value).toBe('Plain note text'); expect(document.activeElement).toBe(field());
+  const article = host.querySelector('[data-log-entry="note"]')!;
+  expect(article.querySelector('button')).toBeNull();
+  expect(field().parentElement!.classList.contains('relative')).toBe(true);
+  expect(article.querySelector('.invisible span')!.textContent).toBe('Plain note text');
+  for (const name of ['absolute', 'inset-0', 'w-full', 'h-full', 'border-0', 'p-0', 'resize-none', '[font:inherit]', '[line-height:inherit]']) {
+    expect(field().classList.contains(name)).toBe(true);
+  }
+  expect(field().hasAttribute('rows')).toBe(false);
+  change('   '); expect(editKey('Enter').defaultPrevented).toBe(true); expect(props.onUpdate).not.toHaveBeenCalled();
+  change('  first\nsecond  ');
+  await act(async () => { editKey('Enter'); });
+  expect(props.onUpdate).toHaveBeenCalledWith('note', 'first\nsecond');
+  expect(host.querySelectorAll('textarea')).toHaveLength(1);
+  expect(host.querySelector('time')!.getAttribute('datetime')).toBe(timestamp);
+  editNote(); change('shift commit');
+  await act(async () => { expect(editKey('Enter', true).defaultPrevented).toBe(true); });
+  expect(props.onUpdate).toHaveBeenLastCalledWith('note', 'shift commit');
+  editNote(); change('blur commit');
+  await act(async () => { field().blur(); });
+  expect(props.onUpdate).toHaveBeenLastCalledWith('note', 'blur commit');
+  editNote(); change('discard again');
+  const cancelled = field();
+  act(() => {
+    cancelled.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    cancelled.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  });
+  expect(host.querySelectorAll('textarea')).toHaveLength(1); expect(props.onUpdate).toHaveBeenCalledTimes(3);
+  expect(article.querySelector('span')!.textContent).toBe('Plain note text');
+  expect(article.querySelector('.invisible')).toBeNull();
+});
+
+it('locks duplicate async saves, keeps failed edits and ignores old saves after cancel or task round trips', async () => {
+  const failure = new Error('Update failed');
+  props = { ...props, onUpdate: vi.fn().mockRejectedValueOnce(failure) }; editNote(); change('keep edit');
+  await act(async () => { editKey('Enter'); });
+  expect(field().value).toBe('keep edit'); expect(props.onError).toHaveBeenCalledWith(failure);
+  for (const switchTask of [false, true]) {
+    let resolve!: () => void;
+    vi.mocked(props.onUpdate!).mockReturnValueOnce(new Promise<void>(done => { resolve = done; }));
+    act(() => {
+      editKey('Enter'); editKey('Enter'); field().blur();
+    });
+    expect(field().disabled).toBe(true);
+    if (switchTask) {
+      props = { ...props, taskId: 'other' }; render();
+      props = { ...props, taskId: 'task' }; render();
+    } else editKey('Escape');
+    editNote(); change('new edit');
+    await act(async () => { resolve(); await Promise.resolve(); });
+    expect(field().value).toBe('new edit'); expect(field().disabled).toBe(false);
+  }
+  expect(props.onUpdate).toHaveBeenCalledTimes(3);
+});
+
+it('adds native edit to note and target menus only when updates are available and keeps target opening intact', async () => {
+  expect(menu(host.querySelector('[data-log-entry="note"]')!).items.map(item => item.id)).toEqual(['copy', 'delete']);
+  expect(host.querySelector('[aria-label="' + t('Log-Eintrag bearbeiten') + '"]')).toBeNull();
+  props = { ...props, onUpdate: vi.fn() }; render();
+  expect(menu(host.querySelector('[data-log-entry="note"]')!).items.map(item => item.id)).toEqual(['copy', 'edit', 'delete']);
+  const path = host.querySelector('[data-target-kind="path"][role="link"]')!;
+  expect(menu(path).items.map(item => item.id)).toEqual(['path:explorer', 'path:vscode', 'edit', 'delete']);
+  act(() => path.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+  expect(host.querySelectorAll('textarea')).toHaveLength(1);
+  await act(async () => path.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  expect(native.explorer).toHaveBeenCalledWith('C:\\folder\\file.txt');
+  const active = menu(path); await execute('edit', active);
+  expect(field().value).toContain('https://example.com');
+  editKey('Escape');
+  props = { ...props, entries: [] }; render(); await execute('edit', active);
+  expect(host.querySelectorAll('textarea')).toHaveLength(1);
+});
+
+it('keeps native clipboard selection and file insertion in the focused editor without changing the add draft', async () => {
+  change('add draft'); editNote(); change('first second'); field().setSelectionRange(6, 12);
+  expect(menu(field()).items.map(item => item.id)).toEqual(['cut', 'copy', 'paste']);
+  await execute('cut'); flushFrames(); expect(field().value).toBe('first ');
+  await execute('paste', menu(field())); flushFrames(); expect(field().value).toBe('first inserted');
+  field().setSelectionRange(6, 14);
+  act(() => ref.current!.insertFiles(['C:\\edit.txt'])); flushFrames();
+  expect(field().value).toBe('first "C:\\edit.txt"');
+  const addField = host.querySelector<HTMLTextAreaElement>('form textarea')!;
+  expect(addField.value).toBe('add draft'); await act(async () => addField.focus());
+  addField.setSelectionRange(addField.value.length, addField.value.length);
+  act(() => ref.current!.insertFiles(['C:\\add.txt'])); flushFrames();
+  expect(addField.value).toBe('add draft"C:\\add.txt"');
+  expect(props.onAdd).not.toHaveBeenCalled(); expect(props.onUpdate).toHaveBeenCalledWith('note', 'first "C:\\edit.txt"');
+});
+
+it('copies the current edit with its timestamp without selection and only the selected textarea text otherwise', async () => {
+  editNote(); change('current editing text'); field().setSelectionRange(7, 7);
+  expect(menu(field()).items.map(item => item.disabled)).toEqual([true, false, false]);
+  await execute('copy');
+  expect(writeText).toHaveBeenLastCalledWith(`${host.querySelector('time')!.textContent}\ncurrent editing text`);
+  field().setSelectionRange(8, 15); menu(field()); await execute('copy');
+  expect(writeText).toHaveBeenLastCalledWith('editing');
+  expect(field().value).toBe('current editing text');
+  expect(props.onUpdate).not.toHaveBeenCalled(); expect(props.onAdd).not.toHaveBeenCalled();
+});
+
+it('ignores pending editor clipboard actions after starting a different edit session', async () => {
+  editNote(); change('old edit'); field().setSelectionRange(0, 3); const active = menu(field());
+  let resolve!: (text: string) => void;
+  readText.mockReturnValueOnce(new Promise<string>(done => { resolve = done; }));
+  let operation!: Promise<void>; act(() => { operation = active.execute('paste'); });
+  editKey('Escape'); editNote(); change('new edit');
+  await act(async () => { resolve('clipboard'); await operation; });
+  await execute('paste', active);
+  expect(field().value).toBe('new edit'); expect(readText).toHaveBeenCalledOnce();
+});
+
+it('renders translated lifecycle statuses instead of persisted text and permits only copying', async () => {
+  const language = getLanguage();
+  props = { ...props, onUpdate: vi.fn(), entries: ['created', 'completed', 'reopened'].map((lifecycle, index) => ({
+    id: `system-${index}`, text: 'must not display https://example.com', createdAt: '2026-10-25T12:00:00Z',
+    lifecycle: lifecycle as 'created' | 'completed' | 'reopened',
+  })) }; render();
+  try {
+    for (const next of ['de', 'en']) {
+      act(() => setLanguage(next));
+      const statuses = [t('Task erstellt'), t('Task geschlossen'), t('Task erneut geöffnet')];
+      for (const [index, article] of Array.from(host.querySelectorAll('article')).entries()) {
+        const time = article.querySelector('time')!;
+        expect(time.textContent).toMatch(new RegExp(`^${index === 1 ? '🟥' : '🟩'} 2026-10-25 \\d\\d:\\d\\d ${statuses[index]}$`));
+        expect(time.classList.contains('text-[10px]')).toBe(true);
+        expect(article.classList.contains('mb-1')).toBe(true);
+        expect(article.children).toHaveLength(1); expect(article.querySelector('button')).toBeNull();
+        expect(menu(article).items).toEqual([{ id: 'copy', label: t('Kopieren'), disabled: false }]);
+        await execute('copy'); expect(writeText).toHaveBeenLastCalledWith(time.textContent);
+        const range = document.createRange();
+        const text = time.firstChild!;
+        range.setStart(text, time.textContent!.length - statuses[index].length);
+        range.setEnd(text, time.textContent!.length); window.getSelection()!.addRange(range);
+        menu(time); await execute('copy'); expect(writeText).toHaveBeenLastCalledWith(statuses[index]);
+        window.getSelection()!.removeAllRanges();
+        await execute('edit'); await execute('delete');
+        act(() => time.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+      }
+    }
+    expect(host.textContent).not.toContain('must not display'); expect(host.querySelector('[data-target-kind]')).toBeNull();
+    expect(host.querySelectorAll('textarea')).toHaveLength(1); expect(props.onRemove).not.toHaveBeenCalled(); expect(props.onUpdate).not.toHaveBeenCalled();
+  } finally { act(() => setLanguage(language)); }
 });

@@ -124,6 +124,10 @@ export function MiniCornerView({
               tabIndex={0}
               onFocus={() => onSelectTask?.(task.id)}
               onClick={() => onSelectTask?.(task.id)}
+              onDoubleClick={event => {
+                if ((event.target as Element).closest('input,textarea,button,[contenteditable="true"]')) return;
+                event.stopPropagation(); onSelectAndRestore(task.id);
+              }}
               onContextMenu={(event) => onContextMenuTask(event, task.id)}
               className={`group w-full h-7 px-2 flex items-center gap-1 text-xs transition-colors ${
                 selectedTaskId === task.id

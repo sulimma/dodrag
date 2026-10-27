@@ -175,7 +175,11 @@ function type(target: HTMLInputElement, value: string) {
   });
 }
 function editTitle(title: string) {
-  act(() => element.querySelector(`span[title="${title}"]`)!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+  const row = element.querySelector(`span[title="${title}"]`)!.closest('[data-task-drag]')!;
+  if (row.getAttribute('data-task-selected') !== 'true') click(row);
+  act(() => {
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true, cancelable: true }));
+  });
 }
 function textButton(text: string) {
   return [...element.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent === text)!;
@@ -476,7 +480,7 @@ it('documents the implemented drag direction, scoped Alt removal, and active sho
   click(button('Tastenkürzel & Bedienung (?)'));
   expect(element.textContent).toContain('Abhängigen Task auf seinen Vorgänger ziehen (A auf B: B → A)');
   expect(element.textContent).toContain('Alt: Gespeicherte Kanten der gezogenen Aufgabe Richtung Ziel lösen. Das gilt für Vorgänger und Nachfolger, nicht für den ganzen Pfad.');
-  expect(element.textContent).toContain('F2 / E / Enter / Doppelklick');
+  expect(element.textContent).toContain('F2 / E / Enter');
   expect(element.textContent).toContain('N: Eingabe für neuen Task fokussieren');
   expect(element.textContent).toContain('Enter (Eingabe): Task anlegen');
   expect(element.textContent).toContain('Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z');

@@ -59,25 +59,27 @@ describe('task details validation and replay', () => {
     const tasks = copyReplayTasks(original);
     expect(applyCommand(tasks, remove)).toBe(true);
     expect(applyCommand(tasks, remove)).toBe(false);
-    expect(tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['second']);
-    expect(tasks.get('b')!.logEntries.map(entry => entry.id)).toEqual(['first']);
+    expect(tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['lifecycle:e0', 'second', 'lifecycle:e5']);
+    expect(tasks.get('b')!.logEntries.map(entry => entry.id)).toEqual(['lifecycle:e1', 'first']);
     expect(tasks.get('a')!.completed).toBe(true);
-    expect(original.tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['first', 'second']);
+    expect(original.tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['lifecycle:e0', 'first', 'second', 'lifecycle:e5']);
     expect(() => applyCommand(tasks, { ...remove, payload: { ...remove.payload, taskId: 'missing' } })).toThrow();
     const events = [...initial, { ...remove, seq: 7, id: 'remove', timestamp: iso, undone: false }];
     const undone = events.map(event => event.id === 'remove' ? { ...event, undone: true } : event);
-    expect(projectEvents(events, new Date(iso)).tasks.a.logEntries.map(entry => entry.id)).toEqual(['second']);
+    expect(projectEvents(events, new Date(iso)).tasks.a.logEntries.map(entry => entry.id)).toEqual(['lifecycle:e0', 'second', 'lifecycle:e5']);
     expect(projectEvents(undone, new Date(iso)).tasks.a.logEntries).toEqual(original.tasks.get('a')!.logEntries);
     expect(replayCommands(undone).canRedo).toBe(true);
     const redone = undone.map(event => ({ ...event, undone: false }));
-    expect(projectEvents(redone, new Date(iso)).tasks.a.logEntries.map(entry => entry.id)).toEqual(['second']);
+    expect(projectEvents(redone, new Date(iso)).tasks.a.logEntries.map(entry => entry.id)).toEqual(['lifecycle:e0', 'second', 'lifecycle:e5']);
     expect(applyCommand(tasks, { ...remove, payload: { taskId: 'a', entryId: 'second' } })).toBe(true);
-    expect(tasks.get('a')!.logEntries).toEqual([]);
+    expect(tasks.get('a')!.logEntries.map(entry => entry.lifecycle)).toEqual(['created', 'completed']);
   });
 
   it('defaults legacy tasks and applies description changes/no-ops/clearing and derived progress', () => {
     const initial = stored([create]);
-    expect(projectEvents(initial, new Date(iso)).tasks.a).toMatchObject({ description: '', logEntries: [], checklistProgress: null });
+    expect(projectEvents(initial, new Date(iso)).tasks.a).toMatchObject({
+      description: '', logEntries: [{ id: 'lifecycle:e0', text: '', createdAt: iso, lifecycle: 'created' }], checklistProgress: null,
+    });
     const tasks = copyReplayTasks(replayCommands(initial));
     const command: EventCommand = { type: 'TASK_DESCRIPTION_SET', payload: { taskId: 'a', description: '- [x] done\n- [ ] open' } };
     expect(applyCommand(tasks, command)).toBe(true);
@@ -101,18 +103,77 @@ describe('task details validation and replay', () => {
     const replay = replayCommands(events);
     expect(replay.tasks.get('a')!.logEntries.find(entry => entry.id === 'late')!.text).toBe('late');
     expect(projectEvents(events, new Date(iso)).tasks.a.logEntries.find(entry => entry.id === 'late')!.text).toBe('late');
-    expect(replay.tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['late', 'nano2', 'nano1', 'tie']);
+    expect(replay.tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['lifecycle:e0', 'late', 'nano2', 'nano1', 'tie']);
     const undone = events.map(event => event.seq === 5 ? { ...event, undone: true } : event);
-    expect(projectEvents(undone, new Date(iso)).tasks.a.logEntries.map(entry => entry.id)).toEqual(['late', 'nano2', 'nano1']);
-    expect(projectEvents(events, new Date(iso)).tasks.a.logEntries).toHaveLength(4);
+    expect(projectEvents(undone, new Date(iso)).tasks.a.logEntries.map(entry => entry.id)).toEqual(['lifecycle:e0', 'late', 'nano2', 'nano1']);
+    expect(projectEvents(events, new Date(iso)).tasks.a.logEntries).toHaveLength(5);
     const copy = copyReplayTasks(replay);
     expect(() => applyCommand(copy, commands[0])).toThrow();
-    copy.get('a')!.logEntries[0].text = 'mutated copy';
-    expect(replay.tasks.get('a')!.logEntries[0].text).toBe('late');
+    copy.get('a')!.logEntries[1].text = 'mutated copy';
+    expect(replay.tasks.get('a')!.logEntries[1].text).toBe('late');
     const projection = projectEvents(events, new Date(iso));
-    projection.tasks.a.logEntries[0].text = 'mutated projection';
-    expect(projectEvents(events, new Date(iso)).tasks.a.logEntries[0].text).toBe('late');
+    projection.tasks.a.logEntries[1].text = 'mutated projection';
+    expect(projectEvents(events, new Date(iso)).tasks.a.logEntries[1].text).toBe('late');
     expect(() => applyCommand(copy, { type: 'TASK_LOG_ADDED', payload: { ...notes[0], taskId: 'missing' } })).toThrow();
+  });
+
+  it('derives lifecycle times and repeated transitions in event order, including undo/redo and unchanged notes', () => {
+    const completedAt = '2026-10-17T08:00:00.123456789Z';
+    const reopenedAt = '2026-10-17T07:00:00Z';
+    const note = { id: 'note', text: 'Original note', createdAt: iso };
+    const complete: EventCommand = { type: 'TASK_COMPLETED', payload: { taskId: 'a', completedAt } };
+    const reopen: EventCommand = { type: 'TASK_REOPENED', payload: { taskId: 'a' } };
+    const events = stored([create,
+      { type: 'TASK_LOG_ADDED', payload: { taskId: 'a', entryId: note.id, text: note.text, createdAt: note.createdAt } },
+      reopen, complete, complete, reopen, reopen, complete, reopen,
+    ]).map(event => ({ ...event, timestamp: event.type === 'TASK_REOPENED' ? reopenedAt : '2026-10-18T12:00:00Z' }));
+    const expected = [
+      { id: 'lifecycle:e0', text: '', createdAt: iso, lifecycle: 'created' }, note,
+      { id: 'lifecycle:e3', text: '', createdAt: completedAt, lifecycle: 'completed' },
+      { id: 'lifecycle:e5', text: '', createdAt: reopenedAt, lifecycle: 'reopened' },
+      { id: 'lifecycle:e7', text: '', createdAt: completedAt, lifecycle: 'completed' },
+      { id: 'lifecycle:e8', text: '', createdAt: reopenedAt, lifecycle: 'reopened' },
+    ];
+    const initial = replayCommands(events.slice(0, 2));
+    expect(replayCommands(events).tasks.get('a')!.logEntries).toEqual(expected);
+    expect(initial.tasks.get('a')!.logEntries).toEqual(expected.slice(0, 2));
+    const undoReopen = events.map(event => event.id === 'e8' ? { ...event, undone: true } : event);
+    expect(projectEvents(undoReopen, new Date(iso)).tasks.a).toMatchObject({ completed: true, logEntries: expected.slice(0, -1) });
+    const undoCycle = events.map(event => event.seq >= 8 ? { ...event, undone: true } : event);
+    expect(projectEvents(undoCycle, new Date(iso)).tasks.a).toMatchObject({ completed: false, logEntries: expected.slice(0, -2) });
+    expect(replayCommands(undoCycle).canRedo).toBe(true);
+    expect(projectEvents(events, new Date(iso)).tasks.a).toMatchObject({ completed: false, logEntries: expected });
+    expect(replayCommands(events.map(event => ({ ...event, undone: true }))).tasks.size).toBe(0);
+    expect(replayCommands(events).tasks.get('a')!.logEntries).toEqual(expected);
+    const removed = stored([{ type: 'TASK_LOG_REMOVED', payload: { taskId: 'a', entryId: 'e0' } }])
+      .map(event => ({ ...event, seq: 10, id: 'remove-lifecycle' }));
+    expect(replayCommands([...events, ...removed]).tasks.get('a')!.logEntries).toEqual(expected);
+  });
+
+  it('updates only notes, preserving time/order and undo/redo even when a note shares a source event ID', () => {
+    const initial = stored([create,
+      { type: 'TASK_LOG_ADDED', payload: { taskId: 'a', entryId: 'e0', text: 'Original', createdAt: iso } },
+      { type: 'TASK_COMPLETED', payload: { taskId: 'a', completedAt: iso } },
+    ]);
+    const before = replayCommands(initial);
+    const update: EventCommand = { type: 'TASK_LOG_UPDATED', payload: { taskId: 'a', entryId: 'e0', text: ' Edited ' } };
+    const tasks = copyReplayTasks(before);
+    expect(applyCommand(tasks, update)).toBe(true);
+    expect(applyCommand(tasks, update)).toBe(false);
+    expect(applyCommand(tasks, { ...update, payload: { ...update.payload, entryId: 'missing' } })).toBe(false);
+    expect(applyCommand(tasks, { ...update, payload: { ...update.payload, entryId: 'e2' } })).toBe(false);
+    expect(applyCommand(tasks, { type: 'TASK_LOG_REMOVED', payload: { taskId: 'a', entryId: 'e2' } })).toBe(false);
+    const events = [...initial, { ...update, seq: 4, id: 'update-note', timestamp: iso, undone: false }];
+    const expected = before.tasks.get('a')!.logEntries.map(entry => entry.lifecycle ? entry : { ...entry, text: 'Edited' });
+    expect(replayCommands(events).tasks.get('a')!.logEntries).toEqual(expected);
+    expect(before.tasks.get('a')!.logEntries[1].text).toBe('Original');
+    expect(replayCommands(events.map(event => event.seq === 4 ? { ...event, undone: true } : event)).tasks.get('a')!.logEntries)
+      .toEqual(before.tasks.get('a')!.logEntries);
+    expect(replayCommands(events).tasks.get('a')!.logEntries).toEqual(expected);
+    const remove: EventCommand = { type: 'TASK_LOG_REMOVED', payload: { taskId: 'a', entryId: 'e0' } };
+    expect(replayCommands([...events, { ...remove, seq: 5, id: 'remove-note', timestamp: iso, undone: false }]).tasks.get('a')!.logEntries)
+      .toEqual(expected.filter(entry => entry.lifecycle));
+    expect(() => applyCommand(tasks, { ...update, payload: { ...update.payload, taskId: 'missing' } })).toThrow();
   });
 });
 

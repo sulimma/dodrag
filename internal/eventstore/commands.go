@@ -62,6 +62,8 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 		fields = append(fields, "description")
 	case "TASK_LOG_ADDED":
 		fields = append(fields, "entryId", "text", "createdAt")
+	case "TASK_LOG_UPDATED":
+		fields = append(fields, "entryId", "text")
 	case "TASK_LOG_REMOVED":
 		fields = append(fields, "entryId")
 	case "TASK_START_DATE_SET":
@@ -157,6 +159,19 @@ func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]int
 			}
 		}
 		t.logEntries = append(t.logEntries, taskLogEntry{id: entryID, text: strings.TrimSpace(p["text"].(string)), createdAt: p["createdAt"].(string)})
+	case "TASK_LOG_UPDATED":
+		entryID := p["entryId"].(string)
+		text := strings.TrimSpace(p["text"].(string))
+		for i, entry := range t.logEntries {
+			if entry.id == entryID {
+				if entry.text == text {
+					return false, nil
+				}
+				t.logEntries[i].text = text
+				return true, nil
+			}
+		}
+		return false, nil
 	case "TASK_LOG_REMOVED":
 		entryID := p["entryId"].(string)
 		index := -1

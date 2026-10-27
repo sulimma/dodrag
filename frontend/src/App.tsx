@@ -253,6 +253,7 @@ export function App() {
     if (selectTaskId) {
       setSelectedTaskId(selectTaskId);
       clearEdgeSelection();
+      setIsDetailPanelOpen(true);
     }
     await eventBridge.exitMiniMode();
   };
@@ -323,7 +324,18 @@ export function App() {
   const listBackgroundKey = 'list-background';
   const todayKey = toDateKey(now);
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-100/80 text-slate-800 overflow-hidden">
+    <div className="flex flex-col h-screen w-screen bg-slate-100/80 text-slate-800 overflow-hidden"
+      onDoubleClickCapture={event => {
+        if (!(event.target instanceof Element) ||
+          event.target.closest('input,textarea,button,a,select,[contenteditable="true"]')) return;
+        const taskId = event.target.closest<HTMLElement>('[data-task-drag]')?.dataset.taskDrag;
+        if (!taskId || !state.tasks[taskId]) return;
+        // Capture before TaskTitle starts editing; the second click may have cleared selection.
+        event.preventDefault(); event.stopPropagation();
+        editors.cancelEdit(); setContextMenu(null); clearEdgeSelection();
+        if (isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]')) listScrollRef.current?.focus();
+        setSelectedTaskId(taskId); setIsDetailPanelOpen(open => !open);
+      }}>
       <AppToolbar
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -368,6 +380,10 @@ export function App() {
           onRemoveLog={async (taskId, entryId) => {
             const result = await mutate(() => eventBridge.appendEvent('TASK_LOG_REMOVED', { taskId, entryId }));
             if (!result) throw new Error(t('Änderung konnte nicht gespeichert werden'));
+          }}
+          onUpdateLog={async (taskId, entryId, text) => {
+            const result = await mutate(() => eventBridge.appendEvent('TASK_LOG_UPDATED', { taskId, entryId, text }));
+            if (!result) throw new Error(t('Log-Eintrag konnte nicht gespeichert werden'));
           }}
           onCreateSourceTask={handleCreateSourceTask}
           onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')}

@@ -174,7 +174,7 @@
   },
   {
     "id": "term.log",
-    "context": "Zeitgestempelte Notizliste eines Tasks; nicht Release-Notes oder allgemeine Ereignishistorie. Ausnahme: Der Schluessel Markdown fuer Beschreibung und Log ist historisch, sein aktueller deutscher/englischer Wert beschreibt tatsaechlich nur die Aufgabenbeschreibung. Deshalb fuer dieses Konzept ausgeschlossen, nicht fuer description.",
+    "context": "Zeitgestempelte Liste aus Notizen und Lebenszyklusereignissen eines Tasks, einschliesslich inline bearbeitbarer Log-Eintraege. Nicht Release-Notes oder allgemeine Ereignishistorie. Ausnahme: Der Schluessel Markdown fuer Beschreibung und Log ist historisch, sein aktueller deutscher/englischer Wert beschreibt tatsaechlich nur die Aufgabenbeschreibung. Deshalb fuer dieses Konzept ausgeschlossen, nicht fuer description.",
     "sourceTerms": ["Log", "Logs", "Log-Eintrag", "Log-Einträge", "log entry", "log entries", "Duplicate log entry ID"],
     "excludeKeys": ["Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich."],
     "translations": {
@@ -184,6 +184,45 @@
       "ja": ["ログ"], "zh-TW": ["記錄"], "ko": ["로그"], "it": ["registro", "registri"],
       "pl": ["dziennik", "dziennika", "dzienniku"], "tr": ["günlük", "günlüğü", "günlüğün", "günlüğe"],
       "eo": ["protokolo", "protokolon", "protokola", "protokolan", "protokolaj"], "tok": ["lipu pi tenpo pini"]
+    }
+  },
+  {
+    "id": "term.taskCreation",
+    "context": "Erstellung eines neuen Tasks als Ereignis im Task-Log. Nicht Beginn der Arbeit oder Startdatum. Exakter Statusschluessel, keine Aktionsaufforderung. Kanonische Ausdruecke sind vollstaendige kurze Ereignisaussagen oder nominale Statuslabels; tok kama lon bezeichnet das Entstehen des Tasks, nicht seine Erledigung.",
+    "sourceTerms": ["Task erstellt", "Task-Erstellung", "task creation", "task created"],
+    "keys": ["Task erstellt"],
+    "translations": {
+      "de": ["Task erstellt"], "en": ["task created"], "fr": ["tâche créée"],
+      "es": ["tarea creada"], "zh-CN": ["任务已创建"], "uk": ["завдання створено"],
+      "pt-BR": ["tarefa criada"], "ja": ["タスク作成済み"], "zh-TW": ["任務已建立"],
+      "ko": ["작업 생성됨"], "it": ["attività creata"], "pl": ["zadanie utworzone"],
+      "tr": ["görev oluşturuldu"], "eo": ["tasko kreita"], "tok": ["pali li kama lon"]
+    }
+  },
+  {
+    "id": "term.taskClosure",
+    "context": "Schliessung eines Tasks als Erledigung im Task-Log. Nicht Deaktivierung der Hervorhebung oder Schliessen eines Panels, Dialogs oder einer Datenbank. Exakter Statusschluessel, keine Aktionsaufforderung. Die ostasiatischen Werte und tok benennen die Erledigung direkt; andere Sprachen verwenden die fachliche Schliessung als kurze Ereignisaussage.",
+    "sourceTerms": ["Task geschlossen", "Task-Schließung", "Task-Schliessung", "task closure", "task closed"],
+    "keys": ["Task geschlossen"],
+    "translations": {
+      "de": ["Task geschlossen"], "en": ["task closed"], "fr": ["tâche clôturée"],
+      "es": ["tarea cerrada"], "zh-CN": ["任务已完成"], "uk": ["завдання закрито"],
+      "pt-BR": ["tarefa encerrada"], "ja": ["タスク完了"], "zh-TW": ["任務已完成"],
+      "ko": ["작업 완료됨"], "it": ["attività chiusa"], "pl": ["zadanie zamknięte"],
+      "tr": ["görev kapatıldı"], "eo": ["tasko fermita"], "tok": ["pali li pini"]
+    }
+  },
+  {
+    "id": "term.taskReopening",
+    "context": "Wiederoeffnung eines zuvor erledigten Tasks als Ereignis im Task-Log. Der Task ist danach wieder offen, nicht automatisch hervorgehoben. Nicht erstmalige Erstellung oder Oeffnen des Detailpanels. Exakter Statusschluessel, keine Aktionsaufforderung; tok open sin ist eine Statusaussage ohne imperatives o.",
+    "sourceTerms": ["Task erneut geöffnet", "Task-Wiederöffnung", "Task-Wiederoeffnung", "task reopening", "task reopened"],
+    "keys": ["Task erneut geöffnet"],
+    "translations": {
+      "de": ["Task erneut geöffnet"], "en": ["task reopened"], "fr": ["tâche rouverte"],
+      "es": ["tarea reabierta"], "zh-CN": ["任务已重新打开"], "uk": ["завдання знову відкрито"],
+      "pt-BR": ["tarefa reaberta"], "ja": ["タスク再オープン済み"], "zh-TW": ["任務已重新開啟"],
+      "ko": ["작업 다시 열림"], "it": ["attività riaperta"], "pl": ["zadanie ponownie otwarte"],
+      "tr": ["görev yeniden açıldı"], "eo": ["tasko remalfermita"], "tok": ["pali li open sin"]
     }
   },
   {

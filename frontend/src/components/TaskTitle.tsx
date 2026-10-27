@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import type { TaskState } from '../domain/types';
-import type { InlineEditor } from './inlineEditor';
+import { inlineTextHandlers, type InlineEditor } from './inlineEditor';
 import { t } from '../i18n';
 // Renders a task title as text or its active inline editor.
 export function TaskTitle({
@@ -33,18 +33,7 @@ export function TaskTitle({
           event.preventDefault();
           event.stopPropagation();
         }}
-        onBlur={editor.onCommit}
-        onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            editor.onCommit();
-          }
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            editor.onCancel();
-          }
-        }}
+        {...inlineTextHandlers(editor.onCommit, editor.onCancel)}
         className={`min-w-0 w-full rounded border border-sky-400 bg-white px-1 text-slate-900 ${className}`}
       />
     );

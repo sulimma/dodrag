@@ -13,6 +13,7 @@ export interface TaskLogEntry {
   id: string;
   text: string;
   createdAt: string;
+  lifecycle?: 'created' | 'completed' | 'reopened';
 }
 
 export interface ChecklistProgress {

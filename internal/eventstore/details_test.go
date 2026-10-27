@@ -69,6 +69,131 @@ func TestLogPayloadValidation(t *testing.T) {
 	}
 }
 
+func TestLogUpdatePayloadValidation(t *testing.T) {
+	base := map[string]string{"taskId": "a", "entryId": "note-1", "text": " note\n"}
+	raw, _ := json.Marshal(base)
+	if payload, err := validatePayload("TASK_LOG_UPDATED", raw); err != nil || payload["text"] != base["text"] {
+		t.Fatal("valid update rejected or payload text rewritten", err)
+	}
+	for _, field := range []string{"taskId", "entryId"} {
+		for _, value := range []string{"", "constructor", "__proto__", "prototype", "toString", "space id", strings.Repeat("a", 129)} {
+			payload := map[string]string{"taskId": base["taskId"], "entryId": base["entryId"], "text": base["text"]}
+			payload[field] = value
+			raw, _ := json.Marshal(payload)
+			if _, err := validatePayload("TASK_LOG_UPDATED", raw); err == nil {
+				t.Fatalf("accepted %s=%q", field, value)
+			}
+		}
+	}
+	for _, raw := range []string{
+		`null`, `[]`, `{"taskId":"a","entryId":"note"}`,
+		`{"taskId":"a","text":"note"}`, `{"entryId":"note","text":"note"}`,
+		`{"taskId":null,"entryId":"note","text":"note"}`,
+		`{"taskId":"a","entryId":1,"text":"note"}`,
+		`{"taskId":"a","entryId":"note","text":null}`,
+		`{"taskId":"a","entryId":"note","text":false}`,
+		`{"taskId":"a","entryId":"note","text":""}`,
+		`{"taskId":"a","entryId":"note","text":" \t\r\n"}`,
+		`{"taskId":"a","entryId":"note","text":"note","createdAt":"2026-10-17T09:00:00Z"}`,
+		`{"taskId":"a","entryId":"note","text":"note","lifecycle":"created"}`,
+		`{"taskId":"a","entryId":"note","text":"note"} {}`,
+		`{"taskId":"a","entryId":"note","extra":"note"}`,
+	} {
+		if _, err := validatePayload("TASK_LOG_UPDATED", []byte(raw)); err == nil {
+			t.Fatalf("accepted invalid update payload: %s", raw)
+		}
+	}
+}
+
+func TestLogUpdateHistoryAndNoOp(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "log-update.db")
+	s, err := NewStoreWithOptions(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	appendEvent := func(id, kind, payload string) []Event {
+		t.Helper()
+		events, err := s.AppendEvent(id, kind, payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return events
+	}
+	for _, id := range []string{"a", "b"} {
+		appendEvent("create-"+id, "TASK_CREATED", `{"taskId":"`+id+`","title":"Task","configuredStart":"2026-10-17T09:00:00Z","createdAt":"2026-10-17T09:00:00Z"}`)
+		appendEvent("first-"+id, "TASK_LOG_ADDED", `{"taskId":"`+id+`","entryId":"first","text":"first","createdAt":"2026-10-17T09:00:00.123456789Z"}`)
+	}
+	appendEvent("second-a", "TASK_LOG_ADDED", `{"taskId":"a","entryId":"second","text":"second","createdAt":"2026-10-17T08:00:00Z"}`)
+	appendEvent("complete-a", "TASK_COMPLETED", `{"taskId":"a","completedAt":"2026-10-17T10:00:00Z"}`)
+	want := []taskLogEntry{{id: "first", text: "first", createdAt: "2026-10-17T09:00:00.123456789Z"}, {id: "second", text: "second", createdAt: "2026-10-17T08:00:00Z"}}
+	updated := append([]taskLogEntry{}, want...)
+	updated[0].text = "edited\nnote"
+	assertEntries := func(store *Store, expected []taskLogEntry) {
+		t.Helper()
+		_, tasks, err := store.readReplay(store.db)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(tasks["a"].logEntries, expected) || !reflect.DeepEqual(tasks["b"].logEntries, want[:1]) || !tasks["a"].completed {
+			t.Fatal("update changed timestamp, order, other entries or task state", tasks)
+		}
+		if !reflect.DeepEqual(store.tasks["a"].logEntries, expected) {
+			t.Fatal("cached entries differ from replay", store.tasks["a"].logEntries)
+		}
+	}
+	before := appendEvent("update", "TASK_LOG_UPDATED", `{"taskId":"a","entryId":"first","text":" edited\nnote "}`)
+	assertEntries(s, updated)
+	for _, payload := range []string{
+		`{"taskId":"a","entryId":"first","text":" edited\nnote "}`,
+		`{"taskId":"a","entryId":"missing","text":"changed"}`,
+	} {
+		if after := appendEvent("noop", "TASK_LOG_UPDATED", payload); !reflect.DeepEqual(before, after) {
+			t.Fatal("no-op update changed history")
+		}
+	}
+	if _, err := s.AppendEvent("unknown-task", "TASK_LOG_UPDATED", `{"taskId":"missing","entryId":"first","text":"changed"}`); err == nil {
+		t.Fatal("unknown task update accepted")
+	}
+	if _, err := s.AppendBatch([]Command{
+		{ID: "rollback-update", Type: "TASK_LOG_UPDATED", Payload: json.RawMessage(`{"taskId":"a","entryId":"first","text":"rollback"}`)},
+		{ID: "rollback-invalid", Type: "TASK_LOG_UPDATED", Payload: json.RawMessage(`{"taskId":"a","entryId":"second","text":" "}`)},
+	}); err == nil {
+		t.Fatal("invalid update batch accepted")
+	}
+	assertEntries(s, updated)
+	if after, err := s.GetEvents(); err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatal("rejected update changed history", err)
+	}
+	undone, err := s.Undo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEntries(s, want)
+	for _, payload := range []string{
+		`{"taskId":"a","entryId":"first","text":" first "}`,
+		`{"taskId":"a","entryId":"missing","text":"changed"}`,
+	} {
+		if after := appendEvent("undo-noop", "TASK_LOG_UPDATED", payload); !reflect.DeepEqual(undone, after) {
+			t.Fatal("no-op discarded redo history")
+		}
+	}
+	opened, err := NewStoreWithOptions(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Close()
+	assertEntries(opened, want)
+	if _, err := opened.Redo(); err != nil {
+		t.Fatal(err)
+	}
+	assertEntries(opened, updated)
+	if _, err := s.GetEvents(); err != nil {
+		t.Fatal(err)
+	}
+	assertEntries(s, updated)
+}
+
 func TestLogRemovalPayloadValidation(t *testing.T) {
 	if _, err := validatePayload("TASK_LOG_REMOVED", []byte(`{"taskId":"a","entryId":"note-1"}`)); err != nil {
 		t.Fatal(err)

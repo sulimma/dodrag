@@ -149,7 +149,15 @@ export function normalizeReplayEvents(input: readonly unknown[]): StoredEvent[] 
     }
     topologyChanged ||= event.type === 'DEPENDENCY_ADDED' || event.type === 'DEPENDENCY_REMOVED';
     // Historical intermediate cycles are allowed; validate only the final graph.
-    applyCommand(tasks, event, false);
+    const changed = applyCommand(tasks, event, false);
+    // Lifecycle rows are derived from stored metadata, never proposed commands.
+    if (changed && (event.type === 'TASK_CREATED' || event.type === 'TASK_COMPLETED' || event.type === 'TASK_REOPENED')) {
+      const lifecycle = event.type === 'TASK_CREATED' ? 'created' : event.type === 'TASK_COMPLETED' ? 'completed' : 'reopened';
+      const createdAt = event.type === 'TASK_CREATED' ? event.payload.createdAt :
+        event.type === 'TASK_COMPLETED' ? event.payload.completedAt : event.timestamp;
+      // Colon cannot occur in validated note IDs; system rows never collide with user notes.
+      tasks.get(taskId)!.logEntries.push({ id: `lifecycle:${event.id}`, text: '', createdAt, lifecycle });
+    }
   }
   const orderedTasks = topologyChanged ? orderTasks(tasks) : [
     ...previous!.state.orderedTasks.map(task => tasks.get(task.id)!),
@@ -205,14 +213,21 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
       break;
     case 'TASK_LOG_ADDED': {
       const { entryId, text, createdAt } = command.payload;
-      if (task.logEntries.some(entry => entry.id === entryId)) {
+      if (task.logEntries.some(entry => !entry.lifecycle && entry.id === entryId)) {
         throw new Error(t('Duplicate log entry ID: {id}', { id: entryId }));
       }
       task.logEntries.push({ id: entryId, text: text.trim(), createdAt });
       break;
     }
+    case 'TASK_LOG_UPDATED': {
+      const entry = task.logEntries.find(entry => !entry.lifecycle && entry.id === command.payload.entryId);
+      const text = command.payload.text.trim();
+      if (!entry || entry.text === text) return false;
+      entry.text = text;
+      break;
+    }
     case 'TASK_LOG_REMOVED': {
-      const index = task.logEntries.findIndex(entry => entry.id === command.payload.entryId);
+      const index = task.logEntries.findIndex(entry => !entry.lifecycle && entry.id === command.payload.entryId);
       if (index < 0) return false;
       task.logEntries.splice(index, 1);
       break;

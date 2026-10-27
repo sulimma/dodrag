@@ -201,6 +201,68 @@ it('uses the full list width without max-width or auto-centering in either panel
   expect(api.AppendBatch).not.toHaveBeenCalled();
 });
 
+it.each(['list', 'network', 'gantt', 'gantt-bar', 'completed'] as const)(
+  'toggles details after full double-click sequences in %s without renaming', async view => {
+    if (view === 'completed') history.push({ seq: 2, id: 'closed-fixture', timestamp: date, undone: false,
+      type: 'TASK_COMPLETED', payload: { taskId, completedAt: date } });
+    await act(async () => root.render(<App />));
+    if (view === 'network' || view.startsWith('gantt')) {
+      click(host.querySelector<HTMLButtonElement>(`button[aria-keyshortcuts="Control+${view === 'network' ? '2' : '3'}"]`)!);
+    }
+    const target = view === 'completed' ? host.querySelector(`[data-completed-task="${taskId}"] span[data-task-selectable-text]`)!
+      : view === 'gantt-bar' ? host.querySelector(`[data-gantt-node="${taskId}"]`)!
+      : list().querySelector('span[title="Alpha"]')!;
+    expect(target).not.toBeNull();
+    click(target); click(target);
+    await act(async () => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })));
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(panel().querySelector('span[title="Alpha"]')).not.toBeNull();
+    expect(editor(list(), 'title')).toBeNull(); expect(editor(panel(), 'title')).toBeNull();
+    expect(panel().textContent).toContain(t('Task erstellt'));
+    if (view === 'completed') expect(panel().textContent).toContain(t('Task geschlossen'));
+    click(target); click(target);
+    await act(async () => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })));
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+    expect(editor(list(), 'title')).toBeNull();
+    expect(api.AppendBatch).not.toHaveBeenCalled();
+  },
+);
+
+it('opens details when restoring a task from the mini view', async () => {
+  const today = new Date().toISOString();
+  history = [{ ...history[0], type: 'TASK_CREATED', payload: { taskId, title: 'Alpha', configuredStart: today, createdAt: today } }];
+  await act(async () => root.render(<App />));
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title^="' + t('Minimieren (Kompaktansicht in Bildschirmecke)') + '"]')!.click());
+  const miniTask = host.querySelector(`[data-mini-task-id="${taskId}"]`)!;
+  expect(miniTask).not.toBeNull();
+  await act(async () => miniTask.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+  expect(api.ExitMiniMode).toHaveBeenCalledOnce();
+  expect(toggle().getAttribute('aria-expanded')).toBe('true');
+  expect(panel().querySelector('span[title="Alpha"]')).not.toBeNull();
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+});
+
+it('persists inline log edits through the native batch bridge without changing their timestamp', async () => {
+  history.push({ seq: 2, id: 'note-fixture', timestamp: date, undone: false, type: 'TASK_LOG_ADDED',
+    payload: { taskId, entryId: 'note', text: 'Original note', createdAt: date } });
+  await mountWithDetails();
+  const article = panel().querySelector('[data-log-entry="note"]')!;
+  click(article.querySelector('span')!);
+  const input = article.querySelector<HTMLTextAreaElement>('textarea')!;
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(input, 'Edited note');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+  expect(api.AppendBatch).toHaveBeenCalledOnce();
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0]).toEqual([
+    expect.objectContaining({ type: 'TASK_LOG_UPDATED', payload: { taskId, entryId: 'note', text: 'Edited note' } }),
+  ]);
+  expect(article.querySelector('textarea')).toBeNull();
+  expect(article.textContent).toContain('Edited note');
+  expect(article.querySelector('time')!.dateTime).toBe(date);
+});
+
 it.each(['F2', 'Enter'])('keeps %s title editing in the focused detail panel until explicit commit', async shortcut => {
   await mountWithDetails();
   act(() => panel().focus());
@@ -225,16 +287,12 @@ it.each(['F2', 'Enter'])('keeps %s title editing in the focused detail panel unt
   expect(list().querySelector('span[title="Panel draft"]')).not.toBeNull();
 });
 
-it.each(['panel', 'list'] as const)('keeps double-click title editing in its %s origin while both views are visible', async origin => {
+it.each(['panel', 'list'] as const)('closes details on task double-click from its %s origin without starting a title editor', async origin => {
   await mountWithDetails(); const area = origin === 'panel' ? panel() : list();
   await act(async () => { area.querySelector('span[title="Alpha"]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
-  const input = editor(area, 'title');
-  expect(input, 'Double-click must not close the shared editor during focus handoff').not.toBeNull();
-  expect(editor(origin === 'panel' ? list() : panel(), 'title')).toBeNull();
-  expect(document.activeElement).toBe(input); expect(api.AppendBatch).not.toHaveBeenCalled();
-  type(input!, 'Uncommitted draft'); await key(input!, 'Escape');
-  expect(editor(area, 'title')).toBeNull(); expect(api.AppendBatch).not.toHaveBeenCalled();
-  expect(area.querySelector('span[title="Alpha"]')).not.toBeNull();
+  expect(toggle().getAttribute('aria-expanded')).toBe('false');
+  expect(editor(list(), 'title')).toBeNull(); expect(editor(panel(), 'title')).toBeNull();
+  expect(api.AppendBatch).not.toHaveBeenCalled();
 });
 
 it.each(['panel', 'list'] as const)('keeps date editing and focus in its %s origin without premature persistence', async origin => {

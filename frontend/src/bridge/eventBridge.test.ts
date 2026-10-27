@@ -47,8 +47,8 @@ it('keeps sequence/log creation order under backward clock and prunes redo on a 
     const next = await eventBridge.appendEvent('TASK_LOG_ADDED', { taskId: 't1', entryId: 'second', text: 'Second', createdAt: new Date().toISOString() });
     expect(next.map(event => event.seq)).toEqual([1, 2, 3]);
     expect(next[2].timestamp < next[1].timestamp).toBe(true);
-    expect(projectEvents(next).tasks.t1.logEntries.map(entry => entry.id)).toEqual(['first', 'second']);
-    expect(projectEvents(first).tasks.t1.logEntries.map(entry => entry.id)).toEqual(['first']);
+    expect(projectEvents(next).tasks.t1.logEntries.filter(entry => !entry.lifecycle).map(entry => entry.id)).toEqual(['first', 'second']);
+    expect(projectEvents(first).tasks.t1.logEntries.filter(entry => !entry.lifecycle).map(entry => entry.id)).toEqual(['first']);
     await eventBridge.undo();
     const pruned = await eventBridge.appendEvent('TASK_RENAMED', { taskId: 't1', title: 'New branch' });
     expect(pruned.map(event => event.seq)).toEqual([1, 2, 4]);
@@ -83,8 +83,8 @@ it('coalesces description typing and replays log addition with undo and redo', a
   expect(projectEvents(await eventBridge.undo()).tasks.t1.description).toBe('');
   expect(projectEvents(await eventBridge.redo()).tasks.t1.description).toBe('- [x] First');
   await eventBridge.appendEvent('TASK_LOG_ADDED', { taskId: 't1', entryId: 'log-1', text: ' Note ', createdAt: '2026-10-17T10:00:00Z' });
-  expect(projectEvents(await eventBridge.undo()).tasks.t1.logEntries).toEqual([]);
-  expect(projectEvents(await eventBridge.redo()).tasks.t1.logEntries[0].text).toBe('Note');
+  expect(projectEvents(await eventBridge.undo()).tasks.t1.logEntries.filter(entry => !entry.lifecycle)).toEqual([]);
+  expect(projectEvents(await eventBridge.redo()).tasks.t1.logEntries.find(entry => entry.id === 'log-1')!.text).toBe('Note');
 });
 
 it('restricts URL actions and subscribes native file drops only at registered targets', async () => {

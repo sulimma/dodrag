@@ -142,9 +142,9 @@ it('keeps old log entries and predecessor sets detached when appending mutable c
   const next = normalizeEvents([...transport(base),
     event({ type: 'TASK_LOG_ADDED', payload: { taskId: 'a', entryId: 'second', text: 'Second', createdAt: iso } }, 4),
     event({ type: 'DEPENDENCY_ADDED', payload: { taskId: 'a', predecessorId: 'b' } }, 5)]);
-  expect(old.tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['first']);
+  expect(old.tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['lifecycle:e1', 'first']);
   expect(old.tasks.get('a')!.predecessors.size).toBe(0);
-  expect(replayCommands(next).tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['first', 'second']);
+  expect(replayCommands(next).tasks.get('a')!.logEntries.map(entry => entry.id)).toEqual(['lifecycle:e1', 'first', 'second']);
   expect(replayCommands(next).tasks.get('a')!.predecessors.has('b')).toBe(true);
 });
 
