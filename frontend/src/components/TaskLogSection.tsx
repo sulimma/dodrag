@@ -4,7 +4,7 @@ import { formatDate, t, useLanguage } from '../i18n';
 import { TargetText } from './editor/TargetText';
 import { fileDropText, targetFromElement } from './editor/targets';
 import { openTarget, targetMenuItems } from './editor/contextMenu';
-import type { EditorContextMenuCallback, EditorTarget, TaskLogSectionHandle } from './editor/types';
+import type { EditorContextMenu, EditorContextMenuCallback, EditorTarget, TaskLogSectionHandle } from './editor/types';
 import type { TaskLogEntry } from '../domain/types';
 import { inlineTextHandlers } from './inlineEditor';
 export type { TaskLogSectionHandle } from './editor/types';
@@ -91,22 +91,13 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
     } catch (error) { props.onError(error); }
     finally { if (taskSession.current === session) { submitting.current = false; setPending(false); } }
   };
-  return <section data-task-selectable-text="true" data-task-log="true" className="flex h-full min-h-0 flex-col border-t border-slate-200"
-    onClick={event => {
-      const target = targetFromElement(event.target);
-      if (target) { event.preventDefault(); event.stopPropagation(); void openTarget(target).catch(props.onError); }
-    }} onKeyDown={event => {
-      if (event.key !== 'Enter' || event.target instanceof HTMLTextAreaElement) return;
-      const target = targetFromElement(event.target);
-      if (target) { event.preventDefault(); void openTarget(target).catch(props.onError); }
-    }} onContextMenu={event => {
-      event.preventDefault(); event.stopPropagation();
-      const target = targetFromElement(event.target);
-      const field = event.target === input.current ? input.current : event.target === editInput.current ? editInput.current : null;
+  const logContext = (element: EventTarget, clipboardOnly = false): EditorContextMenu => {
+       const target = clipboardOnly ? undefined : targetFromElement(element);
+      const field = element === input.current ? input.current : element === editInput.current ? editInput.current : null;
       const editToken = field === editInput.current ? currentEdit.current?.token : undefined;
       const value = field?.value ?? '';
       const start = field?.selectionStart ?? 0, end = field?.selectionEnd ?? 0;
-      const article = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-log-entry]') : null;
+      const article = element instanceof Element ? element.closest<HTMLElement>('[data-log-entry]') : null;
       const entry = props.entries.find(entry => entry.id === article?.dataset.logEntry);
       const selection = window.getSelection();
       const selectedText = selection?.rangeCount && article?.contains(selection.getRangeAt(0).commonAncestorContainer)
@@ -115,12 +106,12 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
         ? [{ id: 'cut', label: t('Ausschneiden'), shortcut: 'Ctrl+X', disabled: start === end },
           { id: 'copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: start === end && !entry },
           { id: 'paste', label: t('Einfügen'), shortcut: 'Ctrl+V', disabled: false }]
-         : entry ? [{ id: 'copy', label: t('Kopieren'), disabled: false }] : [];
+         : entry ? [{ id: 'copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: false }] : [];
       if (entry && !entry.lifecycle && !field) {
-        if (props.onUpdate) items.push({ id: 'edit', label: t('Log-Eintrag bearbeiten'), disabled: editPending });
-        items.push({ id: 'delete', label: t('löschen'), disabled: false });
+        if (props.onUpdate) items.push({ id: 'edit', label: t('Log-Eintrag bearbeiten'), shortcut: 'F2', disabled: editPending });
+        items.push({ id: 'delete', label: t('löschen'), shortcut: 'Del', disabled: false });
       }
-      props.onContextMenu(event, { target, items, execute: async action => {
+      return { target, items, execute: async action => {
         if (taskSession.current !== session || !items.some(item => item.id === action && !item.disabled)) return;
         try {
           if (action === 'edit' && entry) {
@@ -145,12 +136,35 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
           else setDraft(current => current === value ? next : current);
           requestAnimationFrame(() => { if (field.isConnected && taskSession.current === session) { field.focus(); field.setSelectionRange(start + text.length, start + text.length); } });
         } catch (error) { props.onError(error); }
-      } });
+      } };
+  };
+  return <section data-task-selectable-text="true" data-task-log="true" className="flex h-full min-h-0 flex-col border-t border-slate-200"
+    onClick={event => {
+      const target = targetFromElement(event.target);
+      if (target) { event.preventDefault(); event.stopPropagation(); void openTarget(target).catch(props.onError); }
+    }} onKeyDownCapture={event => {
+      if (event.defaultPrevented || event.nativeEvent.isComposing || event.altKey || event.metaKey) return;
+      const key = event.key.toLowerCase();
+      const field = event.target instanceof HTMLTextAreaElement;
+      const action = event.ctrlKey && !event.shiftKey ? ({ c: 'copy', x: 'cut', v: 'paste' } as Record<string, string>)[key]
+        : !event.ctrlKey && !event.shiftKey && !field ? key === 'f2' ? 'edit' : key === 'delete' ? 'delete' : undefined : undefined;
+      if (!action) return;
+      const context = logContext(event.target, true);
+      if (!context.items.some(item => item.id === action)) return;
+      event.preventDefault(); event.stopPropagation();
+      if (!event.repeat) void context.execute(action);
+    }} onKeyDown={event => {
+      if (event.key !== 'Enter' || event.target instanceof HTMLTextAreaElement) return;
+      const target = targetFromElement(event.target);
+      if (target) { event.preventDefault(); void openTarget(target).catch(props.onError); }
+    }} onContextMenu={event => {
+      event.preventDefault(); event.stopPropagation();
+      props.onContextMenu(event, logContext(event.target));
     }}>
     <h3 className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{t('Log')}</h3>
     <div className="flex-1 overflow-auto px-3 py-2 text-sm">
       {!props.entries.length && <p className="text-xs text-slate-400">{t('Keine Log-Einträge')}</p>}
-      {props.entries.map(entry => <article key={entry.id} data-log-entry={entry.id} className={`${entry.lifecycle ? 'mb-1' : 'mb-3'} last:mb-0`}>
+      {props.entries.map(entry => <article key={entry.id} tabIndex={0} data-log-entry={entry.id} className={`${entry.lifecycle ? 'mb-1' : 'mb-3'} last:mb-0`}>
         <time dateTime={entry.createdAt} className="block mb-0.5 font-mono text-[10px] text-slate-400">
           {dateLine(entry)}
         </time>

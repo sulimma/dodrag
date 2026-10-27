@@ -16,10 +16,9 @@ export function inlineTextHandlers(onCommit: () => void, onCancel: () => void) {
   return {
     onBlur: () => { if (!cancelled) onCommit(); },
     onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
-      event.stopPropagation();
       if (event.nativeEvent.isComposing) return;
-      if (event.key === 'Enter') { event.preventDefault(); onCommit(); }
-      else if (event.key === 'Escape') { event.preventDefault(); cancelled = true; onCancel(); }
+      if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); onCommit(); }
+      else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancelled = true; onCancel(); }
     },
   };
 }

@@ -128,8 +128,8 @@ it('ignores stale input menus and pending clipboard changes after switching task
 it('copies ordinary entries with timestamps and copies only selected text when selected', async () => {
   const article = host.querySelector('[data-log-entry="note"]')!;
   expect(menu(article.querySelector('span')!).items).toEqual([
-    { id: 'copy', label: t('Kopieren'), disabled: false },
-    { id: 'delete', label: t('löschen'), disabled: false },
+    { id: 'copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: false },
+    { id: 'delete', label: t('löschen'), shortcut: 'Del', disabled: false },
   ]);
   await execute('copy'); expect(writeText).toHaveBeenLastCalledWith(`${article.querySelector('time')!.textContent}\nPlain note text`);
   await execute('cut'); await execute('paste'); await execute('complete');
@@ -152,7 +152,7 @@ it('keeps target actions alongside entry deletion, ignores unsupported actions a
   const url = host.querySelector('[data-target-kind="url"]')!;
   expect(menu(url).items).toEqual([
     { id: 'url:open', label: t('Im Browser öffnen'), disabled: false },
-    { id: 'delete', label: t('löschen'), disabled: false },
+    { id: 'delete', label: t('löschen'), shortcut: 'Del', disabled: false },
   ]);
   await execute('path:vscode'); expect(native.url).not.toHaveBeenCalled();
   const failure = new Error('Open failed'); native.url.mockRejectedValueOnce(failure);
@@ -347,7 +347,7 @@ it('renders translated lifecycle statuses instead of persisted text and permits 
         expect(time.classList.contains('text-[10px]')).toBe(true);
         expect(article.classList.contains('mb-1')).toBe(true);
         expect(article.children).toHaveLength(1); expect(article.querySelector('button')).toBeNull();
-        expect(menu(article).items).toEqual([{ id: 'copy', label: t('Kopieren'), disabled: false }]);
+        expect(menu(article).items).toEqual([{ id: 'copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: false }]);
         await execute('copy'); expect(writeText).toHaveBeenLastCalledWith(time.textContent);
         const range = document.createRange();
         const text = time.firstChild!;
@@ -362,4 +362,67 @@ it('renders translated lifecycle statuses instead of persisted text and permits 
     expect(host.textContent).not.toContain('must not display'); expect(host.querySelector('[data-target-kind]')).toBeNull();
     expect(host.querySelectorAll('textarea')).toHaveLength(1); expect(props.onRemove).not.toHaveBeenCalled(); expect(props.onUpdate).not.toHaveBeenCalled();
   } finally { act(() => setLanguage(language)); }
+});
+
+async function shortcut(target: Element, key: string, modifiers: KeyboardEventInit = {}) {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers });
+  await act(async () => { target.dispatchEvent(event); });
+  return event;
+}
+
+it('uses the same clipboard actions for Ctrl+C/X/V in both log textareas including whole-edit copy', async () => {
+  for (const editing of [false, true]) {
+    if (editing) editNote();
+    change('first second'); field().setSelectionRange(6, 12);
+    expect((await shortcut(field(), 'c', { ctrlKey: true })).defaultPrevented).toBe(true);
+    expect(writeText).toHaveBeenLastCalledWith('second');
+    await shortcut(field(), 'x', { ctrlKey: true }); flushFrames();
+    expect(field().value).toBe('first ');
+    await shortcut(field(), 'v', { ctrlKey: true }); flushFrames();
+    expect(field().value).toBe('first inserted'); expect(field().selectionStart).toBe(14);
+    if (editing) {
+      await shortcut(field(), 'c', { ctrlKey: true });
+      expect(writeText).toHaveBeenLastCalledWith(`${host.querySelector('time')!.textContent}\nfirst inserted`);
+    }
+  }
+  expect(props.onAdd).not.toHaveBeenCalled(); expect(props.onUpdate).not.toHaveBeenCalled();
+});
+
+it('copies focused entries, edits with F2 and deletes with Delete without leaking task actions', async () => {
+  const article = host.querySelector<HTMLElement>('[data-log-entry="note"]')!;
+  act(() => article.focus());
+  await shortcut(article, 'c', { ctrlKey: true });
+  expect(writeText).toHaveBeenLastCalledWith(`${article.querySelector('time')!.textContent}\nPlain note text`);
+  props = { ...props, onUpdate: vi.fn() }; render();
+  expect(menu(article).items.map(item => item.shortcut)).toEqual(['Ctrl+C', 'F2', 'Del']);
+  expect((await shortcut(article, 'F2')).defaultPrevented).toBe(true);
+  expect(field().value).toBe('Plain note text');
+  expect((await shortcut(field(), 'Delete')).defaultPrevented).toBe(false);
+  await shortcut(field(), 'Escape');
+  expect((await shortcut(article, 'Delete')).defaultPrevented).toBe(true);
+  expect(props.onRemove).toHaveBeenCalledWith('note');
+});
+
+it('lets F6 and keyboard context keys bubble out of inline log edits, but retains Enter/Escape', async () => {
+  editNote(); const listener = vi.fn(); window.addEventListener('keydown', listener);
+  for (const [key, modifiers] of [['F6', {}], ['F10', { shiftKey: true }], ['ContextMenu', {}]] as const) {
+    expect((await shortcut(field(), key, modifiers)).defaultPrevented).toBe(false);
+  }
+  expect(listener).toHaveBeenCalledTimes(3);
+  await shortcut(field(), 'Escape'); expect(listener).toHaveBeenCalledTimes(3);
+  window.removeEventListener('keydown', listener);
+});
+
+it('preserves text on failed keyboard cuts/pastes and does not intercept IME, AltGr or repeat mutations', async () => {
+  editNote(); change('keep text'); field().setSelectionRange(0, 4);
+  const failure = new Error('Clipboard denied'); writeText.mockRejectedValueOnce(failure);
+  await shortcut(field(), 'x', { ctrlKey: true }); expect(field().value).toBe('keep text');
+  readText.mockRejectedValueOnce(failure);
+  await shortcut(field(), 'v', { ctrlKey: true }); expect(field().value).toBe('keep text');
+  expect(props.onError).toHaveBeenCalledTimes(2);
+  for (const modifiers of [{ altKey: true }, { isComposing: true }, { shiftKey: true }]) {
+    expect((await shortcut(field(), 'v', { ctrlKey: true, ...modifiers })).defaultPrevented).toBe(false);
+  }
+  await shortcut(field(), 'v', { ctrlKey: true, repeat: true });
+  expect(readText).toHaveBeenCalledOnce();
 });
