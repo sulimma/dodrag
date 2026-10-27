@@ -4,6 +4,7 @@ import { EventCommand, parseCommand, parseStoredEvent } from './eventSchema';
 import { normalizeEvents } from '../bridge/eventBridge';
 import { projectEvents } from './projector';
 import { StoredEvent } from './types';
+import { t } from '../i18n';
 
 const iso = '2026-10-17T09:00:00Z';
 const stored = (commands: EventCommand[]): StoredEvent[] => commands.map((command, i) => ({
@@ -38,7 +39,7 @@ it('activates tasks with open predecessors before and after adding dependencies'
 it('allows historical intermediate cycles but rejects final cycles, including completed tasks', () => {
   const events = transientCycle();
   expect(replayCommands(events).tasks.get('b')!.predecessors.has('a')).toBe(true);
-  expect(() => replayCommands(events.slice(0, -1))).toThrow('cycle');
+  expect(() => replayCommands(events.slice(0, -1))).toThrow(t('Dependency cycle in final event history'));
   const completed = stored([
     create('a'), create('b'),
     { type: 'TASK_COMPLETED', payload: { taskId: 'a', completedAt: iso } },
@@ -46,9 +47,9 @@ it('allows historical intermediate cycles but rejects final cycles, including co
     { type: 'DEPENDENCY_ADDED', payload: { taskId: 'b', predecessorId: 'a' } },
     { type: 'DEPENDENCY_ADDED', payload: { taskId: 'a', predecessorId: 'b' } },
   ]);
-  expect(() => projectEvents(completed)).toThrow('cycle');
+  expect(() => projectEvents(completed)).toThrow(t('Dependency cycle in final event history'));
   const tasks = copyReplayTasks(replayCommands(events));
-  expect(() => applyCommand(tasks, { type: 'DEPENDENCY_ADDED', payload: { taskId: 'a', predecessorId: 'b' } })).toThrow('cycle');
+  expect(() => applyCommand(tasks, { type: 'DEPENDENCY_ADDED', payload: { taskId: 'a', predecessorId: 'b' } })).toThrow(t('Dependency cycle'));
   expect(tasks.get('a')!.predecessors.size).toBe(0);
 });
 
@@ -76,9 +77,9 @@ it('keeps schema and reference validation and does not mutate cached state for n
   const copy = copyReplayTasks(state);
   applyCommand(copy, { type: 'TASK_RENAMED', payload: { taskId: 'a', title: 'Changed' } });
   expect(state.tasks.get('a')!.title).toBe('a');
-  expect(() => replayCommands(stored([{ type: 'TASK_REOPENED', payload: { taskId: 'missing' } }]))).toThrow('Unknown task');
+  expect(() => replayCommands(stored([{ type: 'TASK_REOPENED', payload: { taskId: 'missing' } }]))).toThrow(t('Unknown task: {id}', { id: 'missing' }));
   expect(() => replayCommands([{ ...events[0], seq: 0 }])).toThrow();
-  expect(() => replayCommands([events[0], { ...events[0], seq: 2 }])).toThrow('Duplicate');
+  expect(() => replayCommands([events[0], { ...events[0], seq: 2 }])).toThrow(t('Duplicate ID or unordered event sequence'));
   expect(() => parseStoredEvent({ ...events[0], groupId: 'x'.repeat(257) })).toThrow();
 });
 

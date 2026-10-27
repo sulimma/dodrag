@@ -1,0 +1,577 @@
+[
+  {
+    "id": "term.task",
+    "context": "Einzelner Arbeitspunkt in allen Task-Ansichten. Task und Aufgabe sind deutsche UI-Synonyme; TODO bezeichnet denselben Arbeitspunkt. Nur vollstaendige Wortformen, keine Staemme. Ausnahme Dateinamenbeispiel: technischer Name, kein Task-Label. Ausnahme Folgetag: Die tok-Referenz benennt den Folgetag ohne wiederholtes pali; der Menuekontext stellt den Taskbezug her. Tasktermin/Tasktermins sind vollstaendige deutsche Komposita.",
+    "sourceTerms": ["Task", "Tasks", "Aufgabe", "Aufgaben", "TODO", "Duplicate task ID", "Unknown task", "Task is completed"],
+    "excludeKeys": ["z. B. meine-aufgaben.db", "Folgetag des Tasktermins um 09:00"],
+    "translations": {
+      "de": ["Task", "Tasks", "Aufgabe", "Aufgaben", "TODO", "Tasktermin", "Tasktermins"],
+      "en": ["task", "tasks", "TODO"],
+      "fr": ["tâche", "tâches"],
+      "es": ["tarea", "tareas"],
+      "zh-CN": ["任务"],
+      "uk": ["завдання", "завдань", "завданням"],
+      "pt-BR": ["tarefa", "tarefas"],
+      "ja": ["タスク"],
+      "zh-TW": ["任務"],
+      "ko": ["작업"],
+      "it": ["attività"],
+      "pl": ["zadanie", "zadania", "zadań", "zadaniu", "zadaniem"],
+      "tr": ["görev", "görevi", "görevin", "göreve", "görevler", "görevleri", "görevlerin"],
+      "eo": ["tasko", "taskon", "taskoj", "taskojn", "taskaj"],
+      "tok": ["pali"]
+    }
+  },
+  {
+    "id": "term.predecessor",
+    "context": "Task, der vor einem anderen Task erledigt sein muss (B -> A: B ist Vorgaenger von A). Auch technische Unknown-predecessor-Schluessel pruefen; keine allgemeine Bedeutung von vorherig. Ausnahme Alt-Hilfetext: Die bestehende tok-Referenz erklaert die quellbezogene Kantenloeschung ohne die parenthetische Aufzaehlung Vorgaenger und Nachfolger; dort keine erzwungene Begriffswiederholung.",
+    "sourceTerms": ["Vorgänger", "Vorgaenger", "predecessor", "predecessors", "Unknown predecessor"],
+    "excludeKeys": ["Alt: an der gezogenen Aufgabe gespeicherte Kanten Richtung Ziel lösen (Vorgänger und Nachfolger, kein ganzer Pfad)"],
+    "translations": {
+      "de": ["Vorgänger", "Vorgängern", "Vorgängers"],
+      "en": ["predecessor", "predecessors"],
+      "fr": ["prédécesseur", "prédécesseurs"],
+      "es": ["predecesora", "predecesoras"],
+      "zh-CN": ["前置任务"],
+      "uk": ["попередник", "попередника", "попередники", "попередників", "попередником"],
+      "pt-BR": ["predecessora", "predecessoras"],
+      "ja": ["先行タスク"],
+      "zh-TW": ["前置任務"],
+      "ko": ["선행 작업"],
+      "it": ["predecessore", "predecessori"],
+      "pl": ["zadanie poprzedzające", "zadania poprzedzające", "zadań poprzedzających", "zadania poprzedzającego", "zadaniem poprzedzającym"],
+      "tr": ["öncül", "öncülü", "öncülün", "öncülünün", "öncüle", "öncüller", "öncülleri", "öncüllerin"],
+      "eo": ["antaŭulo", "antaŭulon", "antaŭuloj", "antaŭulojn"],
+      "tok": ["pali monsi"]
+    }
+  },
+  {
+    "id": "term.successor",
+    "context": "Nachgelagerter, abhaengiger Task (B -> A: A ist Nachfolger von B). Nicht naechster Tag oder naechstes Zeitfenster. Ausnahme Alt-Hilfetext: Die bestehende tok-Referenz erklaert die quellbezogene Kantenloeschung ohne die parenthetische Aufzaehlung Vorgaenger und Nachfolger; dort keine erzwungene Begriffswiederholung.",
+    "sourceTerms": ["Nachfolger", "successor", "successors"],
+    "excludeKeys": ["Alt: an der gezogenen Aufgabe gespeicherte Kanten Richtung Ziel lösen (Vorgänger und Nachfolger, kein ganzer Pfad)"],
+    "translations": {
+      "de": ["Nachfolger", "Nachfolgern", "Nachfolgers"],
+      "en": ["successor", "successors"],
+      "fr": ["successeur", "successeurs"],
+      "es": ["sucesora", "sucesoras"],
+      "zh-CN": ["后续任务"],
+      "uk": ["наступник", "наступника", "наступники", "наступників"],
+      "pt-BR": ["sucessora", "sucessoras"],
+      "ja": ["後続タスク"],
+      "zh-TW": ["後續任務"],
+      "ko": ["후속 작업"],
+      "it": ["successore", "successori"],
+      "pl": ["zadanie następujące", "zadania następujące", "zadań następujących"],
+      "tr": ["ardıl", "ardılı", "ardılın", "ardıllar", "ardılları"],
+      "eo": ["posteulo", "posteulon", "posteuloj", "posteulojn"],
+      "tok": ["pali sinpin"]
+    }
+  },
+  {
+    "id": "term.edge",
+    "context": "Gespeicherte gerichtete Verbindung zwischen Tasks, insbesondere beim Markieren und Loeschen. Eigenes Konzept neben dependency; einige bestehende Sprachen verwenden fuer beide denselben Ausdruck. Diese sprachliche Gleichheit hebt die fachliche Trennung nicht auf.",
+    "sourceTerms": ["Kante", "Kanten", "edge", "edges"],
+    "translations": {
+      "de": ["Kante", "Kanten"],
+      "en": ["edge", "edges"],
+      "fr": ["lien", "liens"],
+      "es": ["relación", "relaciones"],
+      "zh-CN": ["依赖关系"],
+      "uk": ["зв’язок", "зв’язки", "зв’язку", "зв’язків"],
+      "pt-BR": ["dependência", "dependências"],
+      "ja": ["依存関係"],
+      "zh-TW": ["連線"],
+      "ko": ["연결"],
+      "it": ["collegamento", "collegamenti"],
+      "pl": ["połączenie", "połączenia", "połączeń"],
+      "tr": ["bağlantı", "bağlantısı", "bağlantıyı", "bağlantılar", "bağlantıları", "bağlantılarını"],
+      "eo": ["eĝo", "eĝon", "eĝoj", "eĝojn"],
+      "tok": ["linja"]
+    }
+  },
+  {
+    "id": "term.dependency",
+    "context": "Fachliche Abhaengigkeit eines Tasks von einem Vorgaenger, einschliesslich Zyklen in technischen Fehlerschluesseln. Nicht automatisch jeden Netzplan-Schluessel auf dependency pruefen. Vollstaendige Komposita wie Dependociklo sind bewusst erlaubt.",
+    "sourceTerms": ["Abhängigkeit", "Abhängigkeiten", "Abhängigkeit(en)", "Abhaengigkeit", "dependency", "dependencies", "Dependency cycle"],
+    "translations": {
+      "de": ["Abhängigkeit", "Abhängigkeiten", "Abhängigkeit(en)", "Abhängigkeitszyklus"],
+      "en": ["dependency", "dependencies"],
+      "fr": ["dépendance", "dépendances"],
+      "es": ["dependencia", "dependencias", "dependencia(s)"],
+      "zh-CN": ["依赖关系", "依赖循环"],
+      "uk": ["залежність", "залежності", "залежностей"],
+      "pt-BR": ["dependência", "dependências", "dependência(s)"],
+      "ja": ["依存関係"],
+      "zh-TW": ["依賴關係", "依賴循環"],
+      "ko": ["의존성"],
+      "it": ["dipendenza", "dipendenze"],
+      "pl": ["zależność", "zależności"],
+      "tr": ["bağımlılık", "bağımlılığı", "bağımlılıklar", "bağımlılıkları", "bağımlılıklarını"],
+      "eo": ["dependeco", "dependecon", "dependecoj", "dependecojn", "dependeco(j)n", "dependociklo"],
+      "tok": ["linja"]
+    }
+  },
+  {
+    "id": "term.startDate",
+    "context": "Konfiguriertes oder berechnetes Startdatum eines Tasks. Date/Datum als Alias nur ueber diese exakten Schluessel: allgemeine Datumsangaben und Markdown-Datumsersetzungen sind kein Startdatum. Platzhalter und ISO-Format bleiben unveraendert.",
+    "sourceTerms": ["Startdatum", "Start date", "Datum", "date"],
+    "keys": ["Startdatum von {id} → {date}", "Startdatum {id}", "Startdatum {id} bearbeiten", "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)", "Startdatum auf Heute setzen", "{id}: {title} ({date}). Auf Datum ziehen: Startdatum setzen; auf Task ziehen: Vorgänger setzen; Alt: Kanten lösen."],
+    "translations": {
+      "de": ["Startdatum", "Startdatums"],
+      "en": ["start date"],
+      "fr": ["date de début"],
+      "es": ["fecha de inicio"],
+      "zh-CN": ["开始日期"],
+      "uk": ["дата початку", "дату початку", "дати початку"],
+      "pt-BR": ["data de início"],
+      "ja": ["開始日"],
+      "zh-TW": ["開始日期"],
+      "ko": ["시작일"],
+      "it": ["data di inizio"],
+      "pl": ["data rozpoczęcia", "datę rozpoczęcia", "daty rozpoczęcia"],
+      "tr": ["başlangıç tarihi", "başlangıç tarihini", "başlangıç tarihine"],
+      "eo": ["komenca dato", "komencan daton"],
+      "tok": ["tenpo open"]
+    }
+  },
+  {
+    "id": "term.snooze",
+    "context": "Wiedervorlage: Schnellauswahl eines zukuenftigen Task-Startdatums. Kanonisch bestehendes Menue-Label; je Sprache ist ein Handlungsverb oder eine nominale Bezeichnung sinnvoll, keine erzwungene woertliche Entsprechung.",
+    "sourceTerms": ["Wiedervorlage", "snooze", "resubmit"],
+    "translations": {
+      "de": ["Wiedervorlage"], "en": ["snooze"], "fr": ["rappel"], "es": ["posponer"],
+      "zh-CN": ["提醒时间"], "uk": ["нагадати пізніше"], "pt-BR": ["lembrete"], "ja": ["再通知"],
+      "zh-TW": ["稍後提醒"], "ko": ["다시 알림"], "it": ["riprogrammare"], "pl": ["przełóż na później"],
+      "tr": ["ertele"], "eo": ["reatento", "reatenton"], "tok": ["tenpo sin"]
+    }
+  },
+  {
+    "id": "term.details",
+    "context": "Task-Details im Seitenpanel, nicht beliebige technische Einzelheiten oder der Platzhalter {detail}. Detailansicht und flektierte Panel-Bezeichnungen werden als ganze Ausdruecke erhalten.",
+    "sourceTerms": ["Details", "Task-Details", "Detailansicht", "details panel"],
+    "translations": {
+      "de": ["Details", "Task-Details", "Detailansicht"],
+      "en": ["details"], "fr": ["détails"], "es": ["detalles"], "zh-CN": ["详情"],
+      "uk": ["деталі", "деталей"], "pt-BR": ["detalhes"], "ja": ["詳細"], "zh-TW": ["詳細資料"],
+      "ko": ["상세 정보"], "it": ["dettagli"], "pl": ["szczegóły", "szczegółów"],
+      "tr": ["ayrıntılar", "ayrıntıları", "ayrıntı paneli", "ayrıntı panelinin"],
+      "eo": ["detaloj", "detalojn", "detala panelo", "detala panelon"], "tok": ["sona insa"]
+    }
+  },
+  {
+    "id": "term.description",
+    "context": "Markdown-Freitext der Aufgabenbeschreibung. Exakte Schluessel statt Beschreibung-Teiltreffer: Bildbeschreibung ist Alternativtext eines Bildes, kein Task-Feld. Der Markdown-Hilfetext beschreibt aktuell im deutschen und englischen Wert nur dieses Feld.",
+    "sourceTerms": ["Beschreibung", "Aufgabenbeschreibung", "description", "task description"],
+    "keys": ["Beschreibung", "Beschreibung konnte nicht gespeichert werden", "Task auswählen, um Details, Beschreibung und Log anzuzeigen", "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich."],
+    "translations": {
+      "de": ["Beschreibung", "Aufgabenbeschreibung"], "en": ["description"], "fr": ["description"],
+      "es": ["descripción"], "zh-CN": ["描述"], "uk": ["опис", "опису"], "pt-BR": ["descrição"],
+      "ja": ["説明"], "zh-TW": ["描述"], "ko": ["설명"], "it": ["descrizione"], "pl": ["opis", "opisu"],
+      "tr": ["açıklama", "açıklamayı", "açıklaması", "açıklamasını"],
+      "eo": ["priskribo", "priskribon"], "tok": ["lipu sona pi pali"]
+    }
+  },
+  {
+    "id": "term.log",
+    "context": "Zeitgestempelte Notizliste eines Tasks; nicht Release-Notes oder allgemeine Ereignishistorie. Ausnahme: Der Schluessel Markdown fuer Beschreibung und Log ist historisch, sein aktueller deutscher/englischer Wert beschreibt tatsaechlich nur die Aufgabenbeschreibung. Deshalb fuer dieses Konzept ausgeschlossen, nicht fuer description.",
+    "sourceTerms": ["Log", "Logs", "Log-Eintrag", "Log-Einträge", "log entry", "log entries", "Duplicate log entry ID"],
+    "excludeKeys": ["Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich."],
+    "translations": {
+      "de": ["Log", "Logs", "Log-Eintrag", "Log-Einträge", "Log-Eintrags-ID"],
+      "en": ["log", "log entry", "log entries"], "fr": ["journal"], "es": ["registro", "registros"],
+      "zh-CN": ["日志"], "uk": ["журнал", "журналу", "журналі"], "pt-BR": ["registro", "registros"],
+      "ja": ["ログ"], "zh-TW": ["記錄"], "ko": ["로그"], "it": ["registro", "registri"],
+      "pl": ["dziennik", "dziennika", "dzienniku"], "tr": ["günlük", "günlüğü", "günlüğün", "günlüğe"],
+      "eo": ["protokolo", "protokolon", "protokola", "protokolan", "protokolaj"], "tok": ["lipu pi tenpo pini"]
+    }
+  },
+  {
+    "id": "term.note",
+    "context": "Einzelne Notiz, die zum Task-Log hinzugefuegt oder gesendet wird. Exakte Schluessel trennen englisch note von GitHub-Alert Note/Hinweis und Release-Notes.",
+    "sourceTerms": ["Notiz", "Notizen", "note", "log note"],
+    "keys": ["Notiz hinzufügen", "Notiz senden"],
+    "translations": {
+      "de": ["Notiz", "Notizen"], "en": ["note", "notes"], "fr": ["note", "notes"], "es": ["nota", "notas"],
+      "zh-CN": ["笔记"], "uk": ["нотатка", "нотатку", "нотатки"], "pt-BR": ["nota", "notas"],
+      "ja": ["メモ"], "zh-TW": ["筆記"], "ko": ["메모"], "it": ["nota", "note"],
+      "pl": ["notatka", "notatkę", "notatki"], "tr": ["not", "notu", "notlar", "notları"],
+      "eo": ["noto", "noton", "notoj", "notojn"], "tok": ["toki lili"]
+    }
+  },
+  {
+    "id": "term.checklist",
+    "context": "Abhakbare Teilaufgaben im Markdown und deren Fortschrittsanzeige; nicht die normale Listenansicht. Ganze gebeugte Ausdruecke sind erlaubt.",
+    "sourceTerms": ["Checkliste", "checklist"],
+    "translations": {
+      "de": ["Checkliste", "Checklisten"], "en": ["checklist", "checklists"], "fr": ["liste de contrôle"],
+      "es": ["lista de verificación"], "zh-CN": ["检查清单"],
+      "uk": ["контрольний список", "контрольного списку", "контрольному списку"],
+      "pt-BR": ["lista de verificação"], "ja": ["チェックリスト"], "zh-TW": ["檢查清單"], "ko": ["체크리스트"],
+      "it": ["lista di controllo"], "pl": ["lista kontrolna", "listę kontrolną", "listy kontrolnej"],
+      "tr": ["kontrol listesi", "kontrol listesini", "kontrol listesinin"],
+      "eo": ["kontrollisto", "kontrolliston"], "tok": ["kulupu pi pali lili"]
+    }
+  },
+  {
+    "id": "term.database",
+    "context": "Lokale SQLite-Datei und ihre Verwaltung. Dateiname, Wechsel, Auswahl und Demo-Datenbank gehoeren dazu. Kein Oberbegriff fuer beliebige Daten.",
+    "sourceTerms": ["Datenbank", "Datenbanken", "Datenbankname", "Datenbankwechsel", "Datenbankauswahl", "database", "databases"],
+    "translations": {
+      "de": ["Datenbank", "Datenbanken", "Datenbankname", "Datenbankwechsel", "Datenbankauswahl", "Datenbank-Datei", "Demo-Datenbank", "SQLite-Datenbank"],
+      "en": ["database", "databases"], "fr": ["base de données", "bases de données"],
+      "es": ["base de datos", "bases de datos"], "zh-CN": ["数据库"],
+      "uk": ["база даних", "бази даних", "базу даних", "базою даних", "баз даних"],
+      "pt-BR": ["banco de dados", "bancos de dados"], "ja": ["データベース"], "zh-TW": ["資料庫"],
+      "ko": ["데이터베이스"], "it": ["database"],
+      "pl": ["baza danych", "bazy danych", "bazę danych", "baz danych", "baza demonstracyjna", "bazę demonstracyjną"],
+      "tr": ["veritabanı", "veritabanını", "veritabanının", "veritabanına", "veritabanları", "veritabanlarını", "veritabanlarının"],
+      "eo": ["datumbazo", "datumbazon", "datumbazoj", "datumbazojn", "datumbaza"], "tok": ["poki sona"]
+    }
+  },
+  {
+    "id": "term.folder",
+    "context": "Gewoehnlicher Dateisystem-Ordner. Exakte Schluessel vermeiden falsche Anforderungen an spezialisierte Benutzer-/Desktop-/Startmenue-Ordner und den Vorschau-Cache-Ordner, fuer die tok bereits eigene Ausdruecke hat.",
+    "sourceTerms": ["Ordner", "folder", "directory"],
+    "keys": ["Ordnerauswahl fehlgeschlagen", "Ordner wählen…", "Standard: %APPDATA%\\DoDrag (oder Ordner wählen)", "Speicherort (z. B. Google-Drive-Ordner)", "Speicherort für Datenbank wählen (z. B. Google Drive Ordner)", "Ordner konnte nicht erstellt werden", "Ordner konnte nicht geöffnet werden.", "Ordner konnte nicht geöffnet werden", "Ordner nicht gefunden: {path}"],
+    "translations": {
+      "de": ["Ordner", "Ordnern", "Ordners", "Ordnerauswahl", "Google-Drive-Ordner"],
+      "en": ["folder", "folders"], "fr": ["dossier", "dossiers"], "es": ["carpeta", "carpetas"],
+      "zh-CN": ["文件夹"], "uk": ["папка", "папку", "папки", "папці"], "pt-BR": ["pasta", "pastas"],
+      "ja": ["フォルダー"], "zh-TW": ["資料夾"], "ko": ["폴더"], "it": ["cartella", "cartelle"],
+      "pl": ["folder", "folderu", "folderze", "foldery", "folderów"],
+      "tr": ["klasör", "klasörü", "klasörün", "klasöre", "klasörler", "klasörleri"],
+      "eo": ["dosierujo", "dosierujon", "dosierujoj", "dosierujojn", "Google Drive-dosierujo"],
+      "tok": ["poki lipu"]
+    }
+  },
+  {
+    "id": "term.storageLocation",
+    "context": "Speicherort einer Datenbank. Eigenes UI-Konzept neben Ordner und Dateipfad; tok bezeichnet den Speicherort bereits mit poki lipu. Keine allgemeine Position eines Tasks oder Diagrammknotens.",
+    "sourceTerms": ["Speicherort", "storage location", "location"],
+    "keys": ["Speicherort z. B. für Google Drive Sync & Backup verwalten", "Speicherort (z. B. Google-Drive-Ordner)", "Speicherort für Datenbank wählen (z. B. Google Drive Ordner)"],
+    "translations": {
+      "de": ["Speicherort", "Speicherorts"], "en": ["storage location", "location"],
+      "fr": ["emplacement de stockage"], "es": ["ubicación de almacenamiento"], "zh-CN": ["保存位置"],
+      "uk": ["місце зберігання", "місця зберігання", "місцем зберігання"], "pt-BR": ["local de armazenamento"], "ja": ["保存先"],
+      "zh-TW": ["儲存位置"], "ko": ["저장 위치"], "it": ["posizione di salvataggio"],
+      "pl": ["lokalizacja zapisu", "lokalizację zapisu", "lokalizacji zapisu", "lokalizacją zapisu"],
+      "tr": ["kayıt konumu", "kayıt konumunu", "kayıt konumunun"],
+      "eo": ["konservejo", "konservejon"], "tok": ["poki lipu"]
+    }
+  },
+  {
+    "id": "term.filePath",
+    "context": "Dateisystem-Pfad zu Datei, Programm oder Ordner. Exakte Schluessel trennen path/Pfad vom Graphpfad bei Alt-Drag. Ganze Komposita und sprachlich sinnvolle Kurzform Pfad/path sind erlaubt.",
+    "sourceTerms": ["Dateipfad", "Dateipfaden", "Pfad", "file path", "path", "Programm-Pfad", "Pfadtyp"],
+    "keys": ["Ungültiger Dateipfad", "Quelle ziehen (Pfadtyp nicht verfügbar)", "Ungueltiger absoluter Pfad", "Pfad konnte nicht geoeffnet werden", "Programm-Pfad konnte nicht ermittelt werden", "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben."],
+    "translations": {
+      "de": ["Dateipfad", "Dateipfade", "Dateipfaden", "Pfad", "Pfads", "Pfadtyp", "Programm-Pfad"],
+      "en": ["file path", "file paths", "path"], "fr": ["chemin", "chemins"], "es": ["ruta", "rutas"],
+      "zh-CN": ["路径"], "uk": ["шлях", "шляху", "шляхів", "шляхах"], "pt-BR": ["caminho", "caminhos"],
+      "ja": ["パス"], "zh-TW": ["路徑"], "ko": ["경로"], "it": ["percorso", "percorsi"],
+      "pl": ["ścieżka", "ścieżki", "ścieżkę", "ścieżek", "ścieżkach"],
+      "tr": ["yol", "yolu", "yolunu", "yolunun", "yolları", "yollarında"],
+      "eo": ["dosiervojo", "dosiervojon", "dosiervojoj", "dosiervojojn", "vojo", "vojon"], "tok": ["nasin lipu"]
+    }
+  },
+  {
+    "id": "term.previewCache",
+    "context": "Temporaerer Speicher fuer skalierte Bildvorschauen, Frontend und Backend. Die kurzen UI-Labels Cache loeschen/Cache-Ordner duerfen Cache ohne Vorschau sagen; tok verwendet dort bereits den vollen Referenzbegriff. Cache ist ein vollstaendiges Fachwort, kein allgemeiner Wortstamm.",
+    "sourceTerms": ["Vorschau-Cache", "preview cache", "Cache löschen", "Cache-Ordner"],
+    "translations": {
+      "de": ["Vorschau-Cache", "Cache", "Cache-Ordner"], "en": ["preview cache", "cache"],
+      "fr": ["cache des aperçus", "cache"], "es": ["caché de vistas previas", "caché"], "zh-CN": ["预览缓存", "缓存"],
+      "uk": ["кеш попереднього перегляду", "кешу попереднього перегляду", "кеш", "кешу"],
+      "pt-BR": ["cache de prévias", "cache"], "ja": ["プレビューキャッシュ", "キャッシュ"],
+      "zh-TW": ["預覽快取", "快取"], "ko": ["미리 보기 캐시", "캐시"], "it": ["cache delle anteprime", "cache"],
+      "pl": ["pamięć podręczna podglądów", "pamięci podręcznej podglądów", "pamięć podręczną podglądów", "pamięć podręczna", "pamięci podręcznej", "pamięć podręczną"],
+      "tr": ["önizleme önbelleği", "önizleme önbelleğini", "önizleme önbelleğinin", "önbellek", "önbelleği", "önbelleğini"],
+      "eo": ["antaŭrigarda kaŝmemoro", "antaŭrigardan kaŝmemoron", "kaŝmemoro", "kaŝmemoron"],
+      "tok": ["poki awen pi sitelen lukin"]
+    }
+  },
+  {
+    "id": "term.settings",
+    "context": "App-Konfigurationsdialog und persistierte Konfiguration, einschliesslich englischer Settings-Schluessel im Backend. Autostart-Einstellung ist ein einzelner benannter Parameter mit eigener tok-Form, daher keine allgemeine Singular-Einstellung als Alias. Deutsches Settings ist ein Befund, kein kanonischer Zielbegriff.",
+    "sourceTerms": ["Einstellungen", "Settings", "settings"],
+    "translations": {
+      "de": ["Einstellungen"], "en": ["settings"], "fr": ["paramètres"], "es": ["configuración"],
+      "zh-CN": ["设置"], "uk": ["налаштування", "налаштувань"], "pt-BR": ["configurações"], "ja": ["設定"],
+      "zh-TW": ["設定"], "ko": ["설정"], "it": ["impostazioni"], "pl": ["ustawienia", "ustawień"],
+      "tr": ["ayarlar", "ayarları", "ayarların"], "eo": ["agordoj", "agordojn", "agorda"], "tok": ["nasin ilo"]
+    }
+  },
+  {
+    "id": "term.compactView",
+    "context": "Angedocktes kleines App-Fenster, auch Mini-Ansicht genannt. tok nutzt beim Minimieren in die Ecke die bestehende Handlung o lili e lukin statt eines nominalen lukin lili; diese volle Wendung ist bewusst erlaubt.",
+    "sourceTerms": ["Kompaktansicht", "Mini-Ansicht", "Miniaturansicht", "compact view", "mini view"],
+    "translations": {
+      "de": ["Kompaktansicht", "Mini-Ansicht", "Miniaturansicht"], "en": ["compact view"], "fr": ["vue compacte"],
+      "es": ["vista compacta"], "zh-CN": ["紧凑视图"], "uk": ["компактний вигляд", "компактного вигляду", "компактному вигляді"],
+      "pt-BR": ["visualização compacta"], "ja": ["コンパクト表示"], "zh-TW": ["精簡檢視"], "ko": ["컴팩트 보기"],
+      "it": ["vista compatta"], "pl": ["widok kompaktowy", "widoku kompaktowego", "widoku kompaktowym"],
+      "tr": ["kompakt görünüm", "kompakt görünümü", "kompakt görünüme", "kompakt görünümde"],
+      "eo": ["kompakta vido", "kompaktan vidon"], "tok": ["lukin lili", "o lili e lukin"]
+    }
+  },
+  {
+    "id": "term.mainView",
+    "context": "Normales Arbeitsfenster bzw. Hauptansicht, nicht das beliebige aktive Fenster. Fenster wiederherstellen ist kontextuell Rueckkehr aus der Mini-Ansicht, darf im bestehenden Label aber kurz window/Fenster heissen; Auswahl per keys verhindert Redo-Verwechslungen.",
+    "sourceTerms": ["Hauptansicht", "Hauptfenster", "main view", "main window"],
+    "keys": ["Kompaktansicht / Hauptansicht wiederherstellen", "DoDrag Hauptfenster wiederherstellen", "Fenster wiederherstellen"],
+    "translations": {
+      "de": ["Hauptansicht", "Hauptfenster", "Fenster"], "en": ["main view", "main window", "window"],
+      "fr": ["vue principale", "fenêtre principale", "fenêtre"], "es": ["vista principal", "ventana principal", "ventana"],
+      "zh-CN": ["主视图", "主窗口", "窗口"], "uk": ["основний вигляд", "головне вікно", "вікно"],
+      "pt-BR": ["visualização principal", "janela principal", "janela"], "ja": ["メイン表示", "メインウィンドウ", "ウィンドウ"],
+      "zh-TW": ["主檢視", "主視窗", "視窗"], "ko": ["기본 보기", "기본 창", "창"],
+      "it": ["vista principale", "finestra principale", "finestra"], "pl": ["widok główny", "główne okno", "okno"],
+      "tr": ["ana görünüm", "ana görünümü", "ana pencere", "ana penceresini", "pencereyi"],
+      "eo": ["ĉefa vido", "ĉefan vidon", "ĉeffenestro", "ĉeffenestron", "fenestro", "fenestron"],
+      "tok": ["lukin suli"]
+    }
+  },
+  {
+    "id": "term.listView",
+    "context": "Task-Listenansicht, ausschliesslich ihr Ansichtslabel. Listen im Markdown, nummerierte Listen und die Liste bekannter Datenbanken sind andere Kontexte, auch wenn Sprachen denselben Oberbegriff verwenden.",
+    "sourceTerms": ["Liste", "Listenansicht", "list", "list view"],
+    "keys": ["Liste"],
+    "translations": {
+      "de": ["Liste"], "en": ["list"], "fr": ["liste"], "es": ["lista"], "zh-CN": ["列表"],
+      "uk": ["список"], "pt-BR": ["lista"], "ja": ["リスト"], "zh-TW": ["清單"], "ko": ["목록"],
+      "it": ["elenco"], "pl": ["lista"], "tr": ["liste"], "eo": ["listo"], "tok": ["kulupu lipu"]
+    }
+  },
+  {
+    "id": "term.networkView",
+    "context": "Task-Netzplan mit Knoten und gerichteten Verbindungen. Kanonisch englisches Ansichtslabel dependency graph, nicht die woertliche Plan-Beispieluebersetzung network plan.",
+    "sourceTerms": ["Netzplan", "network plan", "network view", "dependency graph"],
+    "translations": {
+      "de": ["Netzplan", "Netzplans"], "en": ["dependency graph"], "fr": ["diagramme de réseau"],
+      "es": ["diagrama de red"], "zh-CN": ["网络图"], "uk": ["мережева діаграма"],
+      "pt-BR": ["diagrama de rede"], "ja": ["ネットワーク図"], "zh-TW": ["網路圖"],
+      "ko": ["네트워크 다이어그램"], "it": ["diagramma delle dipendenze"], "pl": ["diagram sieciowy"],
+      "tr": ["ağ diyagramı"], "eo": ["retplano", "retplanon"], "tok": ["sitelen linja"]
+    }
+  },
+  {
+    "id": "term.ganttView",
+    "context": "Gantt-Task-Ansicht. Exakter Schluessel trennt sie vom Mermaid-Gantt-Diagramm, das tok bereits sitelen tenpo Gantt statt sitelen Gantt nennt.",
+    "sourceTerms": ["Gantt", "Gantt view"],
+    "keys": ["Gantt"],
+    "translations": {
+      "de": ["Gantt"], "en": ["Gantt"], "fr": ["Gantt"], "es": ["Gantt"], "zh-CN": ["甘特图"],
+      "uk": ["діаграма Ґанта"], "pt-BR": ["Gantt"], "ja": ["ガントチャート"], "zh-TW": ["甘特圖"],
+      "ko": ["간트"], "it": ["Gantt"], "pl": ["Gantt"], "tr": ["Gantt"], "eo": ["Gantt"], "tok": ["sitelen Gantt"]
+    }
+  },
+  {
+    "id": "term.mermaid",
+    "context": "Eingebettetes Mermaid-Diagramm samt Quelltext, Vorschau und Dokumentation. Markenname darf in de/en bei Quelltext und Vorschau allein stehen; tok behaelt immer den bestehenden Klassifikator sitelen Mermaid. Diagrammbezeichnung und technische Komposita sind explizite Varianten.",
+    "sourceTerms": ["Mermaid", "Mermaid-Diagramm", "Mermaid diagram"],
+    "translations": {
+      "de": ["Mermaid-Diagramm", "Mermaid-Quelltext", "Mermaid-Vorschau", "Mermaid-Syntaxdokumentation", "Mermaid"],
+      "en": ["Mermaid diagram", "Mermaid"], "fr": ["diagramme Mermaid", "Mermaid"],
+      "es": ["diagrama Mermaid", "Mermaid"], "zh-CN": ["Mermaid 图表", "Mermaid"],
+      "uk": ["діаграма Mermaid", "діаграму Mermaid", "діаграми Mermaid", "Mermaid"],
+      "pt-BR": ["diagrama Mermaid", "Mermaid"], "ja": ["Mermaid 図", "Mermaid"],
+      "zh-TW": ["Mermaid 圖表", "Mermaid"], "ko": ["Mermaid 다이어그램", "Mermaid"],
+      "it": ["diagramma Mermaid", "Mermaid"], "pl": ["diagram Mermaid", "diagramu Mermaid", "Mermaid"],
+      "tr": ["Mermaid diyagramı", "Mermaid diyagramını", "Mermaid"],
+      "eo": ["Mermaid-diagramo", "Mermaid-diagramon", "Mermaid"], "tok": ["sitelen Mermaid"]
+    }
+  },
+  {
+    "id": "term.editor",
+    "context": "Editor fuer den Markdown-Text eines Tasks. Nicht die externe Anwendung Visual Studio Code. Nominativ und tatsaechlich erforderliche Kasusformen, keine breiten redakt-/edit-Staemme.",
+    "sourceTerms": ["Editor", "editor"],
+    "translations": {
+      "de": ["Editor", "Editors"], "en": ["editor"], "fr": ["éditeur"], "es": ["editor"], "zh-CN": ["编辑器"],
+      "uk": ["редактор", "редактора", "редакторі"], "pt-BR": ["editor"], "ja": ["エディター"],
+      "zh-TW": ["編輯器"], "ko": ["편집기"], "it": ["editor"], "pl": ["edytor", "edytora", "edytorze"],
+      "tr": ["düzenleyici", "düzenleyiciyi", "düzenleyicinin"],
+      "eo": ["redaktilo", "redaktilon"], "tok": ["ilo pi ante sitelen"]
+    }
+  },
+  {
+    "id": "term.contextMenu",
+    "context": "Natives Windows-Popup fuer Task-Aktionen per Rechtsklick. Kein allgemeines Menue, Startmenue oder Markdown-Menue.",
+    "sourceTerms": ["Kontextmenü", "Kontextmenue", "context menu"],
+    "translations": {
+      "de": ["Kontextmenü", "Kontextmenüs"], "en": ["context menu"], "fr": ["menu contextuel"],
+      "es": ["menú contextual"], "zh-CN": ["上下文菜单"], "uk": ["контекстне меню", "контекстного меню"],
+      "pt-BR": ["menu de contexto"], "ja": ["コンテキストメニュー"], "zh-TW": ["快顯功能表"],
+      "ko": ["컨텍스트 메뉴"], "it": ["menu contestuale"], "pl": ["menu kontekstowe", "menu kontekstowego"],
+      "tr": ["bağlam menüsü", "bağlam menüsünü", "bağlam menüsünün"],
+      "eo": ["kunteksta menuo", "kuntekstan menuon"], "tok": ["lipu nena"]
+    }
+  },
+  {
+    "id": "term.keyboardShortcuts",
+    "context": "Tastenkuerzel fuer App- und Editor-Bedienung. Nur praezise Aliase: Windows-Desktop-Verknuepfungen und Emotion-Shortcuts sind nicht dieses Konzept.",
+    "sourceTerms": ["Tastenkürzel", "Tastenkuerzel", "keyboard shortcuts"],
+    "translations": {
+      "de": ["Tastenkürzel", "Tastenkürzeln"], "en": ["keyboard shortcuts"], "fr": ["raccourcis clavier"],
+      "es": ["atajos de teclado"], "zh-CN": ["键盘快捷键"], "uk": ["клавіатурні скорочення", "клавіатурних скорочень"],
+      "pt-BR": ["atalhos de teclado"], "ja": ["キーボードショートカット"], "zh-TW": ["鍵盤快捷鍵"],
+      "ko": ["키보드 단축키"], "it": ["scorciatoie da tastiera"], "pl": ["skróty klawiaturowe", "skrótów klawiaturowych"],
+      "tr": ["klavye kısayolları", "klavye kısayollarını", "klavye kısayollarının"],
+      "eo": ["klavkombinoj", "klavkombinojn"], "tok": ["nena ilo"]
+    }
+  },
+  {
+    "id": "term.undo",
+    "context": "Letzte Aktion zuruecknehmen. Exakte Schluessel grenzen Rueckgaengig von technischen Rollbacks ab. tok-Fehlermeldungen enthalten tawa monsi ohne imperatives o; beide bestehenden Formen sind erlaubt.",
+    "sourceTerms": ["Rückgängig", "Rueckgaengig", "Undo", "undo"],
+    "keys": ["Rückgängig", "Rückgängig (Ctrl+Z)", "Undo", "Undo / Redo", "Rückgängig fehlgeschlagen"],
+    "translations": {
+      "de": ["Rückgängig"], "en": ["undo"], "fr": ["annuler"], "es": ["deshacer"], "zh-CN": ["撤销"],
+      "uk": ["скасувати"], "pt-BR": ["desfazer"], "ja": ["元に戻す", "元に戻せませんでした"],
+      "zh-TW": ["復原"], "ko": ["실행 취소"], "it": ["annulla", "annullare"], "pl": ["cofnij", "cofnąć"],
+      "tr": ["geri al", "geri alma", "geri alınamadı"], "eo": ["malfari"], "tok": ["o tawa monsi", "tawa monsi"]
+    }
+  },
+  {
+    "id": "term.redo",
+    "context": "Zurueckgenommene Aktion wiederholen. Wiederherstellen (Ctrl+Y) ist Redo, Wiederherstellen ohne Tastenkombination im Backend dagegen Fensterwiederherstellung und nicht ausgewaehlt. de erlaubt die beiden vorhandenen UI-Verben, en kanonisch redo statt restore.",
+    "sourceTerms": ["Wiederholen", "Redo", "redo", "Wiederherstellen (Ctrl+Y)"],
+    "keys": ["Wiederholen", "Wiederherstellen (Ctrl+Y)", "Redo", "Undo / Redo", "Wiederholen fehlgeschlagen"],
+    "translations": {
+      "de": ["Wiederholen", "Wiederherstellen"], "en": ["redo"], "fr": ["rétablir"], "es": ["rehacer"],
+      "zh-CN": ["重做"], "uk": ["повторити"], "pt-BR": ["refazer"], "ja": ["やり直し", "やり直す", "やり直せませんでした"],
+      "zh-TW": ["重做"], "ko": ["다시 실행"], "it": ["ripristina", "ripristinare"], "pl": ["ponów", "ponowić"],
+      "tr": ["yinele", "yineleme", "yinelenemedi"], "eo": ["refari"], "tok": ["o tawa sinpin", "tawa sinpin"]
+    }
+  },
+  {
+    "id": "term.taskTitle",
+    "context": "Bearbeitbarer Titel eines Tasks, nicht Markdown-Ueberschrift, Dateiname oder Dialogtitel. Exakte Schluessel fuer die Titel-UI; gespeicherte Nutzertitel werden nicht uebersetzt.",
+    "sourceTerms": ["Titel", "title", "task title"],
+    "keys": ["Titel {id}", "Titel bearbeiten (In-Place)"],
+    "translations": {
+      "de": ["Titel", "Titels"], "en": ["title"], "fr": ["titre"], "es": ["título"], "zh-CN": ["标题"],
+      "uk": ["назва", "назву", "назви"], "pt-BR": ["título"], "ja": ["タイトル"], "zh-TW": ["標題"],
+      "ko": ["제목"], "it": ["titolo"], "pl": ["tytuł", "tytułu"], "tr": ["başlık", "başlığı", "başlığını"],
+      "eo": ["titolo", "titolon"], "tok": ["nimi", "nimi pali"]
+    }
+  },
+  {
+    "id": "term.language",
+    "context": "Ausgewaehlte UI-Sprache. Exakte Schluessel vermeiden Anforderungen an beliebige Texte wie Syntaxzeichen bleiben in jeder Sprache gleich. Der Zusatz Language im Sprachwahl-Label ist ein Orientierungshinweis, kein zweiter kanonischer Begriff.",
+    "sourceTerms": ["Sprache", "UI-Sprache", "language"],
+    "keys": ["Sprache", "Sprache (Language)", "Sprache konnte nicht geändert werden", "Nicht unterstützte Sprache: {language}", "Ungültige UI-Sprache: {language}"],
+    "translations": {
+      "de": ["Sprache", "UI-Sprache"], "en": ["language"], "fr": ["langue"], "es": ["idioma"], "zh-CN": ["语言"],
+      "uk": ["мова", "мову", "мови"], "pt-BR": ["idioma"], "ja": ["言語"], "zh-TW": ["語言"], "ko": ["언어"],
+      "it": ["lingua"], "pl": ["język", "języka"], "tr": ["dil", "dili", "dilini"],
+      "eo": ["lingvo", "lingvon"], "tok": ["toki", "toki ilo"]
+    }
+  },
+  {
+    "id": "term.cancel",
+    "context": "Dialogaktion Abbrechen ohne Bestaetigen. Exaktes Label trennt Cancel von Undo; einzelne Sprachen nutzen dasselbe Verb fuer beide, tok bereits o pini wie beim Schliessen.",
+    "sourceTerms": ["Abbrechen", "cancel"],
+    "keys": ["Abbrechen"],
+    "translations": {
+      "de": ["Abbrechen"], "en": ["cancel"], "fr": ["annuler"], "es": ["cancelar"], "zh-CN": ["取消"],
+      "uk": ["скасувати"], "pt-BR": ["cancelar"], "ja": ["キャンセル"], "zh-TW": ["取消"], "ko": ["취소"],
+      "it": ["annullare"], "pl": ["anuluj"], "tr": ["iptal", "İptal"], "eo": ["nuligi"], "tok": ["o pini"]
+    }
+  },
+  {
+    "id": "term.close",
+    "context": "Dialog oder Details-Panel schliessen. Nicht Task abschliessen/deaktivieren und nicht SQLite-Datenbank schliessen. Exakte UI-Aktionen statt allgemeinem schliessen-Matching.",
+    "sourceTerms": ["Schließen", "Schliessen", "close"],
+    "keys": ["Schließen", "Details schließen"],
+    "translations": {
+      "de": ["Schließen", "schließen"], "en": ["close"], "fr": ["fermer"], "es": ["cerrar"], "zh-CN": ["关闭"],
+      "uk": ["закрити"], "pt-BR": ["fechar"], "ja": ["閉じる"], "zh-TW": ["關閉"], "ko": ["닫기"],
+      "it": ["chiudi", "chiudere"], "pl": ["zamknij"], "tr": ["kapat"], "eo": ["fermi"], "tok": ["o pini"]
+    }
+  },
+  {
+    "id": "term.help",
+    "context": "In-App-Hilfe und Hilfe-Seiten; nicht Task-Beschreibung oder allgemeine Details. tok lipu sona ist der bestehende Hilfebegriff, waehrend lipu sona pi pali die Aufgabenbeschreibung bezeichnet.",
+    "sourceTerms": ["Hilfe", "Hilfe-Seiten", "help", "help pages"],
+    "translations": {
+      "de": ["Hilfe", "Hilfe-Seiten"], "en": ["help", "help pages"], "fr": ["aide"], "es": ["ayuda"],
+      "zh-CN": ["帮助"], "uk": ["довідка", "довідки", "довідку"], "pt-BR": ["ajuda"], "ja": ["ヘルプ"],
+      "zh-TW": ["說明"], "ko": ["도움말"], "it": ["aiuto"], "pl": ["pomoc", "pomocy"],
+      "tr": ["yardım", "yardımı", "yardım sayfaları"], "eo": ["helpo", "helpon", "helppaĝoj"], "tok": ["lipu sona"]
+    }
+  },
+  {
+    "id": "term.activeDatabase",
+    "context": "Badge der derzeit verwendeten Datenbank. Nur Aktiv als exakt ausgewaehltes Datenbank-Label; nicht Task aktivieren, Autostart aktiviert oder aktives Fenster. Andere Statussaetze benoetigen keine erzwungene Wiederholung dieses Badges.",
+    "sourceTerms": ["Aktiv", "active database", "active"],
+    "keys": ["Aktiv"],
+    "translations": {
+      "de": ["Aktiv"], "en": ["active"], "fr": ["active"], "es": ["activa"], "zh-CN": ["当前使用"],
+      "uk": ["активна"], "pt-BR": ["ativo"], "ja": ["有効"], "zh-TW": ["使用中"], "ko": ["활성"],
+      "it": ["attivo"], "pl": ["aktywna"], "tr": ["etkin"], "eo": ["aktiva"], "tok": ["lon kepeken"]
+    }
+  },
+  {
+    "id": "term.activateTask",
+    "context": "Task aktivieren bzw. hervorheben. Exakte Aktionslabels, nicht Datenbank aktivieren oder Autostart einschalten. Gemischtes Hilfe-Label enthaelt beide Aktionen. Kein erzwungener Verb-Nennformabgleich in Fehlermeldungen.",
+    "sourceTerms": ["Task aktivieren", "Aktivieren (Hervorheben)", "activate task"],
+    "keys": ["Aktivieren (Hervorheben)", "Aktivieren (Space)", "Task aktivieren / deaktivieren"],
+    "translations": {
+      "de": ["Aktivieren", "aktivieren"], "en": ["activate"], "fr": ["activer"], "es": ["activar"],
+      "zh-CN": ["启用"], "uk": ["активувати"], "pt-BR": ["ativar"], "ja": ["有効化"], "zh-TW": ["啟用"],
+      "ko": ["활성화"], "it": ["attiva", "attivare"], "pl": ["aktywuj"], "tr": ["etkinleştir"],
+      "eo": ["aktivigi"], "tok": ["o open"]
+    }
+  },
+  {
+    "id": "term.deactivateTask",
+    "context": "Task-Hervorhebung deaktivieren, ohne den Task zu erledigen. Exakte Schluessel vermeiden Verwechslung mit Autostart deaktivieren. tok nutzt im kombinierten Label o open anu pini die vorhandene Verbalform pini ohne zweites o.",
+    "sourceTerms": ["Task deaktivieren", "Deaktivieren", "deactivate task"],
+    "keys": ["Deaktivieren", "Deaktivieren (Space)", "Task aktivieren / deaktivieren"],
+    "translations": {
+      "de": ["Deaktivieren", "deaktivieren"], "en": ["deactivate"], "fr": ["désactiver"], "es": ["desactivar"],
+      "zh-CN": ["停用"], "uk": ["деактивувати"], "pt-BR": ["desativar"], "ja": ["無効化"], "zh-TW": ["停用"],
+      "ko": ["비활성화"], "it": ["disattiva", "disattivare"], "pl": ["dezaktywuj"], "tr": ["devre dışı bırak"],
+      "eo": ["malaktivigi"], "tok": ["o pini", "pini"]
+    }
+  },
+  {
+    "id": "term.completeTask",
+    "context": "Task als erledigt markieren. Keine generische fertig-/complete-Pruefung fuer Installationen oder Checklisten. tok kann als Aktion o pini e pali oder als Zustand pali ni li pini formulieren; keine woertlichen Flexionszwaenge.",
+    "sourceTerms": ["Task erledigen", "Als erledigt markieren", "complete task", "mark as complete"],
+    "keys": ["Ausgewählten Task erledigen", "Als erledigt markieren", "Tasks hierher ziehen, um sie als erledigt abzulegen"],
+    "translations": {
+      "de": ["erledigen", "erledigt"], "en": ["complete"], "fr": ["terminer", "terminée", "terminées"],
+      "es": ["completar", "completada", "completadas"], "zh-CN": ["已完成", "完成"],
+      "uk": ["виконати", "виконаним", "виконані"], "pt-BR": ["concluir", "concluída", "concluídas"],
+      "ja": ["完了"], "zh-TW": ["完成"], "ko": ["완료"], "it": ["completa", "completare", "completata", "completate"],
+      "pl": ["ukończ", "ukończone", "ukończonego", "ukończyć"],
+      "tr": ["tamamla", "tamamlandı", "tamamlanmış"],
+      "eo": ["plenumi", "plenumitan", "plenumitaj", "plenumitajn"], "tok": ["pini"]
+    }
+  },
+  {
+    "id": "term.numberedList",
+    "context": "Markdown-Block mit nummerierten Eintraegen. Eigenes Konzept neben Task-Listenansicht; Liste allein ist keine ausreichende kanonische Uebersetzung dieses Labels.",
+    "sourceTerms": ["Nummerierte Liste", "numbered list", "ordered list"],
+    "keys": ["Nummerierte Liste"],
+    "translations": {
+      "de": ["Nummerierte Liste"], "en": ["numbered list"], "fr": ["liste numérotée"], "es": ["lista numerada"],
+      "zh-CN": ["编号列表"], "uk": ["нумерований список"], "pt-BR": ["lista numerada"], "ja": ["番号付きリスト"],
+      "zh-TW": ["編號清單"], "ko": ["번호 매기기 목록"], "it": ["elenco numerato"], "pl": ["lista numerowana"],
+      "tr": ["numaralı liste"], "eo": ["numerita listo"], "tok": ["kulupu lipu pi nanpa"]
+    }
+  },
+  {
+    "id": "term.markdownNote",
+    "context": "GitHub-Alert-Typ Note als Markdown-Hinweisblock. Nur exakter englischer Schluessel Note; nicht die hinzuzufuegende Log-Notiz. Sprachen duerfen fuer beide denselben Ausdruck verwenden, tok nutzt hier jedoch sona statt toki lili.",
+    "sourceTerms": ["Note", "Hinweis", "Markdown note", "GitHub note"],
+    "keys": ["Note"],
+    "translations": {
+      "de": ["Hinweis"], "en": ["note"], "fr": ["remarque"], "es": ["nota"], "zh-CN": ["说明"],
+      "uk": ["примітка"], "pt-BR": ["nota"], "ja": ["注記"], "zh-TW": ["說明"], "ko": ["참고"],
+      "it": ["nota"], "pl": ["uwaga"], "tr": ["not"], "eo": ["noto"], "tok": ["sona"]
+    }
+  }
+]

@@ -475,12 +475,15 @@ it('documents the implemented drag direction, scoped Alt removal, and active sho
   await mount();
   click(button('Tastenkürzel & Bedienung (?)'));
   expect(element.textContent).toContain('Abhängigen Task auf seinen Vorgänger ziehen (A auf B: B → A)');
-  expect(element.textContent).toContain('Alt: an der gezogenen Aufgabe gespeicherte Kanten Richtung Ziel lösen (Vorgänger und Nachfolger, kein ganzer Pfad)');
+  expect(element.textContent).toContain('Alt: Gespeicherte Kanten der gezogenen Aufgabe Richtung Ziel lösen. Das gilt für Vorgänger und Nachfolger, nicht für den ganzen Pfad.');
   expect(element.textContent).toContain('F2 / E / Enter / Doppelklick');
   expect(element.textContent).toContain('N: Eingabe für neuen Task fokussieren');
   expect(element.textContent).toContain('Enter (Eingabe): Task anlegen');
   expect(element.textContent).toContain('Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z');
-  expect(element.textContent).toContain('Tastenkürzel gelten im aktiven Fenster, auch in der Mini-Ansicht und bei fokussierten Buttons.');
+  expect(element.textContent).toContain('Rückgängig / Wiederholen');
+  expect(element.textContent).toContain('Tastenkürzel gelten im aktiven Fenster, auch in der Kompaktansicht.');
+  expect(element.textContent).toContain('Sie gelten auch bei fokussierten Buttons.');
+  expect(element.textContent).toContain('In Textfeldern dienen Buchstaben nur der Texteingabe.');
   expect(element.textContent).toContain('Einstellungen und Hilfe sperren App-Aktionen.');
   expect(element.textContent).toContain('Ctrl+M');
   expect(element.textContent).toContain('Escape schließt Hilfe, Kontextmenü oder Editor.');

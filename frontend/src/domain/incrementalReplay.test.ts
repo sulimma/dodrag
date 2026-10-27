@@ -5,6 +5,7 @@ import { normalizeEvents } from '../bridge/eventBridge';
 import { projectEvents } from './projector';
 import type { EventCommand } from './eventSchema';
 import type { StoredEvent } from './types';
+import { t } from '../i18n';
 
 const iso = '2026-10-25T09:00:00Z';
 const create = (taskId: string): EventCommand => ({
@@ -125,9 +126,9 @@ it('verifies changed external arrays and old invalid events without poisoning th
   extra[0].payload.extra = true;
   expect(() => normalizeEvents(extra)).toThrow();
   const duplicate = [...transport(normalized), { ...event(rename('C'), 3), id: normalized[0].id }];
-  expect(() => normalizeEvents(duplicate)).toThrow('Duplicate');
+  expect(() => normalizeEvents(duplicate)).toThrow(t('Duplicate ID or unordered event sequence'));
   expect(() => normalizeEvents([...transport(normalized), event(rename('partially applied'), 3),
-    event({ type: 'TASK_REOPENED', payload: { taskId: 'missing' } }, 4)])).toThrow('Unknown task');
+    event({ type: 'TASK_REOPENED', payload: { taskId: 'missing' } }, 4)])).toThrow(t('Unknown task: {id}', { id: 'missing' }));
   expect(replayCommands(normalized)).toBe(before);
   expect(before.tasks.get('a')!.title).toBe('B');
   const valid = normalizeEvents([...transport(normalized), event(rename('C'), 3)]);
@@ -154,7 +155,7 @@ it('updates cached topological order for dependency appends and permits only fin
   expect(replayCommands(next).orderedTasks.map(task => task.id)).toEqual(['b', 'a']);
   expect(projectEvents(next, new Date(iso)).tasks.a.predecessorIds).toEqual(['b']);
   const cycle: EventCommand = { type: 'DEPENDENCY_ADDED', payload: { taskId: 'b', predecessorId: 'a' } };
-  expect(() => normalizeEvents([...transport(next), event(cycle, 4)])).toThrow('cycle');
+  expect(() => normalizeEvents([...transport(next), event(cycle, 4)])).toThrow(t('Dependency cycle in final event history'));
   const fixed = normalizeEvents([...transport(next), event(cycle, 4),
     event({ type: 'DEPENDENCY_REMOVED', payload: { taskId: 'b', predecessorId: 'a' } }, 5)]);
   expect(replayCommands(fixed).orderedTasks.map(task => task.id)).toEqual(['b', 'a']);

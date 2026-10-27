@@ -4,7 +4,7 @@ import { dependencyPathEdges } from '../domain/dependencyPaths';
 import { projectEvents } from '../domain/projector';
 import { normalizeLegacyTimestamp, parseCommand } from '../domain/eventSchema';
 import { StoredEvent } from '../domain/types';
-import { getLanguage, setLanguage } from '../i18n';
+import { getLanguage, setLanguage, t } from '../i18n';
 const key = 'dodrag_sqlite_fallback_events_v1';
 let storage: Map<string, string>;
 beforeEach(() => {
@@ -33,7 +33,7 @@ it('loads only validated legacy browser timestamps as UTC without losing fractio
   expect(() => normalizeLegacyTimestamp('2026-02-30T00:00:00+02:00')).toThrow();
   const invalid = JSON.stringify([...legacy, { ...legacy[1], seq: 3, id: 'invalid', payload: { taskId: 'missing', completedAt: offset } }]);
   storage.set(key, invalid);
-  await expect(eventBridge.getEvents()).rejects.toThrow('Unknown task');
+  await expect(eventBridge.getEvents()).rejects.toThrow(t('Unknown task: {id}', { id: 'missing' }));
   expect(storage.get(key)).toBe(invalid);
 });
 
@@ -160,17 +160,17 @@ it('rejects new cyclic batches atomically and preserves history on cyclic undo/r
   storage.set(key, JSON.stringify(events));
   const before = storage.get(key);
   expect(await eventBridge.getEvents()).toEqual(events);
-  await expect(eventBridge.undo()).rejects.toThrow('cycle');
+  await expect(eventBridge.undo()).rejects.toThrow(t('Dependency cycle in final event history'));
   expect(storage.get(key)).toBe(before);
   await expect(eventBridge.appendBatch([
     { type: 'TASK_RENAMED', payload: { taskId: 'a', title: 'Changed' } },
     { type: 'DEPENDENCY_ADDED', payload: { taskId: 'a', predecessorId: 'b' } },
     { type: 'DEPENDENCY_REMOVED', payload: { taskId: 'a', predecessorId: 'b' } },
-  ])).rejects.toThrow('cycle');
+  ])).rejects.toThrow(t('Dependency cycle'));
   expect(storage.get(key)).toBe(before);
   storage.set(key, JSON.stringify(events.slice(0, 4).map(event => event.id === 'ba' ? { ...event, undone: true } : event)));
   const redoBefore = storage.get(key);
-  await expect(eventBridge.redo()).rejects.toThrow('cycle');
+  await expect(eventBridge.redo()).rejects.toThrow(t('Dependency cycle in final event history'));
   expect(storage.get(key)).toBe(redoBefore);
 });
 
