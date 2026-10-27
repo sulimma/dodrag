@@ -4,7 +4,7 @@ import { useEditorState, type Editor } from '@tiptap/react';
 import { Bold, Italic, Strikethrough, Heading1, Heading2, Heading3, List, ListOrdered,
   ListTodo, Quote, Code, SquareCode, Workflow, Undo2, Redo2, Heading, ChevronDown, Sigma } from 'lucide-react';
 import { t, useLanguage } from '../../i18n';
-import { ALERT_TYPES, EMOTICONS } from './MarkdownFeatures';
+import { ALERT_TYPES, EMOTICONS, EMOTICON_GROUPS } from './MarkdownFeatures';
 import { SYMBOL_GROUPS } from './SymbolReplacements';
 import { MERMAID_TEMPLATES } from './MermaidTemplates';
 
@@ -13,6 +13,21 @@ export function DescriptionToolbar({ editor, onError, historyTarget }: { editor:
   const [open, setOpen] = useState<string | null>(null);
   const toolbar = useRef<HTMLDivElement>(null);
   const keyboardOpen = useRef<1 | -1 | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const dropdown = toolbar.current?.querySelector<HTMLElement>('[data-editor-dropdown]');
+    const anchor = dropdown?.parentElement?.querySelector('button');
+    if (!dropdown || !anchor) return;
+    const position = () => {
+      const rect = anchor.getBoundingClientRect();
+      dropdown.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - dropdown.offsetWidth - 8))}px`;
+      dropdown.style.top = `${Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - dropdown.offsetHeight - 8))}px`;
+    };
+    position();
+    window.addEventListener('resize', position);
+    window.addEventListener('scroll', position, true);
+    return () => { window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); };
+  }, [open]);
   useLayoutEffect(() => {
     if (!open || keyboardOpen.current === null) return;
     const buttons = toolbar.current?.querySelectorAll<HTMLButtonElement>('[data-editor-dropdown] button');
@@ -70,6 +85,7 @@ export function DescriptionToolbar({ editor, onError, historyTarget }: { editor:
       }),
     ] },
     { key: 'Sonderzeichen', label: t('Sonderzeichen'), icon: Sigma, items: [] },
+    { key: 'Symbole', label: t('Symbole'), icon: ListTodo, items: [] },
     { key: 'Mermaid', label: t('Mermaid'), icon: Workflow, items: MERMAID_TEMPLATES.map(item => ({
       label: t(item.labelKey), syntax: `\`\`\`mermaid\n${item.source}\n\`\`\``,
       run: () => editor.chain().focus().insertContent({ type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: item.source }] }).run(),
@@ -78,9 +94,9 @@ export function DescriptionToolbar({ editor, onError, historyTarget }: { editor:
   type Action = { label: string; syntax: string; shortcut?: string; icon?: typeof Bold; emoji?: string; color?: string; active?: boolean; run(): unknown };
   const run = (action: Action) => { try { action.run(); setOpen(null); } catch (error) { onError(error); } };
   const itemButton = (action: Action) => <button key={action.label} type="button" title={action.syntax} aria-label={action.label} aria-pressed={action.active}
-    className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs focus-visible:outline focus-visible:outline-sky-600 ${action.active ? 'bg-sky-100 text-sky-800' : 'text-slate-600 hover:bg-slate-100'}`}
+    className={`flex w-full items-center ${open === 'Symbole' ? 'gap-1 px-1' : 'gap-2 px-2'} rounded py-1.5 text-left text-xs focus-visible:outline focus-visible:outline-sky-600 ${action.active ? 'bg-sky-100 text-sky-800' : 'text-slate-600 hover:bg-slate-100'}`}
     onMouseDown={event => event.preventDefault()} onClick={() => run(action)}>
-    {action.icon ? <action.icon size={16} aria-hidden="true" /> : action.emoji && <span aria-hidden="true" style={{ color: action.color, filter: action.color === 'gray' ? 'grayscale(1)' : undefined }}>{action.emoji}</span>}
+    {action.icon ? <action.icon size={16} aria-hidden="true" /> : action.emoji && <span aria-hidden="true" style={{ color: action.color, filter: action.color === 'gray' ? 'grayscale(1)' : undefined, WebkitTextStroke: action.color === '#ffffff' ? '1px #64748b' : undefined }}>{action.emoji}</span>}
     {action.emoji ? <code className="whitespace-pre" style={{ fontVariantLigatures: 'none', fontFeatureSettings: '"liga" 0, "clig" 0, "calt" 0' }}>{action.label}</code> : action.label}
     {action.shortcut && <kbd className="ml-auto shrink-0 whitespace-nowrap pl-3 text-[10px] text-slate-500">{action.shortcut}</kbd>}
   </button>;
@@ -98,40 +114,45 @@ export function DescriptionToolbar({ editor, onError, historyTarget }: { editor:
     {groups.map(group => <div key={group.key} className="relative" onKeyDown={event => {
       if (event.key === 'Escape') { event.stopPropagation(); setOpen(null); event.currentTarget.querySelector('button')?.focus(); }
       if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
-        if (['ArrowLeft', 'ArrowRight'].includes(event.key) && group.key !== 'Sonderzeichen') return;
+        if (['ArrowLeft', 'ArrowRight'].includes(event.key) && !['Sonderzeichen', 'Symbole'].includes(group.key)) return;
         event.preventDefault();
         const direction = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1;
         if (open !== group.key) { keyboardOpen.current = direction; setOpen(group.key); }
         else {
           const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[data-editor-dropdown] button'));
           const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-          const step = group.key === 'Sonderzeichen' && ['ArrowDown', 'ArrowUp'].includes(event.key) ? 3 : 1;
+          const columns = group.key === 'Sonderzeichen' ? 3 : group.key === 'Symbole' ? 4 : 1;
+          const step = ['ArrowDown', 'ArrowUp'].includes(event.key) ? columns : 1;
           const next = index < 0 ? direction === 1 ? 0 : buttons.length - 1 : (index + direction * step + buttons.length) % buttons.length;
           buttons[next]?.focus();
         }
       }
     }}>
-      <button type="button" title={group.key === 'Sonderzeichen' ? SYMBOL_GROUPS.flatMap(section => section.items.map(item => item.shortcut)).join(' · ') : group.items.map(item => item.syntax).join('\n')} aria-label={t(group.key)} aria-expanded={open === group.key}
+      <button type="button" aria-label={t(group.key)} aria-expanded={open === group.key}
         className="flex h-7 items-center gap-1 rounded px-1.5 text-slate-600 hover:bg-slate-200 focus-visible:outline focus-visible:outline-sky-600"
         onMouseDown={event => event.preventDefault()} onClick={() => setOpen(open === group.key ? null : group.key)}>
         <group.icon size={16} aria-hidden="true" /><span className="text-[11px]">{group.label}</span><ChevronDown size={12} aria-hidden="true" />
       </button>
-      {open === group.key && <div data-editor-dropdown className={`absolute left-0 top-full mt-1 max-h-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-lg ${group.key === 'Sonderzeichen' ? 'w-72' : 'w-max min-w-56'}`}>
+      {open === group.key && <div data-editor-dropdown className={`fixed z-50 max-h-[min(20rem,calc(100vh-1rem))] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-lg ${['Sonderzeichen', 'Symbole'].includes(group.key) ? 'w-72' : 'w-max min-w-56'}`}>
         {group.items.map(itemButton)}
         {group.key === 'Sonderzeichen' && <>
           {SYMBOL_GROUPS.map(section => <section key={section.labelKey}>
             <div className="px-2 py-1.5 text-xs font-semibold text-slate-600">{t(section.labelKey)}</div>
             <div className="grid grid-cols-3 gap-1" data-symbol-group={section.labelKey}>
-              {section.items.map(item => itemButton({ label: item.shortcut, syntax: item.latex ? `$${item.latex}$` : item.shortcut, emoji: item.symbol,
+              {section.items.map(item => itemButton({ label: item.shortcut, syntax: item.shortcut, emoji: item.symbol,
                 run: () => editor.chain().focus().insertContent(item.latex ? { type: 'inlineMath', attrs: { latex: item.latex } } : { type: 'text', text: item.symbol }).run() }))}
+              {section.labelKey === 'Typografie' && EMOTICONS.filter(item => ['(c)', '(R)', '(TM)'].includes(item.shortcut)).map(item => itemButton({ label: item.shortcut, syntax: item.shortcut, emoji: item.emoji,
+                run: () => editor.chain().focus().insertContent({ type: 'emoticon', attrs: { shortcut: item.shortcut } }).run() }))}
             </div>
           </section>)}
-          <div className="border-t border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-600">{t('Emotion-Shortcuts')}</div>
-          <div className="grid grid-cols-3 gap-1" data-emoticon-group>
-            {EMOTICONS.map(item => itemButton({ label: item.shortcut, syntax: item.shortcut, emoji: item.emoji, color: item.color,
+        </>}
+        {group.key === 'Symbole' && EMOTICON_GROUPS.filter(section => section.labelKey !== 'Typografie').map(section => <section key={section.labelKey}>
+          <div className="px-2 py-1.5 text-xs font-semibold text-slate-600">{t(section.labelKey)}</div>
+          <div className="grid grid-cols-4 gap-0" data-emoticon-group={section.labelKey}>
+            {section.items.map(item => itemButton({ label: item.shortcut, syntax: item.shortcut, emoji: item.emoji, color: item.color,
               run: () => editor.chain().focus().insertContent({ type: 'emoticon', attrs: { shortcut: item.shortcut } }).run() }))}
           </div>
-        </>}
+        </section>)}
       </div>}
     </div>)}
     {historyTarget ? createPortal(historyButtons, historyTarget) : historyButtons}

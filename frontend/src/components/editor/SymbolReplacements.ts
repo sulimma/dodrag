@@ -21,10 +21,11 @@ export const SYMBOL_GROUPS: readonly { labelKey: string; items: readonly SymbolR
 
 const items = SYMBOL_GROUPS.flatMap(group => group.items).sort((a, b) => b.shortcut.length - a.shortcut.length);
 const escapeRE = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const replacementRE = new RegExp(`${items.filter(item => !item.shortcut.includes('/') || item.shortcut === '+/-').map(item => escapeRE(item.shortcut)).join('|')}|--|[0-9]+/[0-9]+`, 'g');
+const scientificPattern = String.raw`[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)[eE][+-]?[0-9]+`;
+const replacementRE = new RegExp(`${scientificPattern}|${items.filter(item => !item.shortcut.includes('/') || item.shortcut === '+/-').map(item => escapeRE(item.shortcut)).join('|')}|--|[0-9]+/[0-9]+`, 'g');
 interface Replacement { from: number; to: number; content: JSONContent }
 
-function replacements(text: string, complete: boolean): Replacement[] {
+function replacements(text: string, complete: boolean, typing = false): Replacement[] {
   const result: Replacement[] = [];
   for (const match of text.matchAll(replacementRE)) {
     const from = match.index!;
@@ -32,6 +33,8 @@ function replacements(text: string, complete: boolean): Replacement[] {
     const before = text.slice(0, from);
     const after = text.slice(to);
     const fraction = /^([0-9]+)\/([0-9]+)$/.exec(match[0]);
+    const scientific = /^([+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+))[eE]([+-]?[0-9]+)$/.exec(match[0]);
+    if (scientific && (!typing || !/(?:^|[\s([{])$/.test(before) || scientific[1].length > 32 || scientific[2].length > 12)) continue;
     // A word-sized slash/backslash context is a path, URL or chained date, not a fraction.
     const start = before.search(/[^\s]*$/);
     const end = to + (after.search(/\s/) === -1 ? after.length : after.search(/\s/));
@@ -45,10 +48,10 @@ function replacements(text: string, complete: boolean): Replacement[] {
     if (fraction && (!/(?:^|[\s([{])$/.test(before) || !/^(?:$|[\s,;!?:)\]}]|\.(?:\s|$))/.test(after))) continue;
     if (!fraction && match[0] !== ' -- ' && !/^(?:$|[\s,;!?:)\]}]|\.(?!\d))/.test(after)) continue;
     if (!complete && !after && match[0] !== ' -- ') continue;
-    if (!complete && fraction && after === '.') continue;
+    if (!complete && (fraction || scientific) && after === '.') continue;
     const item = items.find(item => item.shortcut === match[0]);
     if (fraction && (fraction[1].length > 12 || fraction[2].length > 12 || /^0+$/.test(fraction[2]))) continue;
-    const latex = fraction && !item ? `\\frac{${fraction[1]}}{${fraction[2]}}` : item?.latex;
+    const latex = scientific ? `${scientific[1]}\\cdot10^{${scientific[2]}}` : fraction && !item ? `\\frac{${fraction[1]}}{${fraction[2]}}` : item?.latex;
     if (latex) result.push({ from, to, content: { type: 'inlineMath', attrs: { latex } } });
     else if (match[0] === '--') result.push({ from, to, content: { type: 'text', text: '\u2014' } });
     else if (item) result.push({ from, to, content: { type: 'text', text: item.symbol } });
@@ -122,7 +125,7 @@ export const SymbolReplacements = Extension.create({
   },
   addInputRules() { return [new InputRule({
     find: text => {
-      const match = replacements(text, false).at(-1);
+      const match = replacements(text, false, true).at(-1);
       return match && /^[.,;!?:)\]}]?\s?$/.test(text.slice(match.to)) ? { index: match.from, text: text.slice(match.from), data: match } : null;
     },
     handler: ({ state, range, match }) => {

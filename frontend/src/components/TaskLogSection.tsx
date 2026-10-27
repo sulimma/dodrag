@@ -42,7 +42,7 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
   }, [props.taskId]);
   const statusText = (entry: TaskLogEntry) => entry.lifecycle === 'created' ? t('Task erstellt')
     : entry.lifecycle === 'completed' ? t('Task geschlossen') : t('Task erneut geöffnet');
-  const dateLine = (entry: TaskLogEntry) => `${entry.lifecycle ? (entry.lifecycle === 'completed' ? '🟥 ' : '🟩 ') : ''}${formatDate(entry.createdAt, { hour: '2-digit', minute: '2-digit' })}${entry.lifecycle ? ` ${statusText(entry)}` : ''}`;
+  const dateLine = (entry: TaskLogEntry) => `${entry.lifecycle ? (entry.lifecycle === 'completed' ? '🟥 ' : '🟩 ') : '⬛ '}${formatDate(entry.createdAt, { hour: '2-digit', minute: '2-digit' })}${entry.lifecycle ? ` ${statusText(entry)}` : ''}`;
   const startEdit = (entry: TaskLogEntry) => {
     if (!props.onUpdate || entry.lifecycle || editSubmitting.current) return;
     const next = { id: entry.id, text: entry.text, token: {} };

@@ -13,11 +13,34 @@ export const ALERT_TYPES = [
   { type: 'CAUTION', labelKey: 'Caution', icon: '\u26d4' },
 ] as const;
 
+export interface EmoticonItem { shortcut: string; emoji: string; color?: string }
+
+const shapeColors = [
+  { labelKey: 'Rot', suffix: 'r', color: '#dc2626', circle: '\ud83d\udd34', square: '\ud83d\udfe5' },
+  { labelKey: 'Orange', suffix: 'o', color: '#ea580c', circle: '\ud83d\udfe0', square: '\ud83d\udfe7' },
+  { labelKey: 'Gelb', suffix: 'y', color: '#eab308', circle: '\ud83d\udfe1', square: '\ud83d\udfe8' },
+  { labelKey: 'Grün', suffix: 'g', color: '#16a34a', circle: '\ud83d\udfe2', square: '\ud83d\udfe9' },
+  { labelKey: 'Blau', suffix: 'b', color: '#2563eb', circle: '\ud83d\udd35', square: '\ud83d\udfe6' },
+  { labelKey: 'Violett', suffix: 'v', color: '#9333ea', circle: '\ud83d\udfe3', square: '\ud83d\udfea' },
+  { labelKey: 'Braun', suffix: 'br', color: '#92400e', circle: '\ud83d\udfe4', square: '\ud83d\udfeb' },
+  { labelKey: 'Schwarz', suffix: 'k', color: '#000000', circle: '\u26ab', square: '\u2b1b' },
+  { labelKey: 'Weiß', suffix: 'w', color: '#ffffff', circle: '\u26aa', square: '\u2b1c' },
+] as const;
+
+// Only yellow has a star emoji. Other star colors use the existing text star + CSS.
+export const EMOTICON_SHAPE_VARIANTS: Readonly<Record<'star' | 'circle' | 'square', readonly (EmoticonItem & { labelKey: string })[]>> = {
+  star: shapeColors.map(item => ({ labelKey: item.labelKey, shortcut: item.suffix === 'y' ? '(*)' : `(*${item.suffix})`,
+    emoji: item.suffix === 'y' ? '\u2b50' : '\u2605', ...(item.suffix === 'y' ? {} : { color: item.color }) })),
+  circle: shapeColors.map(item => ({ labelKey: item.labelKey,
+    shortcut: ['r', 'y', 'g', 'b'].includes(item.suffix) ? `(${item.suffix})` : `(circle:${item.suffix})`, emoji: item.circle })),
+  square: shapeColors.map(item => ({ labelKey: item.labelKey, shortcut: `[${item.suffix}]`, emoji: item.square })),
+};
+
 export const EMOTICONS: readonly { shortcut: string; emoji: string; color?: string }[] = [
   { shortcut: ':)', emoji: '\ud83d\ude42' }, { shortcut: ':(', emoji: '\ud83d\ude41' },
   { shortcut: ':P', emoji: '\ud83d\ude1b' }, { shortcut: ':D', emoji: '\ud83d\ude03' },
-  { shortcut: ';)', emoji: '\ud83d\ude09' }, { shortcut: '(y)', emoji: '\ud83d\udc4d' },
-  { shortcut: '(n)', emoji: '\ud83d\udc4e' }, { shortcut: '(on)', emoji: '\ud83d\udca1' },
+  { shortcut: ';)', emoji: '\ud83d\ude09' }, { shortcut: '(Y)', emoji: '\ud83d\udc4d' },
+  { shortcut: '(N)', emoji: '\ud83d\udc4e' }, { shortcut: '(on)', emoji: '\ud83d\udca1' },
   { shortcut: '(off)', emoji: '\ud83d\udca1', color: 'gray' }, { shortcut: '(!)', emoji: '\u26a0\ufe0f' },
   { shortcut: '(*)', emoji: '\u2b50' }, { shortcut: '(*r)', emoji: '\u2605', color: '#dc2626' },
   { shortcut: '(*g)', emoji: '\u2605', color: '#16a34a' }, { shortcut: '(*b)', emoji: '\u2605', color: '#2563eb' },
@@ -26,9 +49,33 @@ export const EMOTICONS: readonly { shortcut: string; emoji: string; color?: stri
   { shortcut: '(+)', emoji: '\u2795', color: '#16a34a' }, { shortcut: '(-)', emoji: '\u26d4' },
   { shortcut: '(?)', emoji: '\u2753' }, { shortcut: '<3', emoji: '\u2764\ufe0f' },
   { shortcut: '</3', emoji: '\ud83d\udc94' },
+  { shortcut: '(c)', emoji: '\u00a9' }, { shortcut: '(R)', emoji: '\u00ae' },
+  { shortcut: '(TM)', emoji: '\u2122' },
+  { shortcut: '["]', emoji: '\u23f8\ufe0f' }, { shortcut: '[>]', emoji: '\u25b6\ufe0f' },
+  { shortcut: '[<>]', emoji: '\ud83d\udd04' }, { shortcut: '(><)', emoji: '\u23f3' },
+  { shortcut: '[0]', emoji: '\u23f9\ufe0f' }, { shortcut: '(#)', emoji: '\ud83d\udea8' },
+  { shortcut: '(f)', emoji: '\ud83d\udd25' }, { shortcut: '(s)', emoji: '\u26a1' },
+  { shortcut: '(|)', emoji: '\ud83d\udccc' }, { shortcut: '(t)', emoji: '\ud83d\udd16' },
+  { shortcut: '(p)', emoji: '\ud83d\udd0d' }, { shortcut: '(h)', emoji: '\ud83d\udee0\ufe0f' },
+  { shortcut: '(~)', emoji: '\ud83d\udcac' }, { shortcut: '(_)', emoji: '\ud83d\udcdd' },
+  { shortcut: '(1)', emoji: '\ud83d\udc64' }, { shortcut: '(2)', emoji: '\ud83d\udc65' },
+  { shortcut: '(q)', emoji: '\ud83d\ude4b' }, { shortcut: '(M)', emoji: '\u2696\ufe0f' },
+  { shortcut: '(Z)', emoji: '\ud83d\udcdc' },
+  ...EMOTICON_SHAPE_VARIANTS.star.filter(item => !['(*)', '(*r)', '(*g)', '(*b)'].includes(item.shortcut)),
+  ...EMOTICON_SHAPE_VARIANTS.circle, ...EMOTICON_SHAPE_VARIANTS.square,
 ];
 
-// Confluence's supplied list contains 23 distinct shortcuts, not 25.
+const emoticonItems = (...shortcuts: string[]) => shortcuts.map(shortcut => EMOTICONS.find(item => item.shortcut === shortcut)!);
+export const EMOTICON_GROUPS: readonly { labelKey: string; items: readonly EmoticonItem[] }[] = [
+  { labelKey: 'Emotion-Shortcuts', items: emoticonItems(':)', ':(', ':P', ':D', ';)', '(Y)', '(N)', '<3', '</3') },
+  { labelKey: 'Farben', items: ['star', 'circle', 'square'].flatMap(shape =>
+    ['Rot', 'Gelb', 'Grün', 'Blau'].map(labelKey => EMOTICON_SHAPE_VARIANTS[shape as keyof typeof EMOTICON_SHAPE_VARIANTS].find(item => item.labelKey === labelKey)!)) },
+  { labelKey: 'Statussymbole', items: emoticonItems('(/)', '(x)', '(i)', '(!)', '(+)', '(-)', '(?)', '(on)', '(off)', '["]', '[>]', '[<>]', '(><)', '[0]', '(#)', '(f)', '(s)') },
+  { labelKey: 'Arbeitssymbole', items: emoticonItems('(|)', '(t)', '(p)', '(h)', '(~)', '(_)', '(M)', '(Z)') },
+  { labelKey: 'Personen', items: emoticonItems('(1)', '(2)', '(q)') },
+  { labelKey: 'Typografie', items: emoticonItems('(c)', '(R)', '(TM)') },
+];
+
 const escapeRE = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const shortcuts = EMOTICONS.map(item => escapeRE(item.shortcut)).join('|');
 const shortcutRE = new RegExp(`(^|[^\\p{L}\\p{N}_])(${shortcuts})(?![\\p{L}\\p{N}_])`, 'gu');
@@ -46,7 +93,7 @@ export const Emoticon = Node.create({
   } }]; },
   renderHTML({ node }) {
     const item = EMOTICONS.find(item => item.shortcut === node.attrs.shortcut)!;
-    return ['span', { 'data-emoticon': item.shortcut, style: item.color === 'gray' ? 'filter:grayscale(1);opacity:.55' : item.color ? `color:${item.color}` : undefined }, item.emoji];
+    return ['span', { 'data-emoticon': item.shortcut, style: item.color === 'gray' ? 'filter:grayscale(1);opacity:.55' : item.color ? `color:${item.color}${item.color === '#ffffff' ? ';-webkit-text-stroke:1px #64748b' : ''}` : undefined }, item.emoji];
   },
   addInputRules() { return [new InputRule({ find: typingRE, handler: ({ state, range, match }) => {
     const from = range.from + match[1].length;

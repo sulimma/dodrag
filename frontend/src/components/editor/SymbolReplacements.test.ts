@@ -65,7 +65,7 @@ it('does not rewrite old content or setContent acknowledgements', () => {
 it('leaves dates, chained numbers, URLs, paths, decimals and unbounded or zero fractions alone', () => {
   const cases = ['12/34/56', '2026/10/25', '1/2/3', '01/02/2026', '/1/2', 'dir/1/2', '1/2.txt', '1/2.3',
     'https://host.test/1/2', 'https://host.test/?x=->', 'www.host.test/1/2', 'C:\\a\\1/2', 'C:/a/1/2',
-    'a1/2', '1/2a', '-1/2', '1/0', '2/00', '1234567890123/2', '1/1234567890123', '-->', '<-->', '(c)', ':degree:'];
+    'a1/2', '1/2a', '-1/2', '1/0', '2/00', '1234567890123/2', '1/1234567890123', '-->', '<-->', ':degree:'];
   for (const source of cases) {
     const editor = create(); type(editor, source + ' ');
     expect(editor.state.doc.textContent, `typed ${source}`).toBe(source + ' ');
@@ -118,7 +118,7 @@ it('keeps delimiters, formatting and caret after conversion and accepts safe pun
 });
 
 it('reverts text and math input rules with Backspace and undo without immediately reapplying them', () => {
-  for (const source of ['<-> ', '1/2 ', '2/3 ', 'a -- ']) {
+  for (const source of ['<-> ', '1/2 ', '2/3 ', 'a -- ', '3e-9 ']) {
     const editor = create(); type(editor, source);
     expect(editor.state.doc.textContent).not.toBe(source);
     const event = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true });
@@ -135,4 +135,28 @@ it('reverts text and math input rules with Backspace and undo without immediatel
   const pasted = create(); paste(pasted, '2/3 <->');
   expect(pasted.commands.undo()).toBe(true);
   expect(pasted.state.doc.textContent).toBe('');
+});
+
+it('converts scientific notation only when typed and preserves the exact input on Backspace', () => {
+  for (const [source, latex] of [['3e-9', '3\\cdot10^{-9}'], ['-1.25E+12', '-1.25\\cdot10^{+12}'], ['.5e03', '.5\\cdot10^{03}']]) {
+    const editor = create(); type(editor, source);
+    expect(editor.state.doc.textContent).toBe(source);
+    type(editor, ' ');
+    expect(editor.getMarkdown()).toBe(`$${latex}$ `);
+    editor.view.someProp('handleKeyDown', handler => handler(editor.view, new KeyboardEvent('keydown', { key: 'Backspace' })));
+    expect(editor.state.doc.textContent).toBe(source + ' ');
+    expect(create(source).state.doc.textContent).toBe(source);
+    const imported = create(); imported.commands.insertContent(source, { contentType: 'markdown' });
+    expect(imported.state.doc.textContent).toBe(source);
+    const pasted = create(); paste(pasted, source);
+    expect(pasted.state.doc.textContent).toBe(source);
+    const rich = create(); paste(rich, '', `<p>${source}</p>`);
+    expect(rich.state.doc.textContent).toBe(source);
+  }
+  for (const source of ['a3e-9', '3e-9a', '3e', '3e-', '3e-9.5', 'dir/3e-9', 'https://host.test/3e-9', '$3e-9']) {
+    const editor = create(); type(editor, source + ' ');
+    expect(editor.state.doc.textContent, source).toBe(source + ' ');
+  }
+  const code = create(); code.commands.toggleCode(); type(code, '3e-9 ');
+  expect(code.state.doc.textContent).toBe('3e-9 ');
 });

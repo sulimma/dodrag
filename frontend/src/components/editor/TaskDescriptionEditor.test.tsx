@@ -4,7 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TaskDescriptionEditor, type TaskDescriptionEditorHandle } from './TaskDescriptionEditor';
 import type { EditorContextMenu } from './types';
-import { getLanguage, setLanguage } from '../../i18n';
+import { getLanguage, setLanguage, supportedLanguages, t } from '../../i18n';
+import { EMOTICON_GROUPS, EMOTICON_SHAPE_VARIANTS } from './MarkdownFeatures';
 import type { Editor } from '@tiptap/react';
 import { SOURCE_MIME } from './targets';
 import { appendTaskSources } from '../../domain/taskSources';
@@ -113,6 +114,195 @@ it('offers only URL actions on URLs and only editor actions on ordinary content'
     expect((onContextMenu.mock.lastCall![1] as EditorContextMenu).items.map(item => item.id)).toEqual([
       'editor:cut', 'editor:copy', 'editor:paste',
     ]);
+  } finally { act(() => root.unmount()); element.remove(); }
+});
+
+it('offers color menus for lowercase circles but not uppercase thumbs or registered trademark', async () => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn();
+  try {
+    await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description="(r) (y) (R) (Y) (N) (n)"
+      onChange={vi.fn()} onEscape={vi.fn()} onError={vi.fn()} onContextMenu={onContextMenu} />));
+    const dom = element.querySelector('.tiptap')!;
+    expect(dom.querySelectorAll('[data-emoticon]')).toHaveLength(5);
+    for (const shortcut of ['(r)', '(y)', '(R)', '(Y)', '(N)']) {
+      act(() => dom.querySelector(`[data-emoticon="${shortcut}"]`)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+      const menu = onContextMenu.mock.lastCall![1] as EditorContextMenu;
+      expect(menu.items.map(item => item.id)).toEqual(['(r)', '(y)'].includes(shortcut)
+        ? EMOTICON_SHAPE_VARIANTS.circle.map((_, index) => `emoticon:color:${index}`)
+        : ['editor:cut', 'editor:copy', 'editor:paste']);
+    }
+  } finally { act(() => root.unmount()); element.remove(); }
+});
+
+it.each(['star', 'circle', 'square'] as const)('changes only the clicked %s through the native menu and rejects stale task menus', async shape => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onChange = vi.fn(), onError = vi.fn();
+  const variants = EMOTICON_SHAPE_VARIANTS[shape];
+  const source = `before ${variants[0].shortcut} after ${variants[0].shortcut}`;
+  const render = (taskId: string) => <TaskDescriptionEditor taskId={taskId} description={source}
+    onChange={onChange} onEscape={vi.fn()} onError={onError} onContextMenu={onContextMenu} />;
+  const previousLanguage = getLanguage();
+  try {
+    await act(async () => root.render(render('first')));
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    let menu!: EditorContextMenu;
+    for (const language of supportedLanguages) {
+      act(() => setLanguage(language));
+      act(() => dom.querySelector('[data-emoticon]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+      menu = onContextMenu.mock.lastCall![1] as EditorContextMenu;
+      expect(menu.items).toHaveLength(9);
+      expect(menu.items.map(item => item.id)).toEqual(variants.map((_, index) => `emoticon:color:${index}`));
+      expect(menu.items.map(item => item.label)).toEqual(variants.map(item => `${item.emoji} ${t(item.labelKey)}`));
+      for (const group of EMOTICON_GROUPS) expect(t(group.labelKey)).not.toBe('');
+      expect(menu.items[0].disabled).toBe(true);
+    }
+    await act(async () => menu.execute('emoticon:color:1'));
+    expect(dom.editor.getMarkdown()).toBe(`before ${variants[1].shortcut} after ${variants[0].shortcut}`);
+    expect(onChange.mock.lastCall![1]).toMatchObject({ historyBoundary: true });
+    act(() => dom.editor.commands.undo()); expect(dom.editor.getMarkdown()).toBe(source);
+    act(() => dom.querySelector('[data-emoticon]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+    menu = onContextMenu.mock.lastCall![1];
+    await act(async () => root.render(render('second')));
+    onChange.mockClear();
+    await act(async () => menu.execute('emoticon:color:1'));
+    expect(dom.editor.getMarkdown()).toBe(source); expect(onChange).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  } finally { act(() => setLanguage(previousLanguage)); act(() => root.unmount()); element.remove(); }
+});
+
+it('captures a real glyph contextmenu before editor capture or bubble handlers can stop it', async () => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onChange = vi.fn(), onError = vi.fn();
+  try {
+    await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description="before (*) after"
+      onChange={onChange} onEscape={vi.fn()} onError={onError} onContextMenu={onContextMenu} />));
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    const glyph = dom.querySelector('[data-emoticon]')!;
+    const stop = vi.fn((event: Event) => event.stopPropagation());
+    dom.addEventListener('contextmenu', stop, true);
+    glyph.addEventListener('contextmenu', stop);
+    const bubble = vi.fn(); element.addEventListener('contextmenu', bubble);
+    const positions = vi.spyOn(dom.editor.view, 'posAtDOM');
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 123, clientY: 45 });
+    act(() => glyph.dispatchEvent(event));
+    expect(event.defaultPrevented).toBe(true);
+    expect(stop).not.toHaveBeenCalled(); expect(bubble).not.toHaveBeenCalled();
+    expect(onContextMenu).toHaveBeenCalledOnce();
+    expect(onContextMenu.mock.lastCall![0].nativeEvent).toBe(event);
+    expect(onContextMenu.mock.lastCall![0].clientX).toBe(123);
+    expect(positions).toHaveBeenCalledWith(glyph.parentNode, 1);
+    expect(positions).not.toHaveBeenCalledWith(glyph, 0);
+    const menu = onContextMenu.mock.lastCall![1] as EditorContextMenu;
+    expect(menu.items).toHaveLength(9);
+    await act(async () => menu.execute('emoticon:color:3'));
+    expect(dom.editor.getMarkdown()).toBe(`before ${EMOTICON_SHAPE_VARIANTS.star[3].shortcut} after`);
+    expect(onChange).toHaveBeenCalledOnce(); expect(onError).not.toHaveBeenCalled();
+  } finally { act(() => root.unmount()); element.remove(); }
+});
+
+it.each(['star', 'circle', 'square'] as const)('colors the %s directly before and after the cursor', async shape => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onChange = vi.fn(), onError = vi.fn();
+  const variants = EMOTICON_SHAPE_VARIANTS[shape];
+  const source = `before ${variants[0].shortcut} after`;
+  try {
+    await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description={source}
+      onChange={onChange} onEscape={vi.fn()} onError={onError} onContextMenu={onContextMenu} />));
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    let pos = -1;
+    dom.editor.state.doc.descendants((node, position) => { if (node.type.name === 'emoticon') pos = position; });
+    for (const cursor of [pos, pos + 1]) {
+      act(() => dom.editor.commands.setTextSelection(cursor));
+      act(() => dom.querySelector('p')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+      const menu = onContextMenu.mock.lastCall![1] as EditorContextMenu;
+      expect(menu.items.map(item => item.id)).toEqual(variants.map((_, index) => `emoticon:color:${index}`));
+      await act(async () => menu.execute('emoticon:color:2'));
+      expect(dom.editor.getMarkdown()).toBe(`before ${variants[2].shortcut} after`);
+      act(() => dom.editor.commands.undo()); expect(dom.editor.getMarkdown()).toBe(source);
+    }
+    expect(onError).not.toHaveBeenCalled();
+  } finally { act(() => root.unmount()); element.remove(); }
+});
+
+it('colors all selected shapes across paragraphs in one undo and persistence boundary without changing other content', async () => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onChange = vi.fn(), onError = vi.fn();
+  const source = 'outside (*) before (*r) text (Y) (R) :)\n\n(y) **bold** [b] after [g]';
+  try {
+    await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description={source}
+      onChange={onChange} onEscape={vi.fn()} onError={onError} onContextMenu={onContextMenu} />));
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    const editor = dom.editor;
+    const positions: number[] = [];
+    editor.state.doc.descendants((node, pos) => { if (node.type.name === 'emoticon') positions.push(pos); });
+    const from = positions[1], to = positions.at(-2)! + 1;
+    act(() => editor.commands.setTextSelection({ from, to }));
+    // A click on an unselected shape still applies to ALL shapes in the selection.
+    act(() => dom.querySelector('[data-emoticon]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+    const menu = onContextMenu.mock.lastCall![1] as EditorContextMenu;
+    expect(menu.items).toHaveLength(9);
+    expect(menu.items.every(item => !item.disabled)).toBe(true);
+    act(() => editor.commands.setTextSelection(1));
+    onChange.mockClear();
+    await act(async () => menu.execute('emoticon:color:3'));
+    const colored = `outside (*) before ${EMOTICON_SHAPE_VARIANTS.star[3].shortcut} text (Y) (R) :)\n\n${EMOTICON_SHAPE_VARIANTS.circle[3].shortcut} **bold** ${EMOTICON_SHAPE_VARIANTS.square[3].shortcut} after [g]`;
+    expect(editor.getMarkdown()).toBe(colored);
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.lastCall).toEqual([colored, { historyBoundary: true, localUndo: false }]);
+    // Typing after recoloring must not merge into the bulk undo event.
+    act(() => editor.commands.insertContent('typed '));
+    act(() => editor.commands.undo()); expect(editor.getMarkdown()).toBe(colored);
+    act(() => editor.commands.undo()); expect(editor.getMarkdown()).toBe(source);
+    expect(onChange.mock.lastCall![1]).toMatchObject({ localUndo: true });
+    act(() => editor.commands.redo()); expect(editor.getMarkdown()).toBe(colored);
+    expect(onError).not.toHaveBeenCalled();
+  } finally { act(() => root.unmount()); element.remove(); }
+});
+
+it('disables a bulk color only when every selected shape already has that color', async () => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onChange = vi.fn();
+  try {
+    await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description="(r) (*r) [r] (Y) text"
+      onChange={onChange} onEscape={vi.fn()} onError={vi.fn()} onContextMenu={onContextMenu} />));
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    act(() => dom.editor.commands.selectAll());
+    act(() => dom.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+    const menu = onContextMenu.mock.lastCall![1] as EditorContextMenu;
+    expect(menu.items.filter(item => item.disabled).map(item => item.id)).toEqual(['emoticon:color:0']);
+    await act(async () => menu.execute('emoticon:color:0'));
+    await act(async () => menu.execute('emoticon:color:99'));
+    await act(async () => menu.execute('emoticon:color:(g)'));
+    expect(onChange).not.toHaveBeenCalled();
+  } finally { act(() => root.unmount()); element.remove(); }
+});
+
+it.each(['typing', 'typing-undo', 'external', 'task-roundtrip'] as const)('rejects pending bulk colors after %s', async change => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onChange = vi.fn(), onError = vi.fn();
+  const source = 'before (*) (r) [b] after';
+  const render = (taskId: string, description = source) => <TaskDescriptionEditor taskId={taskId} description={description}
+    onChange={onChange} onEscape={vi.fn()} onError={onError} onContextMenu={onContextMenu} />;
+  try {
+    await act(async () => root.render(render('first')));
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    act(() => dom.editor.commands.selectAll());
+    act(() => dom.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+    const menu = onContextMenu.mock.lastCall![1] as EditorContextMenu;
+    expect(menu.items).toHaveLength(9);
+    if (change === 'external') await act(async () => root.render(render('first', `${source} external`)));
+    else if (change === 'task-roundtrip') {
+      await act(async () => root.render(render('second')));
+      await act(async () => root.render(render('first')));
+    } else {
+      act(() => { dom.editor.commands.setTextSelection(1); dom.editor.commands.insertContent('typed '); });
+      if (change === 'typing-undo') act(() => dom.editor.commands.undo());
+    }
+    const before = dom.editor.getMarkdown(); onChange.mockClear();
+    await act(async () => menu.execute('emoticon:color:2'));
+    expect(dom.editor.getMarkdown()).toBe(before);
+    expect(onChange).not.toHaveBeenCalled(); expect(onError).not.toHaveBeenCalled();
   } finally { act(() => root.unmount()); element.remove(); }
 });
 

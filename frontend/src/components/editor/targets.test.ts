@@ -50,6 +50,15 @@ describe('shared editor/log targets', () => {
     expect(tokenizeTargets('Call tel:+49 (30) 1234_5678. sip:12345678').map(token => token.value)).toEqual(['tel:+493012345678', 'sip:12345678']);
     for (const value of ['tel:()', 'mailto:', 'sip:', 'tel:123?command=evil', 'mailto:person@example.org?subject=%0D%0ABcc:evil@example.org', 'https:user@example.org', 'https:///example.org', '2026-10-26']) expect(classifyTarget(value)).toBeUndefined();
   });
+  it('never links ISO log dates or timestamp fragments as phone numbers', () => {
+    for (const source of ['2026-10-27', '2026-10-27 17:33', '2026-10-27T17:33:35Z',
+      '2026-10-27 17:33:35.123456+02:00', '2026-10-27T17:33:35-1200']) {
+      expect(classifyTarget(source), source).toBeUndefined();
+      expect(tokenizeTargets(`Log ${source}: entry`), source).toEqual([]);
+      expect(tokenizeTargets(`${source} Call +49 (30) 1234_5678`).map(token => token.value)).toEqual(['tel:+493012345678']);
+    }
+    expect(classifyTarget('2026-10-27 17')).toBeUndefined();
+  });
   it('validates untrusted source payload schema and value', () => {
     expect(parseSourcePayload(JSON.stringify({ kind: 'url', value: 'mailto:person@example.org' }))).toEqual({ kind: 'url', value: 'mailto:person@example.org' });
     expect(parseSourcePayload(JSON.stringify({ kind: 'path', value: 'C:\\folder' }))).toEqual({ kind: 'path', value: 'C:\\folder' });

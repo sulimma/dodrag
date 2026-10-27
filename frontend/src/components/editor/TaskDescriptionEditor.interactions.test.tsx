@@ -198,7 +198,7 @@ it.each([
 
 it('inserts the supplied emoticon shortcuts from the insertion menu and keeps their Markdown spelling', async () => {
   const { editor, element, onError } = await mount();
-  await click(element, 'Sonderzeichen');
+  await click(element, 'Symbole');
   const target = element.querySelector<HTMLButtonElement>('[data-editor-dropdown] button[title="(*r)"]')!;
   await act(async () => target.click());
   expect(editor.state.doc.firstChild!.firstChild!.type.name).toBe('emoticon');
@@ -412,9 +412,9 @@ it('groups formatting and insertion entries with syntax tooltips and keyboard di
   const { element } = await mount('text');
   expect(button(element, 'Sonderzeichen').textContent).toBe('Zeichen');
   expect(button(element, 'Listen').textContent).toBe('Liste');
-  for (const label of ['Überschriften', 'Format', 'Listen', 'Block', 'Sonderzeichen', 'Mermaid']) {
+  for (const label of ['Überschriften', 'Format', 'Listen', 'Block', 'Sonderzeichen', 'Symbole', 'Mermaid']) {
     expect(button(element, label).getAttribute('aria-expanded')).toBe('false');
-    expect(button(element, label).title).not.toBe('');
+    expect(button(element, label).hasAttribute('title')).toBe(false);
   }
   await click(element, 'Format');
   expect(button(element, 'Fett').title).toBe(`**${t('Fett')}**`);
@@ -432,17 +432,51 @@ it('groups formatting and insertion entries with syntax tooltips and keyboard di
   expect(button(element, 'Block').getAttribute('aria-expanded')).toBe('false');
   expect(document.activeElement).toBe(button(element, 'Block'));
   await click(element, 'Sonderzeichen');
-  expect(element.textContent).toContain(t('Emotion-Shortcuts'));
-  expect(element.querySelectorAll('[data-editor-dropdown] button')).toHaveLength(23 + SYMBOL_GROUPS.reduce((sum, group) => sum + group.items.length, 0));
-  for (const grid of element.querySelectorAll('[data-symbol-group],[data-emoticon-group]')) expect(grid.classList.contains('grid-cols-3')).toBe(true);
+  expect(element.querySelectorAll('[data-editor-dropdown] button')).toHaveLength(3 + SYMBOL_GROUPS.reduce((sum, group) => sum + group.items.length, 0));
+  for (const grid of element.querySelectorAll('[data-symbol-group]')) expect(grid.classList.contains('grid-cols-3')).toBe(true);
+  expect(element.querySelector('[data-emoticon-group]')).toBeNull();
+  expect(element.querySelector('[data-editor-dropdown] button[title="2/3"]')).not.toBeNull();
+  for (const shortcut of ['(c)', '(R)', '(TM)']) expect([...element.querySelectorAll<HTMLButtonElement>('[data-editor-dropdown] button')].some(entry => entry.title === shortcut)).toBe(true);
   expect(element.querySelector(`[data-editor-dropdown] button[aria-label="${t('Formel')}"]`)).toBeNull();
   expect(element.querySelector(`[data-editor-dropdown] button[aria-label="${t('Formelblock')}"]`)).toBeNull();
-  for (const shortcut of [':)', ':(', ':P', ':D', ';)', '(y)', '(n)', '(on)', '(off)', '(!)', '(*)', '(*r)', '(*g)', '(*b)', '(*y)', '(/)', '(x)', '(i)', '(+)', '(-)', '(?)', '<3', '</3']) {
+  await click(element, 'Symbole');
+  for (const grid of element.querySelectorAll('[data-emoticon-group]')) expect(grid.classList.contains('grid-cols-4')).toBe(true);
+  expect(element.querySelector('[data-editor-dropdown] button[title="(*y)"]')).toBeNull();
+  const colors = element.querySelector('[data-emoticon-group="Farben"]')!;
+  expect([...colors.children].map(entry => entry.getAttribute('title'))).toEqual(['(*r)', '(*)', '(*g)', '(*b)', '(r)', '(y)', '(g)', '(b)', '[r]', '[y]', '[g]', '[b]']);
+  const first = colors.querySelector<HTMLButtonElement>('button')!;
+  act(() => { first.focus(); first.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })); });
+  expect(document.activeElement).toBe(colors.children[4]);
+  for (const shortcut of [':)', ':(', ':P', ':D', ';)', '(Y)', '(N)', '(on)', '(off)', '(!)', '(*)', '(*r)', '(*g)', '(*b)', '(/)', '(x)', '(i)', '(+)', '(-)', '(?)', '<3', '</3']) {
     const entry = element.querySelector<HTMLButtonElement>(`[data-editor-dropdown] button[title="${shortcut}"]`)!;
     expect(entry.getAttribute('aria-label')).toBe(shortcut);
     expect(entry.childNodes).toHaveLength(2);
     expect(entry.lastChild!.textContent).toBe(shortcut);
   }
+});
+
+it.each([['(c)', '©'], ['(R)', '®'], ['(TM)', '™']])('inserts %s as a normal character without emoji presentation', async (shortcut, symbol) => {
+  const { element, editor } = await mount();
+  await click(element, 'Sonderzeichen');
+  const entry = [...element.querySelectorAll<HTMLButtonElement>('[data-editor-dropdown] button')].find(item => item.title === shortcut)!;
+  expect(entry.querySelector('span')!.textContent).toBe(symbol);
+  await act(async () => entry.click());
+  expect(editor.view.dom.textContent).toBe(symbol);
+  expect(editor.getHTML()).not.toContain('\ufe0f');
+});
+
+it('positions dropdowns outside a narrow clipping container and clamps them to the viewport', async () => {
+  const { element } = await mount();
+  const anchor = button(element, 'Sonderzeichen');
+  vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue(new DOMRect(window.innerWidth - 20, 40, 20, 28));
+  const width = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(288);
+  try {
+    await click(element, 'Sonderzeichen');
+    const dropdown = element.querySelector<HTMLElement>('[data-editor-dropdown]')!;
+    expect(dropdown.classList.contains('fixed')).toBe(true);
+    expect(dropdown.style.left).toBe(`${window.innerWidth - 296}px`);
+    expect(dropdown.style.top).toBe('72px');
+  } finally { width.mockRestore(); }
 });
 
 it.each(['Note', 'Warning', 'Important', 'Tip', 'Caution'])('wraps the selected paragraph with %s from the block menu', async key => {

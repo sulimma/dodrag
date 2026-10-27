@@ -19,7 +19,7 @@ import { MermaidBlockView } from './MermaidBlockView';
 import { DescriptionToolbar } from './DescriptionToolbar';
 import { PathAndUrlExtension } from './PathAndUrlExtension';
 import { LocalImage } from './LocalImage';
-import { MarkdownFeatures, markdownFeaturesCSS } from './MarkdownFeatures';
+import { EMOTICON_SHAPE_VARIANTS, MarkdownFeatures, markdownFeaturesCSS } from './MarkdownFeatures';
 import { MarkdownTargets } from './MarkdownTargets';
 import { SymbolReplacements } from './SymbolReplacements';
 import { fileDropText, SOURCE_MIME, targetFromElement } from './targets';
@@ -72,6 +72,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
   const acknowledgements = useRef<string[]>([]);
   const loadedTask = useRef(props.taskId);
   const taskSession = useRef(0);
+  const documentRevision = useRef(0);
   const liveEditor = useRef<Editor | null>(null);
   const editor: Editor | null = useEditor({
     shouldRerenderOnTransaction: false,
@@ -132,6 +133,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
         event.preventDefault(); view.dom.blur(); callbacks.current.onEscape(); return true;
       },
     },
+    onTransaction: ({ transaction }) => { if (transaction.docChanged) documentRevision.current++; },
     onUpdate: ({ editor, transaction }) => {
       const markdown = markdownStorage(editor).getMarkdown();
       acknowledgements.current.push(markdown);
@@ -178,12 +180,57 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
       editor.view.focus();
     },
   }), [editor]);
-  const contextMenu: React.MouseEventHandler<HTMLDivElement> = event => {
-    event.preventDefault(); event.stopPropagation();
+  const contextMenu = (event: React.MouseEvent<HTMLDivElement>, captureOnly = false) => {
     if (!editor) return;
     const target = targetFromElement(event.target);
     const session = taskSession.current;
+    const taskId = props.taskId;
+    const revision = documentRevision.current;
+    const doc = editor.state.doc;
+    const selection = editor.state.selection;
+    const emoticon = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-emoticon]') : null;
+    const shapes: { pos: number; node: ProseMirrorNode; variants: typeof EMOTICON_SHAPE_VARIANTS.star }[] = [];
+    const addShape = (node: ProseMirrorNode | null, pos: number) => {
+      if (node?.type.name !== 'emoticon') return;
+      const variants = Object.values(EMOTICON_SHAPE_VARIANTS).find(items =>
+        items.some(item => item.shortcut === node.attrs.shortcut) || node.attrs.shortcut === '(*y)' && items === EMOTICON_SHAPE_VARIANTS.star);
+      if (variants) shapes.push({ pos, node, variants });
+    };
+    if (event.target instanceof globalThis.Node && editor.view.dom.contains(event.target)) {
+      if (!selection.empty) doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+        if (pos >= selection.from && pos + node.nodeSize <= selection.to) addShape(node, pos);
+      });
+      if (!shapes.length && emoticon?.parentNode) {
+        // Map the boundary before the atom, not its non-editable glyph content.
+        const offset = Array.prototype.indexOf.call(emoticon.parentNode.childNodes, emoticon);
+        const pos = editor.view.posAtDOM(emoticon.parentNode, offset);
+        addShape(doc.nodeAt(pos), pos);
+      } else if (!shapes.length && selection.empty && !emoticon && !target) {
+        addShape(selection.$from.nodeAfter, selection.from);
+        if (!shapes.length) addShape(selection.$from.nodeBefore, selection.from - (selection.$from.nodeBefore?.nodeSize ?? 0));
+      }
+    }
+    // Capture only color menus; other NodeViews retain their own selection handlers.
+    if (captureOnly && !shapes.length) return;
+    event.preventDefault(); event.stopPropagation();
     const clipboardAction = async (action: string) => {
+      if (shapes.length && action.startsWith('emoticon:color:')) {
+        if (revision !== documentRevision.current || editor.state.doc !== doc) return;
+        const index = EMOTICON_SHAPE_VARIANTS.star.findIndex((_, index) => action === `emoticon:color:${index}`);
+        if (index < 0) return;
+        const transaction = closeHistory(editor.state.tr);
+        for (const { pos, node, variants } of shapes) {
+          const shortcut = variants[index].shortcut;
+          if (node.attrs.shortcut !== shortcut && !(node.attrs.shortcut === '(*y)' && shortcut === '(*)')) {
+            transaction.setNodeMarkup(pos, undefined, { ...node.attrs, shortcut }, node.marks);
+          }
+        }
+        if (transaction.docChanged) {
+          editor.view.dispatch(transaction.setMeta('description:boundary', true));
+          editor.view.focus();
+        }
+        return;
+      }
       if (target && action === 'source:create') { await callbacks.current.onCreateSourceTask?.(target); return; }
       if (target && ['url:open', 'path:explorer', 'path:vscode'].includes(action)) { await openTarget(target, action); return; }
       const { from, to } = editor.state.selection;
@@ -216,11 +263,14 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
         }
       }
     };
-    const items = target ? targetMenuItems(target, !!props.onCreateSourceTask) : [{ id: 'editor:cut', label: t('Ausschneiden'), shortcut: 'Ctrl+X', disabled: editor.state.selection.empty },
+    const items = shapes.length ? shapes[0].variants.map((item, index) => ({ id: `emoticon:color:${index}`,
+      label: `${item.emoji} ${t(item.labelKey)}`, disabled: shapes.every(({ node, variants }) =>
+        node.attrs.shortcut === variants[index].shortcut || node.attrs.shortcut === '(*y)' && variants[index].shortcut === '(*)') }))
+      : target ? targetMenuItems(target, !!props.onCreateSourceTask) : [{ id: 'editor:cut', label: t('Ausschneiden'), shortcut: 'Ctrl+X', disabled: editor.state.selection.empty },
       { id: 'editor:copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: editor.state.selection.empty },
       { id: 'editor:paste', label: t('Einfügen'), shortcut: 'Ctrl+V', disabled: false }];
     props.onContextMenu(event, { target, items, execute: async action => {
-      if (editor.isDestroyed || session !== taskSession.current || !items.some(item => item.id === action && !item.disabled)) return;
+      if (editor.isDestroyed || session !== taskSession.current || taskId !== callbacks.current.taskId || !items.some(item => item.id === action && !item.disabled)) return;
       try { await clipboardAction(action); } catch (error) { callbacks.current.onError(error); }
     } });
   };
@@ -241,7 +291,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
   };
   return <div data-task-selectable-text="true" data-description-editor="true" className="flex flex-1 flex-col min-h-0 overflow-hidden"
     onCopyCapture={copySelectedDiagram} onCutCapture={copySelectedDiagram}
-    onContextMenu={contextMenu} onClick={event => {
+    onContextMenuCapture={event => contextMenu(event, true)} onContextMenu={event => contextMenu(event)} onClick={event => {
       if (event.target instanceof Element && event.target.closest('a[href]')) event.preventDefault();
       const target = targetFromElement(event.target);
       if (target) { event.preventDefault(); event.stopPropagation(); void openTarget(target).catch(props.onError); }

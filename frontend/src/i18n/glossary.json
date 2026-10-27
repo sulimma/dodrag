@@ -634,5 +634,78 @@
       "uk": ["примітка"], "pt-BR": ["nota"], "ja": ["注記"], "zh-TW": ["說明"], "ko": ["참고"],
       "it": ["nota"], "pl": ["uwaga"], "tr": ["not"], "eo": ["noto"], "tok": ["sona"]
     }
+  },
+  {
+    "id": "term.emoticonMenu",
+    "context": "Menue fuer grafische Symbole und Emoticons im Beschreibungseditor. Getrennt vom Zeichenmenue fuer Typografie und Mathematik; englisch Icons statt Symbols zur Unterscheidung.",
+    "sourceTerms": ["Symbole"], "keys": ["Symbole"],
+    "translations": {
+      "de": ["Symbole"], "en": ["Icons"], "fr": ["Icônes"], "es": ["Iconos"], "zh-CN": ["图标"],
+      "uk": ["Піктограми"], "pt-BR": ["Ícones"], "ja": ["アイコン"], "zh-TW": ["圖示"], "ko": ["아이콘"],
+      "it": ["Icone"], "pl": ["Ikony"], "tr": ["Simgeler"], "eo": ["Piktogramoj"], "tok": ["sitelen lili"]
+    }
+  },
+  {
+    "id": "term.emoticonColors",
+    "context": "Gruppenname fuer farbige Sterne, Kreise und Quadrate. Vier Toolbarreihen Rot Gelb Gruen Blau, natives Menue mit neun verfuegbaren Farben.",
+    "sourceTerms": ["Farben"], "keys": ["Farben"],
+    "translations": {
+      "de": ["Farben"], "en": ["Colors"], "fr": ["Couleurs"], "es": ["Colores"], "zh-CN": ["颜色"],
+      "uk": ["Кольори"], "pt-BR": ["Cores"], "ja": ["色"], "zh-TW": ["顏色"], "ko": ["색상"],
+      "it": ["Colori"], "pl": ["Kolory"], "tr": ["Renkler"], "eo": ["Koloroj"], "tok": ["kule"]
+    }
+  },
+  {
+    "id": "term.emoticonStatus",
+    "context": "Nominale Gruppe fuer Status-, Warn- und Ablaufpiktogramme, keine Task-Statusaktion.",
+    "sourceTerms": ["Statussymbole"], "keys": ["Statussymbole"],
+    "translations": {
+      "de": ["Statussymbole"], "en": ["Status icons"], "fr": ["Icônes d’état"], "es": ["Iconos de estado"], "zh-CN": ["状态图标"],
+      "uk": ["Піктограми стану"], "pt-BR": ["Ícones de status"], "ja": ["状態アイコン"], "zh-TW": ["狀態圖示"], "ko": ["상태 아이콘"],
+      "it": ["Icone di stato"], "pl": ["Ikony stanu"], "tr": ["Durum simgeleri"], "eo": ["Stataj piktogramoj"], "tok": ["sitelen pi nasin lon"]
+    }
+  },
+  {
+    "id": "term.emoticonWork",
+    "context": "Nominale Gruppe fuer Werkzeuge, Notizen, Kommunikation und Dokumente. Keine Task-Ansicht oder Arbeitsaktion.",
+    "sourceTerms": ["Arbeitssymbole"], "keys": ["Arbeitssymbole"],
+    "translations": {
+      "de": ["Arbeitssymbole"], "en": ["Work icons"], "fr": ["Icônes de travail"], "es": ["Iconos de trabajo"], "zh-CN": ["工作图标"],
+      "uk": ["Піктограми роботи"], "pt-BR": ["Ícones de trabalho"], "ja": ["作業アイコン"], "zh-TW": ["工作圖示"], "ko": ["작업 아이콘"],
+      "it": ["Icone di lavoro"], "pl": ["Ikony pracy"], "tr": ["İş simgeleri"], "eo": ["Laboraj piktogramoj"], "tok": ["sitelen pali"]
+    }
+  },
+  {
+    "id": "term.emoticonPeople",
+    "context": "Nominale Gruppe fuer Einzelperson, Personengruppe und meldende Person als Emoticons, keine Benutzerverwaltung.",
+    "sourceTerms": ["Personen"], "keys": ["Personen"],
+    "translations": {
+      "de": ["Personen"], "en": ["People"], "fr": ["Personnes"], "es": ["Personas"], "zh-CN": ["人物"],
+      "uk": ["Люди"], "pt-BR": ["Pessoas"], "ja": ["人物"], "zh-TW": ["人物"], "ko": ["사람"],
+      "it": ["Persone"], "pl": ["Osoby"], "tr": ["Kişiler"], "eo": ["Homoj"], "tok": ["jan"]
+    }
+  },
+  {
+    "id": "term.shapeColorNames",
+    "context": "Nominale Farbnamen im nativen Form-Kontextmenue in der Reihenfolge Rot Orange Gelb Gruen Blau Violett Braun Schwarz Weiss. Toki Pona nutzt beschreibende Farbkombinationen; Braun kule ma.",
+    "sourceTerms": ["Rot", "Orange", "Gelb", "Grün", "Blau", "Violett", "Braun", "Schwarz", "Weiß"],
+    "keys": ["Rot", "Orange", "Gelb", "Grün", "Blau", "Violett", "Braun", "Schwarz", "Weiß"],
+    "translations": {
+      "de": ["Rot", "Orange", "Gelb", "Grün", "Blau", "Violett", "Braun", "Schwarz", "Weiß"],
+      "en": ["Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Brown", "Black", "White"],
+      "fr": ["Rouge", "Orange", "Jaune", "Vert", "Bleu", "Violet", "Marron", "Noir", "Blanc"],
+      "es": ["Rojo", "Naranja", "Amarillo", "Verde", "Azul", "Violeta", "Marrón", "Negro", "Blanco"],
+      "zh-CN": ["红色", "橙色", "黄色", "绿色", "蓝色", "紫色", "棕色", "黑色", "白色"],
+      "uk": ["Червоний", "Помаранчевий", "Жовтий", "Зелений", "Синій", "Фіолетовий", "Коричневий", "Чорний", "Білий"],
+      "pt-BR": ["Vermelho", "Laranja", "Amarelo", "Verde", "Azul", "Roxo", "Marrom", "Preto", "Branco"],
+      "ja": ["赤", "オレンジ", "黄", "緑", "青", "紫", "茶", "黒", "白"],
+      "zh-TW": ["紅色", "橙色", "黃色", "綠色", "藍色", "紫色", "棕色", "黑色", "白色"],
+      "ko": ["빨강", "주황", "노랑", "초록", "파랑", "보라", "갈색", "검정", "흰색"],
+      "it": ["Rosso", "Arancione", "Giallo", "Verde", "Blu", "Viola", "Marrone", "Nero", "Bianco"],
+      "pl": ["Czerwony", "Pomarańczowy", "Żółty", "Zielony", "Niebieski", "Fioletowy", "Brązowy", "Czarny", "Biały"],
+      "tr": ["Kırmızı", "Turuncu", "Sarı", "Yeşil", "Mavi", "Mor", "Kahverengi", "Siyah", "Beyaz"],
+      "eo": ["Ruĝa", "Oranĝa", "Flava", "Verda", "Blua", "Viola", "Bruna", "Nigra", "Blanka"],
+      "tok": ["loje", "loje jelo", "jelo", "laso jelo", "laso", "laso loje", "kule ma", "pimeja", "walo"]
+    }
   }
 ]

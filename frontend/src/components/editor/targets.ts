@@ -43,7 +43,7 @@ export function classifyTarget(raw: string): EditorTarget | undefined {
     if (/[\x00-\x1f\x7f]/.test(value) || /^\\\\[?.]\\/.test(value)) return;
     return { kind: 'path', value };
   }
-  if (/^\+?[\d(][\d ()_-]*[\d)]$/.test(value) && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  if (/^\+?[\d(][\d ()_-]*[\d)]$/.test(value) && !/^\d{4}-\d{2}-\d{2}(?:$|[T ])/.test(value)) {
     const digits = value.replace(/\D/g, '');
     if (digits.length >= 8 && digits.length <= 15) return { kind: 'url', value: `tel:${value.startsWith('+') ? '+' : ''}${digits}` };
   }
@@ -68,18 +68,20 @@ export const mediaSource = (taskId: string, path: string): string =>
 // Quoted paths retain whitespace. Bare paths stop at whitespace; no filename guessing.
 export function tokenizeTargets(text: string): TargetToken[] {
   const result: TargetToken[] = [];
-  const pattern = new RegExp(String.raw`!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|"([^"\r\n]+)"|((?:[a-z]:\\|\\\\)[^\r\n]*?)|([^\s)]+))\s*\)|"((?:[a-z]:\\|\\\\)[^"\r\n]*)"|tel:\+?[\d(][\d ()_-]*[\d)]|(?:https?:\/\/|mailto:|sip:|tel:)[^\s<>"]+|(?:[a-z]:\\|\\\\)[^\s<>"|:*?]*|(?<![a-z0-9!#$%&'*+/=?^_\x60{|}~.@:"\\-])(?<email>${emailAddress})(?![a-z0-9@_-]|\.[a-z0-9.])|(?<![\w+:(/-])\+?[\d(][\d ()_-]*[\d)](?![\w+()-])`, 'gi');
+  // Consume ISO dates/timestamps before the phone branch can take a date plus hour or timezone.
+  const pattern = new RegExp(String.raw`(?<iso>(?<![\w])\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)|!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|"([^"\r\n]+)"|((?:[a-z]:\\|\\\\)[^\r\n]*?)|([^\s)]+))\s*\)|"((?:[a-z]:\\|\\\\)[^"\r\n]*)"|tel:\+?[\d(][\d ()_-]*[\d)]|(?:https?:\/\/|mailto:|sip:|tel:)[^\s<>"]+|(?:[a-z]:\\|\\\\)[^\s<>"|:*?]*|(?<![a-z0-9!#$%&'*+/=?^_\x60{|}~.@:"\\-])(?<email>${emailAddress})(?![a-z0-9@_-]|\.[a-z0-9.])|(?<![\w+:(/-])\+?[\d(][\d ()_-]*[\d)](?![\w+()-])`, 'gi');
   for (const match of text.matchAll(pattern)) {
+    if (match.groups?.iso) continue;
     const markdownImage = match[0].startsWith('![');
-    let value = markdownImage ? match[2] ?? match[3] ?? match[4] ?? match[5] : match[6] ?? match[0];
-    if (!markdownImage && !match[6] && !match.groups?.email) {
+    let value = markdownImage ? match[3] ?? match[4] ?? match[5] ?? match[6] : match[7] ?? match[0];
+    if (!markdownImage && !match[7] && !match.groups?.email) {
       value = value.replace(/[.,;!?]+$/, '');
       while (value.endsWith(')') && (value.match(/\)/g)?.length ?? 0) > (value.match(/\(/g)?.length ?? 0)) value = value.slice(0, -1);
     }
     const target = classifyTarget(value);
     if (!target) continue;
-    result.push({ ...target, start: match.index!, end: match.index! + (markdownImage || match[6] ? match[0].length : value.length),
-      image: markdownImage || (target.kind === 'path' && isImagePath(target.value)), label: markdownImage ? match[1] : undefined });
+    result.push({ ...target, start: match.index!, end: match.index! + (markdownImage || match[7] ? match[0].length : value.length),
+      image: markdownImage || (target.kind === 'path' && isImagePath(target.value)), label: markdownImage ? match[2] : undefined });
   }
   return result;
 }

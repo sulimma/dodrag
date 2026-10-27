@@ -11,7 +11,7 @@ it('uses ISO timestamps, shared link/image targets, file insertion, Enter and Sh
   await act(async () => root.render(<TaskLogSection ref={ref} taskId="t1" entries={[
     { id: 'e1', createdAt: '2026-10-25T12:30:00Z', text: 'https://example.org "C:\\a b.svg"' },
   ]} onAdd={onAdd} onRemove={vi.fn()} onContextMenu={onContextMenu} onError={vi.fn()} />));
-  expect(element.querySelector('time')!.textContent).toMatch(/^2026-10-25 \d\d:\d\d$/);
+  expect(element.querySelector('time')!.textContent).toMatch(/^(?:⬛ )?2026-10-25 \d\d:\d\d$/);
   expect(element.querySelectorAll('[data-target-kind]:not([data-source-drag])')).toHaveLength(2);
   expect(element.querySelectorAll('[data-source-drag]')).toHaveLength(2);
   expect(element.querySelector('img')!.getAttribute('src')).toContain('/dodrag-media?taskId=t1');

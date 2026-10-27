@@ -6,7 +6,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { MarkdownLink } from './MarkdownLink';
 import { Markdown } from '@tiptap/markdown';
 import { MarkdownTargets } from './MarkdownTargets';
-import { ALERT_TYPES, EMOTICONS, MarkdownFeatures } from './MarkdownFeatures';
+import { ALERT_TYPES, EMOTICONS, EMOTICON_GROUPS, EMOTICON_SHAPE_VARIANTS, MarkdownFeatures } from './MarkdownFeatures';
 
 const editors: Editor[] = [];
 function create(content = '') {
@@ -24,10 +24,10 @@ function type(editor: Editor, text: string) {
   }
 }
 
-it('roundtrips every supplied Confluence shortcut and renders Unicode without image assets', () => {
+it('roundtrips every emoticon shortcut and renders Unicode without image assets', () => {
   const source = EMOTICONS.map(item => item.shortcut).join(' ');
   const editor = create(source);
-  expect(editor.view.dom.querySelectorAll('[data-emoticon]')).toHaveLength(23);
+  expect(editor.view.dom.querySelectorAll('[data-emoticon]')).toHaveLength(EMOTICONS.length);
   expect(editor.view.dom.querySelectorAll('img[src]')).toHaveLength(0);
   expect(markdown(editor)).toBe(source);
   expect(create(markdown(editor)).getJSON()).toEqual(editor.getJSON());
@@ -37,6 +37,50 @@ it('roundtrips every supplied Confluence shortcut and renders Unicode without im
     expect(typed.state.doc.firstChild?.firstChild?.type.name, item.shortcut).toBe('emoticon');
     expect(markdown(typed)).toBe(item.shortcut);
   }
+});
+
+it('exports R/Y/G/B color columns and nine real color variants per shape without duplicate shortcuts', () => {
+  expect(new Set(EMOTICONS.map(item => item.shortcut)).size).toBe(EMOTICONS.length);
+  expect(EMOTICON_GROUPS.find(group => group.labelKey === 'Farben')!.items.map(item => item.shortcut)).toEqual([
+    '(*r)', '(*)', '(*g)', '(*b)', '(r)', '(y)', '(g)', '(b)', '[r]', '[y]', '[g]', '[b]',
+  ]);
+  expect(EMOTICON_GROUPS.flatMap(group => group.items).some(item => item.shortcut === '(*y)')).toBe(false);
+  expect(EMOTICONS.find(item => item.shortcut === '(*y)')!.emoji).toBe('\u2b50');
+  expect(EMOTICONS.find(item => item.shortcut === '(y)')!.emoji).toBe('\ud83d\udfe1');
+  expect(EMOTICONS.find(item => item.shortcut === '(r)')!.emoji).toBe('\ud83d\udd34');
+  expect(EMOTICONS.find(item => item.shortcut === '(Y)')!.emoji).toBe('\ud83d\udc4d');
+  expect(EMOTICONS.find(item => item.shortcut === '(N)')!.emoji).toBe('\ud83d\udc4e');
+  for (const [shortcut, symbol] of [['(c)', '\u00a9'], ['(R)', '\u00ae'], ['(TM)', '\u2122']]) {
+    expect(EMOTICONS.find(item => item.shortcut === shortcut)!.emoji).toBe(symbol);
+    const editor = create(); type(editor, shortcut);
+    expect(editor.view.dom.querySelector('[data-emoticon]')!.textContent).toBe(symbol);
+    expect(editor.getHTML()).not.toContain('\ufe0f');
+  }
+  expect(EMOTICONS.some(item => item.shortcut === '(n)')).toBe(false);
+  expect(EMOTICON_GROUPS.find(group => group.labelKey === 'Emotion-Shortcuts')!.items.map(item => item.shortcut)).toContain('(Y)');
+  expect(EMOTICON_GROUPS.find(group => group.labelKey === 'Emotion-Shortcuts')!.items.map(item => item.shortcut)).toContain('(N)');
+  expect(EMOTICON_GROUPS.find(group => group.labelKey === 'Typografie')!.items.map(item => item.shortcut)).toContain('(R)');
+  for (const [shape, variants] of Object.entries(EMOTICON_SHAPE_VARIANTS)) {
+    expect(variants).toHaveLength(9);
+    for (const item of variants) {
+      expect(EMOTICONS).toContainEqual(expect.objectContaining({ shortcut: item.shortcut, emoji: item.emoji }));
+      if (shape === 'star' && item.labelKey !== 'Gelb') {
+        expect(item.emoji).toBe('\u2605'); expect(item.color).toMatch(/^#[\da-f]{6}$/);
+      } else expect(item.color).toBeUndefined();
+    }
+  }
+});
+
+it('keeps removed lowercase thumbs-down literal without migrating Markdown or HTML', () => {
+  const editor = create('(n)');
+  expect(editor.view.dom.querySelector('[data-emoticon]')).toBeNull();
+  expect(markdown(editor)).toBe('(n)');
+  const typed = create(); type(typed, '(n)');
+  expect(typed.view.dom.querySelector('[data-emoticon]')).toBeNull();
+  expect(markdown(typed)).toBe('(n)');
+  const html = create('<p><span data-emoticon="(n)">(n)</span></p>');
+  expect(html.view.dom.querySelector('[data-emoticon]')).toBeNull();
+  expect(markdown(html)).toBe('(n)');
 });
 
 it('does not substitute shortcuts in code, links, bare URLs or LaTeX', () => {
