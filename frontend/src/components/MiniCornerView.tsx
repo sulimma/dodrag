@@ -7,6 +7,7 @@ import { t } from '../i18n';
 import type { InlineEditor } from './inlineEditor';
 import { TaskTitle } from './TaskTitle';
 import { TaskChecklistBadge } from './TaskChecklistBadge';
+import { shortcutLabel } from '../hooks/keyboardNavigation';
 
 interface MiniCornerViewProps {
   tasks: TaskState[];
@@ -50,6 +51,7 @@ export function MiniCornerView({
     <div className="h-screen w-screen bg-white border border-slate-300 shadow-lg flex flex-col select-none overflow-hidden">
       {/* Ultra-compact draggable title strip (28px) — drag near any corner of any monitor to snap */}
       <div
+        data-shortcut-region="0"
         style={
           {
             WebkitAppRegion: 'drag',
@@ -104,7 +106,7 @@ export function MiniCornerView({
       </div>
 
       {/* Compact Vertical Task List (limited to 4 entries = 112px max height, mouse-wheel scrollable) */}
-      <div ref={listScrollRef} className="max-h-[112px] overflow-y-auto divide-y divide-slate-100">
+      <div ref={listScrollRef} tabIndex={0} data-shortcut-region="1" className="max-h-[112px] overflow-y-auto divide-y divide-slate-100">
         {tasks.length === 0 ? (
           <div
             onClick={onRestoreWindow}
@@ -159,7 +161,7 @@ export function MiniCornerView({
                   type="button"
                   onClick={() => onResubmitTasks(task.id, 'plus_1d')}
                   aria-label={t('+1 Tag')}
-                  title={t('+1 Tag')}
+                  title={shortcutLabel(t('+1 Tag'), 'Ctrl++')} aria-keyshortcuts="Control+Plus"
                   className="w-6 h-6 rounded text-[11px] font-semibold text-sky-700 hover:bg-sky-100 cursor-pointer"
                 >
                   +1

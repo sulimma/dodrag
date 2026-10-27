@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { eventBridge, type AppSettings, type DatabaseEntry } from '../bridge/eventBridge';
 import { t, formatDate, useLanguage, supportedLanguages, languageNames, errorText } from '../i18n';
+import { contextMenuAnchor } from '../hooks/keyboardNavigation';
 
 const PROJECT_URL = 'https://github.com/sulimma/dodrag';
 
@@ -60,6 +61,7 @@ function PathLabel({
 }) {
   return (
     <div
+      tabIndex={0} data-context-menu-target="true"
       className={`cursor-text select-text ${className ?? ''}`}
       title={path}
       onContextMenu={(event) => onContextMenu(event, path, isFile)}
@@ -180,7 +182,7 @@ export function SettingsModal({
       { id: 'vscode', label: t('In VS Code öffnen'), disabled: busy || !onOpenFolderInVSCode },
     ];
     try {
-      const id = await eventBridge.showTaskContextMenu(items);
+      const id = await eventBridge.showTaskContextMenu(items, contextMenuAnchor(event));
       if (pathMenuRequest.current !== request) return;
       pathMenuRequest.current = null;
       if (busyRef.current || !items.some(item => item.id === id && !item.disabled)) return;
@@ -245,7 +247,7 @@ export function SettingsModal({
       disabled: busyRef.current,
     }];
     try {
-      const id = await eventBridge.showTaskContextMenu(items);
+      const id = await eventBridge.showTaskContextMenu(items, contextMenuAnchor(event));
       if (pathMenuRequest.current !== request) return;
       pathMenuRequest.current = null;
       if (id === 'open-cache-explorer' && !items[0].disabled) await handleCacheAction('explorer');

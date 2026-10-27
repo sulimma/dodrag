@@ -19,6 +19,8 @@ export interface TaskMenuItem {
   separator?: boolean;
 }
 
+export interface TaskMenuAnchor { x: number; y: number }
+
 export interface SetupState {
   currentExe: string;
   currentDir?: string;
@@ -94,6 +96,7 @@ declare global {
           ) => Promise<string>;
           ExitMiniMode: () => Promise<void>;
           ShowTaskContextMenu: (items: TaskMenuItem[]) => Promise<string>;
+          ShowTaskContextMenuAt?: (items: TaskMenuItem[], anchor: TaskMenuAnchor) => Promise<string>;
         };
       };
     };
@@ -558,8 +561,11 @@ export const eventBridge = {
     return next;
   },
 
-  async showTaskContextMenu(items: TaskMenuItem[]): Promise<string> {
-    if (isWailsAvailable()) return window.go!.main!.App!.ShowTaskContextMenu(items);
+  async showTaskContextMenu(items: TaskMenuItem[], anchor?: TaskMenuAnchor): Promise<string> {
+    if (isWailsAvailable()) {
+      const app = window.go!.main!.App!;
+      return anchor && app.ShowTaskContextMenuAt ? app.ShowTaskContextMenuAt(items, anchor) : app.ShowTaskContextMenu(items);
+    }
     return '';
   },
 

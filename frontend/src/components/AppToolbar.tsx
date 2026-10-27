@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import appIcon from '../assets/app-icon.png';
 import { t } from '../i18n';
+import { shortcutLabel } from '../hooks/keyboardNavigation';
 export type ViewMode = 'list' | 'network' | 'gantt';
 interface AppToolbarProps {
   viewMode: ViewMode;
@@ -53,7 +54,7 @@ export function AppToolbar({
   onHelp,
 }: AppToolbarProps) {
   return (
-    <header className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white/90 backdrop-blur-md z-20 shadow-sm shrink-0">
+    <header data-shortcut-region="0" className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white/90 backdrop-blur-md z-20 shadow-sm shrink-0">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2.5">
           <img
@@ -71,6 +72,7 @@ export function AppToolbar({
         <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1">
           <button
             type="button"
+            title={shortcutLabel(t('Liste'), 'Ctrl+1')} aria-keyshortcuts="Control+1"
             onClick={() => setViewMode('list')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
               viewMode === 'list'
@@ -83,6 +85,7 @@ export function AppToolbar({
           </button>
           <button
             type="button"
+            title={shortcutLabel(t('Netzplan'), 'Ctrl+2')} aria-keyshortcuts="Control+2"
             onClick={() => setViewMode('network')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
               viewMode === 'network'
@@ -95,6 +98,7 @@ export function AppToolbar({
           </button>
           <button
             type="button"
+            title={shortcutLabel(t('Gantt'), 'Ctrl+3')} aria-keyshortcuts="Control+3"
             onClick={() => setViewMode('gantt')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
               viewMode === 'gantt'
@@ -167,7 +171,7 @@ export function AppToolbar({
 
         <button
           onClick={onSettings}
-          title={t('Einstellungen & Datenbanken')}
+          title={shortcutLabel(t('Einstellungen & Datenbanken'), 'Ctrl+,')} aria-keyshortcuts="Control+Comma"
           className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
         >
           <Settings className="w-4 h-4" />
@@ -183,7 +187,7 @@ export function AppToolbar({
 
         <button
           onClick={onHelp}
-          title={t('Tastenkürzel & Bedienung (?)')}
+          title={shortcutLabel(t('Tastenkürzel & Bedienung (?)'), 'F1')} aria-keyshortcuts="F1"
           className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
         >
           <HelpCircle className="w-4 h-4" />

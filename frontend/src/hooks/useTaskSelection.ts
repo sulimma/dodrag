@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { ModifierKeys } from '../components/taskInteractions';
+import { contextMenuAnchor } from './keyboardNavigation';
 export interface ContextMenuState {
   x: number;
   y: number;
   taskId: string;
+  anchor?: { x: number; y: number };
 }
 // Owns selected tasks, selected edges, and the active task context menu.
 export function useTaskSelection() {
@@ -103,7 +105,7 @@ export function useTaskSelection() {
     event.stopPropagation();
     clearEdgeSelection();
     if (!selectedTaskIds.includes(id)) setSelectedTaskId(id);
-    setContextMenu({ x: event.clientX, y: event.clientY, taskId: id });
+    setContextMenu({ x: event.clientX, y: event.clientY, taskId: id, anchor: contextMenuAnchor(event) });
   };
   const reset = () => {
     setSelectedTaskId(null);

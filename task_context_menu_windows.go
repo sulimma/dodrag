@@ -5,6 +5,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -29,6 +30,7 @@ var (
 	procDestroyMenu        = user32.NewProc("DestroyMenu")
 	procPostMessageW       = user32.NewProc("PostMessageW")
 	procEndMenu            = user32.NewProc("EndMenu")
+	procClientToScreen     = user32.NewProc("ClientToScreen")
 	procGetCurrentThreadID = syscall.NewLazyDLL("kernel32.dll").NewProc("GetCurrentThreadId")
 	taskMenuRequests       sync.Map
 	taskMenuRequestID      atomic.Uintptr
@@ -43,6 +45,7 @@ type taskMenuRequest struct {
 	app      *App
 	hwnd     uintptr
 	items    []TaskMenuItem
+	anchor   *TaskMenuAnchor
 	state    atomic.Uint32 // 0 queued, 1 running, 2 canceled
 	once     sync.Once
 	response chan taskMenuResult
@@ -52,7 +55,7 @@ func (r *taskMenuRequest) finish(id string, err error) {
 	r.once.Do(func() { r.response <- taskMenuResult{id, err} })
 }
 
-func (a *App) showTaskContextMenuNative(items []TaskMenuItem) (string, error) {
+func (a *App) showTaskContextMenuNative(items []TaskMenuItem, anchor *TaskMenuAnchor) (string, error) {
 	if a.taskMenus.closed.Load() {
 		return "", errors.New("task menu owner is shutting down")
 	}
@@ -67,7 +70,7 @@ func (a *App) showTaskContextMenuNative(items []TaskMenuItem) (string, error) {
 	if !installed {
 		return "", errors.New("task menu owner window is unavailable")
 	}
-	r := &taskMenuRequest{app: a, hwnd: hwnd, items: items, response: make(chan taskMenuResult, 1)}
+	r := &taskMenuRequest{app: a, hwnd: hwnd, items: items, anchor: anchor, response: make(chan taskMenuResult, 1)}
 	id := taskMenuRequestID.Add(1)
 	taskMenuRequests.Store(id, r)
 	defer taskMenuRequests.Delete(id)
@@ -118,14 +121,14 @@ func dispatchTaskContextMenu(hwnd, id uintptr) {
 		r.finish("", nil)
 		return
 	}
-	selected, err := trackTaskContextMenu(hwnd, r.items, &r.app.taskMenus)
+	selected, err := trackTaskContextMenu(hwnd, r.items, r.anchor, &r.app.taskMenus)
 	if r.app.taskMenus.closed.Load() {
 		selected = ""
 	}
 	r.finish(selected, err)
 }
 
-func trackTaskContextMenu(hwnd uintptr, items []TaskMenuItem, state *taskMenuState) (selected string, err error) {
+func trackTaskContextMenu(hwnd uintptr, items []TaskMenuItem, anchor *TaskMenuAnchor, state *taskMenuState) (selected string, err error) {
 	menu, _, callErr := procCreatePopupMenu.Call()
 	if menu == 0 {
 		return "", taskMenuWin32Error("CreatePopupMenu", callErr)
@@ -157,17 +160,25 @@ func trackTaskContextMenu(hwnd uintptr, items []TaskMenuItem, state *taskMenuSta
 			return "", taskMenuWin32Error("AppendMenuW", appendErr)
 		}
 	}
-	var cursor winPoint
-	if ok, _, cursorErr := procGetCursorPos.Call(uintptr(unsafe.Pointer(&cursor))); ok == 0 {
-		return "", taskMenuWin32Error("GetCursorPos", cursorErr)
+	var position winPoint
+	if anchor == nil {
+		if ok, _, cursorErr := procGetCursorPos.Call(uintptr(unsafe.Pointer(&position))); ok == 0 {
+			return "", taskMenuWin32Error("GetCursorPos", cursorErr)
+		}
+	} else {
+		// Resolve DPI and client origin on the owner thread at dispatch time.
+		position = taskMenuClientPoint(*anchor, getWindowDPI(hwnd))
+		if ok, _, conversionErr := procClientToScreen.Call(hwnd, uintptr(unsafe.Pointer(&position))); ok == 0 {
+			return "", taskMenuWin32Error("ClientToScreen", conversionErr)
+		}
 	}
 	if state.closed.Load() || getForegroundWindowNative() != hwnd {
 		return "", nil
 	}
-	// No foreground activation, scaling, or App mutex: Windows owns the modal loop
+	// No foreground activation or App mutex: Windows owns the modal loop
 	// and positions the popup in screen coordinates, including outside the HWND.
 	command, _, _ := procTrackPopupMenuEx.Call(menu, tpmReturnCmd|tpmNoNotify|tpmRightButton,
-		uintptr(cursor.X), uintptr(cursor.Y), hwnd, 0)
+		uintptr(position.X), uintptr(position.Y), hwnd, 0)
 	// Zero means cancel for TPM_RETURNCMD; GetLastError is not reliable here.
 	if command == 0 {
 		return "", nil
@@ -176,6 +187,12 @@ func trackTaskContextMenu(hwnd uintptr, items []TaskMenuItem, state *taskMenuSta
 		return "", errors.New("TrackPopupMenuEx returned an invalid command")
 	}
 	return items[command-1].ID, nil
+}
+
+// The API bounds anchors; getWindowDPI bounds DPI to 72..480 (or fallback 96).
+func taskMenuClientPoint(anchor TaskMenuAnchor, dpi uint32) winPoint {
+	scale := float64(dpi) / 96
+	return winPoint{X: int32(math.Round(anchor.X * scale)), Y: int32(math.Round(anchor.Y * scale))}
 }
 
 func taskMenuWin32Error(operation string, err error) error {

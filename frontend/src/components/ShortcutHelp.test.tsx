@@ -23,6 +23,38 @@ afterEach(() => {
 });
 const render = (props: React.ComponentProps<typeof ShortcutHelp>) => act(() => root.render(<ShortcutHelp {...props} />));
 
+it('localizes the requested shortcuts and their scope in all 15 languages without advertising Ctrl+N', () => {
+  render({ open: true, onClose: vi.fn() });
+  expect(supportedLanguages).toHaveLength(15);
+  for (const language of supportedLanguages) {
+    act(() => setLanguage(language));
+    const rows = [...host.querySelectorAll('kbd')].map(kbd => ({
+      shortcut: kbd.textContent!.trim(),
+      label: kbd.previousElementSibling!.textContent,
+      notes: [...kbd.previousElementSibling!.querySelectorAll('small')].map(note => note.textContent),
+    }));
+    for (const [key, shortcut] of [
+      ['Hilfe öffnen', 'F1'],
+      ['Kontextmenü öffnen', `Shift+F10 / ${t('Kontextmenütaste')}`],
+      ['Nächsten Bereich fokussieren', 'F6'],
+      ['Vorherigen Bereich fokussieren', 'Shift+F6'],
+      ['Einstellungen öffnen', 'Ctrl+,'],
+    ]) expect(rows.filter(row => row.shortcut === shortcut)).toEqual([{ shortcut, label: t(key), notes: [] }]);
+    for (const [key, shortcut] of [
+      ['Liste', 'Ctrl+1'], ['Netzplan', 'Ctrl+2'], ['Gantt', 'Ctrl+3'], ['Details ein-/ausblenden', 'Ctrl+Shift+D'],
+    ]) expect(rows.filter(row => row.shortcut === shortcut)).toEqual([{
+      shortcut, label: t(key) + t('Nur Hauptansicht'), notes: [t('Nur Hauptansicht')],
+    }]);
+    expect(rows.filter(row => row.shortcut === 'Ctrl++')).toEqual([{
+      shortcut: 'Ctrl++',
+      label: t('Wiedervorlage +1 Tag') + t('Hauptansicht und Mini-Ansicht') + t('Nur außerhalb Texteingaben. Offener ausgewählter Task erforderlich.'),
+      notes: [t('Hauptansicht und Mini-Ansicht'), t('Nur außerhalb Texteingaben. Offener ausgewählter Task erforderlich.')],
+    }]);
+    expect(host.textContent).not.toContain('Ctrl+N');
+    expect(rows.some(row => row.label === t('N: Eingabe für neuen Task fokussieren'))).toBe(true);
+  }
+});
+
 it('names one modal dialog, links both pages, traps Tab and restores focus', () => {
   const trigger = document.createElement('button'); document.body.append(trigger); trigger.focus();
   const onClose = vi.fn();

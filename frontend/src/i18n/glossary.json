@@ -319,7 +319,7 @@
     "id": "term.mainView",
     "context": "Normales Arbeitsfenster bzw. Hauptansicht, nicht das beliebige aktive Fenster. Fenster wiederherstellen ist kontextuell Rueckkehr aus der Mini-Ansicht, darf im bestehenden Label aber kurz window/Fenster heissen; Auswahl per keys verhindert Redo-Verwechslungen.",
     "sourceTerms": ["Hauptansicht", "Hauptfenster", "main view", "main window"],
-    "keys": ["Kompaktansicht / Hauptansicht wiederherstellen", "DoDrag Hauptfenster wiederherstellen", "Fenster wiederherstellen"],
+    "keys": ["Kompaktansicht / Hauptansicht wiederherstellen", "DoDrag Hauptfenster wiederherstellen", "Fenster wiederherstellen", "Nur Hauptansicht", "Hauptansicht und Mini-Ansicht"],
     "translations": {
       "de": ["Hauptansicht", "Hauptfenster", "Fenster"], "en": ["main view", "main window", "window"],
       "fr": ["vue principale", "fenêtre principale", "fenêtre"], "es": ["vista principal", "ventana principal", "ventana"],
@@ -396,10 +396,10 @@
   },
   {
     "id": "term.contextMenu",
-    "context": "Natives Windows-Popup fuer Task-Aktionen per Rechtsklick. Kein allgemeines Menue, Startmenue oder Markdown-Menue.",
+    "context": "Natives Windows-Popup fuer Task-Aktionen per Rechtsklick oder Tastatur. Kein allgemeines Menue, Startmenue oder Markdown-Menue. Kontextmenuetaste ist das vollstaendige deutsche Kompositum fuer die dedizierte Taste.",
     "sourceTerms": ["Kontextmenü", "Kontextmenue", "context menu"],
     "translations": {
-      "de": ["Kontextmenü", "Kontextmenüs"], "en": ["context menu"], "fr": ["menu contextuel"],
+      "de": ["Kontextmenü", "Kontextmenüs", "Kontextmenütaste"], "en": ["context menu"], "fr": ["menu contextuel"],
       "es": ["menú contextual"], "zh-CN": ["上下文菜单"], "uk": ["контекстне меню", "контекстного меню"],
       "pt-BR": ["menu de contexto"], "ja": ["コンテキストメニュー"], "zh-TW": ["快顯功能表"],
       "ko": ["컨텍스트 메뉴"], "it": ["menu contestuale"], "pl": ["menu kontekstowe", "menu kontekstowego"],
@@ -561,6 +561,28 @@
       "zh-CN": ["编号列表"], "uk": ["нумерований список"], "pt-BR": ["lista numerada"], "ja": ["番号付きリスト"],
       "zh-TW": ["編號清單"], "ko": ["번호 매기기 목록"], "it": ["elenco numerato"], "pl": ["lista numerowana"],
       "tr": ["numaralı liste"], "eo": ["numerita listo"], "tok": ["kulupu lipu pi nanpa"]
+    }
+  },
+  {
+    "id": "term.focusRegion",
+    "context": "Bereich, zu dem F6 bzw. Shift+F6 den Tastaturfokus verschiebt. Vorwaerts/rueckwaerts folgt der Bereichsreihenfolge, nicht Tasks, Zeitfenstern oder Ansichten. Die ganzen Aktionslabels sind kanonisch; tok wile nena bezeichnet hier den Tastaturfokus.",
+    "sourceTerms": ["Bereich fokussieren", "focus region"],
+    "keys": ["Nächsten Bereich fokussieren", "Vorherigen Bereich fokussieren"],
+    "translations": {
+      "de": ["Bereich fokussieren"], "en": ["focus next region", "focus previous region"],
+      "fr": ["activer la zone suivante", "activer la zone précédente"],
+      "es": ["enfocar la siguiente sección", "enfocar la sección anterior"],
+      "zh-CN": ["聚焦下一区域", "聚焦上一区域"],
+      "uk": ["фокусування наступної області", "фокусування попередньої області"],
+      "pt-BR": ["focar a próxima área", "focar a área anterior"],
+      "ja": ["次の領域へのフォーカス移動", "前の領域へのフォーカス移動"],
+      "zh-TW": ["聚焦下一個區域", "聚焦上一個區域"],
+      "ko": ["다음 영역으로 포커스 이동", "이전 영역으로 포커스 이동"],
+      "it": ["spostare il focus all’area successiva", "spostare il focus all’area precedente"],
+      "pl": ["przeniesienie fokusu do następnego obszaru", "przeniesienie fokusu do poprzedniego obszaru"],
+      "tr": ["sonraki bölgeye odaklan", "önceki bölgeye odaklan"],
+      "eo": ["fokusi la sekvan regionon", "fokusi la antaŭan regionon"],
+      "tok": ["o tawa e wile nena tawa ma sinpin", "o tawa e wile nena tawa ma monsi"]
     }
   },
   {

@@ -193,8 +193,9 @@ describe('translation coverage', () => {
       const report = (node: ts.Node, text: string) => {
         const decoded = text.replace(/&(?:lt|gt|amp|quot|apos|nbsp);/g, '');
         if (!/[\p{L}]/u.test(decoded) || text.trim() === 'DoDrag') return;
-        if (ts.isJsxText(node) && ts.isJsxElement(node.parent) && node.parent.openingElement.tagName.getText(source) === 'kbd' &&
-          /^(?:F2|O|T|Ctrl\+M|Del \/ D|Ctrl\+Z \/ Ctrl\+Y \/ Ctrl\+Shift\+Z|↑ \/ ↓ \/ Esc)$/.test(text.trim())) return;
+        const isKeyCode = /^(?:Ctrl\+\+|F2|O|T|Ctrl\+M|Del \/ D|Ctrl\+Z \/ Ctrl\+Y \/ Ctrl\+Shift\+Z|↑ \/ ↓ \/ Esc)$/.test(text.trim());
+        if (isKeyCode && (ts.isJsxText(node) && ts.isJsxElement(node.parent) && node.parent.openingElement.tagName.getText(source) === 'kbd' ||
+          ts.isStringLiteral(node) && ts.isJsxExpression(node.parent) && ts.isJsxElement(node.parent.parent) && node.parent.parent.openingElement.tagName.getText(source) === 'kbd')) return;
         const position = source.getLineAndCharacterOfPosition(node.getStart(source));
         failures.push(`${path}:${position.line + 1}: ${text.trim()}`);
       };

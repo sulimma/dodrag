@@ -4,6 +4,8 @@ import { useTaskSelection } from './useTaskSelection';
 import { useTaskMutations } from './useTaskMutations';
 import type { InlineEditor } from '../components/inlineEditor';
 import { t } from '../i18n';
+import type { ViewMode } from '../components/AppToolbar';
+import { focusNextRegion, openKeyboardContextMenu } from './keyboardNavigation';
 interface ShortcutContext {
   selection: Pick<
     ReturnType<typeof useTaskSelection>,
@@ -23,7 +25,7 @@ interface ShortcutContext {
     | 'handleCompleteTask'
     | 'handleReopenTask'
     | 'handleSetConfiguredDate'
-  >;
+  > & Partial<Pick<ReturnType<typeof useTaskMutations>, 'handleResubmitTasks'>>;
   state: ReturnType<typeof projectEvents>;
   showSettingsModal: boolean;
   showShortcutsModal: boolean;
@@ -36,6 +38,9 @@ interface ShortcutContext {
   startInlineEdit: InlineEditor['onStart'];
   onMinimize: () => void;
   onRestore: () => void;
+  onSettings?: () => void;
+  onViewChange?: (view: ViewMode) => void;
+  onToggleDetails?: () => void;
 }
 // Routes global keyboard input while respecting editors and overlays.
 export function useGlobalShortcuts({
@@ -53,6 +58,9 @@ export function useGlobalShortcuts({
   startInlineEdit,
   onMinimize,
   onRestore,
+  onSettings,
+  onViewChange,
+  onToggleDetails,
 }: ShortcutContext) {
   const {
     selectedTaskId,
@@ -70,11 +78,28 @@ export function useGlobalShortcuts({
     handleCompleteTask,
     handleReopenTask,
     handleSetConfiguredDate,
+    handleResubmitTasks,
   } = actions;
   // Reinstall from each render so native listeners never retain obsolete editors or DB snapshots.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || showSettingsModal) return;
+      if (e.defaultPrevented || e.isComposing) return;
+      const contextKey = !e.ctrlKey && !e.altKey && !e.metaKey &&
+        ((e.key === 'F10' && e.shiftKey) || (e.key === 'ContextMenu' && !e.shiftKey));
+      if (contextKey && !showShortcutsModal && !contextMenu) {
+        const focused = e.target instanceof Element && e.target !== document.body ? e.target : document.activeElement;
+        const local = focused?.closest('[data-description-editor],[data-task-log],[data-task-detail-panel],[data-context-menu-target]');
+        let menuTarget: Element | null = local ? focused : null;
+        const textTarget = focused?.closest('input,textarea,[contenteditable="true"]');
+        if (!menuTarget && !showSettingsModal && snapshotReady && !textTarget) {
+          const focusedTask = focused?.closest('[data-task-drag],[data-mini-task-id],[data-completed-task]');
+          menuTarget = focusedTask ?? Array.from(document.querySelectorAll('[data-task-drag],[data-mini-task-id],[data-completed-task]'))
+            .find(element => selectedTaskId !== null && [element.getAttribute('data-task-drag'), element.getAttribute('data-mini-task-id'), element.getAttribute('data-completed-task')].includes(selectedTaskId)) ?? null;
+        }
+        if (menuTarget) { e.preventDefault(); if (!e.repeat) openKeyboardContextMenu(menuTarget); }
+        return;
+      }
+      if (showSettingsModal) return;
       // Dismiss the top overlay before focus/shortcut guards, without acting below it.
       if (showShortcutsModal || contextMenu) {
         if (e.key === 'Escape') {
@@ -95,7 +120,31 @@ export function useGlobalShortcuts({
            isTextEntryFocused ||
           Boolean(
             target.closest('button,a,select,[role="button"],[role="switch"]')
-          ));
+           ));
+
+      const plainControl = e.ctrlKey && !e.altKey && !e.metaKey;
+      if (e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+        e.preventDefault(); if (!e.repeat) setShowShortcutsModal(true); return;
+      }
+      if (e.key === 'F6' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault(); focusNextRegion(e.shiftKey); return;
+      }
+      if (plainControl && !e.shiftKey && e.key === ',') {
+        e.preventDefault(); if (!e.repeat) onSettings?.(); return;
+      }
+      if (plainControl && !isMiniMode && !e.shiftKey && ['1', '2', '3'].includes(e.key)) {
+        e.preventDefault(); if (!e.repeat) onViewChange?.((['list', 'network', 'gantt'] as const)[Number(e.key) - 1]); return;
+      }
+      if (plainControl && !isMiniMode && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault(); if (!e.repeat) onToggleDetails?.(); return;
+      }
+      if (plainControl && (e.key === '+' || e.code === 'NumpadAdd') && !isTextEntryFocused) {
+        const task = selectedTaskId ? state.tasks[selectedTaskId] : undefined;
+        if (task && !task.completed && (!isMiniMode || miniTaskIds.includes(task.id))) {
+          e.preventDefault(); if (!e.repeat) handleResubmitTasks?.(task.id, 'plus_1d');
+        }
+        return;
+      }
 
       if (
         (e.ctrlKey || e.metaKey) &&

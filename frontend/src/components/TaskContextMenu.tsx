@@ -49,7 +49,7 @@ export function TaskContextMenu(props: TaskContextMenuProps) {
     Promise.resolve().then(async () => {
       if (!current) return;
       try {
-        const id = await eventBridge.showTaskContextMenu(items);
+        const id = await eventBridge.showTaskContextMenu(items, props.contextMenu.anchor);
         if (!current) return;
         const active = latest.current;
         const item = taskMenuItems(active.task).find(item => item.id === id && !item.disabled);

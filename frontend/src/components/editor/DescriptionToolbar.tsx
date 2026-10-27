@@ -40,26 +40,26 @@ export function DescriptionToolbar({ editor, onError, historyTarget }: { editor:
   const text = t('Text');
   const groups = [
     { key: 'Überschriften', label: state.h1 ? t('Überschrift 1') : state.h2 ? t('Überschrift 2') : state.h3 ? t('Überschrift 3') : t('Absatz'), icon: Heading, items: [
-      { label: t('Absatz'), syntax: text, icon: Heading, active: state.paragraph, run: () => editor.chain().focus().setParagraph().run() },
-      { label: t('Überschrift 1'), syntax: `# ${text}`, icon: Heading1, active: state.h1, run: () => editor.chain().focus().toggleHeading({ level: 1 }).run() },
-      { label: t('Überschrift 2'), syntax: `## ${text}`, icon: Heading2, active: state.h2, run: () => editor.chain().focus().toggleHeading({ level: 2 }).run() },
-      { label: t('Überschrift 3'), syntax: `### ${text}`, icon: Heading3, active: state.h3, run: () => editor.chain().focus().toggleHeading({ level: 3 }).run() },
+      { label: t('Absatz'), syntax: text, shortcut: 'Ctrl+Alt+0', icon: Heading, active: state.paragraph, run: () => editor.chain().focus().setParagraph().run() },
+      { label: t('Überschrift 1'), syntax: `# ${text}`, shortcut: 'Ctrl+Alt+1', icon: Heading1, active: state.h1, run: () => editor.chain().focus().toggleHeading({ level: 1 }).run() },
+      { label: t('Überschrift 2'), syntax: `## ${text}`, shortcut: 'Ctrl+Alt+2', icon: Heading2, active: state.h2, run: () => editor.chain().focus().toggleHeading({ level: 2 }).run() },
+      { label: t('Überschrift 3'), syntax: `### ${text}`, shortcut: 'Ctrl+Alt+3', icon: Heading3, active: state.h3, run: () => editor.chain().focus().toggleHeading({ level: 3 }).run() },
     ] },
     { key: 'Format', label: t('Format'), icon: Bold, items: [
-      { label: t('Fett'), syntax: `**${t('Fett')}**`, icon: Bold, active: state.bold, run: () => editor.chain().focus().toggleBold().run() },
-      { label: t('Kursiv'), syntax: `*${t('Kursiv')}*`, icon: Italic, active: state.italic, run: () => editor.chain().focus().toggleItalic().run() },
-      { label: t('Durchgestrichen'), syntax: `~~${text}~~`, icon: Strikethrough, active: state.strike, run: () => editor.chain().focus().toggleStrike().run() },
-      { label: t('Inline-Code'), syntax: '`code`', icon: Code, active: state.code, run: () => editor.chain().focus().toggleCode().run() },
+      { label: t('Fett'), syntax: `**${t('Fett')}**`, shortcut: 'Ctrl+B', icon: Bold, active: state.bold, run: () => editor.chain().focus().toggleBold().run() },
+      { label: t('Kursiv'), syntax: `*${t('Kursiv')}*`, shortcut: 'Ctrl+I', icon: Italic, active: state.italic, run: () => editor.chain().focus().toggleItalic().run() },
+      { label: t('Durchgestrichen'), syntax: `~~${text}~~`, shortcut: 'Ctrl+Shift+S', icon: Strikethrough, active: state.strike, run: () => editor.chain().focus().toggleStrike().run() },
+      { label: t('Inline-Code'), syntax: '`code`', shortcut: 'Ctrl+E', icon: Code, active: state.code, run: () => editor.chain().focus().toggleCode().run() },
       { label: t('Formel'), syntax: '$E = mc^2$', icon: Sigma, run: () => editor.chain().focus().insertContent({ type: 'inlineMath', attrs: { latex: 'E = mc^2' } }).run() },
     ] },
     { key: 'Listen', label: t('Listen'), icon: List, items: [
-      { label: t('Aufzählung'), syntax: `- ${text}`, icon: List, active: state.bulletList, run: () => editor.chain().focus().toggleBulletList().run() },
-      { label: t('Nummerierte Liste'), syntax: `1. ${text}`, icon: ListOrdered, active: state.orderedList, run: () => editor.chain().focus().toggleOrderedList().run() },
-      { label: t('Checkliste ein-/ausschalten'), syntax: `- [ ] ${text}`, icon: ListTodo, active: state.taskList, run: () => editor.chain().focus().toggleTaskList().run() },
+      { label: t('Aufzählung'), syntax: `- ${text}`, shortcut: 'Ctrl+Shift+8', icon: List, active: state.bulletList, run: () => editor.chain().focus().toggleBulletList().run() },
+      { label: t('Nummerierte Liste'), syntax: `1. ${text}`, shortcut: 'Ctrl+Shift+7', icon: ListOrdered, active: state.orderedList, run: () => editor.chain().focus().toggleOrderedList().run() },
+      { label: t('Checkliste ein-/ausschalten'), syntax: `- [ ] ${text}`, shortcut: 'Ctrl+Shift+9', icon: ListTodo, active: state.taskList, run: () => editor.chain().focus().toggleTaskList().run() },
     ] },
     { key: 'Block', label: t('Block'), icon: SquareCode, items: [
-      { label: t('Zitat'), syntax: `> ${text}`, icon: Quote, active: state.blockquote, run: () => editor.chain().focus().toggleBlockquote().run() },
-      { label: t('Codeblock'), syntax: '```\ncode\n```', icon: SquareCode, active: state.codeBlock, run: () => editor.chain().focus().toggleCodeBlock().run() },
+      { label: t('Zitat'), syntax: `> ${text}`, shortcut: 'Ctrl+Shift+B', icon: Quote, active: state.blockquote, run: () => editor.chain().focus().toggleBlockquote().run() },
+      { label: t('Codeblock'), syntax: '```\ncode\n```', shortcut: 'Ctrl+Alt+C', icon: SquareCode, active: state.codeBlock, run: () => editor.chain().focus().toggleCodeBlock().run() },
       { label: t('Formelblock'), syntax: '$$\nE = mc^2\n$$', icon: Sigma, run: () => editor.chain().focus().insertContent({ type: 'blockMath', attrs: { latex: 'E = mc^2' } }).run() },
       ...['NOTE', 'WARNING', 'IMPORTANT', 'TIP', 'CAUTION'].map(type => {
         const item = ALERT_TYPES.find(alert => alert.type === type)!;
@@ -75,13 +75,14 @@ export function DescriptionToolbar({ editor, onError, historyTarget }: { editor:
       run: () => editor.chain().focus().insertContent({ type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: item.source }] }).run(),
     })) },
   ];
-  type Action = { label: string; syntax: string; icon?: typeof Bold; emoji?: string; color?: string; active?: boolean; run(): unknown };
+  type Action = { label: string; syntax: string; shortcut?: string; icon?: typeof Bold; emoji?: string; color?: string; active?: boolean; run(): unknown };
   const run = (action: Action) => { try { action.run(); setOpen(null); } catch (error) { onError(error); } };
   const itemButton = (action: Action) => <button key={action.label} type="button" title={action.syntax} aria-label={action.label} aria-pressed={action.active}
     className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs focus-visible:outline focus-visible:outline-sky-600 ${action.active ? 'bg-sky-100 text-sky-800' : 'text-slate-600 hover:bg-slate-100'}`}
     onMouseDown={event => event.preventDefault()} onClick={() => run(action)}>
     {action.icon ? <action.icon size={16} aria-hidden="true" /> : action.emoji && <span aria-hidden="true" style={{ color: action.color, filter: action.color === 'gray' ? 'grayscale(1)' : undefined }}>{action.emoji}</span>}
     {action.emoji ? <code className="whitespace-pre" style={{ fontVariantLigatures: 'none', fontFeatureSettings: '"liga" 0, "clig" 0, "calt" 0' }}>{action.label}</code> : action.label}
+    {action.shortcut && <kbd className="ml-auto shrink-0 whitespace-nowrap pl-3 text-[10px] text-slate-500">{action.shortcut}</kbd>}
   </button>;
   const historyButtons = <div data-editor-history className="ml-auto flex shrink-0 items-center gap-1">
     {[
@@ -115,7 +116,7 @@ export function DescriptionToolbar({ editor, onError, historyTarget }: { editor:
         onMouseDown={event => event.preventDefault()} onClick={() => setOpen(open === group.key ? null : group.key)}>
         <group.icon size={16} aria-hidden="true" /><span className="text-[11px]">{group.label}</span><ChevronDown size={12} aria-hidden="true" />
       </button>
-      {open === group.key && <div data-editor-dropdown className={`absolute left-0 top-full mt-1 max-h-80 overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-lg ${group.key === 'Sonderzeichen' ? 'w-72' : 'w-56'}`}>
+      {open === group.key && <div data-editor-dropdown className={`absolute left-0 top-full mt-1 max-h-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-md border border-slate-200 bg-white p-1 shadow-lg ${group.key === 'Sonderzeichen' ? 'w-72' : 'w-max min-w-56'}`}>
         {group.items.map(itemButton)}
         {group.key === 'Sonderzeichen' && <>
           {SYMBOL_GROUPS.map(section => <section key={section.labelKey}>

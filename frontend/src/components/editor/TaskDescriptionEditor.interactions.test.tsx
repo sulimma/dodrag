@@ -5,7 +5,7 @@ import type { Editor } from '@tiptap/react';
 import { closeHistory } from '@tiptap/pm/history';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TaskDescriptionEditor, markdownStorage, type TaskDescriptionEditorHandle } from './TaskDescriptionEditor';
-import { t } from '../../i18n';
+import { getLanguage, setLanguage, supportedLanguages, t } from '../../i18n';
 import { MERMAID_TEMPLATES } from './MermaidTemplates';
 import { SYMBOL_GROUPS } from './SymbolReplacements';
 
@@ -160,6 +160,40 @@ it.each([
   expect(editor.isActive(node, attrs)).toBe(false);
   expect(button(element, label).getAttribute('aria-pressed')).toBe('false');
   expect(onError).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['Absatz', 'paragraph', {}, 'Ctrl+Alt+0'],
+  ['Überschrift 1', 'heading', { level: 1 }, 'Ctrl+Alt+1'],
+  ['Überschrift 2', 'heading', { level: 2 }, 'Ctrl+Alt+2'],
+  ['Überschrift 3', 'heading', { level: 3 }, 'Ctrl+Alt+3'],
+  ['Fett', 'bold', {}, 'Ctrl+B'], ['Kursiv', 'italic', {}, 'Ctrl+I'],
+  ['Durchgestrichen', 'strike', {}, 'Ctrl+Shift+S'], ['Inline-Code', 'code', {}, 'Ctrl+E'],
+  ['Aufzählung', 'bulletList', {}, 'Ctrl+Shift+8'], ['Nummerierte Liste', 'orderedList', {}, 'Ctrl+Shift+7'],
+  ['Checkliste ein-/ausschalten', 'taskList', {}, 'Ctrl+Shift+9'],
+  ['Zitat', 'blockquote', {}, 'Ctrl+Shift+B'], ['Codeblock', 'codeBlock', {}, 'Ctrl+Alt+C'],
+] as const)('shows the working shortcut for %s in every language without replacing syntax hints', async (label, node, attrs, shortcut) => {
+  const { editor, element } = await mount('selected');
+  const previous = getLanguage();
+  try {
+    for (const language of supportedLanguages) {
+      act(() => setLanguage(language));
+      const target = button(element, label);
+      expect(target.querySelector('kbd')?.textContent).toBe(shortcut);
+      expect(target.getAttribute('aria-label')).toBe(t(label));
+      expect(target.title).not.toContain('Ctrl+');
+    }
+    await act(async () => {
+      if (node === 'paragraph') editor.commands.toggleHeading({ level: 1 });
+      editor.commands.setTextSelection({ from: 1, to: 9 });
+      editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', {
+        key: shortcut.split('+').at(-1)!.toLowerCase(), ctrlKey: true,
+        shiftKey: shortcut.includes('Shift'), altKey: shortcut.includes('Alt'),
+        bubbles: true, cancelable: true,
+      }));
+    });
+    expect(editor.isActive(node, attrs)).toBe(true);
+  } finally { act(() => setLanguage(previous)); }
 });
 
 it('inserts the supplied emoticon shortcuts from the insertion menu and keeps their Markdown spelling', async () => {

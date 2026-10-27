@@ -57,7 +57,7 @@ it('clears via bridge, blocks duplicate actions while pending and announces succ
   await openMenu();
   expect(eventBridge.showTaskContextMenu).toHaveBeenLastCalledWith([{
     id: 'open-cache-explorer', label: t('Cache-Ordner im File-Explorer öffnen'), disabled: true,
-  }]);
+  }], undefined);
   expect(eventBridge.openPreviewCacheInExplorer).not.toHaveBeenCalled();
   await act(async () => { finish(); });
   expect(clearButton().disabled).toBe(false);
@@ -70,7 +70,7 @@ it('uses a native popup for Explorer without rendering an HTML menu or clearing 
   await openMenu();
   expect(eventBridge.showTaskContextMenu).toHaveBeenLastCalledWith([{
     id: 'open-cache-explorer', label: t('Cache-Ordner im File-Explorer öffnen'), disabled: false,
-  }]);
+  }], undefined);
   expect(eventBridge.openPreviewCacheInExplorer).toHaveBeenCalledTimes(1);
   expect(eventBridge.clearPreviewCache).not.toHaveBeenCalled();
   expect(element.textContent).not.toContain(t('Cache-Ordner im File-Explorer öffnen'));

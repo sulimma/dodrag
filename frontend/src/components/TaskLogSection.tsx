@@ -68,9 +68,9 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
       const selectedText = selection?.rangeCount && article?.contains(selection.getRangeAt(0).commonAncestorContainer)
         ? selection.toString() : '';
       const items = target ? targetMenuItems(target, !!props.onCreateSourceTask) : field
-        ? [{ id: 'cut', label: t('Ausschneiden'), disabled: start === end },
-          { id: 'copy', label: t('Kopieren'), disabled: start === end },
-          { id: 'paste', label: t('Einfügen'), disabled: false }]
+        ? [{ id: 'cut', label: t('Ausschneiden'), shortcut: 'Ctrl+X', disabled: start === end },
+          { id: 'copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: start === end },
+          { id: 'paste', label: t('Einfügen'), shortcut: 'Ctrl+V', disabled: false }]
          : entry ? [{ id: 'copy', label: t('Kopieren'), disabled: false }] : [];
       if (entry) items.push({ id: 'delete', label: t('löschen'), disabled: false });
       props.onContextMenu(event, { target, items, execute: async action => {

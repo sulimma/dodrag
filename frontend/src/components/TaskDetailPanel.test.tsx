@@ -289,13 +289,13 @@ it('uses task menus outside editors and editor-only menus inside description and
   const props = makeProps(); render(props);
   mocks.showMenu.mockResolvedValueOnce('remove:26-100');
   await openMenu(host.querySelector('header')!);
-  expect(mocks.showMenu).toHaveBeenLastCalledWith(taskMenuItems(task));
+  expect(mocks.showMenu).toHaveBeenLastCalledWith(taskMenuItems(task), undefined);
   expect(props.onRemovePredecessor).toHaveBeenCalledWith(task.id, '26-100');
   expect(props.interactions.onContextMenuTask).not.toHaveBeenCalled();
   for (const selector of ['[data-editor]', '[data-log]']) {
     mocks.showMenu.mockResolvedValueOnce('copy');
     await openMenu(host.querySelector(selector)!);
-    expect(mocks.showMenu).toHaveBeenLastCalledWith(context.items);
+    expect(mocks.showMenu).toHaveBeenLastCalledWith(context.items, undefined);
     expect(mocks.execute).toHaveBeenLastCalledWith('copy');
     mocks.showMenu.mockResolvedValueOnce('complete');
     await openMenu(host.querySelector(selector)!);
@@ -305,7 +305,7 @@ it('uses task menus outside editors and editor-only menus inside description and
   expect(host.textContent).not.toContain('Copy fixture');
   mocks.showMenu.mockResolvedValueOnce('complete');
   await openMenu(host.querySelector('aside')!);
-  expect(mocks.showMenu).toHaveBeenLastCalledWith(taskMenuItems(task));
+  expect(mocks.showMenu).toHaveBeenLastCalledWith(taskMenuItems(task), undefined);
   expect(props.onCompleteTask).toHaveBeenCalledWith(task.id);
   expect(mocks.execute).toHaveBeenCalledTimes(2);
 });
@@ -315,7 +315,7 @@ it('passes only the target-specific path menu without prepending task or editing
   mocks.showMenu.mockResolvedValueOnce('open-explorer');
   await openMenu(host.querySelector('[data-editor-path]')!);
   expect(mocks.showMenu).toHaveBeenCalledOnce();
-  expect(mocks.showMenu).toHaveBeenLastCalledWith(pathContext.items);
+  expect(mocks.showMenu).toHaveBeenLastCalledWith(pathContext.items, undefined);
   expect(mocks.execute).toHaveBeenCalledWith('open-explorer');
   expect(props.interactions.onContextMenuTask).not.toHaveBeenCalled();
   expect(props.onCompleteTask).not.toHaveBeenCalled();
@@ -343,7 +343,7 @@ it('offers only reopening as a task action for completed tasks', async () => {
   const props = makeProps(); const completed = { ...task, completed: true };
   render({ ...props, task: completed }); mocks.showMenu.mockResolvedValueOnce('reopen');
   await openMenu(host.querySelector('header')!);
-  expect(mocks.showMenu).toHaveBeenLastCalledWith(taskMenuItems(completed));
+  expect(mocks.showMenu).toHaveBeenLastCalledWith(taskMenuItems(completed), undefined);
   expect(taskMenuItems(completed).map(item => item.id)).toEqual(['reopen']);
   expect(props.onReopenTask).toHaveBeenCalledWith(task.id);
 });

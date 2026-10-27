@@ -98,7 +98,7 @@ it('retains the source and title after a failed creation for an atomic retry', a
 
 it('clears the pending source and draft on database invalidation', async () => {
   await act(async () => root.render(<App />)); act(() => details.create!(source)); type('Old database draft');
-  await click(host.querySelector(`button[title="${t('Einstellungen & Datenbanken')}"]`)!);
+  await click(host.querySelector('button[aria-keyshortcuts="Control+Comma"]')!);
   await click(textButton(t('Verwenden')));
   expect(api.SwitchDatabase).toHaveBeenCalledWith('B.db'); expect(creation().value).toBe('');
   await click(textButton(t('Fertig')));

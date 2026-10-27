@@ -4,7 +4,7 @@ package main
 
 import "errors"
 
-func (a *App) showTaskContextMenuNative(items []TaskMenuItem) (string, error) {
+func (a *App) showTaskContextMenuNative(items []TaskMenuItem, anchor *TaskMenuAnchor) (string, error) {
 	return "", errors.New("native task context menus require Windows")
 }
 

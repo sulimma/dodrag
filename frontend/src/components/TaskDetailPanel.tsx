@@ -15,6 +15,7 @@ import { TaskDescriptionEditor, type TaskDescriptionEditorHandle } from './edito
 import type { EditorContextMenu, EditorTarget } from './editor/types';
 import { TaskLogSection, type TaskLogSectionHandle } from './TaskLogSection';
 import { ResizeHandle } from './ResizeHandle';
+import { contextMenuAnchor, shortcutLabel } from '../hooks/keyboardNavigation';
 
 interface TaskDetailPanelProps extends TaskMenuActions {
   task: TaskState | null;
@@ -78,7 +79,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
     const items = context ? context.items : taskMenuItems(task);
     if (!items.length) return;
     try {
-      const id = await eventBridge.showTaskContextMenu(items);
+      const id = await eventBridge.showTaskContextMenu(items, contextMenuAnchor(event));
       const current = latest.current;
       if (current.task?.id !== original || !items.some(item => item.id === id && !item.disabled && !item.separator)) return;
       if (context) await context.execute(id);
@@ -90,7 +91,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
     interactions.activeDropTargetKey === key && interactions.draggedTaskId !== task.id, interactions.isAltDrag);
   return (
     <aside ref={panel} tabIndex={0} aria-label={t('Task-Details')}
-      data-task-detail-panel="true"
+      data-task-detail-panel="true" data-shortcut-region={open ? '2' : undefined}
       {...(task && open ? taskDropTargetInteractions(task.id, key, interactions) : {})}
       onDragOver={event => {
         if (open && task && interactions.draggedTaskId) taskDropTargetInteractions(task.id, key, interactions).onDragOver(event);
@@ -115,7 +116,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
           className="absolute top-3 right-7 z-20 flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-200 focus-visible:outline focus-visible:outline-sky-500">
           <CircleHelp className="h-5 w-5" aria-hidden="true" />
         </button>}
-        <button data-detail-toggle type="button" title={open ? t('Details schließen') : t('Details anzeigen')}
+        <button data-detail-toggle type="button" title={shortcutLabel(open ? t('Details schließen') : t('Details anzeigen'), 'Ctrl+Shift+D')} aria-keyshortcuts="Control+Shift+D"
           aria-label={open ? t('Details schließen') : t('Details anzeigen')} aria-expanded={open}
           onClick={props.onToggle ?? props.onClose}
           className="absolute top-3 right-0 z-20 flex h-7 w-7 items-center justify-center rounded-l text-slate-500 hover:bg-slate-200 focus-visible:outline focus-visible:outline-sky-500">
@@ -147,7 +148,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
           </div></>}
       </header>
       {!task ? <p className="p-6 text-sm text-slate-400">{t('Task auswählen, um Details, Beschreibung und Log anzuzeigen')}</p> : <>
-        <section className="flex flex-col flex-1 min-h-0 overflow-hidden" data-task-selectable-text="true">
+        <section className="flex flex-col flex-1 min-h-0 overflow-hidden" data-task-selectable-text="true" data-shortcut-region="3">
           <TaskDescriptionEditor ref={editor} taskId={task.id} description={task.description} historyTarget={historyTarget}
             onCreateSourceTask={props.onCreateSourceTask}
             onChange={(markdown, metadata) => {
@@ -160,7 +161,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
         </section>
         <ResizeHandle orientation="horizontal" label={t('Höhe des Logs ändern')} direction={-1}
           value={logArea.current?.getBoundingClientRect().height || logHeight} limits={heightLimits} onChange={setLogHeight} />
-        <div ref={logArea} className="min-h-0 shrink-0 overflow-hidden" style={{ height: `min(${logHeight}px, max(100px, calc(100% - 290px)))` }} data-task-selectable-text="true">
+        <div ref={logArea} className="min-h-0 shrink-0 overflow-hidden" style={{ height: `min(${logHeight}px, max(100px, calc(100% - 290px)))` }} data-task-selectable-text="true" data-shortcut-region="4">
           <TaskLogSection key={task.id} ref={log} taskId={task.id} entries={task.logEntries}
             onCreateSourceTask={props.onCreateSourceTask}
             onAdd={text => props.onAddLog(task.id, text)} onRemove={entryId => props.onRemoveLog(task.id, entryId)}

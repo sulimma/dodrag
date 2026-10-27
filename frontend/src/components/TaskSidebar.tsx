@@ -7,6 +7,7 @@ import type { TaskDragDropActions, TaskViewInteractions } from './taskInteractio
 import { taskDragSourceInteractions, draggedTaskIdOf } from './taskInteractions';
 import { DateLayerLine } from './DateLayerLine';
 import { t, formatNumber } from '../i18n';
+import { shortcutLabel } from '../hooks/keyboardNavigation';
 // Icon tints only; labels stay here so the i18n AST check sees the keys.
 const RESUBMIT_ICONS: Record<QuickResubmitTargetId, React.ReactNode> = {
   plus_1d: <CalendarClock className="w-4 h-4 text-teal-600" />,
@@ -84,7 +85,7 @@ export function TaskSidebar({
     toDateKey(new Date(task.completedAt ?? task.createdAt))
   );
   return (
-    <aside className="w-80 border-l border-slate-200 bg-white/90 p-4 flex flex-col gap-4 shrink-0 overflow-hidden">
+    <aside tabIndex={0} data-shortcut-region="5" aria-label={t('Wiedervorlage')} className="w-80 border-l border-slate-200 bg-white/90 p-4 flex flex-col gap-4 shrink-0 overflow-hidden">
       <div className="space-y-2 shrink-0">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 px-1">
           {t('Wiedervorlage')}
@@ -98,6 +99,7 @@ export function TaskSidebar({
               <div
                 key={target.id}
                 data-task-drop-target={targetKey}
+                title={target.id === 'plus_1d' ? shortcutLabel(t(target.label), 'Ctrl++') : undefined}
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.dataTransfer.dropEffect = 'move';
@@ -136,6 +138,7 @@ export function TaskSidebar({
                     <div className="text-xs font-semibold text-slate-800">
                       {t(target.label)}
                     </div>
+                    {target.id === 'plus_1d' && <kbd className="text-[10px] text-slate-500">{'Ctrl++'}</kbd>}
                     <div className="text-[10px] text-slate-500">
                       {t(target.sublabel)}
                     </div>

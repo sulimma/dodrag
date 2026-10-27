@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"testing"
@@ -62,5 +63,38 @@ func TestTaskMenuNativeLabel(t *testing.T) {
 	}
 	if got := taskMenuNativeLabel("A & B", "Ctrl+&"); got != "A && B\tCtrl+&&" {
 		t.Fatalf("shortcut column: got %q", got)
+	}
+}
+
+func TestValidateTaskMenuAnchor(t *testing.T) {
+	for _, anchor := range []*TaskMenuAnchor{nil, {}, {X: 12.5, Y: -0.25},
+		{X: -maxTaskMenuAnchorCoordinate, Y: maxTaskMenuAnchorCoordinate}} {
+		if err := validateTaskMenuAnchor(anchor); err != nil {
+			t.Fatalf("valid anchor %+v: %v", anchor, err)
+		}
+	}
+	for name, anchor := range map[string]TaskMenuAnchor{
+		"NaN X": {X: math.NaN()}, "NaN Y": {Y: math.NaN()},
+		"infinite X": {X: math.Inf(1)}, "infinite Y": {Y: math.Inf(-1)},
+		"high X": {X: maxTaskMenuAnchorCoordinate + 0.25},
+		"low X":  {X: -maxTaskMenuAnchorCoordinate - 0.25},
+		"high Y": {Y: maxTaskMenuAnchorCoordinate + 0.25},
+		"low Y":  {Y: -maxTaskMenuAnchorCoordinate - 0.25},
+	} {
+		t.Run(name, func(t *testing.T) {
+			want := validateTaskMenuAnchor(&anchor)
+			if want == nil {
+				t.Fatal("expected validation error")
+			}
+			app := &App{}
+			app.taskMenus.closed.Store(true)
+			id, err := app.ShowTaskContextMenuAt([]TaskMenuItem{{ID: "edit", Label: "Edit"}}, &anchor)
+			if id != "" || err == nil || err.Error() != want.Error() {
+				t.Fatalf("API must validate anchor before native owner checks: id=%q err=%v", id, err)
+			}
+		})
+	}
+	if _, err := (&App{}).ShowTaskContextMenuAt(nil, &TaskMenuAnchor{}); err == nil {
+		t.Fatal("anchored API must also validate items")
 	}
 }

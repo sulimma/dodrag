@@ -85,7 +85,7 @@ afterEach(() => {
 
 async function mount() { await act(async () => root.render(<App />)); }
 function click(target: Element) { act(() => target.dispatchEvent(new MouseEvent('click', { bubbles: true }))); }
-function button(title: string) { return element.querySelector<HTMLButtonElement>(`button[title="${title}"]`)!; }
+function button(title: string) { return element.querySelector<HTMLButtonElement>(`button[title="${title}"],button[title^="${title} ("]`)!; }
 function key(key: string, target: EventTarget = document.body, modifiers = {}) {
   act(() => target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })));
 }
@@ -838,6 +838,44 @@ it('resubmits each selected task relative to its own visible date in a single ba
   expect(selectedIds()).toEqual(['26-101', '26-102']);
 });
 
+it('does not invent a task context without selection and anchors editor/log menus independently', async () => {
+  api.ShowTaskContextMenuAt = vi.fn(async () => '');
+  await mount();
+  await act(async () => key('ContextMenu'));
+  expect(api.ShowTaskContextMenuAt).not.toHaveBeenCalled();
+  expect(api.ShowTaskContextMenu).not.toHaveBeenCalled();
+  selectTask('26-101'); key('D', document.body, { ctrlKey: true, shiftKey: true });
+  for (const selector of ['.tiptap', '[data-task-log] textarea']) {
+    const field = element.querySelector<HTMLElement>(selector)!;
+    act(() => field.focus());
+    await act(async () => key('F10', field, { shiftKey: true }));
+    const items = vi.mocked(api.ShowTaskContextMenuAt).mock.lastCall![0];
+    expect(items.map(item => item.shortcut)).toEqual(['Ctrl+X', 'Ctrl+C', 'Ctrl+V']);
+    expect(items.some(item => item.id === 'complete')).toBe(false);
+  }
+});
+
+it('supports mini F6, anchored task menus and Ctrl++ without restoring, but not completed tasks', async () => {
+  api.ShowTaskContextMenuAt = vi.fn(async () => '');
+  await mount();
+  await act(async () => key('m', document.body, { ctrlKey: true }));
+  const field = element.querySelector<HTMLInputElement>('input')!;
+  act(() => field.focus()); key('F6', field);
+  expect(document.activeElement).toBe(element.querySelector('[data-shortcut-region="1"]'));
+  key('ArrowDown');
+  await act(async () => key('ContextMenu'));
+  expect(api.ShowTaskContextMenuAt).toHaveBeenCalledOnce();
+  await act(async () => key('+', document.body, { ctrlKey: true }));
+  expect(api.AppendBatch).toHaveBeenCalledOnce(); expect(api.ExitMiniMode).not.toHaveBeenCalled();
+  await act(async () => key('m', document.body, { ctrlKey: true }));
+  vi.mocked(api.GetEvents).mockResolvedValue([...history, { seq: 3, id: 'done', timestamp: date, undone: false,
+    type: 'TASK_COMPLETED', payload: { taskId: '26-101', completedAt: date } }]);
+  await act(async () => root.render(<App key="completed-check" />));
+  selectTask('26-101');
+  await act(async () => key('+', document.body, { ctrlKey: true }));
+  expect(api.AppendBatch).toHaveBeenCalledOnce();
+});
+
 it.each(['Liste', 'Netzplan', 'Gantt'])('freezes the drag group and links every member to the target in one batch in %s', async view => {
   vi.mocked(api.GetEvents).mockResolvedValue(groupHistory);
   vi.mocked(api.AppendBatch).mockResolvedValue(groupHistory);
@@ -920,4 +958,76 @@ it('retains a failed completion group and ignores external or cancelled drop ide
   await act(async () => dragEvent(element.querySelector('aside .flex-1.min-h-0')!, 'drop'));
   await act(async () => dragEvent(element.querySelector('[data-task-drag="26-102"]')!, 'drop'));
   expect(api.AppendBatch).toHaveBeenCalledTimes(1);
+});
+
+it('opens F1 help and settings from text fields while modal dialogs block other new shortcuts', async () => {
+  await mount();
+  const field = element.querySelector<HTMLInputElement>('header input')!;
+  key('F1', field);
+  expect(element.querySelector('[role="dialog"]')).not.toBeNull();
+  key('3', field, { ctrlKey: true }); key(',', field, { ctrlKey: true });
+  expect(element.querySelector('[data-shortcut-region="1"]')?.getAttribute('data-task-drop-target')).toBe('list-background');
+  key('Escape');
+  await act(async () => key(',', field, { ctrlKey: true }));
+  expect(element.textContent).toContain(t('Einstellungen & Datenbanken'));
+  expect(element.querySelector('.fixed.inset-0.z-50')).not.toBeNull();
+  key('F1'); expect(element.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it('switches main views and details with exact control modifiers but leaves mini views alone', async () => {
+  await mount();
+  for (const [keyValue, view] of [['2', 'network'], ['3', 'gantt'], ['1', 'list']]) {
+    key(keyValue, document.body, { ctrlKey: true });
+    expect(element.querySelector(`button[aria-keyshortcuts="Control+${keyValue}"]`)!.className).toContain('bg-white');
+    if (view === 'list') expect(element.querySelector('main')!.getAttribute('data-task-drop-target')).toBe('list-background');
+  }
+  key('D', document.body, { ctrlKey: true, shiftKey: true });
+  expect(element.querySelector('[data-detail-toggle]')!.getAttribute('aria-expanded')).toBe('true');
+  key('D', document.body, { ctrlKey: true, shiftKey: true, repeat: true });
+  expect(element.querySelector('[data-detail-toggle]')!.getAttribute('aria-expanded')).toBe('true');
+  key('D', document.body, { ctrlKey: true, shiftKey: true });
+  expect(element.querySelector('[data-detail-toggle]')!.getAttribute('aria-expanded')).toBe('false');
+  await act(async () => key('m', document.body, { ctrlKey: true }));
+  key('3', document.body, { ctrlKey: true }); key('D', document.body, { ctrlKey: true, shiftKey: true });
+  expect(api.ExitMiniMode).not.toHaveBeenCalled();
+  await act(async () => key(',', document.body, { ctrlKey: true }));
+  expect(api.ExitMiniMode).toHaveBeenCalledOnce();
+  expect(element.querySelector('.fixed.inset-0.z-50')).not.toBeNull();
+});
+
+it('cycles F6 regions forward and backward, including the editor and log but not a collapsed panel', async () => {
+  await mount(); selectTask('26-101');
+  const main = element.querySelector<HTMLElement>('main')!;
+  act(() => main.focus());
+  key('F6', main);
+  expect(document.activeElement).toBe(element.querySelector('[data-shortcut-region="5"]'));
+  key('F6', document.activeElement!, { shiftKey: true }); expect(document.activeElement).toBe(main);
+  key('D', main, { ctrlKey: true, shiftKey: true });
+  key('F6', main); expect(document.activeElement).toBe(element.querySelector('[data-task-detail-panel]'));
+  key('F6', document.activeElement!); expect(document.activeElement?.closest('[data-description-editor]')).not.toBeNull();
+  key('F6', document.activeElement!); expect(document.activeElement).toBe(element.querySelector('[data-task-log] textarea'));
+  key('F6', document.activeElement!, { shiftKey: true }); expect(document.activeElement?.closest('[data-description-editor]')).not.toBeNull();
+  key('D', document.activeElement!, { ctrlKey: true, shiftKey: true }); expect(document.activeElement).toBe(main);
+});
+
+it.each([['+', {}], ['+', { shiftKey: true }], ['Add', { code: 'NumpadAdd' }]])('resubmits with Ctrl plus %s, ignores repeats, text entry and AltGr', async (value, modifiers) => {
+  await mount(); selectTask('26-101');
+  const field = element.querySelector<HTMLInputElement>('header input')!;
+  key(value, field, { ctrlKey: true, ...modifiers });
+  key(value, document.body, { ctrlKey: true, altKey: true, ...modifiers });
+  key(value, document.body, { ctrlKey: true, repeat: true, ...modifiers });
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+  await act(async () => key(value, document.body, { ctrlKey: true, ...modifiers }));
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({ type: 'TASK_START_DATE_SET', payload: { taskId: '26-101' } });
+});
+
+it.each([['F10', { shiftKey: true }], ['ContextMenu', {}]])('anchors %s native menus to the selected task and retains multi-selection', async (value, modifiers) => {
+  api.ShowTaskContextMenuAt = vi.fn(async () => '');
+  await mount(); selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
+  const target = element.querySelector('[data-task-drag="26-102"]')!;
+  vi.spyOn(target, 'getBoundingClientRect').mockReturnValue(new DOMRect(40, 50, 100, 30));
+  await act(async () => key(value, document.body, modifiers));
+  expect(api.ShowTaskContextMenuAt).toHaveBeenCalledWith(expect.any(Array), { x: 40, y: 80 });
+  expect(api.ShowTaskContextMenu).not.toHaveBeenCalled();
+  expect(selectedIds()).toEqual(['26-101', '26-102']);
 });

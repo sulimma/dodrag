@@ -60,3 +60,33 @@ func TestTaskMenuDispatchCanceledOwner(t *testing.T) {
 		t.Fatalf("expected cancellation, got %+v", result)
 	}
 }
+
+func TestTaskMenuClientPoint(t *testing.T) {
+	for _, tc := range []struct {
+		anchor TaskMenuAnchor
+		dpi    uint32
+		want   winPoint
+	}{
+		{TaskMenuAnchor{X: 10, Y: 20}, 96, winPoint{X: 10, Y: 20}},
+		{TaskMenuAnchor{X: 10, Y: 20}, 144, winPoint{X: 15, Y: 30}},
+		{TaskMenuAnchor{X: 10.25, Y: -20.25}, 192, winPoint{X: 21, Y: -41}},
+		{TaskMenuAnchor{X: 10, Y: -10}, 72, winPoint{X: 8, Y: -8}},
+		{TaskMenuAnchor{X: maxTaskMenuAnchorCoordinate, Y: -maxTaskMenuAnchorCoordinate}, 480,
+			winPoint{X: 5 * maxTaskMenuAnchorCoordinate, Y: -5 * maxTaskMenuAnchorCoordinate}},
+	} {
+		if got := taskMenuClientPoint(tc.anchor, tc.dpi); got != tc.want {
+			t.Errorf("anchor %+v at DPI %d: got %+v, want %+v", tc.anchor, tc.dpi, got, tc.want)
+		}
+	}
+}
+
+func TestTaskMenuNilAnchorKeepsLegacyOwnerChecks(t *testing.T) {
+	app := &App{}
+	app.taskMenus.closed.Store(true)
+	items := []TaskMenuItem{{ID: "edit", Label: "Edit"}}
+	legacyID, legacyErr := app.ShowTaskContextMenu(items)
+	anchoredID, anchoredErr := app.ShowTaskContextMenuAt(items, nil)
+	if legacyID != anchoredID || legacyErr == nil || anchoredErr == nil || legacyErr.Error() != anchoredErr.Error() {
+		t.Fatalf("nil anchor changed legacy behavior: (%q, %v) vs (%q, %v)", legacyID, legacyErr, anchoredID, anchoredErr)
+	}
+}

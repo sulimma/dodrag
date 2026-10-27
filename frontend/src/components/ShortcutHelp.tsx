@@ -117,6 +117,29 @@ export function ShortcutHelp({
             </nav>
             {page === 'syntax' ? <SyntaxHelp /> : <>
             <div className="space-y-2 text-xs text-slate-600">
+              {[
+                { label: t('Hilfe öffnen'), shortcut: 'F1' },
+                { label: t('Kontextmenü öffnen'), shortcut: 'Shift+F10', alternative: t('Kontextmenütaste') },
+                { label: t('Nächsten Bereich fokussieren'), shortcut: 'F6' },
+                { label: t('Vorherigen Bereich fokussieren'), shortcut: 'Shift+F6' },
+                { label: t('Einstellungen öffnen'), shortcut: 'Ctrl+,' },
+                { label: t('Liste'), shortcut: 'Ctrl+1', note: t('Nur Hauptansicht') },
+                { label: t('Netzplan'), shortcut: 'Ctrl+2', note: t('Nur Hauptansicht') },
+                { label: t('Gantt'), shortcut: 'Ctrl+3', note: t('Nur Hauptansicht') },
+                { label: t('Details ein-/ausblenden'), shortcut: 'Ctrl+Shift+D', note: t('Nur Hauptansicht') },
+                { label: t('Wiedervorlage +1 Tag'), shortcut: 'Ctrl++', note: t('Hauptansicht und Mini-Ansicht'), condition: t('Nur außerhalb Texteingaben. Offener ausgewählter Task erforderlich.') },
+              ].map(({ label, shortcut, alternative, note, condition }) => (
+                <div key={shortcut} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
+                  <span>
+                    {label}
+                    {note && <small className="block text-slate-500">{note}</small>}
+                    {condition && <small className="block text-slate-500">{condition}</small>}
+                  </span>
+                  <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700 whitespace-normal">
+                    {shortcut}{alternative && <> / {alternative}</>}
+                  </kbd>
+                </div>
+              ))}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
                 <span>
                   {t('Abhängigkeit hinzufügen (Vorgänger → abhängiger Task)')}

@@ -128,6 +128,12 @@ export function App() {
     snapshotReady,
     listScrollRef,
     newTaskInputRef,
+    onSettings: () => { if (isMiniMode) void handleRestoreFromMiniMode().catch(error => pushToast(errorText(t('Fenster wiederherstellen'), error), 'warning')); database.openSettings(); },
+    onViewChange: setViewMode,
+    onToggleDetails: () => {
+      if (isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]')) listScrollRef.current?.focus();
+      setIsDetailPanelOpen(open => !open);
+    },
     startInlineEdit: task => {
       setEditOwner(isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]') ? 'detail' : 'view');
       editors.startInlineEdit(task);
@@ -369,6 +375,7 @@ export function App() {
         <div className="relative flex flex-1 min-w-0 overflow-hidden">
           <main
             ref={listScrollRef}
+            tabIndex={0} data-shortcut-region="1"
             data-task-drop-target={viewMode === 'list' ? listBackgroundKey : undefined}
             onDragOver={viewMode === 'list' ? (event) => {
               event.preventDefault();

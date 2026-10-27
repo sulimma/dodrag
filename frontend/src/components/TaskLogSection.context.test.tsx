@@ -65,9 +65,9 @@ function flushFrames() { act(() => { frames.splice(0).forEach(callback => callba
 it('offers translated input-only actions with cut/copy disabled without a selection', async () => {
   change('first second'); field().setSelectionRange(3, 3);
   expect(menu(field()).items).toEqual([
-    { id: 'cut', label: t('Ausschneiden'), disabled: true },
-    { id: 'copy', label: t('Kopieren'), disabled: true },
-    { id: 'paste', label: t('Einfügen'), disabled: false },
+    { id: 'cut', label: t('Ausschneiden'), shortcut: 'Ctrl+X', disabled: true },
+    { id: 'copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: true },
+    { id: 'paste', label: t('Einfügen'), shortcut: 'Ctrl+V', disabled: false },
   ]);
   await execute('cut'); await execute('copy'); await execute('complete');
   expect(writeText).not.toHaveBeenCalled(); expect(field().value).toBe('first second');
