@@ -89,6 +89,21 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
     editorProps: {
       attributes: { class: 'dodrag-description min-h-full outline-none text-sm leading-relaxed text-slate-800 break-words', 'aria-label': t('Beschreibung'), autocomplete: 'off', autocorrect: 'off', autocapitalize: 'off' },
       clipboardTextSerializer: slice => liveEditor.current ? markdownStorage(liveEditor.current).serializer.serialize(slice.content) : '',
+      transformPastedHTML: html => {
+        const container = document.createElement('div');
+        container.innerHTML = html;
+        // ponytail: Only direct trailing BRs in LI are normalized; nested text/code
+        // and intentional empty paragraphs remain untouched, not guessed away.
+        for (const item of container.querySelectorAll('li')) {
+          for (const node of Array.from(item.childNodes).reverse()) {
+            if (node.nodeType === globalThis.Node.COMMENT_NODE ||
+              node.nodeType === globalThis.Node.TEXT_NODE && !node.textContent?.trim()) continue;
+            if (!(node instanceof Element) || node.tagName !== 'BR') break;
+            node.remove();
+          }
+        }
+        return container.innerHTML;
+      },
       clipboardTextParser: (text, context, plain, view) => {
         const editor = liveEditor.current;
         if (!editor || plain || context.parent.type.spec.code) return null!;
@@ -245,20 +260,23 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
         } else await navigator.clipboard.writeText(text);
         if (action === 'editor:cut' && !editor.isDestroyed && session === taskSession.current) editor.chain().focus().deleteRange({ from, to }).run();
       } else if (action === 'editor:paste') {
-        let content: string | undefined;
-        let contentType: 'html' | 'markdown' = 'markdown';
+        const formats = new Map<string, string>();
         if (navigator.clipboard.read) {
           const clipboard = await navigator.clipboard.read();
-          const rich = clipboard.find(item => item.types.includes('text/html'));
-          if (rich) { content = await (await rich.getType('text/html')).text(); contentType = 'html'; }
-          else {
-            const plain = clipboard.find(item => item.types.includes('text/plain'));
-            if (plain) content = await (await plain.getType('text/plain')).text();
+          for (const type of ['text/html', 'text/plain']) {
+            const item = clipboard.find(item => item.types.includes(type));
+            if (item) formats.set(type, await (await item.getType(type)).text());
           }
-        } else content = await navigator.clipboard.readText();
-        if (content !== undefined && !editor.isDestroyed && session === taskSession.current) {
-          editor.view.dispatch(closeHistory(editor.state.tr));
-          editor.chain().insertContent(content, { contentType }).command(({ tr }) => { tr.setMeta('description:boundary', true); return true; }).run();
+        } else formats.set('text/plain', await navigator.clipboard.readText());
+        if (formats.size && !editor.isDestroyed && session === taskSession.current) {
+          // Dispatch directly to ProseMirror, not an OS paste. Its public pasteText
+          // forces plain-text mode; this adapter preserves both formats and the
+          // same Markdown, code-context, normalization and undo rules as Ctrl+V.
+          const event = new Event('paste', { cancelable: true });
+          Object.defineProperty(event, 'clipboardData', { value: {
+            types: [...formats.keys()], files: [], getData: (type: string) => formats.get(type) ?? '',
+          } });
+          editor.view.dispatchEvent(event);
           editor.view.focus();
         }
       }

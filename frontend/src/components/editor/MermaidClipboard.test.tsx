@@ -136,11 +136,13 @@ it.each(['copy', 'cut'] as const)('serializes the selected model when %s origina
   expect(onError).not.toHaveBeenCalled();
 });
 
-it('keeps fenced clipboard text raw when pasting into an existing code block', async () => {
-  const { editor, element } = await mount('```js\nexisting\n```');
+it.each(['keyboard', 'menu'] as const)('keeps fenced clipboard text raw in an existing code block via %s, even with HTML available', async route => {
+  const mounted = await mount('```js\nexisting\n```');
+  const { editor, element } = mounted;
   act(() => { editor.commands.setTextSelection(1); editor.view.focus(); });
   const data = new ClipboardData(); data.setData('text/plain', fenced);
-  await clipboardEvent(editor, 'paste', data);
+  data.setData('text/html', '<p><strong>not the code source</strong></p>');
+  await pasteVia(route, mounted, data);
   expect(editor.state.doc.childCount).toBe(1);
   expect(editor.state.doc.firstChild!.attrs.language).toBe('js');
   expect(editor.state.doc.firstChild!.textContent).toBe(`${fenced}existing`);
@@ -187,6 +189,77 @@ function nativeClipboard(data: ClipboardData, rich: boolean) {
   });
   return { write, read, writeText, readText };
 }
+
+async function pasteVia(route: 'keyboard' | 'menu', mounted: Awaited<ReturnType<typeof mount>>, data: ClipboardData) {
+  if (route === 'keyboard') return clipboardEvent(mounted.editor, 'paste', data);
+  nativeClipboard(data, true);
+  await act(async () => mounted.editor.view.dom.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  const menu = mounted.onContextMenu.mock.lastCall![1] as EditorContextMenu;
+  await act(async () => menu.execute('editor:paste'));
+}
+
+it.each(['keyboard', 'menu'] as const)('normalizes Gemini trailing list BRs via %s and roundtrips a compact list', async route => {
+  const mounted = await mount('');
+  const { editor, onChange, onError } = mounted;
+  act(() => editor.view.focus());
+  const data = new ClipboardData();
+  data.setData('text/plain', '* Äpfel\r\n* Bananen\r\n* Orangen\r\n* Erdbeeren');
+  data.setData('text/html', '<html><body><div class="markdown" style="line-height:1.15"><ul>' +
+    '<li><div><span>Äpfel</span></div><br></li>' +
+    '<li><div><span>Bananen</span></div><br><br> \n<!-- spacer --><br>\n</li>' +
+    '<li><div><span>Orangen</span></div><br></li>' +
+    '<li><div><span>Erdbeeren</span></div></li></ul></div></body></html>');
+  await pasteVia(route, mounted, data);
+  const expected = (await mount('- Äpfel\n- Bananen\n- Orangen\n- Erdbeeren')).editor.getJSON();
+  expect(editor.getJSON()).toEqual(expected);
+  const saved = onChange.mock.lastCall![0] as string;
+  expect(saved).not.toContain('&nbsp;');
+  expect(onChange.mock.lastCall![1]).toMatchObject({ historyBoundary: true });
+  expect((await mount(saved)).editor.getJSON()).toEqual(expected);
+  act(() => editor.commands.undo());
+  expect(editor.getMarkdown()).toBe('');
+  act(() => editor.commands.redo());
+  expect(editor.getJSON()).toEqual(expected);
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it.each(['keyboard', 'menu'] as const)('preserves internal breaks, formatting, nested lists and code via %s', async route => {
+  const mounted = await mount('');
+  const { editor, onError } = mounted;
+  act(() => editor.view.focus());
+  const data = new ClipboardData(); data.setData('text/plain', 'unformatted alternative');
+  data.setData('text/html', '<ol><li>one<br><strong>two</strong><br><br></li>' +
+    '<li><p>outer</p><ul><li>inner<br><br></li></ul><br><br></li>' +
+    '<li><p>code:</p><pre><code>line 1\n\nline 2\n</code></pre><br><br></li></ol>' +
+    '<p>outside<br><br>end</p>');
+  await pasteVia(route, mounted, data);
+  expect(editor.state.doc.firstChild!.type.name).toBe('orderedList');
+  const list = editor.state.doc.firstChild!;
+  expect(list.child(0).childCount).toBe(1);
+  expect(list.child(0).firstChild!.content.content.map(node => node.type.name)).toEqual(['text', 'hardBreak', 'text']);
+  expect(list.child(0).firstChild!.lastChild!.marks[0].type.name).toBe('bold');
+  expect(list.child(1).childCount).toBe(2);
+  expect(list.child(1).lastChild!.type.name).toBe('bulletList');
+  expect(list.child(1).lastChild!.firstChild!.firstChild!.textContent).toBe('inner');
+  const code = list.child(2).content.content.find(node => node.type.name === 'codeBlock')!;
+  expect(code.textContent).toBe('line 1\n\nline 2\n');
+  expect(editor.state.doc.lastChild!.content.content.filter(node => node.type.name === 'hardBreak')).toHaveLength(2);
+  expect(editor.state.doc.textContent).not.toContain('unformatted alternative');
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it.each(['keyboard', 'menu'] as const)('replaces a selection with Markdown via %s using the same inline fitting and undo', async route => {
+  const mounted = await mount('before replace after');
+  const { editor, onChange, onError } = mounted;
+  act(() => { editor.commands.setTextSelection({ from: 8, to: 15 }); editor.view.focus(); });
+  const data = new ClipboardData(); data.setData('text/plain', '**bold**');
+  await pasteVia(route, mounted, data);
+  expect(editor.getMarkdown()).toBe('before **bold** after');
+  expect(onChange.mock.lastCall![1]).toMatchObject({ historyBoundary: true });
+  act(() => editor.commands.undo());
+  expect(editor.getMarkdown()).toBe('before replace after');
+  expect(onError).not.toHaveBeenCalled();
+});
 
 it.each([
   ['copy', true], ['copy', false], ['cut', true], ['cut', false],
