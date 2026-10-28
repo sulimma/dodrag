@@ -13,8 +13,8 @@ Diese Hinweise beruhen auf tatsaechlichen Build-/Testerfahrungen vom 2026-10-17.
 
 ## Versionierung
 
-- Dieses Projekt verwendet SemVer (`MAJOR.MINOR.PATCH`). Aktueller Stand: `0.2.2`. Solange `MAJOR` 0 ist, ist die API als instabil zu behandeln.
-- Version und Build-Zeitpunkt werden zur Buildzeit per `-ldflags "-X main.buildVersion=... -X main.buildTime=..."` in `app.go` gesetzt und ueber `GetSettings` an das Frontend geliefert. `build.ps1` setzt beide Werte beim Wails-Packaging. `main.buildVersion` faellt ohne ldflags auf `dev` zurueck, `main.buildTime` bleibt dann leer. Der Settings-Dialog zeigt beides im Footer an; ohne ldflags also `dev` ohne Zeitpunkt.
+- Dieses Projekt verwendet SemVer (`MAJOR.MINOR.PATCH`). Solange `MAJOR` 0 ist, ist die API als instabil zu behandeln. Keine aktuelle App-Version in Quellcode, Konfiguration oder Dokumentation fest eintragen.
+- Die App-Version wird beim Build ausschliesslich ueber den Pflichtparameter `-Version` von `build.ps1` bzw. `release.ps1` uebergeben. `build.ps1` injiziert sie per `-ldflags "-X main.buildVersion=... -X main.buildTime=..."` und temporaer in die Wails-Konfiguration fuer die Windows-Dateimetadaten; `wails.json` enthaelt keine feste Produktversion. `main.buildVersion` faellt ohne ldflags auf `dev` zurueck, `main.buildTime` bleibt dann leer. Der Settings-Dialog zeigt beides im Footer an; ohne ldflags also `dev` ohne Zeitpunkt.
 
 ## Internationalisierung
 

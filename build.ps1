@@ -1,7 +1,8 @@
 # Build and test with a local dependency cache; never stop or start user processes.
 param(
+    [Parameter(Mandatory = $true)]
     [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')]
-    [string]$Version = '0.2.2',
+    [string]$Version,
     [ValidateSet('amd64', 'arm64')][string]$Architecture = 'amd64'
 )
 $ErrorActionPreference = "Stop"
@@ -46,8 +47,19 @@ try {
         Copy-Item -LiteralPath "frontend\src\assets\app-icon.png" -Destination "build\appicon.png" -Force
         # Wails only generates ICO files when missing; never package an older cached icon.
         if (Test-Path -LiteralPath "build\windows\icon.ico") { Remove-Item -LiteralPath "build\windows\icon.ico" -Force }
-        go run github.com/wailsapp/wails/v2/cmd/wails@v2.9.2 build -s -platform "windows/$Architecture" -ldflags "-X main.buildVersion=$buildVersion -X main.buildTime=$buildTime" -o dodrag.exe
-        Assert-NativeSuccess "Wails packaging"
+        $wailsConfigPath = Join-Path $PSScriptRoot "wails.json"
+        $wailsConfigBytes = [IO.File]::ReadAllBytes($wailsConfigPath)
+        try {
+            $wailsConfig = [Text.Encoding]::UTF8.GetString($wailsConfigBytes) | ConvertFrom-Json
+            if (-not $wailsConfig.PSObject.Properties['info']) { $wailsConfig | Add-Member -MemberType NoteProperty -Name info -Value ([pscustomobject]@{}) }
+            $wailsConfig.info | Add-Member -MemberType NoteProperty -Name productVersion -Value $Version -Force
+            $wailsConfigJson = $wailsConfig | ConvertTo-Json -Depth 100
+            [IO.File]::WriteAllText($wailsConfigPath, $wailsConfigJson, (New-Object System.Text.UTF8Encoding -ArgumentList $false))
+            go run github.com/wailsapp/wails/v2/cmd/wails@v2.9.2 build -s -platform "windows/$Architecture" -ldflags "-X main.buildVersion=$buildVersion -X main.buildTime=$buildTime" -o dodrag.exe
+            Assert-NativeSuccess "Wails packaging"
+        } finally {
+            [IO.File]::WriteAllBytes($wailsConfigPath, $wailsConfigBytes)
+        }
     } finally { $env:GOTOOLCHAIN = $oldToolchain }
     if (-not (Test-Path -LiteralPath "build\bin\dodrag.exe")) { throw "Packaged executable missing" }
     if ($Architecture -eq 'amd64') { Copy-Item "build\bin\dodrag.exe" "dodrag.exe" -Force }
