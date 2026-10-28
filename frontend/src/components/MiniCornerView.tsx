@@ -137,18 +137,7 @@ export function MiniCornerView({
                   : 'bg-white text-slate-800 hover:bg-sky-50 hover:text-sky-900'
               }`}
             >
-              {titleEditor.taskId === task.id ? (
-                <TaskTitle task={task} editor={titleEditor} className="flex-1 select-text text-xs" />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onSelectAndRestore(task.id)}
-                  title={task.title}
-                  className="flex-1 min-w-0 h-full truncate text-left cursor-pointer"
-                >
-                  {task.title}
-                </button>
-              )}
+              <TaskTitle task={task} editor={titleEditor} className="flex-1 min-w-0 truncate text-left text-xs" />
               <TaskChecklistBadge progress={task.checklistProgress} compact />
               <div className="flex items-center gap-0.5 shrink-0 invisible group-hover:visible group-focus-within:visible">
                 <button

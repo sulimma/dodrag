@@ -102,10 +102,10 @@ try {
     }
      // Browser text selection and inline editing still work after pointer cleanup.
     const editableSource=diagram?page.locator('[data-task-drag="A"]').first():source;
-    const title=editableSource.getByText('Title A',{exact:true});
+    const title=editableSource.locator('[data-task-title]');
     assert.equal(await title.evaluate(element=>getComputedStyle(element).userSelect),'text');
-    await title.dblclick();
-    const editor=editableSource.locator('input');await editor.waitFor();
+    await title.click();
+    const editor=editableSource.locator('[data-task-title-editing="true"]');await editor.waitFor();
     assert.equal(await editor.evaluate(element=>getComputedStyle(element).userSelect),'text');
     await editor.press('Escape');
     await page.waitForFunction(()=>document.getAnimations().every(animation=>animation.playState!=='running'));

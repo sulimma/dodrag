@@ -69,12 +69,13 @@ const key = async (target: Element, value: string) => {
     key: value, bubbles: true, cancelable: true,
   })); });
 };
-const type = (input: HTMLInputElement, value: string) => act(() => {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+const type = (input: HTMLElement, value: string) => act(() => {
+  if (input instanceof HTMLInputElement) Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+  else input.textContent = value;
   input.dispatchEvent(new Event('input', { bubbles: true }));
 });
 const label = (kind: 'title' | 'date') => t(kind === 'title' ? 'Titel {id}' : 'Startdatum {id}', { id: taskId });
-const editor = (area: Element, kind: 'title' | 'date') => area.querySelector<HTMLInputElement>(`input[aria-label="${label(kind)}"]`);
+const editor = (area: Element, kind: 'title' | 'date') => area.querySelector<HTMLElement>(`${kind === 'title' ? '[data-task-title-editing="true"]' : 'input'}[aria-label="${label(kind)}"]`);
 
 async function mountWithDetails() {
   await act(async () => root.render(<App />));
@@ -211,7 +212,7 @@ it.each(['list', 'network', 'gantt', 'gantt-bar', 'completed'] as const)(
     }
     const target = view === 'completed' ? host.querySelector(`[data-completed-task="${taskId}"] span[data-task-selectable-text]`)!
       : view === 'gantt-bar' ? host.querySelector(`[data-gantt-node="${taskId}"]`)!
-      : list().querySelector('span[title="Alpha"]')!;
+      : list().querySelector(`[data-task-drag="${taskId}"]`)!;
     expect(target).not.toBeNull();
     click(target); click(target);
     await act(async () => target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })));
@@ -272,10 +273,10 @@ it.each(['F2', 'Enter'])('keeps %s title editing in the focused detail panel unt
   expect(input, 'Panel editor must survive the list focus effect and its blur commit').not.toBeNull();
   expect(editor(list(), 'title'), 'The other view must not open a competing input').toBeNull();
   expect(document.activeElement).toBe(input);
-  expect(input!.selectionStart).toBe(0); expect(input!.selectionEnd).toBe('Alpha'.length);
+  expect(window.getSelection()!.toString()).toBe('Alpha');
   expect(api.AppendBatch).not.toHaveBeenCalled();
   type(input!, 'Panel draft');
-  expect(document.activeElement).toBe(input); expect(input!.value).toBe('Panel draft');
+  expect(document.activeElement).toBe(input); expect(input!.textContent).toBe('Panel draft');
   expect(api.AppendBatch).not.toHaveBeenCalled();
   await key(input!, 'Enter');
   expect(api.AppendBatch).toHaveBeenCalledOnce();
@@ -289,11 +290,45 @@ it.each(['F2', 'Enter'])('keeps %s title editing in the focused detail panel unt
 
 it.each(['panel', 'list'] as const)('closes details on task double-click from its %s origin without starting a title editor', async origin => {
   await mountWithDetails(); const area = origin === 'panel' ? panel() : list();
-  await act(async () => { area.querySelector('span[title="Alpha"]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+  await act(async () => { area.querySelector(`[data-task-drag="${taskId}"]`)!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
   expect(toggle().getAttribute('aria-expanded')).toBe('false');
   expect(editor(list(), 'title')).toBeNull(); expect(editor(panel(), 'title')).toBeNull();
   expect(api.AppendBatch).not.toHaveBeenCalled();
 });
+
+it.each(['list', 'network', 'gantt', 'panel', 'mini'] as const)(
+  'edits the title on one click in %s without replacing its text surface or toggling details', async view => {
+    const today = new Date().toISOString();
+    history[0].payload = { taskId, title: 'Alpha', configuredStart: today, createdAt: today };
+    await mountWithDetails();
+    if (view === 'network' || view === 'gantt') click(host.querySelector(`button[aria-keyshortcuts="Control+${view === 'network' ? '2' : '3'}"]`)!);
+    if (view === 'mini') await act(async () => click(host.querySelector(`button[title^="${t('Minimieren (Kompaktansicht in Bildschirmecke)')}"]`)!));
+    const area = view === 'panel' ? panel() : view === 'mini' ? host.querySelector('[data-mini-task-id]')! : list();
+    const title = area.querySelector<HTMLElement>('[data-task-title]')!;
+    const originalClass = title.className;
+    act(() => { title.focus(); });
+    const range = document.createRange(); range.setStart(title.firstChild!, 1); range.setEnd(title.firstChild!, 4);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+    click(title);
+    expect(editor(area, 'title')).toBe(title);
+    expect(title.className).toBe(originalClass);
+    expect(window.getSelection()!.toString()).toBe('lph');
+    await act(async () => title.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })));
+    if (view !== 'mini') expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(api.ExitMiniMode).not.toHaveBeenCalled();
+    type(title, 'Discard'); await key(title, 'Escape');
+    expect(title.textContent).toBe('Alpha'); expect(editor(area, 'title')).toBeNull();
+    expect(api.AppendBatch).not.toHaveBeenCalled();
+    click(title); type(title, 'Renamed'); await key(title, 'Enter');
+    expect(api.AppendBatch).toHaveBeenCalledOnce();
+    expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({ type: 'TASK_RENAMED', payload: { taskId, title: 'Renamed' } });
+    expect(title.textContent).toBe('Renamed'); expect(editor(area, 'title')).toBeNull();
+    click(title); type(title, 'Blur renamed');
+    await act(async () => title.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    expect(title.textContent).toBe('Blur renamed'); expect(editor(area, 'title')).toBeNull();
+    expect(api.AppendBatch).toHaveBeenCalledTimes(2);
+  },
+);
 
 it.each(['panel', 'list'] as const)('keeps date editing and focus in its %s origin without premature persistence', async origin => {
   await mountWithDetails(); const area = origin === 'panel' ? panel() : list();

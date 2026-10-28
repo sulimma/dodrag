@@ -13,7 +13,7 @@ it('renders a focused inline editor with Enter and Escape in the shared title co
   const element=document.createElement('div');document.body.append(element);const root=createRoot(element);
   const editor:InlineEditor={taskId:'t1',value:'Unsaved draft',onChange:vi.fn(),onStart:vi.fn(),onCommit:vi.fn(),onCancel:vi.fn()};
   act(()=>root.render(<TaskTitle task={{id:'t1',title:'Original'} as TaskState} editor={editor}/>));
-  const input=element.querySelector('input')!;expect(document.activeElement).toBe(input);expect(input.value).toBe('Unsaved draft');
+  const input=element.querySelector<HTMLElement>('[data-task-title-editing]')!;expect(document.activeElement).toBe(input);expect(input.textContent).toBe('Unsaved draft');
   act(()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',isComposing:true,bubbles:true})));
   expect(editor.onCommit).not.toHaveBeenCalled();
   act(()=>input.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})));expect(editor.onCommit).toHaveBeenCalledTimes(1);
@@ -21,6 +21,28 @@ it('renders a focused inline editor with Enter and Escape in the shared title co
   act(()=>input.dispatchEvent(new FocusEvent('focusout',{bubbles:true})));
   expect(editor.onCommit).toHaveBeenCalledTimes(1);
   act(()=>root.unmount());element.remove();
+});
+
+it('pastes only plain single-line text and leaves completed titles read-only', () => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const editor: InlineEditor = { taskId: 't1', value: 'Original', onChange: vi.fn(), onStart: vi.fn(), onCommit: vi.fn(), onCancel: vi.fn() };
+  const insert = vi.fn(); const previous = Object.getOwnPropertyDescriptor(document, 'execCommand');
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: insert });
+  try {
+    act(() => root.render(<TaskTitle task={{ id: 't1', title: 'Original' } as TaskState} editor={editor} />));
+    const title = element.querySelector<HTMLElement>('[data-task-title]')!;
+    const paste = new Event('paste', { bubbles: true, cancelable: true });
+    const getData = vi.fn(() => 'Plain\r\ntext'); Object.defineProperty(paste, 'clipboardData', { value: { getData } });
+    act(() => title.dispatchEvent(paste));
+    expect(paste.defaultPrevented).toBe(true); expect(getData).toHaveBeenCalledWith('text/plain');
+    expect(insert).toHaveBeenCalledWith('insertText', false, 'Plain text');
+    act(() => root.render(<TaskTitle task={{ id: 't1', title: 'Original', completed: true } as TaskState} editor={{ ...editor, taskId: null }} />));
+    expect(title.getAttribute('contenteditable')).toBe('false');
+    act(() => title.click()); expect(editor.onStart).not.toHaveBeenCalled();
+  } finally {
+    act(() => root.unmount()); element.remove();
+    if (previous) Object.defineProperty(document, 'execCommand', previous); else Reflect.deleteProperty(document, 'execCommand');
+  }
 });
 
 it('defaults demo checkbox from existing files and follows database creation until the user overrides it', () => {

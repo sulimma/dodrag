@@ -33,12 +33,12 @@ try {
     assert.equal(await newTask.evaluate(node => node === document.activeElement), false, 'ordinary task click blurs new-task input');
     assert.equal(await page.locator('[data-task-drag-preview]').count(), 0, 'ordinary click does not start a preview');
   }
-  await source.getByText('Task 0', { exact: true }).dblclick();
-  await source.locator('input').fill('Committed by task click');
+  await source.locator('[data-task-title]').click();
+  await source.locator('[data-task-title-editing="true"]').fill('Committed by task click');
   await page.locator('[data-task-drag="T1"] [data-drag-handle]').click();
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('dodrag_sqlite_fallback_events_v1'))
     .some(event => event.type === 'TASK_RENAMED' && event.payload.title === 'Committed by task click'));
-  assert.equal(await source.locator('input').count(), 0, 'clicking another handle commits inline editor on blur');
+  assert.equal(await source.locator('[data-task-title-editing="true"]').count(), 0, 'clicking another handle commits inline editor on blur');
   await source.locator('[data-drag-handle]').click();
   await page.locator('[data-task-drag="T1"] [data-drag-handle]').click({ modifiers: ['Control'] });
   assert.equal(await source.getAttribute('data-task-selected'), 'true');

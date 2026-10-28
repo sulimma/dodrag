@@ -16,7 +16,7 @@ it('shows compact hover/focus actions, targets the task and never restores for a
   task.predecessorIds = ['P'];
   task.allPredecessorIds = ['P'];
   const restore = vi.fn(), toggle = vi.fn(), resubmit = vi.fn(), complete = vi.fn();
-  const context = vi.fn(), create = vi.fn();
+  const context = vi.fn(), create = vi.fn(), startEdit = vi.fn();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const element = document.createElement('div');
   document.body.append(element);
@@ -25,7 +25,7 @@ it('shows compact hover/focus actions, targets the task and never restores for a
     onSelectAndRestore={restore} onRestoreWindow={restore}
     onToggleActive={toggle} onResubmitTasks={resubmit} onCompleteTask={complete}
     onContextMenuTask={context} titleEditor={{ taskId: null, value: '', onChange: vi.fn(),
-      onStart: vi.fn(), onCommit: vi.fn(), onCancel: vi.fn() }}
+      onStart: startEdit, onCommit: vi.fn(), onCancel: vi.fn() }}
     newTaskTitle="" setNewTaskTitle={vi.fn()} newTaskInputRef={React.createRef()}
     snapshotReady={true} onCreateTask={create} />));
   const click = (button: Element) => act(() => button.dispatchEvent(new MouseEvent('click', { bubbles: true })));
@@ -66,6 +66,9 @@ it('shows compact hover/focus actions, targets the task and never restores for a
     act(() => title.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
     expect(context).toHaveBeenCalledWith(expect.anything(), 'A');
     click(title);
+    expect(startEdit).toHaveBeenCalledWith(task);
+    expect(restore).not.toHaveBeenCalled();
+    act(() => title.closest('[data-mini-task-id]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
     expect(restore).toHaveBeenCalledWith('A');
   } finally {
     act(() => root.unmount()); element.remove(); vi.unstubAllGlobals();

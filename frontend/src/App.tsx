@@ -85,7 +85,7 @@ export function App() {
   const scopedEditor = (editor: InlineEditor, owner: 'view' | 'detail'): InlineEditor => ({
     ...editor,
     taskId: editOwner === owner ? editor.taskId : null,
-    onStart: task => { setEditOwner(owner); editor.onStart(task); },
+    onStart: task => { setSelectedTaskId(task.id); setEditOwner(owner); editor.onStart(task); },
   });
   // A single editing session has one visible input, not two competing autofocus effects.
   const titleEditor = scopedEditor(editors.titleEditor, 'view');
@@ -330,7 +330,7 @@ export function App() {
           event.target.closest('input,textarea,button,a,select,[contenteditable="true"]')) return;
         const taskId = event.target.closest<HTMLElement>('[data-task-drag]')?.dataset.taskDrag;
         if (!taskId || !state.tasks[taskId]) return;
-        // Capture before TaskTitle starts editing; the second click may have cleared selection.
+        // Only free task space toggles details; title text keeps native editing/selection.
         event.preventDefault(); event.stopPropagation();
         editors.cancelEdit(); setContextMenu(null); clearEdgeSelection();
         if (isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]')) listScrollRef.current?.focus();

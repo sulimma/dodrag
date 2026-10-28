@@ -85,11 +85,21 @@ afterEach(() => {
 
 async function mount() { await act(async () => root.render(<App />)); }
 function click(target: Element) { act(() => target.dispatchEvent(new MouseEvent('click', { bubbles: true }))); }
-function button(title: string) { return element.querySelector<HTMLButtonElement>(`button[title="${title}"],button[title^="${title} ("]`)!; }
+function button(title: string) {
+  return element.querySelector<HTMLElement>(`button[title="${title}"],button[title^="${title} ("]`)
+    ?? element.querySelector<HTMLElement>(`[title="${title}"],[title^="${title} ("]`)!;
+}
 function key(key: string, target: EventTarget = document.body, modifiers = {}) {
   act(() => target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...modifiers })));
 }
-function input(label: string) { return element.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!; }
+function input(label: `Titel ${string}`): HTMLSpanElement;
+function input(label: 'Task hinzufügen (Enter)'): HTMLInputElement;
+function input(label: string): HTMLInputElement | HTMLSpanElement;
+function input(label: string): HTMLInputElement | HTMLSpanElement {
+  return label.startsWith('Titel ')
+    ? element.querySelector<HTMLSpanElement>(`span[role="textbox"][data-task-title-editing="true"][aria-label="${label}"]`)!
+    : element.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
+}
 it('shares native mini context actions and task creation', async () => {
   await mount();
   const openContext = (target: Element) => act(() => target.dispatchEvent(
@@ -168,18 +178,16 @@ it('preserves a failed mini task creation draft and displays the error', async (
   expect(element.textContent).toContain('Mini save failed');
 });
 
-function type(target: HTMLInputElement, value: string) {
+function type(target: HTMLElement, value: string) {
   act(() => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(target, value);
+    if (target instanceof HTMLInputElement) {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(target, value);
+    } else target.textContent = value;
     target.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
 function editTitle(title: string) {
-  const row = element.querySelector(`span[title="${title}"]`)!.closest('[data-task-drag]')!;
-  if (row.getAttribute('data-task-selected') !== 'true') click(row);
-  act(() => {
-    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true, cancelable: true }));
-  });
+  click(element.querySelector(`span[data-task-title][title="${title}"]`)!);
 }
 function textButton(text: string) {
   return [...element.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent === text)!;
@@ -203,7 +211,7 @@ it.each(['title', 'date'] as const)('keeps a newer %s editor draft after the pre
   type(second, kind === 'title' ? 'Beta draft' : '2026-10-21');
   await act(async () => response.resolve(history));
   expect(second.isConnected).toBe(true);
-  expect(second.value).toBe(kind === 'title' ? 'Beta draft' : '2026-10-21');
+  expect(second instanceof HTMLInputElement ? second.value : second.textContent).toBe(kind === 'title' ? 'Beta draft' : '2026-10-21');
   expect(api.AppendBatch).toHaveBeenCalledTimes(1);
 });
 
@@ -224,7 +232,8 @@ it.each(['title', 'date'] as const)('protects cancelled and reopened same-task %
   start();
   type(input(label), kind === 'title' ? 'Reopened draft' : '2026-10-21');
   await act(async () => response.resolve(history));
-  expect(input(label).value).toBe(kind === 'title' ? 'Reopened draft' : '2026-10-21');
+  const reopened = input(label);
+  expect(reopened instanceof HTMLInputElement ? reopened.value : reopened.textContent).toBe(kind === 'title' ? 'Reopened draft' : '2026-10-21');
 });
 
 it.each(['title', 'date'] as const)('retains failed %s drafts and permits retry', async kind => {
@@ -237,7 +246,8 @@ it.each(['title', 'date'] as const)('retains failed %s drafts and permits retry'
   type(input(label), draft);
   key('Enter', input(label));
   await act(async () => response.reject(new Error('Save failed')));
-  expect(input(label).value).toBe(draft);
+  const failed = input(label);
+  expect(failed instanceof HTMLInputElement ? failed.value : failed.textContent).toBe(draft);
   expect(element.textContent).toContain('Save failed');
   await act(async () => key('Enter', input(label)));
   expect(input(label)).toBeNull();
@@ -253,7 +263,7 @@ it('does not close a draft changed during its own pending save', async () => {
   key('Enter', input('Titel 26-101'));
   type(input('Titel 26-101'), 'Newer draft');
   await act(async () => response.resolve(history));
-  expect(input('Titel 26-101').value).toBe('Newer draft');
+  expect(input('Titel 26-101').textContent).toBe('Newer draft');
 });
 
 it('clears old DB tasks after activation plus snapshot failure and recovers by reload', async () => {
@@ -340,7 +350,7 @@ it('keeps settings visible while busy and after an asynchronous error', async ()
 
 it('supports mini navigation, task actions, editors and history without preventing native button keys', async () => {
   await mount();
-  click(element.querySelector('span[title="Alpha"]')!);
+  selectTask('26-101');
   await act(async () => click(button('Minimieren (Kompaktansicht in Bildschirmecke)')));
   await act(async () => key('Delete'));
   expect(api.AppendBatch).not.toHaveBeenCalled();
@@ -382,10 +392,10 @@ it('supports mini navigation, task actions, editors and history without preventi
   expect(input('Titel 26-101')).toBeNull();
 });
 
-it.each(['a', 'd', 'Delete', 'F2'])('routes mini shortcut %s from task-button focus after keyboard navigation', async shortcut => {
+it.each(['a', 'd', 'Delete', 'F2'])('routes mini shortcut %s from task-row focus after keyboard navigation', async shortcut => {
   activeSettings.bootMinimized = true;
   await mount();
-  const alpha = button('Alpha');
+  const alpha = button('Alpha').closest<HTMLElement>('[data-mini-task-id]')!;
   act(() => alpha.focus());
   key('ArrowDown', alpha);
   expect(element.querySelector('[data-mini-task-id="26-102"]')!.getAttribute('data-task-selected')).toBe('true');
@@ -399,7 +409,7 @@ it.each(['a', 'd', 'Delete', 'F2'])('routes mini shortcut %s from task-button fo
 
 it.each(['help', 'context'] as const)('Escape dismisses %s with button or input focus but preserves selection', async overlay => {
   await mount();
-  click(element.querySelector('span[title="Alpha"]')!);
+  selectTask('26-101');
   for (const focus of ['button', 'input']) {
     if (overlay === 'help') click(button('Tastenkürzel & Bedienung (?)'));
     else act(() => element.querySelector('span[title="Alpha"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
@@ -417,7 +427,7 @@ it.each(['help', 'context'] as const)('Escape dismisses %s with button or input 
 
 it('editor Escape cancels once without clearing the underlying selected task', async () => {
   await mount();
-  click(element.querySelector('span[title="Alpha"]')!);
+  selectTask('26-101');
   editTitle('Alpha');
   type(input('Titel 26-101'), 'Cancelled');
   key('Escape', input('Titel 26-101'));
@@ -500,7 +510,7 @@ it.each(['main', 'mini'])('keeps syntax and shortcuts in the same blocking dialo
     return () => {};
   } };
   await mount();
-  click(element.querySelector('span[title="Alpha"]')!);
+  selectTask('26-101');
   click(element.querySelector('[data-detail-toggle]')!);
   click(button('Markdown-Syntax'));
   const dialog = () => element.querySelector<HTMLElement>('[role="dialog"]')!;
