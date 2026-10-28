@@ -22,8 +22,6 @@ try {
     Assert-NativeSuccess 'Current branch (detached HEAD is unsupported)'
     $commit = git rev-parse HEAD
     Assert-NativeSuccess 'Release commit'
-    $config = Get-Content -LiteralPath 'wails.json' -Raw | ConvertFrom-Json
-    if ($config.info.productVersion -ne $Version) { throw 'Commit the matching wails.json productVersion before releasing' }
     $tag = "v$Version"
     $existing = @(git tag --list $tag)
     Assert-NativeSuccess 'Local tag check'
