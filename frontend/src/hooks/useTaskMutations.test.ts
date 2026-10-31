@@ -13,19 +13,26 @@ it('toggles activity with predecessors without changing the configured date and 
   }));
   events.push({ seq: 3, id: 'dep', timestamp: now.toISOString(), undone: false,
     type: 'DEPENDENCY_ADDED', payload: { taskId: 'B', predecessorId: 'A' } });
-  const append = vi.spyOn(eventBridge, 'appendEvent').mockResolvedValue(events);
+  const confirmed = { current: events };
+  const append = vi.spyOn(eventBridge, 'appendBatch').mockImplementation(async commands => {
+    confirmed.current = [...confirmed.current, ...commands.map((command, index) => ({
+      ...command, seq: confirmed.current.length + index + 1, id: `active-${confirmed.current.length}-${index}`,
+      timestamp: now.toISOString(), undone: false,
+    } as StoredEvent))];
+    return confirmed.current;
+  });
   const moved = vi.fn();
   const toast = vi.fn();
   const refresh = vi.fn();
   try {
     const state = projectEvents(events, now);
-    const actions = useTaskMutations({ databaseIdentity: { current: 'A.db' }, confirmedEvents: { current: events },
+    const actions = useTaskMutations({ databaseIdentity: { current: 'A.db' }, confirmedEvents: confirmed,
       mutate: operation => operation() }, { selectedTaskIds: [], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn() },
-      state, now, { current: null }, moved, toast, refresh);
+      now, { current: null }, moved, toast, refresh);
     await actions.handleToggleActive(state.tasks.B);
-    expect(append).toHaveBeenCalledWith('TASK_ACTIVE_SET', { taskId: 'B', isActive: true });
+    expect(append).toHaveBeenCalledWith([{ type: 'TASK_ACTIVE_SET', payload: { taskId: 'B', isActive: true } }]);
     await actions.handleToggleActive({ ...state.tasks.B, isActive: true });
-    expect(append).toHaveBeenLastCalledWith('TASK_ACTIVE_SET', { taskId: 'B', isActive: false });
+    expect(append).toHaveBeenLastCalledWith([{ type: 'TASK_ACTIVE_SET', payload: { taskId: 'B', isActive: false } }]);
     expect(moved).toHaveBeenCalledWith('task:B');
     expect(refresh).toHaveBeenCalledWith(expect.any(Date));
     expect(toast).not.toHaveBeenCalled();
@@ -42,7 +49,7 @@ it('guards every group drop with the frozen database and source identity', async
   const identity: { current: DragIdentity | null } = { current: { database: 'A.db', taskId: 'A', taskIds: ['A', 'B'] } };
   const actions = useTaskMutations(database, {
     selectedTaskIds: ['C'], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn(),
-  }, projectEvents(events, now), now, identity, vi.fn(), vi.fn());
+  }, now, identity, vi.fn(), vi.fn());
   const drops = async (source: string) => {
     await actions.handleSetConfiguredDate(source, '2026-10-21T09:00:00.000Z', '2026-10-21', true);
     await actions.handleResubmitTasks(source, 'plus_1d', true);
@@ -80,7 +87,7 @@ it('reopens a completed task on every drop except the completed list', async () 
       databaseIdentity: { current: 'A.db' }, confirmedEvents: { current: events }, mutate: operation => operation(),
     }, {
       selectedTaskIds: [], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn(),
-    }, projectEvents(events, now), now, { current: { database: 'A.db', taskId: 'B', taskIds: ['B'] } }, vi.fn(), vi.fn());
+    }, now, { current: { database: 'A.db', taskId: 'B', taskIds: ['B'] } }, vi.fn(), vi.fn());
 
     await actions.handleSetConfiguredDate('B', '2026-10-21T09:00:00.000Z', '2026-10-21', true);
     expect(types()).toEqual(['TASK_REOPENED', 'TASK_START_DATE_SET']);
@@ -110,7 +117,7 @@ it('uses frozen group members for date drops even after selection changes', asyn
   try {
     const actions = useTaskMutations({ databaseIdentity: { current: 'A.db' }, confirmedEvents: { current: events }, mutate: operation => operation() }, {
       selectedTaskIds: ['C'], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn(),
-    }, projectEvents(events, now), now, { current: { database: 'A.db', taskId: 'A', taskIds: ['A', 'B'] } }, vi.fn(), vi.fn());
+    }, now, { current: { database: 'A.db', taskId: 'A', taskIds: ['A', 'B'] } }, vi.fn(), vi.fn());
     await actions.handleSetConfiguredDate('A', '2026-10-21T09:00:00.000Z', '2026-10-21', true);
     expect(append).toHaveBeenCalledTimes(1);
     expect(append.mock.calls[0][0].map(command => command.payload.taskId)).toEqual(['A', 'B']);

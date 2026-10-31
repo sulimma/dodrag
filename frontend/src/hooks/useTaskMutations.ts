@@ -1,32 +1,26 @@
 import { eventBridge } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';
-import {
-  calculateQuickResubmitDate,
-  formatIso8601Display,
-  projectEvents,
-} from '../domain/projector';
+import { calculateQuickResubmitDate, formatIso8601Display, projectEvents } from '../domain/projector';
 import type { QuickResubmitTargetId } from '../domain/projector';
 import { applyCommand, copyReplayTasks, replayCommands } from '../domain/commands';
+import { parseCommand, type EventCommand } from '../domain/eventSchema';
 import { normalizeUserDate } from '../domain/dates';
 import { dependencyPathEdges } from '../domain/dependencyPaths';
-import { useDatabaseSnapshot } from './useDatabaseSnapshot';
-import { useTaskSelection } from './useTaskSelection';
+import type { useDatabaseSnapshot } from './useDatabaseSnapshot';
+import type { useTaskSelection } from './useTaskSelection';
 import type { DragIdentity } from './useTaskDrag';
 import type { PushToast } from './useToasts';
 import { t, formatNumber } from '../i18n';
-import { appendTaskSources } from '../domain/taskSources';
-import type { EditorTarget } from '../components/editor/types';
-// Applies task commands and coordinates their selection and drag effects.
+
+type CurrentState = ReturnType<typeof projectEvents>;
+
+// Freeze user intent (members/drag identity) on admission. Read task state, derive
+// commands and validate the complete batch only when its FIFO turn starts.
+// In particular two queued "+1 day" actions must advance twice, not write the
+// same date twice. SQLite remains the final authority and revalidates atomically.
 export function useTaskMutations(
-  database: Pick<
-    ReturnType<typeof useDatabaseSnapshot>,
-    'mutate' | 'databaseIdentity' | 'confirmedEvents'
-  >,
-  selection: Pick<
-    ReturnType<typeof useTaskSelection>,
-    'selectedTaskIds' | 'setSelectedTaskIds' | 'clearEdgeSelection'
-  >,
-  state: ReturnType<typeof projectEvents>,
+  database: Pick<ReturnType<typeof useDatabaseSnapshot>, 'mutate' | 'databaseIdentity' | 'confirmedEvents'>,
+  selection: Pick<ReturnType<typeof useTaskSelection>, 'selectedTaskIds' | 'setSelectedTaskIds' | 'clearEdgeSelection'>,
   now: Date,
   dragIdentity: React.MutableRefObject<DragIdentity | null>,
   setLastMovedKey: (key: string) => void,
@@ -39,220 +33,145 @@ export function useTaskMutations(
     const identity = dragIdentity.current;
     if (fromDrag && (!identity || identity.database !== databaseIdentity.current || identity.taskId !== taskId)) return [];
     const ids = fromDrag ? identity!.taskIds : selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
-    const current = projectEvents(confirmedEvents.current, now);
-    return [...new Set(ids)].filter(id => current.tasks[id] && (includeCompleted || !current.tasks[id].completed));
+    return present([...new Set(ids)], projectEvents(confirmedEvents.current, now), includeCompleted);
   };
-  const reopenCommand = (id: string, tasks: ReturnType<typeof projectEvents>['tasks']) =>
-    tasks[id].completed
-      ? { type: 'TASK_REOPENED' as const, payload: { taskId: id } }
-      : null;
-  const handleAppendSources = async (taskId: string, sources: readonly EditorTarget[]) => {
-    const ids = taskGroup(taskId, false);
-    if (!ids.length || !sources.length) return;
-    const frozenSources = sources.map(source => ({ ...source }));
-    appendTaskSources('', frozenSources);
-    await mutate(() => {
-      // Read after preceding queued editor saves, never overwrite a newer description.
-      const current = projectEvents(confirmedEvents.current, new Date());
-      return eventBridge.appendBatch(ids.filter(id => current.tasks[id]).map(id => ({
-        type: 'TASK_DESCRIPTION_SET' as const,
-        payload: { taskId: id, description: appendTaskSources(current.tasks[id].description, frozenSources) },
-      })));
+  const present = (ids: readonly string[], current: CurrentState, includeCompleted = true) =>
+    ids.filter(id => current.tasks[id] && (includeCompleted || !current.tasks[id].completed));
+  const reopen = (id: string, current: CurrentState): EventCommand[] =>
+    current.tasks[id].completed ? [{ type: 'TASK_REOPENED', payload: { taskId: id } }] : [];
+
+  const commit = async (
+    build: (current: CurrentState) => EventCommand[],
+    onInvalid?: (command: EventCommand) => void
+  ) => {
+    let committed: EventCommand[] = [];
+    const updated = await mutate(async () => {
+      const replay = replayCommands(confirmedEvents.current);
+      const commands = build(projectEvents(confirmedEvents.current, now)).map(parseCommand);
+      const proposed = copyReplayTasks(replay);
+      const effective: EventCommand[] = [];
+      for (const command of commands) {
+        try { if (applyCommand(proposed, command)) effective.push(command); }
+        catch (error) {
+          if (!onInvalid) throw error;
+          onInvalid(command);
+          return confirmedEvents.current;
+        }
+      }
+      if (!effective.length) return confirmedEvents.current;
+      const events = await eventBridge.appendBatch(effective);
+      committed = effective;
+      return events;
     });
-  };
-  const handleToggleActive = async (task: TaskState) => {
-    const nextActive = !task.isActive;
-    setLastMovedKey(`task:${task.id}`);
-    refreshNow?.(new Date());
-    await mutate(() =>
-      eventBridge.appendEvent('TASK_ACTIVE_SET', {
-        taskId: task.id,
-        isActive: nextActive,
-      })
-    );
+    return updated && committed.length ? { events: updated, commands: committed } : null;
   };
 
-  const handleSetConfiguredDate = async (
-    taskId: string,
-    isoDate: string,
-    humanLabel: string,
-    fromDrag = false
-  ) => {
+  const handleToggleActive = async (task: TaskState) => {
+    setLastMovedKey(`task:${task.id}`);
+    refreshNow?.(new Date());
+    await commit(current => present([task.id], current, false).map(id => ({
+      type: 'TASK_ACTIVE_SET', payload: { taskId: id, isActive: !current.tasks[id].isActive },
+    })));
+  };
+
+  const handleSetConfiguredDate = async (taskId: string, isoDate: string, humanLabel: string, fromDrag = false) => {
     const ids = taskGroup(taskId, fromDrag);
     if (!ids.length) return;
-    const configuredStart = normalizeUserDate(
-      formatIso8601Display(isoDate).isoText,
-      now
-    );
-    const current = projectEvents(confirmedEvents.current, now);
-    const commands = ids.flatMap(id => {
-      const reopen = reopenCommand(id, current.tasks);
-      return [
-        ...(reopen ? [reopen] : []),
-        ...(Date.parse(current.tasks[id].configuredStart) !== Date.parse(configuredStart)
-          ? [{ type: 'TASK_START_DATE_SET' as const, payload: { taskId: id, configuredStart } }]
-          : []),
-      ];
-    });
-    if (!commands.length) return;
+    const configuredStart = normalizeUserDate(formatIso8601Display(isoDate).isoText, now);
     setLastMovedKey(`task:${taskId}`);
-    const updated = await mutate(() =>
-      eventBridge.appendBatch(commands)
-    );
-    if (!updated) return;
-    pushToast(t('Startdatum von {id} → {date}', { id: ids.join(', '), date: /^\d{4}-\d{2}-\d{2}$/.test(humanLabel) ? formatIso8601Display(isoDate).localizedText : humanLabel }), 'info');
+    const result = await commit(current => present(ids, current).flatMap(id => [
+      ...reopen(id, current),
+      { type: 'TASK_START_DATE_SET' as const, payload: { taskId: id, configuredStart } },
+    ]));
+    if (result) pushToast(t('Startdatum von {id} → {date}', {
+      id: ids.join(', '), date: /^\d{4}-\d{2}-\d{2}$/.test(humanLabel) ? formatIso8601Display(isoDate).localizedText : humanLabel,
+    }), 'info');
   };
 
   const handleResubmitTasks = async (taskId: string, target: QuickResubmitTargetId, fromDrag = false) => {
     const ids = taskGroup(taskId, fromDrag);
     if (!ids.length) return;
-    const current = projectEvents(confirmedEvents.current, now);
-    const commands = ids.flatMap(id => {
-      const reopen = reopenCommand(id, current.tasks);
-      return [
-        ...(reopen ? [reopen] : []),
-        {
-          type: 'TASK_START_DATE_SET' as const,
-          payload: { taskId: id, configuredStart: calculateQuickResubmitDate(target, current.tasks[id]) },
-        },
-      ];
-    });
-    if (!commands.length) return;
-    await mutate(() => eventBridge.appendBatch(commands));
+    await commit(current => present(ids, current).flatMap(id => [
+      ...reopen(id, current),
+      { type: 'TASK_START_DATE_SET' as const, payload: { taskId: id, configuredStart: calculateQuickResubmitDate(target, current.tasks[id]) } },
+    ]));
   };
 
-  const handleAddPredecessor = async (
-    draggedId: string,
-    targetTaskId: string
-  ) => {
+  const handleAddPredecessor = async (draggedId: string, targetTaskId: string) => {
     const ids = taskGroup(draggedId, true).filter(id => id !== targetTaskId);
     if (!ids.length) return;
-    const replay = replayCommands(confirmedEvents.current);
-    if (!replay.tasks.has(targetTaskId)) return;
-    const commands = ids.flatMap(id => {
-      const task = replay.tasks.get(id)!;
-      return [
-        ...(task.completed ? [{ type: 'TASK_REOPENED' as const, payload: { taskId: id } }] : []),
-        ...(!task.predecessors.has(targetTaskId)
-          ? [{ type: 'DEPENDENCY_ADDED' as const, payload: { taskId: id, predecessorId: targetTaskId } }]
-          : []),
-      ];
-    });
-    if (!commands.length) return;
-    // Validate the complete proposed graph before sending any command to the backend.
-    const proposed = copyReplayTasks(replay);
-    for (const command of commands) {
-      try { applyCommand(proposed, command); }
-      catch {
-        pushToast(t('Zyklus verhindert: {id} ist bereits Vorgänger von {target}', { id: command.payload.taskId, target: targetTaskId }), 'warning');
-        return;
-      }
-    }
     setLastMovedKey(`task:${draggedId}`);
-    await mutate(() => eventBridge.appendBatch(commands));
+    await commit(current => !current.tasks[targetTaskId] ? [] : present(ids, current).flatMap(id => [
+      ...reopen(id, current),
+      { type: 'DEPENDENCY_ADDED' as const, payload: { taskId: id, predecessorId: targetTaskId } },
+    ]), command => pushToast(t('Zyklus verhindert: {id} ist bereits Vorgänger von {target}', {
+      id: command.payload.taskId, target: targetTaskId,
+    }), 'warning'));
   };
 
-  const handleRemovePredecessor = async (
-    taskId: string,
-    predecessorId: string
-  ) => {
+  const handleRemovePredecessor = async (taskId: string, predecessorId: string) => {
     setLastMovedKey(`task:${taskId}`);
-    await mutate(() =>
-      eventBridge.appendEvent('DEPENDENCY_REMOVED', {
-        taskId,
-        predecessorId,
-      })
-    );
+    await commit(current => !current.tasks[taskId] || !current.tasks[predecessorId] ? [] : [
+      { type: 'DEPENDENCY_REMOVED', payload: { taskId, predecessorId } },
+    ]);
   };
 
-  const handleRemoveSelectedEdges = async (edgeKeysToRemove: string[]) => {
-    if (edgeKeysToRemove.length === 0) return;
-    const commands = edgeKeysToRemove.map((key) => {
+  const handleRemoveSelectedEdges = async (keys: string[]) => {
+    const frozen = [...keys];
+    if (!frozen.length) return;
+    const result = await commit(current => frozen.flatMap(key => {
       const [from, to] = key.split('->');
-      return {
-        type: 'DEPENDENCY_REMOVED' as const,
-        payload: { taskId: to, predecessorId: from },
-      };
-    });
-    const updated = await mutate(() => eventBridge.appendBatch(commands));
-    if (!updated) return;
+      return current.tasks[from] && current.tasks[to] ? [{
+        type: 'DEPENDENCY_REMOVED' as const, payload: { taskId: to, predecessorId: from },
+      }] : [];
+    }));
+    if (!result) return;
     clearEdgeSelection();
-    pushToast(
-      edgeKeysToRemove.length === 1
-        ? t('Kante {edge} gelöscht', { edge: edgeKeysToRemove[0].replace('->', ' → ') })
-        : t('{count} Kanten gelöscht', { count: formatNumber(edgeKeysToRemove.length) }),
-      'info'
-    );
+    const count = result.commands.length;
+    const first = result.commands[0];
+    const edge = first.type === 'DEPENDENCY_REMOVED' ? `${first.payload.predecessorId} → ${first.payload.taskId}` : '';
+    pushToast(count === 1
+      ? t('Kante {edge} gelöscht', { edge })
+      : t('{count} Kanten gelöscht', { count: formatNumber(count) }), 'info');
   };
 
-  // Remove only stored source-incident path edges, recomputed from the confirmed snapshot.
-  const handleRemoveDependencyBetween = async (
-    draggedId: string,
-    targetTaskId: string
-  ) => {
-    if (
-      dragIdentity.current?.database !== databaseIdentity.current ||
-      dragIdentity.current.taskId !== draggedId
-    )
-      return;
-    const current = projectEvents(confirmedEvents.current, new Date());
-    const source = current.tasks[draggedId];
-    if (!source) return;
-    const edges = dependencyPathEdges(current.tasks, draggedId, targetTaskId);
-    const reopen = reopenCommand(draggedId, current.tasks);
-    const commands = [
-      ...(reopen ? [reopen] : []),
-      ...edges.map((edge) => ({
-        type: 'DEPENDENCY_REMOVED' as const,
-        payload: { taskId: edge.to, predecessorId: edge.from },
+  const handleRemoveDependencyBetween = async (draggedId: string, targetTaskId: string) => {
+    if (dragIdentity.current?.database !== databaseIdentity.current || dragIdentity.current.taskId !== draggedId) return;
+    const result = await commit(current => !current.tasks[draggedId] ? [] : [
+      ...reopen(draggedId, current),
+      ...dependencyPathEdges(current.tasks, draggedId, targetTaskId).map(edge => ({
+        type: 'DEPENDENCY_REMOVED' as const, payload: { taskId: edge.to, predecessorId: edge.from },
       })),
-    ];
-    if (!commands.length) return;
-    const updated = await mutate(() => eventBridge.appendBatch(commands));
-    if (updated && edges.length)
-      pushToast(t('{count} Kanten an {id} geloescht', { count: formatNumber(edges.length), id: draggedId }), 'info');
+    ]);
+    const count = result?.commands.filter(command => command.type === 'DEPENDENCY_REMOVED').length ?? 0;
+    if (count) pushToast(t('{count} Kanten an {id} geloescht', { count: formatNumber(count), id: draggedId }), 'info');
   };
 
   const handleCompleteTask = async (taskId: string, fromDrag = false) => {
     const ids = taskGroup(taskId, fromDrag, false);
     if (!ids.length) return;
     const completedAt = new Date().toISOString();
-    const updated = await mutate(() =>
-      eventBridge.appendBatch(ids.map(id => ({ type: 'TASK_COMPLETED' as const, payload: { taskId: id, completedAt } })))
-    );
-    if (!updated) return;
-    // A late completion must not clear a different task selected while saving.
-    setSelectedTaskIds(current => current.filter(id => !ids.includes(id)));
-  };
-
-  const handleUndo = async () => {
-    if (!state.canUndo) return;
-    await mutate(() => eventBridge.undo());
+    const result = await commit(current => present(ids, current, false).map(id => ({
+      type: 'TASK_COMPLETED', payload: { taskId: id, completedAt },
+    })));
+    if (result) setSelectedTaskIds(current => current.filter(id => !ids.includes(id)));
   };
 
   const handleReopenTask = async (taskId: string) => {
-    const task = projectEvents(confirmedEvents.current, now).tasks[taskId];
-    if (!task?.completed) return;
     setLastMovedKey(`task:${taskId}`);
-    await mutate(() => eventBridge.appendEvent('TASK_REOPENED', { taskId }));
+    await commit(current => current.tasks[taskId] ? reopen(taskId, current) : []);
   };
 
+  const handleUndo = async () => {
+    await mutate(() => replayCommands(confirmedEvents.current).activeEventCount
+      ? eventBridge.undo() : Promise.resolve(confirmedEvents.current));
+  };
   const handleRedo = async () => {
-    if (!state.canRedo) return;
-    await mutate(() => eventBridge.redo());
+    await mutate(() => replayCommands(confirmedEvents.current).canRedo
+      ? eventBridge.redo() : Promise.resolve(confirmedEvents.current));
   };
-  return {
-    handleAppendSources,
-    handleToggleActive,
-    handleSetConfiguredDate,
-    handleResubmitTasks,
-    handleAddPredecessor,
-    handleRemovePredecessor,
-    handleRemoveSelectedEdges,
-    handleRemoveDependencyBetween,
-    handleCompleteTask,
-    handleReopenTask,
-    handleUndo,
-    handleRedo,
-  };
+
+  return { handleToggleActive, handleSetConfiguredDate, handleResubmitTasks,
+    handleAddPredecessor, handleRemovePredecessor, handleRemoveSelectedEdges, handleRemoveDependencyBetween,
+    handleCompleteTask, handleReopenTask, handleUndo, handleRedo };
 }

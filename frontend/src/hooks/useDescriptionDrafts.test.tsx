@@ -156,3 +156,17 @@ it('appends sources to all selected local drafts in one atomic batch', async () 
   expect(visible('A')).toContain('continued'); expect(visible('A')).toContain('https://example.com/source');
   expect(bridge.appendBatch).toHaveBeenCalledOnce();
 });
+
+it('validates all sources before changing drafts and ignores empty or missing targets', async () => {
+  const before = visible('A');
+  expect(() => drafts.appendSources(['A', 'B'], [
+    { kind: 'url', value: 'https://example.com/valid' },
+    { kind: 'path', value: 'https://example.com/not-a-path' },
+  ])).toThrow();
+  expect(visible('A')).toBe(before); expect(visible('B')).toBe('');
+  await act(async () => {
+    expect(await drafts.appendSources(['A'], [])).toBe(true);
+    expect(await drafts.appendSources(['missing'], [{ kind: 'url', value: 'https://example.com/source' }])).toBe(true);
+  });
+  expect(bridge.appendBatch).not.toHaveBeenCalled(); expect(bridge.appendEvent).not.toHaveBeenCalled();
+});

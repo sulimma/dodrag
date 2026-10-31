@@ -100,7 +100,6 @@ export function App() {
   const actions = useTaskMutations(
     database,
     selection,
-    state,
     now,
     dragIdentity,
     setLastMovedKey,
