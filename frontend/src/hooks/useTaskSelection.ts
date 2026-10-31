@@ -8,7 +8,7 @@ export interface ContextMenuState {
   anchor?: { x: number; y: number };
 }
 // Owns selected tasks, selected edges, and the active task context menu.
-export function useTaskSelection() {
+export function useTaskSelection(active = true) {
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const selectedTaskId = selectedTaskIds.at(-1) ?? null;
   const [lastClickedTaskId, setLastClickedTaskId] = useState<string | null>(null);
@@ -77,10 +77,11 @@ export function useTaskSelection() {
   };
   // Close context menu on outside click
   useEffect(() => {
+    if (!active || !contextMenu) return;
     const closeMenu = () => setContextMenu(null);
     window.addEventListener('click', closeMenu);
     return () => window.removeEventListener('click', closeMenu);
-  }, []);
+  }, [active, contextMenu]);
   const onSelectTask = (
     id: string,
     event: ModifierKeys = { ctrlKey: false, metaKey: false, shiftKey: false },
@@ -112,7 +113,14 @@ export function useTaskSelection() {
     clearEdgeSelection();
     setContextMenu(null);
   };
+  // Captured by a transition before optimistic target selection; restore all
+  // range anchors as well as ids when native mode application is rejected.
+  const restoreSelection = () => {
+    setSelectedTaskIds(selectedTaskIds); setLastClickedTaskId(lastClickedTaskId);
+    setSelectedEdgeKeys(selectedEdgeKeys); setLastClickedEdgeKey(lastClickedEdgeKey);
+  };
   return {
+    restoreSelection,
     selectedTaskId,
     selectedTaskIds,
     setSelectedTaskIds,

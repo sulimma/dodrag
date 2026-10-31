@@ -1,4 +1,5 @@
-import { useWindowPresentation } from './hooks/useWindowPresentation';
+import { allowWindowPaint, useWindowPresentation } from './hooks/useWindowPresentation';
+import { flushSync } from 'react-dom';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { eventBridge, type WindowMode } from './bridge/eventBridge';
 import { GanttView } from './components/GanttView';
@@ -52,27 +53,37 @@ export function App() {
   const [helpPage, setHelpPage] = useState<HelpPage>('shortcuts');
   const [windowMode, setWindowMode] = useState<WindowMode>('window');
   const [startupComplete, setStartupComplete] = useState(false);
-  const suspendPresentation = useWindowPresentation(startupComplete, windowMode);
+  useWindowPresentation(startupComplete);
   const isMiniMode = windowMode === 'mini';
   const confirmedMode = useRef<WindowMode | null>(null);
   const modeQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const pendingModeReply = useRef<((mode: WindowMode) => void) | null>(null);
   const requestModeRef = useRef<(mode: WindowMode, automatic?: boolean, expectedMode?: WindowMode) => void>(() => {});
   const modeVersion = useRef(0);
+  const nativeRevision = useRef(-1);
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [editOwner, setEditOwner] = useState<'view' | 'detail'>('view');
-  const newTaskInputRef = useRef<HTMLInputElement>(null);
-  const listScrollRef = useRef<HTMLElement>(null);
+  const mainScrollRef = useRef<HTMLElement>(null);
+  const miniScrollRef = useRef<HTMLElement>(null);
+  const mainInputRef = useRef<HTMLInputElement>(null);
+  const miniInputRef = useRef<HTMLInputElement>(null);
+  const listScrollRef = isMiniMode ? miniScrollRef : mainScrollRef;
+  const newTaskInputRef = isMiniMode ? miniInputRef : mainInputRef;
   // Frozen drag members/database remain available until drop callbacks consume them.
   const dragIdentity = useRef<DragIdentity | null>(null);
   const { toasts, pushToast } = useToasts();
-  const selection = useTaskSelection();
+  // Compact actions have their own selection; minimizing must preserve main details.
+  const mainSelection = useTaskSelection(!isMiniMode);
+  const miniSelection = useTaskSelection(isMiniMode);
+  const selection = isMiniMode ? miniSelection : mainSelection;
   const flushDescriptions = useRef<() => Promise<boolean>>(async () => true);
   const descriptionSaving = useRef<() => boolean>(() => false);
   const database = useDatabaseSnapshot(pushToast, dragIdentity, () => {
     editors.cancelEdit();
     setNewTaskTitle('');
     pendingSource.current = null;
-    selection.reset();
+    mainSelection.reset();
+    miniSelection.reset();
   }, () => flushDescriptions.current(), () => descriptionSaving.current());
   const {
     events,
@@ -105,6 +116,7 @@ export function App() {
   // A single editing session has one visible input, not two competing autofocus effects.
   const titleEditor = scopedEditor(editors.titleEditor, 'view');
   const dateEditor = scopedEditor(editors.dateEditor, 'view');
+  const nativeDetailMenus = useRef(0);
   const activeInlineEditor = useRef(false);
   activeInlineEditor.current = Boolean(editors.titleEditor.taskId || editors.dateEditor.taskId);
   const drag = useTaskDrag(database, selection, state.tasks, dragIdentity);
@@ -188,10 +200,15 @@ export function App() {
         setShowSettingsModal(true);
       })
       .finally(() => { if (current) { mutationBusy.current = false; setStartupComplete(true); } });
-    const unsubMode = eventBridge.onWindowModeChanged(mode => {
+    const unsubMode = eventBridge.onWindowModeChanged((mode, revision) => {
+      if (revision !== undefined) {
+        if (revision <= nativeRevision.current) return;
+        nativeRevision.current = revision;
+      }
       modeVersion.current++;
       confirmedMode.current = mode;
       setWindowMode(mode);
+      pendingModeReply.current?.(mode);
     });
     const unsubRequest = eventBridge.onWindowModeRequested((mode, automatic, expectedMode) => requestModeRef.current(mode, automatic ?? false, expectedMode));
 
@@ -205,13 +222,7 @@ export function App() {
       clearInterval(interval);
     };
   }, []);
-  useEffect(() => {
-    // Never let invisible main-view task/edge selections drive compact actions.
-    if (isMiniMode) {
-      setSelectedTaskId(null);
-      clearEdgeSelection();
-    }
-  }, [isMiniMode]);
+
 
   useEffect(() => {
     void eventBridge.updateMiniModeHeight(miniTasks.length);
@@ -292,28 +303,71 @@ export function App() {
     pendingSource.current = source;
     newTaskInputRef.current?.focus();
   };
-  // Queue genuine requests; only native confirmations change the rendered mode.
-  const requestWindowMode = (mode: WindowMode, automatic = false, expectedMode?: WindowMode): Promise<boolean> => {
+  // Queue closures must read current guards, never the render that enqueued them.
+  const transitionState = useRef({ showSettingsModal, showShortcutsModal, contextMenu, mainSelection, isDetailPanelOpen });
+  transitionState.current = { showSettingsModal, showShortcutsModal, contextMenu, mainSelection, isDetailPanelOpen };
+  const automaticBlocked = () => {
+    const current = transitionState.current;
+    return current.showSettingsModal || current.showShortcutsModal || current.contextMenu || nativeDetailMenus.current > 0 ||
+      activeInlineEditor.current || Boolean(document.activeElement?.closest('[data-description-editor],[data-task-log]')) || descriptions.hasDrafts();
+  };
+  // Queue requests and commit the destination layout before native geometry changes.
+  // Failed transitions roll back to the last confirmed mode without blanking the root.
+  const requestWindowMode = (mode: WindowMode, automatic = false, expectedMode?: WindowMode, selectTaskId?: string): Promise<boolean> => {
     const operation = modeQueue.current.then(async () => {
       if (expectedMode !== undefined && confirmedMode.current !== expectedMode) return false;
-      if (confirmedMode.current === mode) return true;
-      if (automatic && mode === 'mini' && (showSettingsModal || showShortcutsModal || contextMenu ||
-        editors.titleEditor.taskId || editors.dateEditor.taskId || descriptions.hasDrafts())) return false;
+      if (confirmedMode.current === mode && !selectTaskId) return true;
+      if (automatic && mode === 'mini' && automaticBlocked()) return false;
       if (mode === 'mini' || mode === 'taskbar') {
         if (!await descriptions.flushAll()) return false;
         // Blur may already be saving an inline draft. Never discard a failed or still-open editor.
         if (activeInlineEditor.current) return false;
+        if (expectedMode !== undefined && confirmedMode.current !== expectedMode) return false;
+        if (automatic && mode === 'mini' && automaticBlocked()) return false;
       }
-      const version = modeVersion.current;
-      const finishPresentation = await suspendPresentation();
+      const version = ++modeVersion.current;
+      const before = transitionState.current;
+      const rollbackSelection = () => {
+        if (!selectTaskId) return;
+        before.mainSelection.restoreSelection();
+        setIsDetailPanelOpen(before.isDetailPanelOpen);
+      };
+      // Destination task and details are committed with the destination layout.
+      flushSync(() => {
+        if (mode === 'mini' && confirmedMode.current !== 'mini') miniSelection.reset();
+        if (selectTaskId) { before.mainSelection.setSelectedTaskId(selectTaskId); setIsDetailPanelOpen(true); }
+        setWindowMode(mode);
+      });
+      await allowWindowPaint();
+      // The paint opportunity is asynchronous: a native event or new editor may
+      // have superseded this request while the destination surface was prepared.
+      if (modeVersion.current !== version) {
+        if (confirmedMode.current !== mode) flushSync(rollbackSelection);
+        return confirmedMode.current === mode;
+      }
+      if (automatic && mode === 'mini' && automaticBlocked()) {
+        flushSync(() => { rollbackSelection(); setWindowMode(confirmedMode.current ?? 'window'); });
+        return false;
+      }
       let confirmed: WindowMode;
-      try { confirmed = await eventBridge.setWindowMode(mode); }
-      finally { finishPresentation(); }
-      if (modeVersion.current === version) { confirmedMode.current = confirmed; setWindowMode(confirmed); }
+      // Native confirmation is sufficient even if the bridge response is lost.
+      // Promise.race also consumes a later rejected/stale bridge completion.
+      const nativeReply = new Promise<WindowMode>(resolve => { pendingModeReply.current = resolve; });
+      try { confirmed = await Promise.race([eventBridge.setWindowMode(mode), nativeReply]); }
+      catch (error) {
+        if (modeVersion.current === version) flushSync(() => { rollbackSelection(); setWindowMode(confirmedMode.current ?? 'window'); });
+        throw error;
+      } finally { pendingModeReply.current = null; }
+      if (modeVersion.current === version) {
+        confirmedMode.current = confirmed;
+        flushSync(() => { if (confirmed !== mode) rollbackSelection(); setWindowMode(confirmed); });
+      }
+      if (confirmedMode.current !== mode) { flushSync(rollbackSelection); return false; }
+      if (selectTaskId) before.mainSelection.clearEdgeSelection();
       if (confirmed === mode) {
         setContextMenu(null);
-        setShowShortcutsModal(false);
-        setShowSettingsModal(false);
+        if (before.showShortcutsModal) setShowShortcutsModal(false);
+        if (before.showSettingsModal) setShowSettingsModal(false);
       }
       return confirmed === mode;
     }).catch(error => {
@@ -325,13 +379,7 @@ export function App() {
   };
   requestModeRef.current = (mode, automatic, expectedMode) => { void requestWindowMode(mode, automatic, expectedMode); };
   const handleRestoreFromMiniMode = async (selectTaskId?: string) => {
-    if (!await requestWindowMode('window')) return false;
-    if (selectTaskId) {
-      setSelectedTaskId(selectTaskId);
-      clearEdgeSelection();
-      setIsDetailPanelOpen(true);
-    }
-    return true;
+    return requestWindowMode('window', false, undefined, selectTaskId);
   };
 
   // One contract instance supplies identical selection/context/Alt behavior to every layout.
@@ -367,8 +415,10 @@ export function App() {
       onError={(error) => pushToast(errorText(t('Kontextmenü konnte nicht geöffnet werden'), error), 'warning')}
     />
   );
-  if (isMiniMode) {
-    return (
+  // Retain view-local geometry, scroll, log drafts and description undo. Inert
+  // removes hidden controls from focus and global target queries; native file
+  // callbacks and the retained description editor also have explicit activity guards.
+  const miniSurface = isMiniMode ? (
       <>
         <MiniCornerView
           tasks={miniTasks}
@@ -397,12 +447,13 @@ export function App() {
         <ShortcutHelp open={showShortcutsModal} initialPage={helpPage} onClose={() => setShowShortcutsModal(false)} />
         <Toasts toasts={toasts} />
       </>
-    );
-  }
+    ) : null;
   const listBackgroundKey = 'list-background';
   const todayKey = toDateKey(now);
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-100/80 text-slate-800 overflow-hidden"
+    <>
+    {miniSurface}
+    <div hidden={isMiniMode} {...{ inert: isMiniMode ? '' : undefined }} style={isMiniMode ? { display: 'none' } : undefined} className="flex flex-col h-screen w-screen bg-slate-100/80 text-slate-800 overflow-hidden"
       onDoubleClickCapture={event => {
         if (!(event.target instanceof Element) ||
           event.target.closest('input,textarea,button,a,select,[contenteditable="true"]')) return;
@@ -427,7 +478,7 @@ export function App() {
         snapshotReady={snapshotReady}
         newTaskTitle={newTaskTitle}
         setNewTaskTitle={setNewTaskTitle}
-        newTaskInputRef={newTaskInputRef}
+        newTaskInputRef={mainInputRef}
         onCreateTask={handleCreateTask}
         onUndo={historyActions.handleUndo}
         onRedo={historyActions.handleRedo}
@@ -436,11 +487,13 @@ export function App() {
       />
       <div className="flex-1 flex overflow-hidden">
         <TaskDetailPanel
+          active={!isMiniMode}
+          onNativeMenuChange={open => { nativeDetailMenus.current += open ? 1 : -1; }}
           open={isDetailPanelOpen}
           onToggle={() => setIsDetailPanelOpen(open => !open)}
           onSyntaxHelp={() => { setHelpPage('syntax'); setShowShortcutsModal(true); }}
           key={appSettings?.activeDatabasePath ?? ''}
-          task={descriptions.taskWithDraft(selectedTaskId ? state.tasks[selectedTaskId] ?? null : null)}
+          task={descriptions.taskWithDraft(mainSelection.selectedTaskId ? state.tasks[mainSelection.selectedTaskId] ?? null : null)}
           interactions={interactions} titleEditor={scopedEditor(editors.titleEditor, 'detail')} dateEditor={scopedEditor(editors.dateEditor, 'detail')}
           onClose={() => setIsDetailPanelOpen(false)}
           onToggleActive={actions.handleToggleActive}
@@ -467,7 +520,7 @@ export function App() {
         />
         <div className="relative flex flex-1 min-w-0 overflow-hidden">
           <main
-            ref={listScrollRef}
+            ref={mainScrollRef}
             tabIndex={0} data-shortcut-region="1"
             data-task-drop-target={viewMode === 'list' ? listBackgroundKey : undefined}
             onDragOver={viewMode === 'list' ? (event) => {
@@ -507,16 +560,16 @@ export function App() {
                 {...interactions}
                 listEntries={state.listEntries}
                 movedItemKey={lastMovedKey}
-                titleEditor={titleEditor}
-                dateEditor={dateEditor}
+                titleEditor={isMiniMode ? { ...titleEditor, taskId: null } : titleEditor}
+                dateEditor={isMiniMode ? { ...dateEditor, taskId: null } : dateEditor}
               />
             ) : viewMode === 'network' ? (
               <NetworkPlanView
                 {...interactions}
                 openTasks={state.openTasks}
                 now={now}
-                titleEditor={titleEditor}
-                dateEditor={dateEditor}
+                titleEditor={isMiniMode ? { ...titleEditor, taskId: null } : titleEditor}
+                dateEditor={isMiniMode ? { ...dateEditor, taskId: null } : dateEditor}
               />
             ) : (
               <GanttView
@@ -524,13 +577,13 @@ export function App() {
                 openTasks={state.openTasks}
                 listEntries={state.listEntries}
                 now={now}
-                titleEditor={titleEditor}
+                titleEditor={isMiniMode ? { ...titleEditor, taskId: null } : titleEditor}
               />
             )}
           </main>
           <DependencyHighlightIndicators
             key={viewMode}
-            scrollRef={listScrollRef}
+            scrollRef={mainScrollRef}
             contentKey={highlights}
             horizontal={viewMode === 'gantt'}
           />
@@ -544,9 +597,9 @@ export function App() {
           onCompleteTask={actions.handleCompleteTask}
         />
       </div>
-      {taskContextMenu}
+      {!isMiniMode && taskContextMenu}
       <ShortcutHelp
-        open={showShortcutsModal}
+        open={!isMiniMode && showShortcutsModal}
         initialPage={helpPage}
         onClose={() => setShowShortcutsModal(false)}
       />
@@ -578,5 +631,6 @@ export function App() {
       )}
       <Toasts toasts={toasts} />
     </div>
+    </>
   );
 }

@@ -15,7 +15,7 @@ export function taskDragPreview(
   const bars = source.hasAttribute('data-gantt-node');
   const nodes = Array.from(document.querySelectorAll<HTMLElement>(
     bars ? '[data-gantt-node]' : '[data-task-drag]:not([data-gantt-node])'
-  ));
+  )).filter(node => !node.closest('[inert]'));
   const sourceRect = source.getBoundingClientRect();
   let fallbackY = Math.max(sourceRect.bottom, ...nodes.map(node => node.getBoundingClientRect().bottom)) + 8;
   const items = taskIds.map(id => {

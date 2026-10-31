@@ -3,9 +3,16 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
+import { allowWindowPaint } from './hooks/useWindowPresentation';
 import type { AppSettings } from './bridge/eventBridge';
 import type { StoredEvent } from './domain/types';
 import { setLanguage, t } from './i18n';
+
+// jsdom has no compositor; frame scheduling is verified by the hook tests.
+vi.mock('./hooks/useWindowPresentation', async importOriginal => ({
+  ...await importOriginal<typeof import('./hooks/useWindowPresentation')>(),
+  allowWindowPaint: vi.fn(async () => {}),
+}));
 
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
@@ -326,4 +333,139 @@ it('puts live editor undo and redo beside the dates, not among the menus', async
   expect(redo.disabled).toBe(false);
   await act(async () => redo.click());
   expect(editor.state.doc.textContent).toBe('edited');
+});
+
+
+it.each([false, true])('preserves selected details through mini and taskbar=%s', async taskbar => {
+  const events = new Map<string, (...args: any[]) => void>();
+  window.runtime = { EventsOn: (name, callback) => { events.set(name, callback); return () => events.delete(name); } };
+  await mountWithDetails();
+  // Compact selection must not inherit the main task.
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title="Kompaktansicht"]')!.click());
+  expect(panel().closest('[inert]')).not.toBeNull();
+  expect(host.querySelector('[data-mini-task-id][data-task-selected="true"]')).toBeNull();
+  if (taskbar) {
+    await act(async () => host.querySelector<HTMLButtonElement>('button[title="In die Taskleiste minimieren"]')!.click());
+    await act(async () => events.get('window:mode-requested')!('window', false, 'taskbar'));
+    expect(api.SetWindowMode).toHaveBeenLastCalledWith('window');
+  } else {
+    await act(async () => host.querySelector<HTMLButtonElement>('button[title="Fenster"]')!.click());
+  }
+  expect(toggle().getAttribute('aria-expanded')).toBe('true');
+  expect(panel().querySelector('span[title="Alpha"]')).not.toBeNull();
+  expect(panel().querySelector('[contenteditable="true"]')).not.toBeNull();
+});
+
+it('commits the destination view before the host changes geometry and rolls back on failure', async () => {
+  await mountWithDetails();
+  vi.mocked(api.SetWindowMode).mockImplementationOnce(async () => {
+    expect(host.querySelector('main')?.closest('[inert]')).not.toBeNull();
+    throw new Error('native transition rejected');
+  });
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title="Kompaktansicht"]')!.click());
+  expect(toggle().getAttribute('aria-expanded')).toBe('true');
+  expect(panel().querySelector('span[title="Alpha"]')).not.toBeNull();
+});
+
+it('keeps main editor history, log drafts and scroll after successful and rejected transitions', async () => {
+  await mountWithDetails();
+  const originalPanel = panel(), originalList = list();
+  originalList.scrollTop = 137;
+  const description = panel().querySelector<HTMLElement>('[data-description-editor] [contenteditable="true"]')!;
+  const logDraft = panel().querySelector<HTMLTextAreaElement>('[data-task-log] textarea')!;
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(logDraft, 'keep my log');
+    logDraft.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title="Kompaktansicht"]')!.click());
+  expect(originalPanel.closest('[inert]')).not.toBeNull();
+  expect(description.getAttribute('contenteditable')).toBe('false');
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title="Fenster"]')!.click());
+  expect(panel()).toBe(originalPanel);
+  expect(list()).toBe(originalList);
+  expect(list().scrollTop).toBe(137);
+  expect(logDraft.value).toBe('keep my log');
+  expect(description.getAttribute('contenteditable')).toBe('true');
+  vi.mocked(api.SetWindowMode).mockRejectedValueOnce(new Error('reject'));
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title="Kompaktansicht"]')!.click());
+  expect(panel()).toBe(originalPanel);
+  expect(logDraft.value).toBe('keep my log');
+  expect(list().scrollTop).toBe(137);
+});
+
+it('commits the requested mini task and details before calling the native restore', async () => {
+  await act(async () => root.render(<App />));
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title="Kompaktansicht"]')!.click());
+  vi.mocked(api.SetWindowMode).mockImplementationOnce(async mode => {
+    expect(mode).toBe('window');
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(panel().querySelector('span[title="Alpha"]')).not.toBeNull();
+    return mode;
+  });
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-mini-task-id] button[title="Alpha"]')!.click());
+  expect(api.SetWindowMode).toHaveBeenLastCalledWith('window');
+});
+
+it('rolls target details back if native restore is rejected', async () => {
+  await act(async () => root.render(<App />));
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title="Kompaktansicht"]')!.click());
+  vi.mocked(api.SetWindowMode).mockRejectedValueOnce(new Error('reject restore'));
+  await act(async () => host.querySelector<HTMLButtonElement>('[data-mini-task-id] button[title="Alpha"]')!.click());
+  expect(panel().closest('[inert]')).not.toBeNull();
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title="Fenster"]')!.click());
+  expect(toggle().getAttribute('aria-expanded')).toBe('false');
+  click(toggle());
+  expect(panel().querySelector('span[title="Alpha"]')).toBeNull();
+});
+
+it('ignores an older native mode event after a newer revision', async () => {
+  const events = new Map<string, (...args: any[]) => void>();
+  window.runtime = { EventsOn: (name, callback) => { events.set(name, callback); return () => events.delete(name); } };
+  await mountWithDetails();
+  await act(async () => events.get('window:mode-changed')!('mini', 10));
+  await act(async () => events.get('window:mode-changed')!('window', 11));
+  await act(async () => events.get('window:mode-changed')!('mini', 10));
+  expect(panel().closest('[inert]')).toBeNull();
+  expect(toggle().getAttribute('aria-expanded')).toBe('true');
+});
+
+it('rechecks automatic guards after the paint opportunity', async () => {
+  const events = new Map<string, (...args: any[]) => void>();
+  window.runtime = { EventsOn: (name, callback) => { events.set(name, callback); return () => events.delete(name); } };
+  await act(async () => root.render(<App />));
+  let release!: () => void;
+  vi.mocked(allowWindowPaint).mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+  await act(async () => events.get('window:mode-requested')!('mini', true, 'window'));
+  await key(document.body, 'F1');
+  await act(async () => release());
+  expect(api.SetWindowMode).not.toHaveBeenCalled();
+  expect(panel().closest('[inert]')).toBeNull();
+  expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+});
+
+it('rechecks guards when a queued automatic operation starts', async () => {
+  const events = new Map<string, (...args: any[]) => void>();
+  window.runtime = { EventsOn: (name, callback) => { events.set(name, callback); return () => events.delete(name); } };
+  await act(async () => root.render(<App />));
+  let release!: (mode: 'taskbar') => void;
+  vi.mocked(api.SetWindowMode).mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+  await act(async () => events.get('window:mode-requested')!('taskbar', false));
+  await act(async () => events.get('window:mode-requested')!('mini', true));
+  await key(document.body, 'F1');
+  await act(async () => release('taskbar'));
+  expect(api.SetWindowMode).toHaveBeenCalledTimes(1);
+  expect(api.SetWindowMode).toHaveBeenCalledWith('taskbar');
+});
+
+it('continues the mode queue on native confirmation when the bridge reply never arrives', async () => {
+  const events = new Map<string, (...args: any[]) => void>();
+  window.runtime = { EventsOn: (name, callback) => { events.set(name, callback); return () => events.delete(name); } };
+  await mountWithDetails();
+  vi.mocked(api.SetWindowMode).mockReturnValueOnce(new Promise(() => {}));
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title="Kompaktansicht"]')!.click());
+  await act(async () => events.get('window:mode-changed')!('mini', 1));
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title="Fenster"]')!.click());
+  expect(api.SetWindowMode).toHaveBeenCalledTimes(2);
+  expect(api.SetWindowMode).toHaveBeenLastCalledWith('window');
+  expect(panel().closest('[inert]')).toBeNull();
 });

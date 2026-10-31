@@ -803,20 +803,24 @@ func applyInitialWindowBoundsNative(hwnd uintptr) winRect {
 	return rect
 }
 
-func restoreNormalWindowBoundsNative(hwnd uintptr, savedStyle uintptr, savedRect winRect) winRect {
+func restoreNormalWindowBoundsNative(hwnd uintptr, savedStyle uintptr, savedRect winRect, deferPresentation ...bool) winRect {
 	if hwnd == 0 {
 		return savedRect
 	}
 
 	inMiniModeAtomic.Store(false)
 
-	if isWindowMinimizedNative(hwnd) {
-		procShowWindow.Call(hwnd, swRestore)
-	}
+	// Apply normal style and bounds before showing an iconic window. Restoring
+	// first would expose its previous mini-sized placement for one native frame.
+	wasMinimized := isWindowMinimizedNative(hwnd)
+	deferred := len(deferPresentation) != 0 && deferPresentation[0]
 
 	restoredStyle := uintptr(wsOverlappedWindow | wsVisible)
 	if savedStyle != 0 {
 		restoredStyle = (savedStyle &^ (wsPopup | wsMinimize | wsMaximize)) | wsOverlappedWindow | wsVisible
+	}
+	if deferred && wasMinimized {
+		restoredStyle |= wsMinimize
 	}
 	procSetWindowLongPtrW.Call(hwnd, gwlStyle, restoredStyle)
 
@@ -832,6 +836,10 @@ func restoreNormalWindowBoundsNative(hwnd uintptr, savedStyle uintptr, savedRect
 		h = savedRect.Bottom - savedRect.Top
 	}
 
+	flags := uintptr(swpFrameChanged | swpShowWindow)
+	if deferred {
+		flags = swpFrameChanged | swpNoActivate
+	}
 	procSetWindowPos.Call(
 		hwnd,
 		hwndNoTopMost,
@@ -839,8 +847,14 @@ func restoreNormalWindowBoundsNative(hwnd uintptr, savedStyle uintptr, savedRect
 		uintptr(savedRect.Top),
 		uintptr(w),
 		uintptr(h),
-		swpFrameChanged|swpShowWindow,
+		flags,
 	)
+	if deferred {
+		return savedRect
+	}
+	if wasMinimized {
+		procShowWindow.Call(hwnd, swShowNormal)
+	}
 	procSetForegroundWindow.Call(hwnd)
 	updateTaskbarSystemMenu(hwnd, false)
 	return savedRect

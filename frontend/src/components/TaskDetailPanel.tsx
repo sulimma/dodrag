@@ -19,6 +19,8 @@ import { contextMenuAnchor, shortcutLabel } from '../hooks/keyboardNavigation';
 
 interface TaskDetailPanelProps extends TaskMenuActions {
   task: TaskState | null;
+  active?: boolean;
+  onNativeMenuChange?: (open: boolean) => void;
   interactions: TaskViewInteractions;
   titleEditor: InlineEditor;
   dateEditor: InlineEditor;
@@ -35,6 +37,7 @@ interface TaskDetailPanelProps extends TaskMenuActions {
   onError: (error: unknown) => void;
 }
 
+// Width follows the viewport immediately, including native restore and maximization.
 const dateLabelCSS = '@container task-detail (max-width: 440px) { .detail-date-label { display: none; } } [data-task-detail-panel]:has([data-resize-dragging]) { transition: none; }';
 
 export function TaskDetailPanel(props: TaskDetailPanelProps) {
@@ -59,7 +62,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
   const latest = useRef(props);
   latest.current = props;
   useEffect(() => eventBridge.onFileDrop((x, y, paths) => {
-    if (latest.current.open === false || !latest.current.task || !panel.current) return;
+    if (latest.current.active === false || latest.current.open === false || !latest.current.task || !panel.current) return;
     const bounds = panel.current.getBoundingClientRect();
     if (x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom) return;
     const hit = document.elementFromPoint?.(x, y);
@@ -78,13 +81,15 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
     const original = task.id;
     const items = context ? context.items : taskMenuItems(task);
     if (!items.length) return;
+    props.onNativeMenuChange?.(true);
     try {
       const id = await eventBridge.showTaskContextMenu(items, contextMenuAnchor(event));
       const current = latest.current;
-      if (current.task?.id !== original || !items.some(item => item.id === id && !item.disabled && !item.separator)) return;
+      if (current.active === false || current.task?.id !== original || !items.some(item => item.id === id && !item.disabled && !item.separator)) return;
       if (context) await context.execute(id);
       else executeTaskMenuAction(id, current.task, current);
     } catch (error) { latest.current.onError(error); }
+    finally { props.onNativeMenuChange?.(false); }
   };
   const key = task ? `detail-task:${task.id}` : '';
   const appearance = task && taskAppearanceRole(task, interactions.highlights[task.id] ?? null,
@@ -108,7 +113,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
       onMouseDown={event => {
         if (!(event.target as HTMLElement).closest('input,textarea,button,a,select,[contenteditable="true"],[data-task-selectable-text]')) panel.current?.focus();
       }}
-      className={`relative shrink-0 overflow-hidden border-r min-h-0 bg-white/95 outline-none transition-[width] duration-300 ease-in-out motion-reduce:transition-none ${appearance === 'drop' && open ? 'border-amber-400 ring-2 ring-inset ring-amber-400/50 bg-amber-50' : 'border-slate-200'}`}>
+      className={`relative shrink-0 overflow-hidden border-r min-h-0 bg-white/95 outline-none ${appearance === 'drop' && open ? 'border-amber-400 ring-2 ring-inset ring-amber-400/50 bg-amber-50' : 'border-slate-200'}`}>
         {open && <ResizeHandle orientation="vertical" label={t('Breite der Detailansicht ändern')}
           value={panel.current?.getBoundingClientRect().width || detailWidth} limits={widthLimits} onChange={setDetailWidth} />}
         {open && props.onSyntaxHelp && <button type="button" title={t('Markdown-Syntax')} aria-label={t('Markdown-Syntax')}
@@ -149,7 +154,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
       </header>
       {!task ? <p className="p-6 text-sm text-slate-400">{t('Task auswählen, um Details, Beschreibung und Log anzuzeigen')}</p> : <>
         <section className="flex flex-col flex-1 min-h-0 overflow-hidden" data-task-selectable-text="true" data-shortcut-region="3">
-          <TaskDescriptionEditor ref={editor} taskId={task.id} description={task.description} historyTarget={historyTarget}
+          <TaskDescriptionEditor ref={editor} taskId={task.id} description={task.description} active={props.active} historyTarget={historyTarget}
             onCreateSourceTask={props.onCreateSourceTask}
             onChange={markdown => props.onDescriptionChange(task.id, markdown)}
             onCommit={() => props.onDescriptionCommit?.(task.id)}

@@ -96,7 +96,7 @@ export function useGlobalShortcuts({
         if (!menuTarget && !showSettingsModal && snapshotReady && !textTarget) {
           const focusedTask = focused?.closest('[data-task-drag],[data-mini-task-id],[data-completed-task]');
           menuTarget = focusedTask ?? Array.from(document.querySelectorAll('[data-task-drag],[data-mini-task-id],[data-completed-task]'))
-            .find(element => selectedTaskId !== null && [element.getAttribute('data-task-drag'), element.getAttribute('data-mini-task-id'), element.getAttribute('data-completed-task')].includes(selectedTaskId)) ?? null;
+            .find(element => !element.closest('[inert]') && selectedTaskId !== null && [element.getAttribute('data-task-drag'), element.getAttribute('data-mini-task-id'), element.getAttribute('data-completed-task')].includes(selectedTaskId)) ?? null;
         }
         if (menuTarget) { e.preventDefault(); if (!e.repeat) openKeyboardContextMenu(menuTarget); }
         return;

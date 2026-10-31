@@ -147,22 +147,39 @@ func (a *App) setWindowMode(mode WindowMode) (WindowMode, error) {
 	case WindowModeWindow:
 		// Map the saved normal geometry to the last visible monitor before restoring.
 		savedRect = fitWindowRect(savedRect, mon.WorkArea)
-		savedRect = restoreNormalWindowBoundsNative(hwnd, savedStyle, savedRect)
-		if placement.Length != 0 {
-			// WINDOWPLACEMENT is in workspace coordinates. Only pass it back to
-			// SetWindowPlacement, then read screen geometry before fitting it to
-			// the target monitor (including taskbars on the left/top).
+		if placement.Length == 0 {
+			savedRect = restoreNormalWindowBoundsNative(hwnd, savedStyle, savedRect)
+		} else {
+			// Prepare style/bounds without restoring an iconic HWND. Present the
+			// saved maximized/normal placement once, never normal then maximized.
+			restoreNormalWindowBoundsNative(hwnd, savedStyle, savedRect, true)
 			normal := placement
-			normal.ShowCmd = swShowNormal
+			if normal.ShowCmd != 3 {
+				normal.ShowCmd = swShowNormal
+			}
 			normal.Flags &^= 2
+			// WINDOWPLACEMENT uses workspace coordinates; fit normal bounds in
+			// screen coordinates before converting to the destination workspace.
+			rect := normal.RcNormalPosition
+			if source, ok := isRectOnAnyMonitor(rect); ok {
+				dx, dy := source.WorkArea.Left-source.MonitorArea.Left, source.WorkArea.Top-source.MonitorArea.Top
+				rect.Left += dx
+				rect.Right += dx
+				rect.Top += dy
+				rect.Bottom += dy
+			}
+			rect = fitWindowRect(rect, mon.WorkArea)
+			dx, dy := mon.WorkArea.Left-mon.MonitorArea.Left, mon.WorkArea.Top-mon.MonitorArea.Top
+			rect.Left -= dx
+			rect.Right -= dx
+			rect.Top -= dy
+			rect.Bottom -= dy
+			normal.RcNormalPosition = rect
 			if result, _, placementErr := procSetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&normal))); result == 0 {
 				err = placementErr
-			} else if rect, ok := getWindowRectNative(hwnd); ok {
-				savedRect = fitWindowRect(rect, mon.WorkArea)
-				restoreNormalWindowBoundsNative(hwnd, savedStyle, savedRect)
-			}
-			if placement.ShowCmd == 3 {
-				procShowWindow.Call(hwnd, 3)
+			} else {
+				procSetForegroundWindow.Call(hwnd)
+				updateTaskbarSystemMenu(hwnd, false)
 			}
 		}
 		if err == nil {
@@ -189,9 +206,10 @@ func (a *App) setWindowMode(mode WindowMode) (WindowMode, error) {
 		_ = a.saveSettingsLocked()
 	}
 	ctx := a.ctx
+	revision := a.modeRevision.Load()
 	a.mu.Unlock()
 	if ctx != nil {
-		runtime.EventsEmit(ctx, "window:mode-changed", mode)
+		runtime.EventsEmit(ctx, "window:mode-changed", mode, revision)
 	}
 	return mode, err
 }

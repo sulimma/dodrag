@@ -261,7 +261,7 @@ export const eventBridge = {
   },
   async getWindowMode(): Promise<WindowMode> { return nativeMethod('GetWindowMode')(); },
   async setWindowMode(mode: WindowMode): Promise<WindowMode> { return nativeMethod('SetWindowMode')(mode); },
-  onWindowModeChanged(callback: (mode: WindowMode) => void): () => void {
+  onWindowModeChanged(callback: (mode: WindowMode, revision?: number) => void): () => void {
     return window.runtime?.EventsOn?.('window:mode-changed', callback) ?? (() => {});
   },
   onWindowModeRequested(callback: (mode: WindowMode, automatic?: boolean, expectedMode?: WindowMode) => void): () => void {

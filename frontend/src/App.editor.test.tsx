@@ -10,6 +10,12 @@ import { projectEvents } from './domain/projector';
 import { setLanguage, t } from './i18n';
 import { SOURCE_MIME } from './components/editor/targets';
 
+// jsdom has no compositor; frame scheduling is verified by the hook tests.
+vi.mock('./hooks/useWindowPresentation', async importOriginal => ({
+  ...await importOriginal<typeof import('./hooks/useWindowPresentation')>(),
+  allowWindowPaint: vi.fn(async () => {}),
+}));
+
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
   motion: { div: ({ initial, animate, exit, ...props }: any) => <div {...props} /> },

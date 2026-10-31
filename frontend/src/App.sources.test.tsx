@@ -14,6 +14,12 @@ vi.mock('./components/TaskDetailPanel', () => ({
     details.create = onCreateSourceTask; return null;
   },
 }));
+// jsdom has no compositor; frame scheduling is verified by the hook tests.
+vi.mock('./hooks/useWindowPresentation', async importOriginal => ({
+  ...await importOriginal<typeof import('./hooks/useWindowPresentation')>(),
+  allowWindowPaint: vi.fn(async () => {}),
+}));
+
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
   motion: { div: ({ initial, animate, exit, ...props }: any) => <div {...props} /> },

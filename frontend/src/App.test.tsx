@@ -7,6 +7,12 @@ import { AppSettings } from './bridge/eventBridge';
 import { StoredEvent } from './domain/types';
 import { setLanguage, supportedLanguages, t } from './i18n';
 
+// jsdom has no compositor; frame scheduling is verified by the hook tests.
+vi.mock('./hooks/useWindowPresentation', async importOriginal => ({
+  ...await importOriginal<typeof import('./hooks/useWindowPresentation')>(),
+  allowWindowPaint: vi.fn(async () => {}),
+}));
+
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
   motion: { div: ({ initial, animate, exit, ...props }: any) => <div {...props} /> },
@@ -107,7 +113,7 @@ function input(label: string): HTMLInputElement | HTMLSpanElement {
 it('displays the native mini mode returned on startup', async () => {
   vi.mocked(api.GetWindowMode).mockResolvedValueOnce('mini');
   await mount();
-  expect(element.querySelector('[data-app-title-bar]')).toBeNull();
+  expect(element.querySelector('[data-app-title-bar]')?.closest('[inert]')).not.toBeNull();
   expect(button('Fenster')).not.toBeNull();
 });
 
@@ -118,9 +124,9 @@ it('uses confirmed startup and event modes, including a late startup response', 
   window.runtime = { EventsOn: (name, callback) => { events.set(name, callback); return () => events.delete(name); } };
   await mount();
   await act(async () => events.get('window:mode-changed')!('mini'));
-  expect(element.querySelector('[data-app-title-bar]')).toBeNull();
+  expect(element.querySelector('[data-app-title-bar]')?.closest('[inert]')).not.toBeNull();
   await act(async () => startup.resolve('window'));
-  expect(element.querySelector('[data-app-title-bar]')).toBeNull();
+  expect(element.querySelector('[data-app-title-bar]')?.closest('[inert]')).not.toBeNull();
   await act(async () => events.get('window:mode-changed')!('window'));
   expect(element.querySelector('[data-app-title-bar]')).not.toBeNull();
 });
@@ -147,7 +153,7 @@ it('ignores a queued native request if its starting mode is stale', async () => 
   await act(async () => response.resolve('mini'));
   expect(api.SetWindowMode).toHaveBeenCalledTimes(1);
   expect(api.SetWindowMode).toHaveBeenCalledWith('mini');
-  expect(element.querySelector('[data-app-title-bar]')).toBeNull();
+  expect(element.querySelector('[data-app-title-bar]')?.closest('[inert]')).not.toBeNull();
 });
 
 it('does not call the host for a request to the confirmed active mode', async () => {
@@ -179,7 +185,7 @@ it('routes title bar actions to native window functions and tracks maximization 
 it('routes mini title controls to taskbar and window modes', async () => {
   await mount();
   await act(async () => click(button('Kompaktansicht')));
-  expect(element.querySelector('[data-app-title-bar]')).toBeNull();
+  expect(element.querySelector('[data-app-title-bar]')?.closest('[inert]')).not.toBeNull();
   await act(async () => click(button('In die Taskleiste minimieren')));
   expect(api.SetWindowMode).toHaveBeenCalledWith('taskbar');
 });

@@ -29,6 +29,7 @@ export type { TaskDescriptionEditorHandle } from './types';
 
 export interface TaskDescriptionEditorProps {
   taskId: string;
+  active?: boolean;
   description: string;
   onChange(markdown: string): void;
   onCommit?(): void;
@@ -74,6 +75,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
   const liveEditor = useRef<Editor | null>(null);
   const editor: Editor | null = useEditor({
     shouldRerenderOnTransaction: false,
+    editable: props.active !== false,
     extensions: [StarterKit.configure({ codeBlock: false, link: false, trailingNode: false }), MarkdownTargets,
       CodeBlock.extend({ addNodeView() { return ReactNodeViewRenderer(MermaidBlockView); } }),
       TaskList, MarkdownTaskItem.configure({ nested: true, HTMLAttributes: { 'data-type': 'taskItem' }, a11y: { checkboxLabel: () => t('Checkliste ein-/ausschalten') } }),
@@ -167,6 +169,8 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
     },
   }, []);
   liveEditor.current = editor;
+  // Keep local history/selection across compact mode, but only the visible editor edits.
+  useLayoutEffect(() => { editor?.setEditable(props.active !== false, false); }, [editor, props.active]);
   useEffect(() => {
     editor?.view.dom.setAttribute('aria-label', t('Beschreibung'));
     editor?.view.dispatch(editor.state.tr.setMeta('addToHistory', false).setMeta('source:refresh', true));
@@ -187,7 +191,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
   useImperativeHandle(ref, () => ({
     focus: () => { editor?.view.focus(); },
     insertFiles(paths, x, y) {
-      if (!editor || !paths.length) return;
+      if (!editor || callbacks.current.active === false || !paths.length) return;
       const pos = x === undefined || y === undefined ? undefined : editor.view.posAtCoords({ left: x, top: y })?.pos;
       const start = pos ?? editor.state.selection.from;
       const text = nativeDropText(paths);
@@ -263,7 +267,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
         if (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
           await navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }), 'text/html': new Blob([html], { type: 'text/html' }) })]);
         } else await navigator.clipboard.writeText(text);
-        if (action === 'editor:cut' && !editor.isDestroyed && session === taskSession.current) editor.chain().focus().deleteRange({ from, to }).run();
+        if (action === 'editor:cut' && !editor.isDestroyed && session === taskSession.current && callbacks.current.active !== false) editor.chain().focus().deleteRange({ from, to }).run();
       } else if (action === 'editor:paste') {
         const formats = new Map<string, string>();
         if (navigator.clipboard.read) {
@@ -273,7 +277,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
             if (item) formats.set(type, await (await item.getType(type)).text());
           }
         } else formats.set('text/plain', await navigator.clipboard.readText());
-        if (formats.size && !editor.isDestroyed && session === taskSession.current) {
+        if (formats.size && !editor.isDestroyed && session === taskSession.current && callbacks.current.active !== false) {
           // Dispatch directly to ProseMirror, not an OS paste. Its public pasteText
           // forces plain-text mode; this adapter preserves both formats and the
           // same Markdown, code-context, normalization and undo rules as Ctrl+V.

@@ -2,33 +2,69 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { useWindowPresentation } from './useWindowPresentation';
+import { allowWindowPaint, useWindowPresentation } from './useWindowPresentation';
 
-vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-afterEach(() => vi.restoreAllMocks());
-
-it.each(['window', 'taskbar'])('waits for paint only on a visible surface (mode=%s)', async mode => {
-  const callbacks: FrameRequestCallback[] = [];
-  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => { callbacks.push(callback); return callbacks.length; });
-  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
-  const element = document.createElement('div'); element.id = 'root'; document.body.append(element);
+it('reveals after startup and never suspends presentation on resize or rerender', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const element = document.createElement('div');
+  element.id = 'root'; element.dataset.windowSettling = 'true'; document.body.append(element);
   const root = createRoot(element);
-  let suspend!: () => Promise<() => void>;
-  function Harness() { suspend = useWindowPresentation(true, mode); return null; }
+  function Harness({ ready }: { ready: boolean }) { useWindowPresentation(ready); return null; }
   try {
-    act(() => root.render(<Harness />));
-    let finished = false;
-    const operation = suspend().then(finish => { finished = true; return finish; });
-    await Promise.resolve();
-    if (mode === 'window') {
-      expect(finished).toBe(false);
-      callbacks.shift()!(0);
-      await Promise.resolve();
-      expect(finished).toBe(false);
-      callbacks.shift()!(16);
-    }
-    const finish = await operation;
-    expect(finished).toBe(true);
-    finish();
-  } finally { act(() => root.unmount()); element.remove(); }
+    await act(async () => root.render(<Harness ready={false} />));
+    expect(element.dataset.windowSettling).toBe('true');
+    await act(async () => root.render(<Harness ready />));
+    expect(element.dataset.windowSettling).toBeUndefined();
+    await act(async () => {
+      window.dispatchEvent(new Event('resize'));
+      root.render(<Harness ready />);
+    });
+    expect(element.dataset.windowSettling).toBeUndefined();
+  } finally { act(() => root.unmount()); element.remove(); vi.unstubAllGlobals(); }
+});
+
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it('allows two visible frame callbacks before native geometry may change', async () => {
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  const frames: FrameRequestCallback[] = [];
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => { frames.push(callback); return frames.length; });
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  let complete = false;
+  const paint = allowWindowPaint().then(() => { complete = true; });
+  expect(complete).toBe(false);
+  frames[0](0); await Promise.resolve();
+  expect(complete).toBe(false);
+  frames[1](16); await paint;
+  expect(complete).toBe(true);
+});
+
+it('does not wait for a hidden WebView frame', async () => {
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  const frame = vi.spyOn(window, 'requestAnimationFrame');
+  await allowWindowPaint();
+  expect(frame).not.toHaveBeenCalled();
+});
+
+it('advances restore when visible WebView animation frames are suspended', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const paint = allowWindowPaint();
+  await vi.runAllTimersAsync();
+  await paint;
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('stops waiting when the document becomes hidden during a transition', async () => {
+  vi.useFakeTimers();
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+  const paint = allowWindowPaint();
+  visibility.mockReturnValue('hidden');
+  document.dispatchEvent(new Event('visibilitychange'));
+  await paint;
+  expect(vi.getTimerCount()).toBe(0);
 });

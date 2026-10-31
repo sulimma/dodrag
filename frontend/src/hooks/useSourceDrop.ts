@@ -4,7 +4,7 @@ import { fileDropText, parseSourcePayload, SOURCE_MIME } from '../components/edi
 import type { EditorTarget } from '../components/editor/types';
 
 export function sourceDropTask(element: EventTarget | null): string | undefined {
-  if (!(element instanceof Element) || element.closest('[data-description-editor], [data-task-log]')) return;
+  if (!(element instanceof Element) || element.closest('[inert], [data-description-editor], [data-task-log]')) return;
   return element.closest<HTMLElement>('[data-source-task-id]')?.dataset.sourceTaskId;
 }
 
