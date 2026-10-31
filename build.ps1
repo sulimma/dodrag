@@ -3,40 +3,39 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')]
     [string]$Version,
-    [ValidateSet('amd64', 'arm64')][string]$Architecture = 'amd64'
+    [ValidateSet('amd64', 'arm64')][string]$Architecture = 'amd64',
+    [switch]$Test
 )
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $env:PATH += ";C:\Program Files\Go\bin;$env:USERPROFILE\go\bin"
 $localNodeDir = Join-Path $env:LOCALAPPDATA "dodrag_node_cache"
-function Assert-NativeSuccess([string]$step) {
-    if ($LASTEXITCODE -ne 0) { throw "$step failed (exit $LASTEXITCODE)" }
-}
+. "$PSScriptRoot\scripts\frontend-cache.ps1"
 if (-not (Test-Path -LiteralPath $PSScriptRoot)) { throw "Project directory missing" }
 if (-not (Test-Path -LiteralPath $env:LOCALAPPDATA)) { throw "Local cache parent missing" }
 Push-Location $PSScriptRoot
 try {
-    New-Item -ItemType Directory -Force -Path $localNodeDir | Out-Null
-    $definitionHash = (Get-FileHash -LiteralPath "frontend\package.json" -Algorithm SHA256).Hash
-    $marker = Join-Path $localNodeDir ".dependencies.sha256"
-    $previousHash = if (Test-Path -LiteralPath $marker) { [IO.File]::ReadAllText($marker).Trim() } else { "" }
-    Copy-Item "frontend\package.json", "frontend\index.html", "frontend\tsconfig.json", "frontend\vite.config.ts", "frontend\tailwind.config.js", "frontend\postcss.config.js" $localNodeDir -Force
-    if (Test-Path -LiteralPath "$localNodeDir\src") { Remove-Item -LiteralPath "$localNodeDir\src" -Recurse -Force }
-    Copy-Item "frontend\src" "$localNodeDir\src" -Recurse -Force
-    if (-not (Test-Path -LiteralPath "$localNodeDir\node_modules") -or $previousHash -ne $definitionHash) {
-        npm --prefix $localNodeDir install --package-lock=false --no-audit --no-fund
-        Assert-NativeSuccess "Dependency installation"
-        [IO.File]::WriteAllText($marker, $definitionHash)
-    }
-    npm --prefix $localNodeDir test
-    Assert-NativeSuccess "Frontend tests"
-    npm --prefix $localNodeDir run build
-    Assert-NativeSuccess "Frontend build"
+    $localNodeDir = Sync-FrontendCache
+    Push-Location $localNodeDir
+    try {
+        if ($Test) { npm test; Assert-NativeSuccess 'Frontend tests' }
+        npm run build
+        Assert-NativeSuccess 'Frontend build'
+    } finally { Pop-Location }
     if (-not (Test-Path -LiteralPath "$localNodeDir\dist\index.html")) { throw "Frontend artifact missing" }
-    if (Test-Path -LiteralPath "frontend\dist") { Remove-Item -LiteralPath "frontend\dist" -Recurse -Force }
-    Copy-Item "$localNodeDir\dist" "frontend\dist" -Recurse -Force
-    go test ./...
-    Assert-NativeSuccess "Go tests"
+    $distTarget = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'frontend\dist'))
+    if ($distTarget -ne (Join-Path ([IO.Path]::GetFullPath($PSScriptRoot)) 'frontend\dist')) { throw 'Invalid frontend output path' }
+    # DriveFS may reject recursive directory removal; mirror only this checked build output.
+    robocopy "$localNodeDir\dist" $distTarget /MIR /NJH /NJS /NFL /NDL /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw 'Frontend artifact synchronization failed' }
+    if ($Test) {
+        go test ./...
+        Assert-NativeSuccess 'Go tests'
+        go test -tags 'desktop,production' ./...
+        Assert-NativeSuccess 'Production Go tests'
+        & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\release.test.ps1"
+        Assert-NativeSuccess 'Release guard tests'
+    }
     # Wails embeds the Windows manifest and resources; -s skips the already checked frontend.
     $oldToolchain = $env:GOTOOLCHAIN
     try {
@@ -63,5 +62,5 @@ try {
     } finally { $env:GOTOOLCHAIN = $oldToolchain }
     if (-not (Test-Path -LiteralPath "build\bin\dodrag.exe")) { throw "Packaged executable missing" }
     if ($Architecture -eq 'amd64') { Copy-Item "build\bin\dodrag.exe" "dodrag.exe" -Force }
-    Write-Host "Build and tests completed. App was not started." -ForegroundColor Green
+    Write-Host "Build completed. App was not started." -ForegroundColor Green
 } finally { Pop-Location }

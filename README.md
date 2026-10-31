@@ -139,7 +139,7 @@ $version = Read-Host "Version (MAJOR.MINOR.PATCH)"
 ./build.ps1 -Version $version
 ```
 
-The script installs frontend dependencies in a local cache, runs the frontend and Go tests, builds the frontend, and packages `dodrag.exe` into both `build/bin` and the repository root. It does not start the application. Supply the desired SemVer version with `-Version`; the script injects it into the application and Windows file metadata at build time. Without build-time values the binary reports `dev` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
+The script synchronizes frontend dependencies in a local cache, compiles the app, and packages `dodrag.exe` into both `build/bin` and the repository root. Add `-Test` for the full pre-commit checks. During development, use `./frontend.ps1 -Action Test -TestFiles src/domain/dates.test.ts` for selected tests. Linguistic heuristics are optional: `./frontend.ps1 -Action LanguageAudit`. It does not start the application. Supply the desired SemVer version with `-Version`; the script injects it into the application and Windows file metadata at build time. Without build-time values the binary reports `dev` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
 
 Standard validation uses frontend unit/DOM tests, TypeScript checking, Go tests, and native Wails packaging. Targeted Chromium checks are optional aids for SVG geometry or text layout; they do not verify Windows clipboard, WebView2, multi-monitor, or DPI integration.
 

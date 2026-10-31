@@ -1,3 +1,4 @@
+// Alt removal is source-incident: A->B->C plus A->C removes A->B/A->C when dragging A onto C, never B->C. Preview and commit use this same edge set, including stored edges hidden by transitive reduction.
 import type { TaskState } from './types';
 export interface DependencyEdge { from: string; to: string }
 export const edgeKey = (edge: DependencyEdge) => `${edge.from}->${edge.to}`;

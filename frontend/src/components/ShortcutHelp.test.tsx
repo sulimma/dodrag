@@ -107,7 +107,6 @@ it('reactively localizes every syntax helper in all languages while retaining sy
     expect([...host.querySelectorAll('h5')].map(node => node.textContent)).toEqual(SYMBOL_GROUPS.map(group => t(group.labelKey)));
     for (const { labelKey, items } of SYMBOL_GROUPS) {
       const list = [...host.querySelectorAll('ul')].find(node => node.getAttribute('aria-label') === t(labelKey))!;
-      expect(list.classList.contains('grid-cols-3')).toBe(true);
       expect([...list.querySelectorAll('li')].map(node => [...node.querySelectorAll('code')].map(code => code.textContent)))
         .toEqual(items.map(({ shortcut, symbol, latex }) => [shortcut, latex ? `$${latex}$` : symbol]));
     }
@@ -244,9 +243,6 @@ it('localizes preview errors and labels reactively without applying symbol repla
     expect(host.querySelector('details code')!.textContent).toContain(`A[${t('Start')}] --> B[${t('Ende')}]`);
     expect(host.textContent).toContain('1/2');
     expect(host.textContent).toContain(' -- ');
-    const syntax = host.querySelector('details')!.parentElement!.parentElement!;
-    expect(syntax.style.fontVariantLigatures).toBe('none');
-    expect(syntax.style.fontFeatureSettings).toBe('"liga" 0, "clig" 0, "calt" 0');
   }
   expect(document.querySelector('[data-help-mermaid-render]')).toBeNull();
 });

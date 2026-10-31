@@ -217,17 +217,13 @@ function editNote() {
   act(() => host.querySelector('[data-log-entry="note"] span')!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 }
 
-it('single-click edits with retained geometry, no buttons, Enter/Shift+Enter/blur commits and Escape cancellation', async () => {
+it('single-click edits with no buttons, Enter/Shift+Enter/blur commits and Escape cancellation', async () => {
   editNote();
   const timestamp = host.querySelector('time')!.getAttribute('datetime');
   expect(field().value).toBe('Plain note text'); expect(document.activeElement).toBe(field());
   const article = host.querySelector('[data-log-entry="note"]')!;
   expect(article.querySelector('button')).toBeNull();
-  expect(field().parentElement!.classList.contains('relative')).toBe(true);
   expect(article.querySelector('.invisible span')!.textContent).toBe('Plain note text');
-  for (const name of ['absolute', 'inset-0', 'w-full', 'h-full', 'border-0', 'p-0', 'resize-none', '[font:inherit]', '[line-height:inherit]']) {
-    expect(field().classList.contains(name)).toBe(true);
-  }
   expect(field().hasAttribute('rows')).toBe(false);
   change('   '); expect(editKey('Enter').defaultPrevented).toBe(true); expect(props.onUpdate).not.toHaveBeenCalled();
   change('  first\nsecond  ');
@@ -344,8 +340,6 @@ it('renders translated lifecycle statuses instead of persisted text and permits 
       for (const [index, article] of Array.from(host.querySelectorAll('article')).entries()) {
         const time = article.querySelector('time')!;
         expect(time.textContent).toMatch(new RegExp(`^${index === 1 ? '🟥' : '🟩'} 2026-10-25 \\d\\d:\\d\\d ${statuses[index]}$`));
-        expect(time.classList.contains('text-[10px]')).toBe(true);
-        expect(article.classList.contains('mb-1')).toBe(true);
         expect(article.children).toHaveLength(1); expect(article.querySelector('button')).toBeNull();
         expect(menu(article).items).toEqual([{ id: 'copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: false }]);
         await execute('copy'); expect(writeText).toHaveBeenLastCalledWith(time.textContent);

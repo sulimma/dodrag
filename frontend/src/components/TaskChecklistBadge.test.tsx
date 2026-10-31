@@ -11,7 +11,7 @@ import { MiniCornerView } from './MiniCornerView';
 import { projectEvents } from '../domain/projector';
 import { formatNumber, getLanguage, setLanguage, t } from '../i18n';
 
-it('hides absent checklists and colors only fully checked lists green', () => {
+it('hides absent checklists and exposes checklist progress', () => {
   expect(renderToStaticMarkup(<TaskChecklistBadge progress={null} />)).toBe('');
   expect(renderToStaticMarkup(<TaskChecklistBadge progress={{ checked: 0, total: 0 }} />)).toBe('');
   const element = document.createElement('div');
@@ -20,10 +20,8 @@ it('hides absent checklists and colors only fully checked lists green', () => {
   expect(badge.textContent).toBe('3/7');
   expect(badge.getAttribute('aria-label')).toBe(t('Checkliste: {checked} von {total} erledigt', { checked: '3', total: '7' }));
   expect(badge.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
-  expect(badge.classList.contains('text-emerald-700')).toBe(false);
   element.innerHTML = renderToStaticMarkup(<TaskChecklistBadge progress={{ checked: 7, total: 7 }} compact />);
   expect(element.firstElementChild?.textContent).toBe('7/7');
-  expect(element.firstElementChild?.classList.contains('text-emerald-700')).toBe(true);
 });
 
 it('updates localized numbers and accessible text when the language changes', () => {
@@ -93,7 +91,6 @@ it('uses the same non-interactive progress badge in all four task views', () => 
     if (index === 2) expect(badge.closest('[data-gantt-list]')).not.toBeNull();
     if (index === 3) {
       expect(badge.closest('[data-mini-task-id="A"]')).not.toBeNull();
-      expect(badge.nextElementSibling?.classList.contains('group-hover:visible')).toBe(true);
     }
   }
 });

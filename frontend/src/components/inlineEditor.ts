@@ -1,3 +1,4 @@
+// Product rule: edit inside the existing text surface; Enter/blur commits and Escape discards, without extra Edit/Save buttons or a layout switch.
 import type { TaskState } from '../domain/types';
 import type React from 'react';
 

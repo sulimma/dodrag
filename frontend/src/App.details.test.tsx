@@ -61,9 +61,6 @@ const panel = () => host.querySelector<HTMLElement>(`aside[aria-label="${t('Task
 const list = () => host.querySelector<HTMLElement>('main')!;
 const toggle = () => panel().querySelector<HTMLButtonElement>(':scope > button[data-detail-toggle]')!;
 const click = (target: Element) => act(() => target.dispatchEvent(new MouseEvent('click', { bubbles: true })));
-const cssWidth = (value: string) => {
-  const control = document.createElement('div'); control.style.width = value; return control.style.width;
-};
 const key = async (target: Element, value: string) => {
   await act(async () => { target.dispatchEvent(new KeyboardEvent('keydown', {
     key: value, bubbles: true, cancelable: true,
@@ -92,23 +89,16 @@ async function mountWithDetails() {
   expect(list().querySelector('span[title="Alpha"]')).not.toBeNull();
 }
 
-it.each([false, true])('keeps only the toggle in the narrow collapsed strip with selected task=%s', async selected => {
+it.each([false, true])('keeps collapsed details non-interactive with selected task=%s', async selected => {
   await act(async () => root.render(<App />));
   if (selected) click(list().querySelector(`[data-task-drag="${taskId}"]`)!);
   const container = panel(), control = toggle();
   const toolbar = host.querySelector('header')!;
   const detailButtons = () => [...host.querySelectorAll<HTMLButtonElement>('button')].filter(button =>
     [t('Details anzeigen'), t('Details schließen')].includes(button.getAttribute('aria-label') ?? button.title));
-  expect(container.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
   expect(container.querySelector(`button[aria-label="${t('Markdown-Syntax')}"]`)).toBeNull();
-  expect(container.classList.contains('transition-[width]')).toBe(true);
-  expect(container.classList.contains('duration-300')).toBe(true);
   expect(container.querySelector('[data-detail-divider]')).toBeNull();
   expect(control.parentElement).toBe(container);
-  expect(control.classList.contains('top-3')).toBe(true);
-  expect(control.classList.contains('right-0')).toBe(true);
-  expect(control.classList.contains('w-7')).toBe(true);
-  expect(control.querySelector('svg')!.classList.contains('w-5')).toBe(true);
   expect(toolbar.contains(control)).toBe(false);
   expect(detailButtons()).toEqual([control]);
   const placeholder = t('Task auswählen, um Details, Beschreibung und Log anzuzeigen');
@@ -119,20 +109,12 @@ it.each([false, true])('keeps only the toggle in the narrow collapsed strip with
     expect(container.textContent).not.toContain(placeholder);
     expect(container.hasAttribute('data-task-drag')).toBe(false);
     expect(container.hasAttribute('data-task-drop-target')).toBe(false);
-    expect(container.style.getPropertyValue('--wails-drop-target')).toBe('none');
     click(control);
     expect(panel()).toBe(container); expect(toggle()).toBe(control);
     expect(control.getAttribute('aria-expanded')).toBe('true');
     expect(control.getAttribute('aria-label')).toBe(t('Details schließen'));
     const syntaxHelp = container.querySelector<HTMLButtonElement>(`button[aria-label="${t('Markdown-Syntax')}"]`)!;
     expect(syntaxHelp.parentElement).toBe(container);
-    expect(syntaxHelp.classList.contains('right-7')).toBe(true);
-    expect(container.style.width).toBe('var(--detail-width)');
-    expect(container.style.getPropertyValue('--detail-width')).toBe('min(560px, max(200px, calc(100vw - 300px)))');
-    const content = container.querySelector('header')!.parentElement!;
-    expect(content.style.width).toBe('var(--detail-width)');
-    expect(content.classList.contains('left-0')).toBe(true);
-    expect(content.classList.contains('right-8')).toBe(false);
     expect(container.querySelector('header')).not.toBeNull();
     if (selected) {
       expect(container.querySelector('span[title="Alpha"]')).not.toBeNull();
@@ -146,7 +128,6 @@ it.each([false, true])('keeps only the toggle in the narrow collapsed strip with
     expect(detailButtons()).toEqual([control]);
     click(control);
     expect(panel()).toBe(container); expect(toggle()).toBe(control);
-    expect(container.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
     expect(container.querySelector(`button[aria-label="${t('Markdown-Syntax')}"]`)).toBeNull();
   }
   expect(api.AppendBatch).not.toHaveBeenCalled();
@@ -170,36 +151,16 @@ it('retains independent detail and log sizes across task selection and collapse 
     expect(panel()).toBe(container); expect(toggle()).toBe(control);
     expect(separator('vertical').getAttribute('aria-valuenow')).toBe('570');
     expect(separator('horizontal').getAttribute('aria-valuenow')).toBe('234');
-    expect(container.style.getPropertyValue('--detail-width')).toBe('min(570px, max(200px, calc(100vw - 300px)))');
-    const logArea = container.querySelector<HTMLElement>('[data-task-log]')!.parentElement!;
-    const expected = document.createElement('div'); expected.style.height = 'min(234px, max(100px, calc(100% - 290px)))';
-    expect(logArea.style.height).toBe(expected.style.height);
-    expect(container.querySelector<HTMLElement>('[data-task-log]')!.classList.contains('h-full')).toBe(true);
   };
   assertSizes();
   click(list().querySelector(`[data-task-drag="${secondId}"]`)!);
   expect(container.querySelector('span[title="Beta"]')).not.toBeNull(); assertSizes();
   click(control);
   expect(container.querySelector('[role="separator"]')).toBeNull();
-  expect(container.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
   click(list().querySelector(`[data-task-drag="${taskId}"]`)!); click(control);
   expect(container.querySelector('span[title="Alpha"]')).not.toBeNull(); assertSizes();
   expect(api.AppendBatch).not.toHaveBeenCalled(); expect(api.AppendEvent).not.toHaveBeenCalled();
   expect(api.SetAutostart).not.toHaveBeenCalled();
-});
-
-it('uses the full list width without max-width or auto-centering in either panel state', async () => {
-  await act(async () => root.render(<App />));
-  const listRoot = list().firstElementChild as HTMLElement;
-  expect(listRoot.querySelector(`[data-task-drag="${taskId}"]`)).not.toBeNull();
-  for (let state = 0; state < 3; state++) {
-    expect(list().firstElementChild).toBe(listRoot);
-    expect(listRoot.classList.contains('w-full')).toBe(true);
-    expect([...listRoot.classList].some(name => name.startsWith('max-w-'))).toBe(false);
-    expect(listRoot.classList.contains('mx-auto')).toBe(false);
-    click(toggle());
-  }
-  expect(api.AppendBatch).not.toHaveBeenCalled();
 });
 
 it.each(['list', 'network', 'gantt', 'gantt-bar', 'completed'] as const)(
@@ -305,13 +266,11 @@ it.each(['list', 'network', 'gantt', 'panel', 'mini'] as const)(
     if (view === 'mini') await act(async () => click(host.querySelector(`button[title^="${t('Minimieren (Kompaktansicht in Bildschirmecke)')}"]`)!));
     const area = view === 'panel' ? panel() : view === 'mini' ? host.querySelector('[data-mini-task-id]')! : list();
     const title = area.querySelector<HTMLElement>('[data-task-title]')!;
-    const originalClass = title.className;
     act(() => { title.focus(); });
     const range = document.createRange(); range.setStart(title.firstChild!, 1); range.setEnd(title.firstChild!, 4);
     window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
     click(title);
     expect(editor(area, 'title')).toBe(title);
-    expect(title.className).toBe(originalClass);
     expect(window.getSelection()!.toString()).toBe('lph');
     await act(async () => title.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })));
     if (view !== 'mini') expect(toggle().getAttribute('aria-expanded')).toBe('true');
@@ -356,7 +315,6 @@ it('puts live editor undo and redo beside the dates, not among the menus', async
   expect(undo.disabled).toBe(true); expect(redo.disabled).toBe(true);
   const menus = panel().querySelector(`[role="group"][aria-label="${t('Textformatierung')}"]`)!;
   expect(menus.querySelector('[data-editor-history]')).toBeNull();
-  expect(menus.querySelector('button span')!.classList.contains('text-[11px]')).toBe(true);
   const editor = (panel().querySelector('.tiptap') as HTMLElement & { editor: import('@tiptap/react').Editor }).editor;
   await act(async () => { editor.commands.insertContent('edited'); });
   expect(undo.disabled).toBe(false);

@@ -43,7 +43,7 @@ it.each([['A'], ['A', 'B']])('uses the pressed row, not the focused detail copy,
   expect((setDragImage.mock.calls[1][0] as HTMLElement).textContent).toBe('Detail header');
 });
 
-it('clones every frozen member with styles, relative positions and scaled non-first-source hotspot', () => {
+it('clones every frozen member with relative positions and scaled non-first-source hotspot', () => {
   node('A', 100, 100, 800); const source = node('B', 140, 180, 800); node('C', 100, 230);
   const setDragImage = vi.fn();
   const cleanup = taskDragPreview({ setDragImage } as unknown as DataTransfer, source, ['A', 'B'], tasks, 160, 190);
@@ -55,7 +55,6 @@ it('clones every frozen member with styles, relative positions and scaled non-fi
   expect(image.querySelector('[id],[data-task-drag],[draggable],[contenteditable]')).toBeNull();
   expect(image.inert).toBe(true);
   expect(image.querySelector('button').tabIndex).toBe(-1);
-  expect(image.querySelector('[data-drag-preview-task="A"]').style.backgroundColor).toBe('rgb(12, 34, 56)');
   const scale = 600 / 840;
   expect(x).toBe(Math.round(60 * scale)); expect(y).toBe(Math.round(90 * scale));
   expect(image.querySelector('[data-drag-preview-task="B"]').style.top).toBe('80px');

@@ -1,3 +1,4 @@
+// Product rule: native Windows popups extend beyond the mini window. All views share these actions; completed tasks offer only reopen, and title editing stays outside the menu.
 import { useEffect, useRef } from 'react';
 import { eventBridge, type TaskMenuItem } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';

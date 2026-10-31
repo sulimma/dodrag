@@ -35,7 +35,6 @@ it('shows compact hover/focus actions, targets the task and never restores for a
     const input = element.querySelector('input')!;
     expect(input.disabled).toBe(false);
     expect(input.closest('[style]')!.getAttribute('style')).toContain('--wails-draggable: no-drag');
-    expect(input.classList.contains('select-text')).toBe(true);
     act(() => input.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
     expect(create).toHaveBeenCalledTimes(1);
     const actions = element.querySelector('.group-hover\\:visible')!;

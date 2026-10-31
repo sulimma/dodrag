@@ -36,7 +36,7 @@ try {
     $output = Join-Path $PSScriptRoot 'build\bin'
     $assets = @()
     foreach ($architecture in @('amd64', 'arm64')) {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\build.ps1" -Version $Version -Architecture $architecture
+        & "$PSScriptRoot\build.ps1" -Version $Version -Architecture $architecture -Test:($architecture -eq 'amd64')
         Assert-NativeSuccess "Build windows/$architecture"
         if (-not (Test-Path -LiteralPath $output)) { throw 'Build output directory missing' }
         $asset = Join-Path $output "dodrag-windows-$architecture.exe"

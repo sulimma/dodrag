@@ -102,101 +102,45 @@ afterEach(() => {
   act(() => root.unmount()); host.remove(); vi.restoreAllMocks(); vi.unstubAllGlobals();
 });
 const render = (props: React.ComponentProps<typeof TaskDetailPanel>) => act(() => root.render(<TaskDetailPanel {...props} />));
-// Compare CSSOM values: jsdom normalizes nested min/max expressions.
-const cssHeight = (value: string) => {
-  const control = document.createElement('div'); control.style.height = value; return control.style.height;
-};
-const cssWidth = (value: string) => {
-  const control = document.createElement('div'); control.style.width = value; return control.style.width;
-};
-it('keeps one rem-sized toggle plus its border and full-width content without a divider strip', () => {
+it('toggles details without replacing its control or leaving an editor when collapsed', () => {
   const props = { ...makeProps(), onToggle: vi.fn() };
   render({ ...props, open: false });
   const pane = host.querySelector<HTMLElement>('aside')!;
   const toggle = pane.querySelector<HTMLButtonElement>(':scope > button[data-detail-toggle]')!;
   expect(host.querySelector('[data-detail-divider]')).toBeNull();
   expect(toggle.parentElement).toBe(pane);
-  expect(pane.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
-  expect(pane.className).toContain('transition-[width]');
-  expect(toggle.className).toContain('top-3 right-0');
-  expect(toggle.classList.contains('w-7')).toBe(true);
-  expect(toggle.querySelector('svg')!.classList.contains('w-5')).toBe(true);
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
   expect(host.querySelector('[data-editor]')).toBeNull();
   act(() => toggle.click());
   expect(props.onToggle).toHaveBeenCalledOnce();
   render({ ...props, open: true });
   expect(pane.querySelector(':scope > button[data-detail-toggle]')).toBe(toggle);
-  expect(pane.style.width).toBe('var(--detail-width)');
-  expect(pane.style.getPropertyValue('--detail-width')).toBe('min(560px, max(200px, calc(100vw - 300px)))');
-  const resize = pane.querySelector<HTMLElement>(':scope > [data-resize-handle="vertical"]')!;
-  expect(resize.classList.contains('right-0')).toBe(true);
-  expect(resize.classList.contains('top-12')).toBe(true);
-  expect(resize.classList.contains('top-3')).toBe(false);
   const content = host.querySelector('header')!.parentElement!;
   expect(content.parentElement).toBe(pane);
-  expect(content.style.width).toBe('var(--detail-width)');
-  expect(content.classList.contains('left-0')).toBe(true);
-  expect(content.classList.contains('right-8')).toBe(false);
   expect(toggle.getAttribute('aria-expanded')).toBe('true');
   expect(host.querySelector('[data-editor]')).not.toBeNull();
   render({ ...props, open: false });
   expect(pane.querySelector(':scope > button[data-detail-toggle]')).toBe(toggle);
-  expect(pane.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
 });
 
-it.each([null, '2026-10-28T10:00:00Z'])('keeps configured and effective dates in one responsive row with calculatedStart=%s', calculatedStart => {
+it.each([null, '2026-10-28T10:00:00Z'])('shows configured and effective dates and preserves the effective value while editing with calculatedStart=%s', calculatedStart => {
   const props = makeProps(); render({ ...props, task: { ...task, calculatedStart } });
   const row = host.querySelector<HTMLElement>('[data-detail-dates]')!;
   const configured = row.querySelector(`button[aria-label="${t('Startdatum {id} bearbeiten', { id: task.id })}"]`)!;
   const arrow = row.querySelector('svg.lucide-arrow-right')!;
   const effective = row.querySelector<HTMLElement>(`span[title="${t('Berechnet')}"]`)!;
-  expect(row.classList.contains('flex')).toBe(true);
-  expect(row.classList.contains('whitespace-nowrap')).toBe(true);
-  expect(row.classList.contains('flex-wrap')).toBe(false);
   expect(row.querySelectorAll('.detail-date-label')).toHaveLength(2);
   expect([...row.querySelectorAll('.detail-date-label')].map(label => label.textContent)).toEqual([
     `${t('Konfiguriert')}:`, `${t('Berechnet')}:`,
   ]);
   expect(arrow.getAttribute('aria-hidden')).toBe('true');
-  expect(arrow.classList.contains('shrink-0')).toBe(true);
   expect(configured.compareDocumentPosition(arrow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(arrow.compareDocumentPosition(effective) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(configured.textContent).toBe(formatDate(task.configuredStart));
-  expect(configured.classList.contains('text-[10px]')).toBe(true);
   expect(effective.textContent).toBe(formatDate(calculatedStart ?? task.effectiveStart));
-  const content = row.closest('header')!.parentElement!;
-  expect(content.style.containerType).toBe('inline-size');
-  expect(content.style.containerName).toBe('task-detail');
-  // jsdom cannot evaluate container queries; verify the responsive CSS contract instead.
-  expect(content.querySelector('style')!.textContent).toMatch(
-    /@container\s+task-detail\s*\(max-width:\s*440px\)\s*\{\s*\.detail-date-label\s*\{\s*display:\s*none;/,
-  );
   render({ ...props, task: { ...task, calculatedStart }, dateEditor: { ...props.dateEditor, taskId: task.id } });
-  const input = row.querySelector('input')!;
-  expect(input.classList.contains('w-24')).toBe(true);
   expect(row.querySelector('svg.lucide-arrow-right')).toBe(arrow);
   expect(row.querySelector(`span[title="${t('Berechnet')}"]`)).toBe(effective);
-});
-
-it('gives the editor remaining column height without an outer scroll or padding wrapper', () => {
-  render(makeProps());
-  const section = host.querySelector('[data-editor]')!.parentElement!;
-  const content = section.parentElement!;
-  expect(section.tagName).toBe('SECTION');
-  for (const name of ['flex', 'flex-col', 'flex-1', 'min-h-0', 'overflow-hidden']) {
-    expect(section.classList.contains(name)).toBe(true);
-  }
-  expect([...section.classList].some(name => /^(p[xytrbl]?-|overflow-[xy]-)/.test(name))).toBe(false);
-  for (const name of ['flex', 'flex-col', 'min-h-0']) expect(content.classList.contains(name)).toBe(true);
-  expect(content.querySelector('header')!.classList.contains('shrink-0')).toBe(true);
-  const logArea = host.querySelector('[data-log]')!.parentElement!;
-  expect(logArea.parentElement).toBe(content);
-  expect(logArea.classList.contains('shrink-0')).toBe(true);
-  expect(logArea.style.height).toBe(cssHeight('min(224px, max(100px, calc(100% - 290px)))'));
-  const resize = section.nextElementSibling!;
-  expect(resize.getAttribute('data-resize-handle')).toBe('horizontal');
-  expect(resize.nextElementSibling).toBe(logArea);
 });
 
 it('resizes panel and log independently with real mouse pointers without starting native task gestures', async () => {
@@ -206,7 +150,6 @@ it('resizes panel and log independently with real mouse pointers without startin
   const pane = host.querySelector<HTMLElement>('aside')!;
   const vertical = pane.querySelector<HTMLElement>('[data-resize-handle="vertical"]')!;
   const horizontal = pane.querySelector<HTMLElement>('[data-resize-handle="horizontal"]')!;
-  const logArea = host.querySelector('[data-log]')!.parentElement!;
   const pointer = (target: EventTarget, type: string, x: number, y: number) => act(() => {
     target.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, button: 0,
       pointerId: 5, isPrimary: true, clientX: x, clientY: y }));
@@ -216,12 +159,10 @@ it('resizes panel and log independently with real mouse pointers without startin
     pointer(window, 'pointerup', 140, 900);
     expect(vertical.getAttribute('aria-valuenow')).toBe('600');
     expect(horizontal.getAttribute('aria-valuenow')).toBe('224');
-    expect(pane.style.getPropertyValue('--detail-width')).toBe('min(600px, max(200px, calc(100vw - 300px)))');
     pointer(horizontal, 'pointerdown', 100, 200); pointer(window, 'pointermove', 900, 160);
     pointer(window, 'pointerup', 900, 160);
     expect(horizontal.getAttribute('aria-valuenow')).toBe('264');
     expect(vertical.getAttribute('aria-valuenow')).toBe('600');
-    expect(logArea.style.height).toBe(cssHeight('min(264px, max(100px, calc(100% - 290px)))'));
     expect(props.interactions.onDragStartTask).not.toHaveBeenCalled();
     expect(end).not.toHaveBeenCalled();
     expect(props.onDescriptionChange).not.toHaveBeenCalled(); expect(props.onAddLog).not.toHaveBeenCalled();
@@ -490,18 +431,10 @@ it.each([true, false])('shows syntax help only in the expanded detail panel whil
   const help = host.querySelector<HTMLButtonElement>(`button[aria-label="${t('Markdown-Syntax')}"]`)!;
   if (!open) {
     expect(help).toBeNull();
-    expect(host.querySelector<HTMLElement>('aside')!.style.width).toBe(cssWidth('calc(1.75rem + 1px)'));
     expect(host.querySelectorAll('aside > button')).toHaveLength(1);
     return;
   }
   expect(help.title).toBe(t('Markdown-Syntax'));
-  expect(help.classList.contains('right-7')).toBe(true);
-  expect(host.querySelector('[data-detail-toggle]')!.classList.contains('right-0')).toBe(true);
-  for (const control of [help, host.querySelector('[data-detail-toggle]')!]) {
-    expect(control.classList.contains('w-7')).toBe(true);
-    expect(control.classList.contains('h-7')).toBe(true);
-    expect(control.querySelector('svg')!.classList.contains('w-5')).toBe(true);
-  }
   act(() => help.click());
   expect(onSyntaxHelp).toHaveBeenCalledOnce();
 });

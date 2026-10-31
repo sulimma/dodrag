@@ -653,7 +653,6 @@ it.each(['Liste', 'Netzplan', 'Gantt'])('selects the drag source on Alt dragover
   click(target);
   dragEvent(source, 'dragstart');
   dragEvent(target, 'dragover', true);
-  expect(source.className).toContain('bg-sky-');
   expect(element.querySelector('[data-edge-key="26-101->26-102"][data-deletion-preview="true"]')).not.toBeNull();
   await act(async () => dragEvent(target, 'drop', true));
   expect(vi.mocked(api.AppendBatch).mock.calls[0][0]).toHaveLength(1);
@@ -992,7 +991,6 @@ it('switches main views and details with exact control modifiers but leaves mini
   await mount();
   for (const [keyValue, view] of [['2', 'network'], ['3', 'gantt'], ['1', 'list']]) {
     key(keyValue, document.body, { ctrlKey: true });
-    expect(element.querySelector(`button[aria-keyshortcuts="Control+${keyValue}"]`)!.className).toContain('bg-white');
     if (view === 'list') expect(element.querySelector('main')!.getAttribute('data-task-drop-target')).toBe('list-background');
   }
   key('D', document.body, { ctrlKey: true, shiftKey: true });

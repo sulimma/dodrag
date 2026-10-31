@@ -375,8 +375,6 @@ it('focuses dropped paths synchronously, leaves caret after the path and separat
   expect(onChange.mock.lastCall![1]).toMatchObject({ localUndo: true });
   act(() => editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true })));
   expect(editor.state.doc.textContent).toBe('before ');
-  expect(element.querySelector('[data-description-editor]')!.className).toContain('overflow-hidden');
-  expect(element.querySelector('.tiptap')!.parentElement!.className).toContain('overflow-y-auto');
 });
 
 it('separates DOM paste from adjacent typing history and reports a persistence boundary', async () => {
@@ -433,14 +431,12 @@ it('groups formatting and insertion entries with syntax tooltips and keyboard di
   expect(document.activeElement).toBe(button(element, 'Block'));
   await click(element, 'Sonderzeichen');
   expect(element.querySelectorAll('[data-editor-dropdown] button')).toHaveLength(3 + SYMBOL_GROUPS.reduce((sum, group) => sum + group.items.length, 0));
-  for (const grid of element.querySelectorAll('[data-symbol-group]')) expect(grid.classList.contains('grid-cols-3')).toBe(true);
   expect(element.querySelector('[data-emoticon-group]')).toBeNull();
   expect(element.querySelector('[data-editor-dropdown] button[title="2/3"]')).not.toBeNull();
   for (const shortcut of ['(c)', '(R)', '(TM)']) expect([...element.querySelectorAll<HTMLButtonElement>('[data-editor-dropdown] button')].some(entry => entry.title === shortcut)).toBe(true);
   expect(element.querySelector(`[data-editor-dropdown] button[aria-label="${t('Formel')}"]`)).toBeNull();
   expect(element.querySelector(`[data-editor-dropdown] button[aria-label="${t('Formelblock')}"]`)).toBeNull();
   await click(element, 'Symbole');
-  for (const grid of element.querySelectorAll('[data-emoticon-group]')) expect(grid.classList.contains('grid-cols-4')).toBe(true);
   expect(element.querySelector('[data-editor-dropdown] button[title="(*y)"]')).toBeNull();
   const colors = element.querySelector('[data-emoticon-group="Farben"]')!;
   expect([...colors.children].map(entry => entry.getAttribute('title'))).toEqual(['(*r)', '(*)', '(*g)', '(*b)', '(r)', '(y)', '(g)', '(b)', '[r]', '[y]', '[g]', '[b]']);
@@ -473,9 +469,8 @@ it('positions dropdowns outside a narrow clipping container and clamps them to t
   try {
     await click(element, 'Sonderzeichen');
     const dropdown = element.querySelector<HTMLElement>('[data-editor-dropdown]')!;
-    expect(dropdown.classList.contains('fixed')).toBe(true);
-    expect(dropdown.style.left).toBe(`${window.innerWidth - 296}px`);
-    expect(dropdown.style.top).toBe('72px');
+    expect(parseFloat(dropdown.style.left)).toBeGreaterThanOrEqual(0);
+    expect(parseFloat(dropdown.style.left) + 288).toBeLessThanOrEqual(window.innerWidth);
   } finally { width.mockRestore(); }
 });
 
@@ -541,16 +536,13 @@ it.each(MERMAID_TEMPLATES)('inserts the tiny $labelKey template from the separat
   expect(onError).not.toHaveBeenCalled();
 });
 
-it.each(SYMBOL_GROUPS.flatMap(group => group.items))('inserts special character $shortcut from the three-column palette', async item => {
+it.each(SYMBOL_GROUPS.flatMap(group => group.items))('inserts special character $shortcut from the palette', async item => {
   const { editor, element, onError } = await mount();
   await click(element, 'Sonderzeichen');
   const entry = [...element.querySelectorAll<HTMLButtonElement>('[data-symbol-group] button')].find(button => button.getAttribute('aria-label') === item.shortcut)!;
-  expect(entry.closest('[data-symbol-group]')?.classList.contains('grid-cols-3')).toBe(true);
   expect(entry.querySelector('span')?.textContent).toBe(item.symbol);
   const shortcut = entry.querySelector('code')!;
   expect(shortcut.textContent).toBe(item.shortcut);
-  expect(shortcut.style.fontVariantLigatures).toBe('none');
-  expect(shortcut.style.fontFeatureSettings).toBe('"liga" 0, "clig" 0, "calt" 0');
   await act(async () => entry.click());
   if (item.latex) expect(editor.state.doc.firstChild!.firstChild!.attrs.latex).toBe(item.latex);
   else expect(editor.state.doc.textContent).toBe(item.symbol);

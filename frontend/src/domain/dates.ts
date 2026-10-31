@@ -1,3 +1,4 @@
+// Product rule: date entry is quick deferral, not exact scheduling. Invalid input deliberately returns Today at 09:00 without a dialog, keeping the task visible and correctable in place.
 export function localDate(year: number, month: number, day: number, hour = 9, minute = 0, second = 0): Date {
   const date = new Date(0);
   date.setFullYear(year, month - 1, day);

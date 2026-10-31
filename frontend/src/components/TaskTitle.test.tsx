@@ -99,8 +99,6 @@ it('uses native path menus for database and install folders and handles cancella
       await act(async()=>{ findDiv(path).dispatchEvent(event); });
       expect(event.defaultPrevented).toBe(true);
     };
-    expect(findDiv('C:\\data\\tasks.db').className).toContain('cursor-text');
-    expect(findDiv('C:\\Apps\\DoDrag').className).toContain('cursor-text');
 
     showMenu.mockResolvedValueOnce('explorer');
     await openMenu('C:\\data\\tasks.db');

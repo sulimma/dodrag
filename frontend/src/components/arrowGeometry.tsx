@@ -1,3 +1,4 @@
+// Keep markerUnits=userSpaceOnUse: arrowhead geometry must not scale with stroke width. The stem ends at the triangle base; the tip meets the node border with a perpendicular end tangent.
 import React from 'react';
 export interface Point { x:number; y:number }
 export const ARROW_DEPTH = 8;
