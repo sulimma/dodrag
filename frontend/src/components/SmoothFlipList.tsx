@@ -26,6 +26,7 @@ export function SmoothFlipList({
   movedItemKey = null,
 }: SmoothFlipListProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef({ width: window.innerWidth, height: window.innerHeight });
   const prevTopsRef = useRef<Map<string, number>>(new Map());
   const animationsRef = useRef<Map<string, Animation>>(new Map());
   useLayoutEffect(() => () => {
@@ -40,6 +41,11 @@ export function SmoothFlipList({
     const elements = Array.from(
       container.querySelectorAll<HTMLElement>('[data-flip-key]')
     );
+
+    // Window-mode/DPI geometry changes are layout, not task moves. Do not
+    // animate from measurements taken at another viewport size after reveal.
+    const viewportChanged = viewportRef.current.width !== window.innerWidth || viewportRef.current.height !== window.innerHeight;
+    viewportRef.current = { width: window.innerWidth, height: window.innerHeight };
 
     // 1. Capture current VISUAL positions of any elements that might already be mid-flight,
     //    and cancel running Web Animations so the DOM is in its clean, final layout state.
@@ -77,7 +83,7 @@ export function SmoothFlipList({
     const prevTops = prevTopsRef.current;
     const isInitialRender = prevTops.size === 0;
 
-    if (!isInitialRender && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!isInitialRender && !viewportChanged && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       for (const el of elements) {
         const key = el.dataset.flipKey;
         if (!key) continue;

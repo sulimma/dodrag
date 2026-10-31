@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyTarget, fileDropText, mediaSource, parseSourcePayload, tokenizeTargets } from './targets';
+import { classifyTarget, fileDropText, nativeDropText, urlDropText, mediaSource, parseSourcePayload, tokenizeTargets } from './targets';
 
 describe('shared editor/log targets', () => {
   it('recognizes raw dot-atom mail with every atext character and encodes only the URL destination', () => {
@@ -95,4 +95,13 @@ describe('shared editor/log targets', () => {
     }
     expect(fileDropText(['C:\\file & %.txt'])).toBe('"C:\\file & %.txt"');
   });
+});
+
+it('distinguishes native URI strings from strict file drops and rejects malformed mixed input', () => {
+  expect(nativeDropText(['C:\\file.txt', 'https://example.org/page?q=1'])).toBe('"C:\\file.txt"\n<https://example.org/page?q=1>');
+  expect(() => nativeDropText(['https://example.org', 'relative.txt'])).toThrow();
+  expect(() => nativeDropText(['javascript:alert(1)'])).toThrow();
+  const transfer = (text: string) => ({ getData: (type: string) => type === 'text/uri-list' ? text : '' }) as DataTransfer;
+  expect(urlDropText(transfer('# title\r\nhttps://example.org'))).toBe('<https://example.org>');
+  expect(urlDropText(transfer('javascript:alert(1)'))).toBeUndefined();
 });

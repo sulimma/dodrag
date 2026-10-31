@@ -22,7 +22,7 @@ import { LocalImage } from './LocalImage';
 import { EMOTICON_SHAPE_VARIANTS, MarkdownFeatures, markdownFeaturesCSS } from './MarkdownFeatures';
 import { MarkdownTargets } from './MarkdownTargets';
 import { SymbolReplacements } from './SymbolReplacements';
-import { fileDropText, SOURCE_MIME, targetFromElement } from './targets';
+import { nativeDropText, urlDropText, SOURCE_MIME, targetFromElement } from './targets';
 import { openTarget, targetMenuItems } from './contextMenu';
 import type { EditorContextMenuCallback, EditorTarget, TaskDescriptionEditorHandle } from './types';
 export type { TaskDescriptionEditorHandle } from './types';
@@ -132,8 +132,19 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
           return !!handled;
         },
         paste: view => { view.dispatch(closeHistory(view.state.tr)); return false; },
-        drop: (_, event) => {
+        drop: (view, event) => {
           if (event.dataTransfer?.types.includes(SOURCE_MIME)) { event.preventDefault(); return true; }
+          const text = event.dataTransfer && urlDropText(event.dataTransfer);
+          if (text) {
+            // Own URI drops before Wails interprets virtual URL files as paths.
+            event.preventDefault(); event.stopPropagation();
+            const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from;
+            const tr = closeHistory(view.state.tr).insertText(text, pos);
+            tr.setMeta('description:boundary', true);
+            tr.setSelection(TextSelection.create(tr.doc, pos + text.length));
+            view.dispatch(tr.scrollIntoView()); view.focus();
+            return true;
+          }
           if (!event.dataTransfer?.types.includes('Files')) return false;
           // Skip ProseMirror clipboard parsing; Wails resolves native file paths
           // in its window-level bubble listener, so propagation must continue.
@@ -179,7 +190,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
       if (!editor || !paths.length) return;
       const pos = x === undefined || y === undefined ? undefined : editor.view.posAtCoords({ left: x, top: y })?.pos;
       const start = pos ?? editor.state.selection.from;
-      const text = fileDropText(paths);
+      const text = nativeDropText(paths);
       const transaction = closeHistory(editor.state.tr).insertText(text, start, start);
       transaction.setSelection(TextSelection.create(transaction.doc, start + text.length));
       transaction.setMeta('description:boundary', true);

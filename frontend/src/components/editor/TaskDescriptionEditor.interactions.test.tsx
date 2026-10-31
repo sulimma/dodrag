@@ -589,3 +589,35 @@ it.each([false, true].flatMap(loaded => ['06917320 2564', 'person+tag@example.or
   expect(editor.state.doc.textContent).toBe(value.slice(0, -1));
   expect(element.querySelector('[data-source-drag]')).toBeNull();
 });
+
+it('retains resolved source widgets when typing shifts paths and repeated URLs', async () => {
+  const { element, editor } = await mount('prefix "C:\\folder" and https://example.org and https://example.org');
+  const icons = [...element.querySelectorAll('[data-source-drag]')];
+  expect(icons).toHaveLength(3);
+  act(() => editor.view.dispatch(editor.state.tr.insertText('typed ', 1)));
+  expect([...element.querySelectorAll('[data-source-drag]')]).toEqual(icons);
+  icons.forEach(icon => expect(icon.isConnected).toBe(true));
+});
+
+it('inserts a browser URI drop once at the drop position without the native file transport', async () => {
+  const { editor } = await mount('before after');
+  vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: -1 });
+  const native = vi.fn(); window.addEventListener('drop', native);
+  try {
+    const drop = new MouseEvent('drop', { bubbles: true, cancelable: true, clientX: 10, clientY: 20 });
+    Object.defineProperty(drop, 'dataTransfer', { value: {
+      types: ['text/uri-list', 'text/plain', 'Files'],
+      getData: (type: string) => type === 'text/uri-list' ? '# browser title\r\nhttps://example.org/page?q=1' : 'Browser title',
+    } });
+    act(() => editor.view.dom.dispatchEvent(drop));
+    expect(drop.defaultPrevented).toBe(true);
+    expect(native).not.toHaveBeenCalled();
+    expect(editor.state.doc.textContent).toBe('before <https://example.org/page?q=1>after');
+  } finally { window.removeEventListener('drop', native); }
+});
+
+it('accepts URL strings delivered through the native editor drop entry point', async () => {
+  const { ref, editor } = await mount();
+  act(() => ref.current!.insertFiles(['https://example.org/path?q=1']));
+  expect(editor.state.doc.textContent).toBe('<https://example.org/path?q=1>');
+});

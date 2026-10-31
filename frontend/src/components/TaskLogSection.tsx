@@ -2,7 +2,7 @@ import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } f
 import { Send } from 'lucide-react';
 import { formatDate, t, useLanguage } from '../i18n';
 import { TargetText } from './editor/TargetText';
-import { fileDropText, targetFromElement } from './editor/targets';
+import { nativeDropText, targetFromElement } from './editor/targets';
 import { openTarget, targetMenuItems } from './editor/contextMenu';
 import type { EditorContextMenu, EditorContextMenuCallback, EditorTarget, TaskLogSectionHandle } from './editor/types';
 import type { TaskLogEntry } from '../domain/types';
@@ -75,7 +75,7 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
       if (!field || field.disabled || !paths.length) return;
       const activeSession = taskSession.current;
       const start = field.selectionStart, end = field.selectionEnd;
-      const text = fileDropText(paths);
+      const text = nativeDropText(paths);
       if (isEdit) setEditing(value => value ? { ...value, text: value.text.slice(0, start) + text + value.text.slice(end) } : value);
       else setDraft(value => value.slice(0, start) + text + value.slice(end));
       requestAnimationFrame(() => { if (field.isConnected && taskSession.current === activeSession) { field.focus(); field.setSelectionRange(start + text.length, start + text.length); } });

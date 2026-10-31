@@ -102,3 +102,18 @@ export const fileDropText = (paths: readonly string[]): string => paths.map(path
   }
   return `"${path}"`;
 }).join('\n');
+
+// WebView2 can deliver URI strings through the native drop callback as well.
+// Keep fileDropText strict for callers that specifically require filesystem paths.
+export const nativeDropText = (values: readonly string[]): string => values.map(value => {
+  const target = classifyTarget(value);
+  return target?.kind === 'url' ? `<${target.value}>` : fileDropText([value]);
+}).join('\n');
+
+export function urlDropText(data: DataTransfer): string | undefined {
+  const uriList = data.getData('text/uri-list');
+  const values = (uriList || data.getData('text/plain')).split(/\r?\n/)
+    .map(value => value.trim()).filter(value => value && !value.startsWith('#'));
+  if (!values.length || values.some(value => classifyTarget(value)?.kind !== 'url')) return;
+  return nativeDropText(values);
+}

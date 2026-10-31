@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import type { TaskState } from '../domain/types';
 import { inlineTextHandlers, type InlineEditor } from './inlineEditor';
 import { t } from '../i18n';
@@ -14,7 +14,8 @@ export function TaskTitle({
 }) {
   const text = useRef<HTMLSpanElement>(null);
   const editing = editor.taskId === task.id;
-  useEffect(() => {
+  // Synchronize restored drafts before paint so no stale/empty title frame appears.
+  useLayoutEffect(() => {
     const node = text.current;
     if (!node) return;
     const value = editing ? editor.value : task.title;

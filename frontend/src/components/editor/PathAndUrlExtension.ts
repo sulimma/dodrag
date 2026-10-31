@@ -9,6 +9,15 @@ import type { EditorState } from '@tiptap/pm/state';
 
 function decorate(doc: ProseMirrorNode, taskId: string, state: EditorState): DecorationSet {
   const decorations: Decoration[] = [];
+  // Widget identity follows the source, not its absolute document position.
+  // Typing before a path must retain its DOM and resolved native folder icon.
+  const occurrences = new Map<string, number>();
+  const sourceKey = (kind: string, value: string) => {
+    const identity = `${kind}:${value}`;
+    const occurrence = occurrences.get(identity) ?? 0;
+    occurrences.set(identity, occurrence + 1);
+    return `${identity}:${occurrence}`;
+  };
   doc.descendants((node, pos, parent) => {
     if (!node.isText || parent?.type.spec.code && parent.type.name !== 'targetLiteral' || node.marks.some(mark => mark.type.name === 'code')) return;
     const link = node.marks.find(mark => mark.type.name === 'link');
@@ -16,7 +25,7 @@ function decorate(doc: ProseMirrorNode, taskId: string, state: EditorState): Dec
       const target = classifyTarget(String(link.attrs.href ?? ''));
       const previous = doc.resolve(pos).nodeBefore;
       if (target && !previous?.marks.some(mark => mark.eq(link))) decorations.push(Decoration.widget(pos,
-        () => createSourceIcon(target), { side: -1, key: `source:${pos}:${target.value}`, stopEvent: () => true }));
+        () => createSourceIcon(target), { side: -1, key: sourceKey(target.kind, target.value), stopEvent: () => true }));
       return;
     }
     for (const token of tokenizeTargets(node.text ?? '')) {
@@ -26,7 +35,7 @@ function decorate(doc: ProseMirrorNode, taskId: string, state: EditorState): Dec
         class: 'dodrag-editor-target text-sky-700 underline cursor-pointer',
       }));
       decorations.push(Decoration.widget(pos + token.start, () => createSourceIcon(token),
-        { key: `source:${pos + token.start}:${token.value}`, side: -1, stopEvent: () => true }));
+        { key: sourceKey(token.kind, token.value), side: -1, stopEvent: () => true }));
       if (token.kind === 'path' && isImagePath(token.value)) {
         decorations.push(Decoration.widget(pos + token.end, () => {
           const image = document.createElement('img');
@@ -37,7 +46,7 @@ function decorate(doc: ProseMirrorNode, taskId: string, state: EditorState): Dec
           image.className = 'dodrag-editor-image max-h-64 max-w-full rounded-lg border border-slate-200 my-1.5 object-contain cursor-pointer';
           image.contentEditable = 'false';
           return image;
-        }, { key: `${taskId}:${pos + token.end}:${token.value}`, side: 1 }));
+        }, { key: `${taskId}:${sourceKey("image", token.value)}`, side: 1 }));
       }
     }
   });

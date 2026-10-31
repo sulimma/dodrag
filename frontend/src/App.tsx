@@ -1,3 +1,4 @@
+import { useWindowPresentation } from './hooks/useWindowPresentation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { eventBridge, type WindowMode } from './bridge/eventBridge';
 import { GanttView } from './components/GanttView';
@@ -50,6 +51,8 @@ export function App() {
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [helpPage, setHelpPage] = useState<HelpPage>('shortcuts');
   const [windowMode, setWindowMode] = useState<WindowMode>('window');
+  const [startupComplete, setStartupComplete] = useState(false);
+  const suspendPresentation = useWindowPresentation(startupComplete, windowMode);
   const isMiniMode = windowMode === 'mini';
   const confirmedMode = useRef<WindowMode | null>(null);
   const modeQueue = useRef<Promise<unknown>>(Promise.resolve());
@@ -167,24 +170,31 @@ export function App() {
   useEffect(() => {
     let current = true;
     mutationBusy.current = true;
+    const version = modeVersion.current;
+    const initialMode = eventBridge.getWindowMode().then(mode => {
+      if (current && modeVersion.current === version) { confirmedMode.current = mode; setWindowMode(mode); }
+    }).catch(error => pushToast(errorText(t('Anwendung konnte nicht geladen werden'), error), 'warning'));
     loadSnapshot(() => current)
-      .then(settings => { if (current && settings.databaseReady && settings.bootMinimized) requestModeRef.current('mini', true); })
+      .then(async settings => {
+        await initialMode;
+        if (!current) return;
+        // Register the final task count before applying compact geometry.
+        await eventBridge.updateMiniModeHeight(computeMiniWindowTasks(projectEvents(confirmedEvents.current, new Date()).openTasks, new Date()).length);
+        if (current && settings.databaseReady && settings.bootMinimized) await requestWindowMode('mini', true);
+      })
       .catch((error) => {
         if (!current) return;
         pushToast(errorText(t('Anwendung konnte nicht geladen werden'), error), 'warning');
         setShowSettingsModal(true);
       })
-      .finally(() => { if (current) mutationBusy.current = false; });
-    const version = modeVersion.current;
+      .finally(() => { if (current) { mutationBusy.current = false; setStartupComplete(true); } });
     const unsubMode = eventBridge.onWindowModeChanged(mode => {
       modeVersion.current++;
       confirmedMode.current = mode;
       setWindowMode(mode);
     });
     const unsubRequest = eventBridge.onWindowModeRequested((mode, automatic, expectedMode) => requestModeRef.current(mode, automatic ?? false, expectedMode));
-    void eventBridge.getWindowMode().then(mode => {
-      if (current && modeVersion.current === version) { confirmedMode.current = mode; setWindowMode(mode); }
-    }).catch(error => pushToast(errorText(t('Anwendung konnte nicht geladen werden'), error), 'warning'));
+
     const unsubCacheWarning = eventBridge.onPreviewCacheWarning(message => pushToast(message, 'warning'));
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => {
@@ -295,7 +305,10 @@ export function App() {
         if (activeInlineEditor.current) return false;
       }
       const version = modeVersion.current;
-      const confirmed = await eventBridge.setWindowMode(mode);
+      const finishPresentation = suspendPresentation();
+      let confirmed: WindowMode;
+      try { confirmed = await eventBridge.setWindowMode(mode); }
+      finally { finishPresentation(); }
       if (modeVersion.current === version) { confirmedMode.current = confirmed; setWindowMode(confirmed); }
       if (confirmed === mode) {
         setContextMenu(null);
