@@ -34,6 +34,7 @@ beforeEach(() => {
     type: 'TASK_CREATED', payload: { taskId, title: 'Alpha', configuredStart: date, createdAt: date },
   }];
   api = {
+    SetEditorReady: vi.fn(async () => {}), FinishClose: vi.fn(async () => {}),
     GetSettings: vi.fn(async () => settings), GetEvents: vi.fn(async () => history),
     AppendBatch: vi.fn(async (commands: Parameters<NonNullable<typeof api>['AppendBatch']>[0]) => {
       history = [...history, ...commands.map((command, index) => ({

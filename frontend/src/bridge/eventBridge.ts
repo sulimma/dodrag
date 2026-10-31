@@ -56,6 +56,8 @@ declare global {
     go?: {
       main?: {
         App?: {
+          SetEditorReady: (ready: boolean) => Promise<void>;
+          FinishClose: (saved: boolean) => Promise<void>;
           GetEvents: () => Promise<unknown>;
           AppendBatch: (commands: Array<EventCommand & { id: string; groupId?: string }>) => Promise<unknown>;
           AppendEvent: (
@@ -121,6 +123,11 @@ export function normalizeEvents(rawList: unknown): StoredEvent[] {
 }
 
 export const eventBridge = {
+  async setEditorReady(ready: boolean): Promise<void> { await nativeMethod('SetEditorReady')(ready); },
+  async finishClose(saved: boolean): Promise<void> { await nativeMethod('FinishClose')(saved); },
+  onBeforeClose(callback: () => void): () => void {
+    return window.runtime?.EventsOn?.('app:before-close', callback) ?? (() => {});
+  },
   async getEvents(): Promise<StoredEvent[]> {
     return normalizeEvents(await nativeMethod('GetEvents')());
   },

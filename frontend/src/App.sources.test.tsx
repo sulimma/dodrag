@@ -38,6 +38,7 @@ beforeEach(() => {
   settings = { activeDatabasePath: 'A.db', databaseReady: true, autostart: false,
     knownDatabases: ['A', 'B'].map(name => ({ name, path: `${name}.db`, exists: true, isDemo: false })) };
   api = {
+    SetEditorReady: vi.fn(async () => {}), FinishClose: vi.fn(async () => {}),
     GetSettings: vi.fn(async () => settings), GetEvents: vi.fn(async () => history),
     AppendBatch: vi.fn(async () => history), AppendEvent: vi.fn(async () => history),
     Undo: vi.fn(async () => history), Redo: vi.fn(async () => history),

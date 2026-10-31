@@ -367,12 +367,10 @@ it('focuses dropped paths synchronously, leaves caret after the path and separat
   act(() => ref.current!.insertFiles(['C:\\drop.txt']));
   expect(document.activeElement).toBe(editor.view.dom);
   expect(editor.state.selection.from).toBe(editor.state.doc.content.size - 1);
-  expect(onChange.mock.lastCall![1]).toMatchObject({ historyBoundary: true });
   const inserted = editor.state.doc.textContent;
   await domType(editor, ' suffix');
   act(() => editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true })));
   expect(editor.state.doc.textContent).toBe(inserted);
-  expect(onChange.mock.lastCall![1]).toMatchObject({ localUndo: true });
   act(() => editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true })));
   expect(editor.state.doc.textContent).toBe('before ');
 });
@@ -383,7 +381,6 @@ it('separates DOM paste from adjacent typing history and reports a persistence b
   const paste = new Event('paste', { bubbles: true, cancelable: true });
   Object.defineProperty(paste, 'clipboardData', { value: { files: [], types: ['text/plain'], getData: (kind: string) => kind === 'text/plain' ? '**pasted**' : '' } });
   act(() => editor.view.dom.dispatchEvent(paste));
-  expect(onChange.mock.lastCall![1]).toMatchObject({ historyBoundary: true });
   const pasted = editor.state.doc.textContent;
   await domType(editor, 'after');
   act(() => editor.commands.undo()); expect(editor.state.doc.textContent).toBe(pasted);

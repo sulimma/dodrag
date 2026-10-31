@@ -26,7 +26,8 @@ interface TaskDetailPanelProps extends TaskMenuActions {
   open?: boolean;
   onToggle?: () => void;
   onSyntaxHelp?: () => void;
-  onDescriptionChange: (taskId: string, markdown: string, groupId: string) => Promise<void>;
+  onDescriptionChange: (taskId: string, markdown: string) => void;
+  onDescriptionCommit?: (taskId: string) => void;
   onAddLog: (taskId: string, text: string) => Promise<void>;
   onRemoveLog: (taskId: string, entryId: string) => Promise<void>;
   onUpdateLog?: (taskId: string, entryId: string, text: string) => Promise<void>;
@@ -55,8 +56,6 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
     const header = panel.current?.querySelector('header')?.getBoundingClientRect().height || 150;
     return [100, Math.max(100, height - header - 140)];
   };
-  const [session] = useState(() => crypto.randomUUID());
-  const descriptionGroup = useRef(session);
   const latest = useRef(props);
   latest.current = props;
   useEffect(() => eventBridge.onFileDrop((x, y, paths) => {
@@ -152,12 +151,8 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
         <section className="flex flex-col flex-1 min-h-0 overflow-hidden" data-task-selectable-text="true" data-shortcut-region="3">
           <TaskDescriptionEditor ref={editor} taskId={task.id} description={task.description} historyTarget={historyTarget}
             onCreateSourceTask={props.onCreateSourceTask}
-            onChange={(markdown, metadata) => {
-              const discrete = metadata?.historyBoundary || metadata?.localUndo;
-              const group = discrete ? crypto.randomUUID() : descriptionGroup.current;
-              if (discrete) descriptionGroup.current = crypto.randomUUID();
-              props.onDescriptionChange(task.id, markdown, `desc-${task.id}-${group}`).catch(props.onError);
-            }}
+            onChange={markdown => props.onDescriptionChange(task.id, markdown)}
+            onCommit={() => props.onDescriptionCommit?.(task.id)}
             onEscape={() => panel.current?.focus()} onContextMenu={(event, context) => void contextMenu(event, context)} onError={props.onError} />
         </section>
         <ResizeHandle orientation="horizontal" label={t('Höhe des Logs ändern')} direction={-1}

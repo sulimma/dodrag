@@ -13,6 +13,8 @@ Diese Karte nennt Einstiegspunkte. Verhalten, Architekturentscheidungen und loka
 | Ereignisschema und Replay | `frontend/src/domain/eventSchema.ts`, `commands.ts` |
 | Termine, Ansichtsprojektion, Abhängigkeiten | `frontend/src/domain/dates.ts`, `projector.ts`, `dependencyPaths.ts` |
 | Wails-Schnittstelle | `frontend/src/bridge/eventBridge.ts` |
+| Lokale Beschreibungsentwürfe und abschließendes Speichern | `frontend/src/hooks/useDescriptionDrafts.ts` |
+| Natives Schließen nach Editorabschluss | `editor_session.go`, `frontend/src/App.tsx` |
 | Beschreibung und Log | `frontend/src/components/TaskDetailPanel.tsx`, `editor/TaskDescriptionEditor.tsx`, `TaskLogSection.tsx` |
 | Editor-Erweiterungen | `frontend/src/components/editor/` |
 | Gemeinsame Taskdarstellung/-aktionen | `frontend/src/components/taskInteractions.ts`, `TaskTitle.tsx`, `TaskDate.tsx`, `TaskContextMenu.tsx` |

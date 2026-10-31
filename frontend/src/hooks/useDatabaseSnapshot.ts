@@ -9,7 +9,9 @@ import { t, errorText } from '../i18n';
 export function useDatabaseSnapshot(
   pushToast: PushToast,
   dragIdentity: React.MutableRefObject<DragIdentity | null>,
-  onInvalidate: () => void
+  onInvalidate: () => void,
+  beforeChange?: () => Promise<boolean>,
+  canAwaitBeforeChange?: () => boolean
 ) {
   const [events, setEvents] = useState<StoredEvent[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
@@ -21,6 +23,11 @@ export function useDatabaseSnapshot(
   const databaseIdentity = useRef('');
   const mutationQueue = useRef<Promise<unknown>>(Promise.resolve());
   const queuedMutations = useRef(0);
+  const changingDatabase = useRef(false);
+  const waitForMutations = async () => {
+    let observed: Promise<unknown>;
+    do { observed = mutationQueue.current; await observed; } while (observed !== mutationQueue.current);
+  };
   // Refs gate asynchronous writes immediately; render state only controls the UI.
   const mutate = async (
     operation: () => Promise<StoredEvent[]>
@@ -84,11 +91,16 @@ export function useDatabaseSnapshot(
   const changeDatabase = async (operation: () => Promise<AppSettings>) => {
     if (dragIdentity.current)
       throw new Error(t('Datenbankwechsel erst nach Ende des Ziehens'));
-    if (mutationBusy.current)
+    if (changingDatabase.current || (mutationBusy.current && !canAwaitBeforeChange?.()))
       throw new Error(t('Eine Aenderung wird noch gespeichert'));
-    mutationBusy.current = true;
-    invalidateSnapshot();
+    changingDatabase.current = true;
     try {
+      // Keep the old identity/drafts until their final save succeeds. The flush
+      // may already be queued by blur; await it before testing the busy gate.
+      if (beforeChange && !await beforeChange()) throw new Error(t('Beschreibung konnte nicht gespeichert werden'));
+      if (mutationBusy.current) throw new Error(t('Eine Aenderung wird noch gespeichert'));
+      mutationBusy.current = true;
+      invalidateSnapshot();
       let operationError: unknown;
       try {
         await operation();
@@ -111,7 +123,8 @@ export function useDatabaseSnapshot(
       pushToast(errorText(t('Datenbankwechsel fehlgeschlagen'), error), 'warning');
       throw error;
     } finally {
-      mutationBusy.current = false;
+      changingDatabase.current = false;
+      mutationBusy.current = queuedMutations.current > 0;
     }
   };
 
@@ -207,6 +220,7 @@ export function useDatabaseSnapshot(
     confirmedEvents,
     databaseIdentity,
     mutate,
+    waitForMutations,
     loadSnapshot,
     changeDatabase,
     handleCloseSettingsModal,

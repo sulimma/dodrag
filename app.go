@@ -92,6 +92,9 @@ type App struct {
 	watchCancel           context.CancelFunc
 	watchDone             chan struct{}
 	taskMenus             taskMenuState
+	editorReady           bool
+	closePending          bool
+	closeApproved         bool
 	// Lock order: mu, then previewMu. Image processing never holds mu.
 	previewMu         sync.Mutex
 	previewCacheDir   string

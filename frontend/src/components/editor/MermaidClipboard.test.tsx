@@ -93,7 +93,6 @@ async function expectPersistedDiagram(editor: Editor, onChange: ReturnType<typeo
   const saved = onChange.mock.lastCall![0] as string;
   expect(saved).toBe(markdownStorage(editor).getMarkdown());
   expect(saved.split('```mermaid')).toHaveLength(count + 1);
-  expect(onChange.mock.lastCall![1]).toMatchObject({ historyBoundary: true });
   const reloaded = await mount(saved);
   expect(reloaded.element.querySelectorAll('[data-mermaid-block]')).toHaveLength(count);
   expect(reloaded.element.querySelectorAll('[role=img] svg')).toHaveLength(count);
@@ -214,7 +213,6 @@ it.each(['keyboard', 'menu'] as const)('normalizes Gemini trailing list BRs via 
   expect(editor.getJSON()).toEqual(expected);
   const saved = onChange.mock.lastCall![0] as string;
   expect(saved).not.toContain('&nbsp;');
-  expect(onChange.mock.lastCall![1]).toMatchObject({ historyBoundary: true });
   expect((await mount(saved)).editor.getJSON()).toEqual(expected);
   act(() => editor.commands.undo());
   expect(editor.getMarkdown()).toBe('');
@@ -255,7 +253,6 @@ it.each(['keyboard', 'menu'] as const)('replaces a selection with Markdown via %
   const data = new ClipboardData(); data.setData('text/plain', '**bold**');
   await pasteVia(route, mounted, data);
   expect(editor.getMarkdown()).toBe('before **bold** after');
-  expect(onChange.mock.lastCall![1]).toMatchObject({ historyBoundary: true });
   act(() => editor.commands.undo());
   expect(editor.getMarkdown()).toBe('before replace after');
   expect(onError).not.toHaveBeenCalled();

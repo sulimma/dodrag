@@ -13,7 +13,7 @@ import { Markdown } from '@tiptap/markdown';
 import { InputRule } from '@tiptap/core';
 import { DOMParser, DOMSerializer, Slice, type Fragment, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { EditorState, NodeSelection, TextSelection } from '@tiptap/pm/state';
-import { closeHistory, isHistoryTransaction } from '@tiptap/pm/history';
+import { closeHistory } from '@tiptap/pm/history';
 import { t, useLanguage } from '../../i18n';
 import { MermaidBlockView } from './MermaidBlockView';
 import { DescriptionToolbar } from './DescriptionToolbar';
@@ -27,12 +27,11 @@ import { openTarget, targetMenuItems } from './contextMenu';
 import type { EditorContextMenuCallback, EditorTarget, TaskDescriptionEditorHandle } from './types';
 export type { TaskDescriptionEditorHandle } from './types';
 
-export interface DescriptionChangeMetadata { historyBoundary?: boolean; localUndo?: boolean }
-
 export interface TaskDescriptionEditorProps {
   taskId: string;
   description: string;
-  onChange(markdown: string, metadata?: DescriptionChangeMetadata): void;
+  onChange(markdown: string): void;
+  onCommit?(): void;
   onEscape(): void;
   onContextMenu: EditorContextMenuCallback;
   onError(error: unknown): void;
@@ -69,7 +68,6 @@ const MarkdownTaskItem = TaskItem.extend({
 export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, TaskDescriptionEditorProps>(function TaskDescriptionEditor(props, ref) {
   const language = useLanguage();
   const callbacks = useRef(props); callbacks.current = props;
-  const acknowledgements = useRef<string[]>([]);
   const loadedTask = useRef(props.taskId);
   const taskSession = useRef(0);
   const documentRevision = useRef(0);
@@ -145,16 +143,15 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
       handleKeyDown: (view, event) => {
         if (event.key !== 'Escape') return false;
         if (event.target instanceof Element && event.target.closest('[data-mermaid-editing]')) return false;
-        event.preventDefault(); view.dom.blur(); callbacks.current.onEscape(); return true;
+        event.preventDefault(); callbacks.current.onCommit?.(); view.dom.blur(); callbacks.current.onEscape(); return true;
       },
     },
     onTransaction: ({ transaction }) => { if (transaction.docChanged) documentRevision.current++; },
     onUpdate: ({ editor, transaction }) => {
       const markdown = markdownStorage(editor).getMarkdown();
-      acknowledgements.current.push(markdown);
       const historyBoundary = transaction.getMeta('description:boundary') === true || transaction.getMeta('uiEvent') === 'paste';
-      const localUndo = isHistoryTransaction(transaction);
-      try { callbacks.current.onChange(markdown, { historyBoundary, localUndo }); } catch (error) { callbacks.current.onError(error); }
+      // Changes update the App-owned draft only. Local history never writes SQLite.
+      try { callbacks.current.onChange(markdown); } catch (error) { callbacks.current.onError(error); }
       if (historyBoundary) editor.view.dispatch(closeHistory(editor.state.tr));
     },
   }, []);
@@ -168,15 +165,12 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
     if (loadedTask.current !== props.taskId) {
       loadedTask.current = props.taskId;
       taskSession.current++;
-      acknowledgements.current = [];
       editor.commands.setContent(props.description, { emitUpdate: false, contentType: 'markdown' });
       // Reinitialize plugin state, especially local undo, without recreating the editor.
       editor.view.updateState(EditorState.create({ doc: editor.state.doc, plugins: editor.state.plugins }));
       editor.view.dispatch(editor.state.tr.setMeta('addToHistory', false));
       return;
     }
-    const acknowledgement = acknowledgements.current.lastIndexOf(props.description);
-    if (acknowledgement !== -1) { acknowledgements.current.splice(0, acknowledgement + 1); return; }
     if (props.description !== markdownStorage(editor).getMarkdown()) editor.commands.setContent(props.description, { emitUpdate: false, contentType: 'markdown' });
   }, [editor, props.taskId, props.description]);
   useImperativeHandle(ref, () => ({
@@ -309,6 +303,12 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
   };
   return <div data-task-selectable-text="true" data-description-editor="true" className="flex flex-1 flex-col min-h-0 overflow-hidden"
     onCopyCapture={copySelectedDiagram} onCutCapture={copySelectedDiagram}
+    onBlur={event => {
+      // Native popups temporarily report no relatedTarget: they are still part
+      // of this session. Toolbar and portalled history controls are too.
+      const next = event.relatedTarget as Node | null;
+      if (next && !event.currentTarget.contains(next) && !props.historyTarget?.contains(next)) props.onCommit?.();
+    }}
     onContextMenuCapture={event => contextMenu(event, true)} onContextMenu={event => contextMenu(event)} onClick={event => {
       if (event.target instanceof Element && event.target.closest('a[href]')) event.preventDefault();
       const target = targetFromElement(event.target);

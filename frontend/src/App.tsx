@@ -26,6 +26,7 @@ import { normalizeTitleInput } from './domain/input';
 import { previewPathKeys } from './domain/dependencyPaths';
 import { useToasts } from './hooks/useToasts';
 import { useDatabaseSnapshot } from './hooks/useDatabaseSnapshot';
+import { useDescriptionDrafts } from './hooks/useDescriptionDrafts';
 import { useInlineEditors } from './hooks/useInlineEditors';
 import { useTaskSelection } from './hooks/useTaskSelection';
 import { useTaskDrag } from './hooks/useTaskDrag';
@@ -56,12 +57,14 @@ export function App() {
   const dragIdentity = useRef<DragIdentity | null>(null);
   const { toasts, pushToast } = useToasts();
   const selection = useTaskSelection();
+  const flushDescriptions = useRef<() => Promise<boolean>>(async () => true);
+  const descriptionSaving = useRef<() => boolean>(() => false);
   const database = useDatabaseSnapshot(pushToast, dragIdentity, () => {
     editors.cancelEdit();
     setNewTaskTitle('');
     pendingSource.current = null;
     selection.reset();
-  });
+  }, () => flushDescriptions.current(), () => descriptionSaving.current());
   const {
     events,
     appSettings,
@@ -74,6 +77,9 @@ export function App() {
     loadSnapshot,
     changeDatabase,
   } = database;
+  const descriptions = useDescriptionDrafts(database);
+  flushDescriptions.current = descriptions.flushAll;
+  descriptionSaving.current = descriptions.hasPending;
   const state = useMemo(() => projectEvents(events, now), [events, now, language]);
   const editors = useInlineEditors(
     database,
@@ -111,14 +117,22 @@ export function App() {
     clearEdgeSelection,
   } = selection;
   const { draggedTaskId, activeDropTargetKey, isAltDrag, setActiveDropTargetKey } = drag;
-  useSourceDrop(actions.handleAppendSources, error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning'));
+  useSourceDrop(async (taskId, sources) => {
+    const ids = selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
+    await descriptions.appendSources(ids, sources);
+  }, error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning'));
+  const historyActions = {
+    ...actions,
+    handleUndo: async () => { if (await descriptions.flushAll()) await actions.handleUndo(); },
+    handleRedo: async () => { if (await descriptions.flushAll()) await actions.handleRedo(); },
+  };
   const miniTasks = useMemo(
     () => computeMiniWindowTasks(state.openTasks, now),
     [state.openTasks, now]
   );
   useGlobalShortcuts({
     selection,
-    actions,
+    actions: historyActions,
     state,
     showSettingsModal,
     showShortcutsModal,
@@ -195,8 +209,39 @@ export function App() {
   }, [isMiniMode]);
 
   useEffect(() => {
-    eventBridge.updateMiniModeHeight(miniTasks.length);
+    void eventBridge.updateMiniModeHeight(miniTasks.length);
   }, [miniTasks.length]);
+  useEffect(() => {
+    // React may remove an editor without firing blur (selection, collapse, mini).
+    const taskId = isDetailPanelOpen && !isMiniMode ? selectedTaskId : null;
+    return () => { if (taskId) void descriptions.flush(taskId); };
+  }, [selectedTaskId, isDetailPanelOpen, isMiniMode]);
+  useEffect(() => {
+    let closing = false;
+    const previousInert = document.body.inert;
+    const unsubscribe = eventBridge.onBeforeClose(() => {
+      if (closing) return;
+      closing = true;
+      // No user input may create another draft between final flush and native
+      // close approval. Restore interaction if saving fails; no extra dialog.
+      document.body.inert = true;
+      void flushDescriptions.current().then(async saved => {
+        if (!saved) { closing = false; document.body.inert = previousInert; }
+        await eventBridge.finishClose(saved);
+      }).catch(async error => {
+        closing = false; document.body.inert = previousInert;
+        pushToast(errorText(t('Beschreibung konnte nicht gespeichert werden'), error), 'warning');
+        try { await eventBridge.finishClose(false); } catch { /* Native host is already unavailable. */ }
+      });
+    });
+    // Subscribe before native closing starts waiting for our acknowledgement.
+    void eventBridge.setEditorReady(true).catch(error => pushToast(errorText(t('Anwendung konnte nicht geladen werden'), error), 'warning'));
+    return () => {
+      unsubscribe();
+      document.body.inert = previousInert;
+      void eventBridge.setEditorReady(false).catch(() => {});
+    };
+  }, []);
 
   const highlights = useMemo(
     () => {
@@ -349,8 +394,8 @@ export function App() {
         setNewTaskTitle={setNewTaskTitle}
         newTaskInputRef={newTaskInputRef}
         onCreateTask={handleCreateTask}
-        onUndo={actions.handleUndo}
-        onRedo={actions.handleRedo}
+        onUndo={historyActions.handleUndo}
+        onRedo={historyActions.handleRedo}
         onSettings={database.openSettings}
         onMiniMode={handleEnterMiniMode}
         onHelp={() => { setHelpPage('shortcuts'); setShowShortcutsModal(true); }}
@@ -361,16 +406,14 @@ export function App() {
           onToggle={() => setIsDetailPanelOpen(open => !open)}
           onSyntaxHelp={() => { setHelpPage('syntax'); setShowShortcutsModal(true); }}
           key={appSettings?.activeDatabasePath ?? ''}
-          task={selectedTaskId ? state.tasks[selectedTaskId] ?? null : null}
+          task={descriptions.taskWithDraft(selectedTaskId ? state.tasks[selectedTaskId] ?? null : null)}
           interactions={interactions} titleEditor={scopedEditor(editors.titleEditor, 'detail')} dateEditor={scopedEditor(editors.dateEditor, 'detail')}
           onClose={() => setIsDetailPanelOpen(false)}
           onToggleActive={actions.handleToggleActive}
           onCompleteTask={actions.handleCompleteTask} onReopenTask={actions.handleReopenTask}
           onSetConfiguredDate={actions.handleSetConfiguredDate} onRemovePredecessor={actions.handleRemovePredecessor}
-          onDescriptionChange={async (taskId, description, groupId) => {
-            const result = await mutate(() => eventBridge.appendEvent('TASK_DESCRIPTION_SET', { taskId, description }, groupId));
-            if (!result) throw new Error(t('Beschreibung konnte nicht gespeichert werden'));
-          }}
+          onDescriptionChange={descriptions.change}
+          onDescriptionCommit={taskId => { void descriptions.flush(taskId); }}
           onAddLog={async (taskId, text) => {
             const result = await mutate(() => eventBridge.appendEvent('TASK_LOG_ADDED', {
               taskId, entryId: crypto.randomUUID(), text, createdAt: new Date().toISOString(),

@@ -49,6 +49,7 @@ beforeEach(() => {
   setLanguage('de');
   activeSettings = { ...settings };
   api = {
+    SetEditorReady: vi.fn(async () => {}), FinishClose: vi.fn(async () => {}),
     GetSettings: vi.fn(async () => activeSettings),
     GetEvents: vi.fn(async () => history),
     AppendBatch: vi.fn(async () => history),

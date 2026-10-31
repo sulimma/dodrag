@@ -47,7 +47,7 @@ The compact, corner-docked view stays out of the way and shows only work that ca
 
 ## Task descriptions and Markdown
 
-Select a task and expand its detail panel to edit the description. The editor menus cover paragraph styles, formatting, lists, blocks, characters, and Mermaid diagrams. Menu tooltips show the corresponding syntax. Undo and redo buttons sit beside the dates above the editor; **Ctrl+Z**, **Ctrl+Y**, and **Ctrl+Shift+Z** also work while editing.
+Select a task and expand its detail panel to edit the description. Description edits stay local while you type, format, paste, and use editor undo. Leaving the editor, changing tasks, collapsing details, entering the compact view, switching databases, or closing the app saves the finished session. Failed saves keep the draft available for retry; a failed flush prevents database switching and app closing. The editor menus cover paragraph styles, formatting, lists, blocks, characters, and Mermaid diagrams. Menu tooltips show the corresponding syntax. Undo and redo buttons sit beside the dates above the editor; **Ctrl+Z**, **Ctrl+Y**, and **Ctrl+Shift+Z** also work while editing.
 
 The main window starts at **1440 × 820 logical outer-window pixels**, limited to the current monitor's available work area. The detail panel starts at 560 pixels wide and can be resized independently of the task log. On sufficiently large screens, this leaves room for a single row of editor menus and a readable task list. Smaller screens, high display scaling, and additional dependency chips can reduce the available title space.
 

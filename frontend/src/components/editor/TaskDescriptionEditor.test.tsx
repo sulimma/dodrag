@@ -78,7 +78,7 @@ it('pastes Markdown and HTML through editor menu and preserves UNC paths embedde
   }
 });
 
-it('does not replace newer typing with stale saves, but synchronizes external undo after final ack', async () => {
+it('retains controlled draft updates and synchronizes deliberate external changes', async () => {
   const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
   const ref = createRef<TaskDescriptionEditorHandle>(); const onChange = vi.fn();
   const render = (description: string) => <TaskDescriptionEditor ref={ref} taskId="t1" description={description}
@@ -92,8 +92,6 @@ it('does not replace newer typing with stale saves, but synchronizes external un
   act(() => setLanguage(previousLanguage === 'en' ? 'de' : 'en'));
   expect(element.textContent).toContain('C:\\second.txt');
   act(() => setLanguage(previousLanguage));
-  await act(async () => root.render(render(first)));
-  expect(element.textContent).toContain('C:\\second.txt');
   await act(async () => root.render(render(second)));
   await act(async () => root.render(render(first)));
   expect(element.textContent).not.toContain('C:\\second.txt');
@@ -159,7 +157,6 @@ it.each(['star', 'circle', 'square'] as const)('changes only the clicked %s thro
     }
     await act(async () => menu.execute('emoticon:color:1'));
     expect(dom.editor.getMarkdown()).toBe(`before ${variants[1].shortcut} after ${variants[0].shortcut}`);
-    expect(onChange.mock.lastCall![1]).toMatchObject({ historyBoundary: true });
     act(() => dom.editor.commands.undo()); expect(dom.editor.getMarkdown()).toBe(source);
     act(() => dom.querySelector('[data-emoticon]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
     menu = onContextMenu.mock.lastCall![1];
@@ -249,12 +246,11 @@ it('colors all selected shapes across paragraphs in one undo and persistence bou
     const colored = `outside (*) before ${EMOTICON_SHAPE_VARIANTS.star[3].shortcut} text (Y) (R) :)\n\n${EMOTICON_SHAPE_VARIANTS.circle[3].shortcut} **bold** ${EMOTICON_SHAPE_VARIANTS.square[3].shortcut} after [g]`;
     expect(editor.getMarkdown()).toBe(colored);
     expect(onChange).toHaveBeenCalledOnce();
-    expect(onChange.mock.lastCall).toEqual([colored, { historyBoundary: true, localUndo: false }]);
+    expect(onChange.mock.lastCall).toEqual([colored]);
     // Typing after recoloring must not merge into the bulk undo event.
     act(() => editor.commands.insertContent('typed '));
     act(() => editor.commands.undo()); expect(editor.getMarkdown()).toBe(colored);
     act(() => editor.commands.undo()); expect(editor.getMarkdown()).toBe(source);
-    expect(onChange.mock.lastCall![1]).toMatchObject({ localUndo: true });
     act(() => editor.commands.redo()); expect(editor.getMarkdown()).toBe(colored);
     expect(onError).not.toHaveBeenCalled();
   } finally { act(() => root.unmount()); element.remove(); }
