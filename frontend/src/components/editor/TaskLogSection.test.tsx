@@ -5,13 +5,13 @@ import { expect, it, vi } from 'vitest';
 import { TaskLogSection, type TaskLogSectionHandle } from '../TaskLogSection';
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
 
-it('uses ISO timestamps, shared link/image targets, file insertion, Enter and Shift+Enter', async () => {
+it('uses ISO dates, shared link/image targets, file insertion, Enter and Shift+Enter', async () => {
   const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
   const ref = createRef<TaskLogSectionHandle>(); const onAdd = vi.fn(async () => {}); const onContextMenu = vi.fn();
   await act(async () => root.render(<TaskLogSection ref={ref} taskId="t1" entries={[
     { id: 'e1', createdAt: '2026-10-25T12:30:00Z', text: 'https://example.org "C:\\a b.svg"' },
   ]} onAdd={onAdd} onRemove={vi.fn()} onContextMenu={onContextMenu} onError={vi.fn()} />));
-  expect(element.querySelector('time')!.textContent).toMatch(/^(?:⬛ )?2026-10-25 \d\d:\d\d$/);
+  expect(element.querySelector('time')!.textContent).toMatch(/^(?:⬛ )?2026-10-25$/);
   expect(element.querySelectorAll('[data-target-kind]:not([data-source-drag])')).toHaveLength(2);
   expect(element.querySelectorAll('[data-source-drag]')).toHaveLength(2);
   expect(element.querySelector('img')!.getAttribute('src')).toContain('/dodrag-media?taskId=t1');

@@ -181,7 +181,7 @@ it('formats an RFC3339 build timestamp for local display and preserves unparsabl
   const raw='2026-10-17T12:38:51.000Z';
   const expected=new Date(raw);
   const pad=(n:number)=>String(n).padStart(2,'0');
-  expect(formatBuildTime(raw)).toBe(`${expected.getFullYear()}-${pad(expected.getMonth()+1)}-${pad(expected.getDate())} ${pad(expected.getHours())}:${pad(expected.getMinutes())}`);
-  expect(formatBuildTime('not-a-date')).toBe('not-a-date');
+  expect(formatBuildTime(raw)).toBe(`${expected.getFullYear()}-${pad(expected.getMonth()+1)}-${pad(expected.getDate())}`);
+  expect(formatBuildTime('not-a-date')).toBe('unbekannt');
   expect(formatBuildTime(undefined)).toBe('unbekannt');
 });

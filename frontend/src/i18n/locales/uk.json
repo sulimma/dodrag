@@ -185,7 +185,7 @@
   "Startdatum {id}": "Дата початку {id}",
   "JJJJ-MM-TT": "РРРР-ММ-ДД",
   "Startdatum {id} bearbeiten": "Змінити дату початку {id}",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Задана дата початку: {date} ({weekday}). Натисніть, щоб змінити (РРРР-ММ-ДД, за потреби додайте час)",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Задана дата початку: {date} ({weekday}). Натисніть, щоб змінити (РРРР-ММ-ДД)",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "Виділених попередників ліворуч поза видимою областю: {count}",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "Виділених попередників над видимою областю: {count}",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "Виділених наступників праворуч поза видимою областю: {count}",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+2 години",
   "Zwei Stunden nach dem Tasktermin": "Через дві години після запланованого часу завдання",
   "+1 Tag": "+1 день",
-  "Folgetag des Tasktermins um 09:00": "Наступного дня після запланованого часу завдання о 09:00",
+  "Folgetag des Tasktermins um 09:00": "Наступного дня після дати завдання",
   "nächste Woche": "наступного тижня",
-  "Nächster Montag 09:00": "Наступного понеділка о 09:00",
+  "Nächster Montag 09:00": "Наступного понеділка",
   "+7 Tage": "+7 днів",
   "Exakt eine Woche später": "Рівно через тиждень",
   "nächsten Monat": "наступного місяця",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "Під час введення заміни відбуваються після пробілу або безпечної межі речення. Вони також діють під час вставлення. Наявний вміст не змінюється. -- потребує пробілів з обох боків.",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "Після пробілу дроби 1/2, 1/4 і 3/4 стають символами Unicode. Інші дроби N/D стають вбудованим LaTeX. У кожній частині дозволено не більше 12 цифр. Якщо знаменник дорівнює 0, дріб не змінюється.",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "Без замін у коді, Mermaid, формулах, посиланнях, URL, шляхах до файлів або датах із кількома роздільниками.",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown для опису завдання. Позначення синтаксису однакові в усіх мовах."
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown для опису завдання. Позначення синтаксису однакові в усіх мовах.",
+  "Kompaktansicht": "Компактний вигляд",
+  "Fenster": "Вікно",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "У компактному вигляді F2, E та Enter відкривають вибране завдання у вікні.",
+  "In die Taskleiste minimieren": "Згорнути на панель завдань",
+  "Maximieren": "Розгорнути"
 }

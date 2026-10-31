@@ -185,7 +185,7 @@
   "Startdatum {id}": "{id} başlangıç tarihi",
   "JJJJ-MM-TT": "YYYY-AA-GG",
   "Startdatum {id} bearbeiten": "{id} başlangıç tarihini düzenle",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Belirlenen başlangıç tarihi: {date} ({weekday}). Düzenlemek için tıklayın (YYYY-AA-GG, isteğe bağlı saat)",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Belirlenen başlangıç tarihi: {date} ({weekday}). Düzenlemek için tıklayın (YYYY-AA-GG)",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "Görünür alanın solunda vurgulanan {count} öncül var",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "Görünür alanın üstünde vurgulanan {count} öncül var",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "Görünür alanın sağında vurgulanan {count} ardıl var",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+2 saat",
   "Zwei Stunden nach dem Tasktermin": "Görevin planlanan zamanından iki saat sonra",
   "+1 Tag": "+1 gün",
-  "Folgetag des Tasktermins um 09:00": "Görevin planlanan tarihinden sonraki gün saat 09:00",
+  "Folgetag des Tasktermins um 09:00": "Görevin planlanan tarihinden sonraki gün",
   "nächste Woche": "gelecek hafta",
-  "Nächster Montag 09:00": "Gelecek pazartesi 09:00",
+  "Nächster Montag 09:00": "Gelecek pazartesi",
   "+7 Tage": "+7 gün",
   "Exakt eine Woche später": "Tam bir hafta sonra",
   "nächsten Monat": "gelecek ay",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "Yazarken boşluk veya güvenli bir cümle sınırından sonra otomatik değiştirme yapılır. Yapıştırırken de uygulanır. Mevcut içerik değişmez. -- işaretinin iki yanında da boşluk gerekir.",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "Boşluktan sonra 1/2, 1/4 ve 3/4 kesirleri Unicode karakterlerine dönüşür. Diğer N/D kesirleri satır içi LaTeX'e dönüşür. Her bölüm en fazla 12 basamak içerebilir. Payda 0 ise kesir değişmez.",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "Kod, Mermaid, formüller, bağlantılar, URL'ler, dosya yolları veya birden çok ayraç içeren tarihlerde değiştirme yapılmaz.",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Görev açıklaması için Markdown. Sözdizimi işaretleri tüm dillerde aynıdır."
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Görev açıklaması için Markdown. Sözdizimi işaretleri tüm dillerde aynıdır.",
+  "Kompaktansicht": "Kompakt görünüm",
+  "Fenster": "Pencere",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "Kompakt görünümde F2, E ve Enter seçili görevi pencerede açar.",
+  "In die Taskleiste minimieren": "Görev çubuğuna küçült",
+  "Maximieren": "Ekranı kapla"
 }

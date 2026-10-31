@@ -185,7 +185,7 @@
   "Startdatum {id}": "Fecha de inicio {id}",
   "JJJJ-MM-TT": "AAAA-MM-DD",
   "Startdatum {id} bearbeiten": "Editar la fecha de inicio de {id}",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Fecha de inicio configurada: {date} ({weekday}). Haz clic para editarla (AAAA-MM-DD, hora opcional)",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Fecha de inicio configurada: {date} ({weekday}). Haz clic para editarla (AAAA-MM-DD)",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "{count} predecesoras resaltadas a la izquierda del área visible",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "{count} predecesoras resaltadas por encima del área visible",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "{count} sucesoras resaltadas a la derecha del área visible",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+2 horas",
   "Zwei Stunden nach dem Tasktermin": "Dos horas después de la fecha de la tarea",
   "+1 Tag": "+1 día",
-  "Folgetag des Tasktermins um 09:00": "Al día siguiente de la fecha de la tarea a las 09:00",
+  "Folgetag des Tasktermins um 09:00": "Al día siguiente de la fecha de la tarea",
   "nächste Woche": "la próxima semana",
-  "Nächster Montag 09:00": "El próximo lunes a las 09:00",
+  "Nächster Montag 09:00": "El próximo lunes",
   "+7 Tage": "+7 días",
   "Exakt eine Woche später": "Exactamente una semana después",
   "nächsten Monat": "el próximo mes",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "Tras un espacio o un final de frase reconocido, se sustituye el texto escrito. Las sustituciones también funcionan al pegar. El contenido existente no cambia. -- requiere un espacio a cada lado.",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "Tras un espacio, 1/2, 1/4 y 3/4 se convierten en caracteres Unicode. Las demás fracciones N/D se convierten en LaTeX en línea. Cada parte admite un máximo de 12 dígitos. Si el denominador es 0, la fracción no cambia.",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "Sin sustituciones en código, Mermaid, fórmulas, enlaces, URL, rutas de archivos ni fechas encadenadas.",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown para la descripción de la tarea. Los marcadores de sintaxis son iguales en todos los idiomas."
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown para la descripción de la tarea. Los marcadores de sintaxis son iguales en todos los idiomas.",
+  "Kompaktansicht": "Vista compacta",
+  "Fenster": "Ventana",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "En la vista compacta, F2, E e Intro abren la tarea seleccionada en la ventana.",
+  "In die Taskleiste minimieren": "Minimizar a la barra de tareas",
+  "Maximieren": "Maximizar"
 }

@@ -4,7 +4,6 @@ import { calculateQuickResubmitDate, formatIso8601Display, projectEvents } from 
 import type { QuickResubmitTargetId } from '../domain/projector';
 import { applyCommand, copyReplayTasks, replayCommands } from '../domain/commands';
 import { parseCommand, type EventCommand } from '../domain/eventSchema';
-import { normalizeUserDate } from '../domain/dates';
 import { dependencyPathEdges } from '../domain/dependencyPaths';
 import type { useDatabaseSnapshot } from './useDatabaseSnapshot';
 import type { useTaskSelection } from './useTaskSelection';
@@ -77,7 +76,8 @@ export function useTaskMutations(
   const handleSetConfiguredDate = async (taskId: string, isoDate: string, humanLabel: string, fromDrag = false) => {
     const ids = taskGroup(taskId, fromDrag);
     if (!ids.length) return;
-    const configuredStart = normalizeUserDate(formatIso8601Display(isoDate).isoText, now);
+    // Drag targets are already technical ISO instants, not displayed input.
+    const configuredStart = isoDate;
     setLastMovedKey(`task:${taskId}`);
     const result = await commit(current => present(ids, current).flatMap(id => [
       ...reopen(id, current),

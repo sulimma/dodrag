@@ -45,7 +45,9 @@ beforeEach(() => {
     SwitchDatabase: vi.fn(async path => { settings = { ...settings, activeDatabasePath: path }; return settings; }),
     DeleteDatabase: vi.fn(async () => settings), CreateDatabase: vi.fn(async () => settings),
     OpenExistingDatabaseDialog: vi.fn(async () => settings), SetAutostart: vi.fn(async () => settings),
-    SelectFolderDialog: vi.fn(async () => ''), EnterMiniMode: vi.fn(async () => ''), ExitMiniMode: vi.fn(async () => {}),
+    SelectFolderDialog: vi.fn(async () => ''), GetWindowMaximized: vi.fn(async () => false), ToggleWindowMaximized: vi.fn(async () => {}),
+    RequestWindowClose: vi.fn(async () => {}), ShowWindowSystemMenu: vi.fn(async () => {}),
+    GetWindowMode: vi.fn(async () => 'window' as const), SetWindowMode: vi.fn(async (mode: 'taskbar' | 'mini' | 'window') => mode),
     ShowTaskContextMenu: vi.fn(async () => ''), UpdateMiniModeHeight: vi.fn(async () => {}),
     SnapMiniWindowToNearestCorner: vi.fn(async () => ''),
   };

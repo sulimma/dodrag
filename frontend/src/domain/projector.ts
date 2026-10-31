@@ -40,6 +40,13 @@ function compareTaskDates(a: TaskState, b: TaskState): number {
     (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
 
+// Active ordering is shared by the list and mini selection; inactive dates retain their existing priority.
+function compareOpenTasks(a: TaskState, b: TaskState): number {
+  return Number(b.isActive) - Number(a.isActive) || (a.isActive
+    ? a.topologyLevel - b.topologyLevel || a.creationOrder - b.creationOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    : compareTaskDates(a, b));
+}
+
 /**
  * Formats a Date into local YYYY-MM-DD key.
  */
@@ -84,7 +91,7 @@ export function isWeekendDate(dateOrKey: Date | string): boolean {
 }
 
 /**
- * Formats an ISO timestamp into ISO-8601 date (YYYY-MM-DD) or YYYY-MM-DD HH:mm, plus weekday & weekend flag.
+ * Formats the local calendar date of an ISO timestamp, plus weekday & weekend flag.
  */
 export function formatIso8601Display(isoString: string): {
   isoText: string;
@@ -94,11 +101,7 @@ export function formatIso8601Display(isoString: string): {
 } {
   const dt = new Date(isoString);
   const datePart = toDateKey(dt);
-  const hasCustomTime = dt.getHours() !== 9 || dt.getMinutes() !== 0 || dt.getSeconds() !== 0;
-  const hh = String(dt.getHours()).padStart(2, '0');
-  const mm = String(dt.getMinutes()).padStart(2, '0');
-  const seconds = dt.getSeconds() ? `:${String(dt.getSeconds()).padStart(2,'0')}` : '';
-  const isoText = hasCustomTime ? `${datePart} ${hh}:${mm}${seconds}` : datePart;
+  const isoText = datePart;
   const weekdayShort = new Intl.DateTimeFormat(locale, { weekday: 'short' })
     .format(dt)
     .replace('.', '');
@@ -365,6 +368,7 @@ export function projectEvents(
       logEntries: raw.logEntries.map(entry => ({ ...entry })),
       checklistProgress: computeChecklistProgress(raw.description),
       creationOrder: raw.creationOrder,
+      topologyLevel: replay.topologyLevels.get(raw.id)!,
       createdAt: raw.createdAt,
       configuredStart: raw.configuredStart,
       calculatedStart: calculated,
@@ -387,7 +391,7 @@ export function projectEvents(
     }
   }
 
-  openTasks.sort((a, b) => Number(b.isActive) - Number(a.isActive) || compareTaskDates(a, b));
+  openTasks.sort(compareOpenTasks);
   completedTasks.sort((a, b) =>
     Date.parse(a.completedAt ?? a.createdAt) - Date.parse(b.completedAt ?? b.createdAt) ||
     (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
@@ -688,7 +692,7 @@ export function calculateQuickResubmitDate(
  * Returns the tasks to display in the compact corner-docked minimized window:
  * - Active tasks and inactive tasks without open predecessors.
  * - Active tasks regardless of date, plus tasks due today/overdue; if none are due, all eligible tasks.
- * - Active tasks come first; within each group, sort by effective timestamp, then task ID.
+ * - Active tasks use global dependency levels; inactive tasks retain date/ID order.
  */
 export function computeMiniWindowTasks(
   openTasks: TaskState[],
@@ -707,5 +711,5 @@ export function computeMiniWindowTasks(
     ? eligible.filter((t) => t.isActive || t.effectiveDateKey <= todayKey)
     : eligible;
 
-  return [...pool].sort((a, b) => Number(b.isActive) - Number(a.isActive) || compareTaskDates(a, b));
+  return [...pool].sort(compareOpenTasks);
 }

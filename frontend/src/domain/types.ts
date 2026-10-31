@@ -28,6 +28,7 @@ export interface TaskState {
   logEntries: TaskLogEntry[];
   checklistProgress: ChecklistProgress | null;
   creationOrder: number; // Immutable sequence index for stable topological sorting
+  topologyLevel: number; // Level in the complete configured dependency graph
   createdAt: string;
   configuredStart: string; // ISO timestamp
   calculatedStart: string | null; // Now for active tasks; otherwise latest effective predecessor timestamp + 1 calendar day, or null

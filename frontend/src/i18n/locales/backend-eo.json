@@ -71,5 +71,6 @@
   "Ordner nicht gefunden: {path}": "Dosierujo ne trovita: {path}",
   "Ordner konnte nicht geöffnet werden": "Ne eblis malfermi la dosierujon",
   "Visual Studio Code wurde nicht gefunden": "Visual Studio Code ne troviĝis",
-  "Visual Studio Code konnte nicht geöffnet werden": "Ne eblis malfermi Visual Studio Code"
+  "Visual Studio Code konnte nicht geöffnet werden": "Ne eblis malfermi Visual Studio Code",
+  "Fenstermodus konnte nicht angewendet werden": "Ne eblis apliki la fenestran reĝimon"
 }

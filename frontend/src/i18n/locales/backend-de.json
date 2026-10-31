@@ -71,5 +71,6 @@
   "Ordner nicht gefunden: {path}": "Ordner nicht gefunden: {path}",
   "Ordner konnte nicht geöffnet werden": "Ordner konnte nicht geöffnet werden",
   "Visual Studio Code wurde nicht gefunden": "Visual Studio Code wurde nicht gefunden",
-  "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code konnte nicht geöffnet werden"
+  "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code konnte nicht geöffnet werden",
+  "Fenstermodus konnte nicht angewendet werden": "Fenstermodus konnte nicht angewendet werden"
 }

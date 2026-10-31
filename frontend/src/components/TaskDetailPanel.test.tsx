@@ -57,7 +57,7 @@ vi.mock('./TaskLogSection', async () => {
 
 const task: TaskState = {
   id: '26-101', title: 'Task fixture', description: 'Description fixture', logEntries: [],
-  checklistProgress: null, creationOrder: 1, createdAt: '2026-10-25T10:00:00Z',
+  checklistProgress: null, creationOrder: 1, topologyLevel: 0, createdAt: '2026-10-25T10:00:00Z',
   configuredStart: '2026-10-25T10:00:00Z', calculatedStart: null,
   effectiveStart: '2026-10-25T10:00:00Z', effectiveDateKey: '2026-10-25',
   predecessorIds: ['26-100'], allPredecessorIds: ['26-100'], successorIds: [],

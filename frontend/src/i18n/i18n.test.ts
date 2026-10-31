@@ -62,7 +62,7 @@ describe('translation coverage', () => {
         setLanguage(language);
         expect(formatNumber(1234.5)).toBe(new Intl.NumberFormat(language).format(1234.5));
         expect(formatDate(new Date(2026, 9, 18))).toBe('2026-10-18');
-        expect(formatDate(new Date(2026, 9, 18, 14, 30), { hour: '2-digit', minute: '2-digit' })).toBe('2026-10-18 14:30');
+        expect(formatDate(new Date(2026, 9, 18, 14, 30))).toBe('2026-10-18');
       }
     } finally { setLanguage(previous); }
   });

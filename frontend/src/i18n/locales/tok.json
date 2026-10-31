@@ -185,7 +185,7 @@
   "Startdatum {id}": "tenpo open pi pali {id}",
   "JJJJ-MM-TT": "JJJJ-MM-TT",
   "Startdatum {id} bearbeiten": "o ante e tenpo open pi pali {id}",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "tenpo open: {date} ({weekday}). o nena tawa ante. o sitelen e JJJJ-MM-TT. sina ken sitelen e tenpo ilo kin.",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "tenpo open: {date} ({weekday}). o nena tawa ante. o sitelen e JJJJ-MM-TT.",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "pali monsi suno {count} li lon poka open. ona li lon insa lukin ala.",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "pali monsi suno {count} li lon sewi. ona li lon insa lukin ala.",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "pali sinpin suno {count} li lon poka pini. ona li lon insa lukin ala.",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+tenpo ilo 2",
   "Zwei Stunden nach dem Tasktermin": "tenpo ilo 2 lon monsi pi tenpo pali",
   "+1 Tag": "+tenpo suno 1",
-  "Folgetag des Tasktermins um 09:00": "tenpo suno kama lon tenpo 09:00",
+  "Folgetag des Tasktermins um 09:00": "tenpo suno kama",
   "nächste Woche": "tenpo esun kama",
-  "Nächster Montag 09:00": "tenpo suno open pi tenpo esun kama lon 09:00",
+  "Nächster Montag 09:00": "tenpo suno open pi tenpo esun kama",
   "+7 Tage": "+tenpo suno 7",
   "Exakt eine Woche später": "tenpo suno 7 lon monsi",
   "nächsten Monat": "tenpo mun kama",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "sina sitelen e weka lili anu pini toki la ilo li ante e sitelen. sina pana e sitelen tan poki awen la ilo li ante kin. sitelen majuna li ante ala. sitelen -- li wile e weka lili lon poka tu.",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "weka lili li lon sinpin la 1/2 en 1/4 en 3/4 li kama sitelen Unicode. nanpa N/D ante li kama sitelen LaTeX. kipisi wan li ken jo e sitelen nanpa 12 taso. nanpa anpa 0 li ante ala.",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "ilo li ante ala lon toki ilo, lon sitelen Mermaid, lon sitelen nanpa, lon linja URL, lon nasin lipu, lon nanpa tenpo.",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "nasin Markdown li tawa lipu sona pi pali en lipu pi tenpo pini. sitelen Markdown li sama lon toki ale."
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "nasin Markdown li tawa lipu sona pi pali en lipu pi tenpo pini. sitelen Markdown li sama lon toki ale.",
+  "Kompaktansicht": "lukin lili",
+  "Fenster": "poki lukin",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "lon lukin lili la o luka e F2 anu E anu Enter. ni li open e pali sina lon poki lukin.",
+  "In die Taskleiste minimieren": "o lili e poki tawa linja pali",
+  "Maximieren": "o suli e poki"
 }

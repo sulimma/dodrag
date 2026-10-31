@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { eventBridge } from './bridge/eventBridge';
+import { eventBridge, type WindowMode } from './bridge/eventBridge';
 import { GanttView } from './components/GanttView';
 import { ListView } from './components/ListView';
 import { NetworkPlanView } from './components/NetworkPlanView';
 import { MiniCornerView } from './components/MiniCornerView';
 import { SettingsModal } from './components/SettingsModal';
+import { AppTitleBar } from './components/AppTitleBar';
 import { AppToolbar, type ViewMode } from './components/AppToolbar';
 import { TaskSidebar } from './components/TaskSidebar';
 import { TaskContextMenu } from './components/TaskContextMenu';
@@ -48,7 +49,12 @@ export function App() {
   const pendingSource = useRef<EditorTarget | null>(null);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [helpPage, setHelpPage] = useState<HelpPage>('shortcuts');
-  const [isMiniMode, setIsMiniMode] = useState(false);
+  const [windowMode, setWindowMode] = useState<WindowMode>('window');
+  const isMiniMode = windowMode === 'mini';
+  const confirmedMode = useRef<WindowMode | null>(null);
+  const modeQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const requestModeRef = useRef<(mode: WindowMode, automatic?: boolean, expectedMode?: WindowMode) => void>(() => {});
+  const modeVersion = useRef(0);
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [editOwner, setEditOwner] = useState<'view' | 'detail'>('view');
   const newTaskInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +102,8 @@ export function App() {
   // A single editing session has one visible input, not two competing autofocus effects.
   const titleEditor = scopedEditor(editors.titleEditor, 'view');
   const dateEditor = scopedEditor(editors.dateEditor, 'view');
+  const activeInlineEditor = useRef(false);
+  activeInlineEditor.current = Boolean(editors.titleEditor.taskId || editors.dateEditor.taskId);
   const drag = useTaskDrag(database, selection, state.tasks, dragIdentity);
   const actions = useTaskMutations(
     database,
@@ -141,7 +149,8 @@ export function App() {
     snapshotReady,
     listScrollRef,
     newTaskInputRef,
-    onSettings: () => { if (isMiniMode) void handleRestoreFromMiniMode().catch(error => pushToast(errorText(t('Fenster wiederherstellen'), error), 'warning')); database.openSettings(); },
+    onSettings: () => { if (isMiniMode) void handleRestoreFromMiniMode().then(ok => { if (ok) database.openSettings(); }); else database.openSettings(); },
+    onOpenMiniTask: id => { void handleRestoreFromMiniMode(id); },
     onViewChange: setViewMode,
     onToggleDetails: () => {
       if (isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]')) listScrollRef.current?.focus();
@@ -151,50 +160,37 @@ export function App() {
       setEditOwner(isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]') ? 'detail' : 'view');
       editors.startInlineEdit(task);
     },
-    onMinimize: () => {
-      if (!isMiniMode) handleEnterMiniMode().catch(error =>
-        pushToast(errorText(t('Kompaktansicht konnte nicht geöffnet werden'), error), 'warning'));
-    },
-    onRestore: () => {
-      if (isMiniMode) handleRestoreFromMiniMode().catch(error =>
-        pushToast(errorText(t('Fenster wiederherstellen'), error), 'warning'));
-    },
+    onMinimize: () => { void requestWindowMode('mini'); },
+    onRestore: () => { void requestWindowMode('window'); },
   });
 
   useEffect(() => {
     let current = true;
     mutationBusy.current = true;
     loadSnapshot(() => current)
-      .then((s) => {
-        if (!current) return;
-        if (s.databaseReady && s.bootMinimized) {
-          setIsMiniMode(true);
-          eventBridge
-            .enterMiniMode('', 4)
-             .catch((error) => pushToast(errorText(t('Kompaktansicht konnte nicht geöffnet werden'), error), 'warning'));
-        }
-      })
+      .then(settings => { if (current && settings.databaseReady && settings.bootMinimized) requestModeRef.current('mini', true); })
       .catch((error) => {
         if (!current) return;
         pushToast(errorText(t('Anwendung konnte nicht geladen werden'), error), 'warning');
         setShowSettingsModal(true);
       })
-      .finally(() => {
-        if (current) mutationBusy.current = false;
-      });
-    const unsubMinimize = eventBridge.onWindowMinimized(() => {
-      setContextMenu(null);
-      setIsMiniMode(true);
+      .finally(() => { if (current) mutationBusy.current = false; });
+    const version = modeVersion.current;
+    const unsubMode = eventBridge.onWindowModeChanged(mode => {
+      modeVersion.current++;
+      confirmedMode.current = mode;
+      setWindowMode(mode);
     });
-    const unsubRestore = eventBridge.onWindowRestored(() => {
-      setIsMiniMode(false);
-    });
+    const unsubRequest = eventBridge.onWindowModeRequested((mode, automatic, expectedMode) => requestModeRef.current(mode, automatic ?? false, expectedMode));
+    void eventBridge.getWindowMode().then(mode => {
+      if (current && modeVersion.current === version) { confirmedMode.current = mode; setWindowMode(mode); }
+    }).catch(error => pushToast(errorText(t('Anwendung konnte nicht geladen werden'), error), 'warning'));
     const unsubCacheWarning = eventBridge.onPreviewCacheWarning(message => pushToast(message, 'warning'));
     const interval = setInterval(() => setNow(new Date()), 60_000);
     return () => {
       current = false;
-      unsubMinimize();
-      unsubRestore();
+      unsubMode();
+      unsubRequest();
       unsubCacheWarning();
       clearInterval(interval);
     };
@@ -286,20 +282,43 @@ export function App() {
     pendingSource.current = source;
     newTaskInputRef.current?.focus();
   };
-  const handleEnterMiniMode = async () => {
-    setContextMenu(null);
-    setIsMiniMode(true);
-    await eventBridge.enterMiniMode('', miniTasks.length);
+  // Queue genuine requests; only native confirmations change the rendered mode.
+  const requestWindowMode = (mode: WindowMode, automatic = false, expectedMode?: WindowMode): Promise<boolean> => {
+    const operation = modeQueue.current.then(async () => {
+      if (expectedMode !== undefined && confirmedMode.current !== expectedMode) return false;
+      if (confirmedMode.current === mode) return true;
+      if (automatic && mode === 'mini' && (showSettingsModal || showShortcutsModal || contextMenu ||
+        editors.titleEditor.taskId || editors.dateEditor.taskId || descriptions.hasDrafts())) return false;
+      if (mode === 'mini' || mode === 'taskbar') {
+        if (!await descriptions.flushAll()) return false;
+        // Blur may already be saving an inline draft. Never discard a failed or still-open editor.
+        if (activeInlineEditor.current) return false;
+      }
+      const version = modeVersion.current;
+      const confirmed = await eventBridge.setWindowMode(mode);
+      if (modeVersion.current === version) { confirmedMode.current = confirmed; setWindowMode(confirmed); }
+      if (confirmed === mode) {
+        setContextMenu(null);
+        setShowShortcutsModal(false);
+        setShowSettingsModal(false);
+      }
+      return confirmed === mode;
+    }).catch(error => {
+      pushToast(errorText(t('Fenster wiederherstellen'), error), 'warning');
+      return false;
+    });
+    modeQueue.current = operation;
+    return operation;
   };
-
+  requestModeRef.current = (mode, automatic, expectedMode) => { void requestWindowMode(mode, automatic, expectedMode); };
   const handleRestoreFromMiniMode = async (selectTaskId?: string) => {
-    setIsMiniMode(false);
+    if (!await requestWindowMode('window')) return false;
     if (selectTaskId) {
       setSelectedTaskId(selectTaskId);
       clearEdgeSelection();
       setIsDetailPanelOpen(true);
     }
-    await eventBridge.exitMiniMode();
+    return true;
   };
 
   // One contract instance supplies identical selection/context/Alt behavior to every layout.
@@ -343,8 +362,10 @@ export function App() {
           selectedTaskId={selectedTaskId}
           onSelectTask={setSelectedTaskId}
           listScrollRef={listScrollRef as React.RefObject<HTMLDivElement>}
-          onSelectAndRestore={(taskId) => handleRestoreFromMiniMode(taskId)}
-          onRestoreWindow={() => handleRestoreFromMiniMode()}
+          onSelectAndRestore={(taskId) => { void handleRestoreFromMiniMode(taskId); }}
+          onRestoreWindow={() => { void handleRestoreFromMiniMode(); }}
+          windowMode={windowMode}
+          onWindowMode={mode => { void requestWindowMode(mode); }}
           onResubmitTasks={actions.handleResubmitTasks}
           onCompleteTask={actions.handleCompleteTask}
           onToggleActive={actions.handleToggleActive}
@@ -380,6 +401,8 @@ export function App() {
         if (isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]')) listScrollRef.current?.focus();
         setSelectedTaskId(taskId); setIsDetailPanelOpen(open => !open);
       }}>
+      <AppTitleBar onWindowMode={mode => { void requestWindowMode(mode); }}
+        onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')} />
       <AppToolbar
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -396,7 +419,6 @@ export function App() {
         onUndo={historyActions.handleUndo}
         onRedo={historyActions.handleRedo}
         onSettings={database.openSettings}
-        onMiniMode={handleEnterMiniMode}
         onHelp={() => { setHelpPage('shortcuts'); setShowShortcutsModal(true); }}
       />
       <div className="flex-1 flex overflow-hidden">

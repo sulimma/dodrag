@@ -3,14 +3,19 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 	"unsafe"
 )
+
+var nativeWindowDiagnostics = os.Getenv("DODRAG_WINDOW_DIAGNOSTICS") == "1"
 
 var (
 	user32                       = syscall.NewLazyDLL("user32.dll")
@@ -29,6 +34,7 @@ var (
 	procSystemParametersInfoW    = user32.NewProc("SystemParametersInfoW")
 	procGetDpiForWindow          = user32.NewProc("GetDpiForWindow")
 	procIsIconic                 = user32.NewProc("IsIconic")
+	procIsZoomed                 = user32.NewProc("IsZoomed")
 	procShowWindow               = user32.NewProc("ShowWindow")
 	procSetForegroundWindow      = user32.NewProc("SetForegroundWindow")
 	procGetForegroundWindow      = user32.NewProc("GetForegroundWindow")
@@ -258,7 +264,7 @@ func resolveMonitorOrPrimary(deviceName string) (desktopMonitor, bool) {
 func isRectOnAnyMonitor(r winRect) (desktopMonitor, bool) {
 	w := r.Right - r.Left
 	h := r.Bottom - r.Top
-	if w < 100 || h < 40 || r.Left < -10000 || r.Top < -10000 {
+	if w < 100 || h < 40 {
 		monitors := getConnectedMonitors()
 		return monitors[0], false
 	}
@@ -391,9 +397,10 @@ func updateTaskbarSystemMenu(hwnd uintptr, isMini bool) {
 	if hMenu == 0 {
 		return
 	}
-	if isMini {
+	zoomed, _, _ := procIsZoomed.Call(hwnd)
+	if isMini || isWindowMinimizedNative(hwnd) || zoomed != 0 {
 		procEnableMenuItem.Call(hMenu, scRestore, mfByCommand|mfEnabled)
-		procEnableMenuItem.Call(hMenu, scMinimize, mfByCommand|mfGrayed)
+		procEnableMenuItem.Call(hMenu, scMinimize, mfByCommand|mfEnabled)
 	} else {
 		procEnableMenuItem.Call(hMenu, scRestore, mfByCommand|mfGrayed)
 		procEnableMenuItem.Call(hMenu, scMinimize, mfByCommand|mfEnabled)
@@ -421,8 +428,18 @@ func installWindowSubclassIfNeeded(hwnd uintptr, app *App) {
 
 func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) uintptr {
 	app := appInstanceForHooks.Load()
+	// Explicit opt-in diagnosis for manual taskbar/source validation. No user data
+	// or mouse monitoring. System commands alone do not identify a shell gesture.
+	if nativeWindowDiagnostics && (msg == wmSysCommand || msg == wmSize || msg == 0x0006 || msg == 0x001C) {
+		fmt.Fprintf(os.Stderr, "window-event time=%s msg=%#x command=%#x mini=%t iconic=%t foreground=%t\n", time.Now().Format(time.RFC3339Nano), msg, wparam, inMiniModeAtomic.Load(), isWindowMinimizedNative(hwnd), getForegroundWindowNative() == hwnd)
+	}
 	switch msg {
 	case wmGetMinMaxInfo:
+		if inMiniModeAtomic.Load() && lparam != 0 {
+			info := (*winMinMaxInfo)(unsafe.Pointer(lparam))
+			info.MinTrackSize = winPoint{X: 180, Y: 48}
+			return 0
+		}
 		if !inMiniModeAtomic.Load() && lparam != 0 && origWndProc.Load() != 0 {
 			ret, _, _ := procCallWindowProcW.Call(origWndProc.Load(), hwnd, uintptr(msg), wparam, lparam)
 			// Wails' logical minimum must not force the window beyond a small/high-DPI work area.
@@ -430,6 +447,16 @@ func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) u
 			capMinimumWindowTrackSize(info, getWindowWorkAreaNative(hwnd))
 			return ret
 		}
+
+	case wmWindowSystemMenu:
+		showWindowSystemMenuNative(hwnd, app)
+		return 0
+
+	case wmSize:
+		if app != nil && wparam != 1 {
+			go app.emitWindowMaximized()
+		}
+		// Wails still receives WM_SIZE to resize WebView2.
 
 	case wmTaskContextMenu:
 		dispatchTaskContextMenu(hwnd, wparam)
@@ -478,17 +505,32 @@ func subclassWndProc(hwnd uintptr, msg uint32, wparam uintptr, lparam uintptr) u
 
 	case wmSysCommand:
 		cmd := wparam & 0xFFF0
-		if cmd == scMinimize || wparam == sysMenuMinimizeID {
-			if !inMiniModeAtomic.Load() && app != nil {
-				go app.triggerMinimizeFromNative()
+		if app != nil && (cmd == scMinimize || wparam == sysMenuMinimizeID) {
+			before := app.nativeWindowMode()
+			revision := app.modeRevision.Load()
+			target, focusOnly := nativeMinimizeTarget(before, getForegroundWindowNative() == hwnd)
+			if focusOnly {
+				// Do not restore/reposition a visible background window: that
+				// would change its normal/maximized geometry on activation.
+				procSetForegroundWindow.Call(hwnd)
+			} else {
+				go app.requestNativeWindowMode(target, before, revision)
 			}
 			return 0
 		}
-		if cmd == scRestore || wparam == sysMenuRestoreID {
-			if inMiniModeAtomic.Load() && app != nil {
-				go app.triggerRestoreFromNative()
+		if app != nil && (cmd == scRestore || wparam == sysMenuRestoreID || (cmd == scMaximize && inMiniModeAtomic.Load())) {
+			if inMiniModeAtomic.Load() || isWindowMinimizedNative(hwnd) {
+				before, revision := app.nativeWindowMode(), app.modeRevision.Load()
+				if before == WindowModeWindow && isWindowMinimizedNative(hwnd) {
+					// Shell-wide minimization (e.g. Win+D) may iconify a normal
+					// window without a controller transition. Let Windows restore
+					// it normally; a same-mode frontend request would be a no-op.
+					break
+				}
+				go app.requestNativeWindowMode(WindowModeWindow, before, revision)
 				return 0
 			}
+			// Visible normal windows retain Windows' native unmaximize behavior.
 		}
 
 	case wmEnterSizeMove:
@@ -669,19 +711,10 @@ func applyMiniWindowBoundsNative(hwnd uintptr, targetMonitor string, corner stri
 
 	inMiniModeAtomic.Store(true)
 
-	// If window was minimized to taskbar, set its normal placement directly to target corner so it never flashes on another monitor
+	// Restore before positioning. WINDOWPLACEMENT uses workspace coordinates;
+	// this helper works exclusively with physical screen rectangles.
 	if isWindowMinimizedNative(hwnd) {
-		var wp windowPlacement
-		wp.Length = uint32(unsafe.Sizeof(wp))
-		procGetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&wp)))
-		wp.ShowCmd = swShowNormal
-		wp.RcNormalPosition = winRect{
-			Left:   x,
-			Top:    y,
-			Right:  x + physW,
-			Bottom: y + physH,
-		}
-		procSetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&wp)))
+		procShowWindow.Call(hwnd, swRestore)
 	}
 
 	// Keep wsSysMenu and wsMinimizeBox so the Taskbar icon right-click system menu has Minimieren / Wiederherstellen
@@ -791,7 +824,7 @@ func restoreNormalWindowBoundsNative(hwnd uintptr, savedStyle uintptr, savedRect
 	w := savedRect.Right - savedRect.Left
 	h := savedRect.Bottom - savedRect.Top
 	_, onValidMonitor := isRectOnAnyMonitor(savedRect)
-	if w < 600 || h < 400 || !onValidMonitor {
+	if w <= 0 || h <= 0 || !onValidMonitor {
 		monitors := getConnectedMonitors()
 		primary := monitors[0]
 		savedRect = defaultNormalWindowRect(primary.WorkArea, primary.DPI)
@@ -1043,5 +1076,39 @@ func registerTaskbarJumpList(language string) {
 		if int32(hr) < 0 {
 			return
 		}
+	}
+}
+
+func verifyWindowGeometryNative(hwnd uintptr, language string) error {
+	_, ok := getWindowRectNative(hwnd)
+	if !ok || isWindowMinimizedNative(hwnd) {
+		return errors.New(backendText(language, "Fenstermodus konnte nicht angewendet werden"))
+	}
+	exStyle, _, _ := procGetWindowLongPtrW.Call(hwnd, ^uintptr(19)) // GWL_EXSTYLE (-20)
+	if (exStyle&8 != 0) != inMiniModeAtomic.Load() {
+		return errors.New(backendText(language, "Fenstermodus konnte nicht angewendet werden"))
+	}
+	return nil
+}
+
+// The standard frame/system menu is kept even though Wails hides its caption.
+// TrackPopupMenu runs on the HWND owner thread, like task context menus do.
+const wmWindowSystemMenu = 0x8000 + 0x53
+
+func showWindowSystemMenuNative(hwnd uintptr, app *App) {
+	menu, _, _ := procGetSystemMenu.Call(hwnd, 0)
+	if menu == 0 {
+		return
+	}
+	updateTaskbarSystemMenu(hwnd, inMiniModeAtomic.Load())
+	var point winPoint
+	procGetCursorPos.Call(uintptr(unsafe.Pointer(&point)))
+	command, _, _ := procTrackPopupMenuEx.Call(menu, tpmReturnCmd|tpmNoNotify|tpmRightButton, uintptr(point.X), uintptr(point.Y), hwnd, 0)
+	if command == scMinimize && app != nil {
+		// An explicit menu choice has the same meaning as the '_' titlebar button.
+		// Taskbar clicks still use the existing native minimize-command cycle.
+		go app.requestWindowMode(WindowModeTaskbar)
+	} else if command != 0 {
+		procPostMessageW.Call(hwnd, wmSysCommand, command, 0)
 	}
 }

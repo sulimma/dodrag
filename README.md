@@ -12,7 +12,7 @@ DoDrag keeps everyday TODO management lightweight. Its compact working view show
 
 ### A focused task list
 
-The date-layered list keeps actionable work easy to scan. Select a task to trace its upstream prerequisites and downstream effects.
+The date-layered list keeps actionable work easy to scan. Active tasks appear first in dependency order, including dependencies through inactive or completed tasks. Dates are displayed as YYYY-MM-DD without a time. Select a task to trace its upstream prerequisites and downstream effects.
 
 <p align="center"><img src="docs/screenshots/task-list.png" alt="DoDrag task list with actionable tasks and dependency highlighting" width="900"></p>
 
@@ -30,7 +30,7 @@ Switch from the list to a dependency network or a Gantt timeline. Add a prerequi
 
 ### Keep the next tasks in a corner
 
-The compact, corner-docked view stays out of the way and shows only work that can be started, prioritizing tasks you marked active.
+The compact, corner-docked view stays out of the way and shows only work that can be started, prioritizing tasks you marked active. Click a task title to open it with its details in the normal window. With a task selected, Enter, F2, and E do the same.
 
 <p align="center"><img src="docs/screenshots/mini-view.png" alt="DoDrag compact corner view with currently actionable tasks" width="420"></p>
 
@@ -43,7 +43,7 @@ The compact, corner-docked view stays out of the way and shows only work that ca
 - **Small, traceable edits:** edit titles and dates in place, mark a task active, complete or reopen tasks, and undo or redo changes.
 - **Rich task descriptions:** a TipTap 3 editor with Markdown, checklists, GitHub-style note boxes, Mermaid diagrams, KaTeX mathematics, and Unicode shortcuts. The task log remains plain text.
 - **Native Windows desktop app:** the app stores task history in SQLite and can manage multiple database files. The frontend requires its native Wails host; there is no browser storage mode.
-- **Compact corner view:** dock a small always-on-top task window to a screen corner and restore the main window when needed.
+- **Window modes:** choose compact or normal window from the title controls. Ctrl+M switches between them. Taskbar clicks bring a background window forward and then cycle through compact view, taskbar minimization, and the normal window. The compact window stays on top and docks to a screen corner. The main window uses a custom title bar with native window resizing and shadow; manual Windows verification is still pending.
 
 ## Task descriptions and Markdown
 

@@ -7,10 +7,8 @@ import {
   Undo2,
   Redo2,
   Settings,
-  Minimize2,
   HelpCircle,
 } from 'lucide-react';
-import appIcon from '../assets/app-icon.png';
 import { t } from '../i18n';
 import { shortcutLabel } from '../hooks/keyboardNavigation';
 export type ViewMode = 'list' | 'network' | 'gantt';
@@ -30,7 +28,6 @@ interface AppToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   onSettings: () => void;
-  onMiniMode: () => void;
   onHelp: () => void;
 }
 // Presents view controls, task creation, history actions, and app settings.
@@ -50,24 +47,11 @@ export function AppToolbar({
   onUndo,
   onRedo,
   onSettings,
-  onMiniMode,
   onHelp,
 }: AppToolbarProps) {
   return (
     <header data-shortcut-region="0" className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white/90 backdrop-blur-md z-20 shadow-sm shrink-0">
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2.5">
-          <img
-            src={appIcon}
-            alt=""
-            draggable={false}
-            className="w-8 h-8 shrink-0"
-          />
-          <h1 className="text-base font-bold tracking-tight text-slate-900">
-            DoDrag
-          </h1>
-        </div>
-
         {/* View Switcher: Liste vs. Netzplan vs. Gantt */}
         <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1">
           <button
@@ -175,14 +159,6 @@ export function AppToolbar({
           className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
         >
           <Settings className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={onMiniMode}
-          title={t('Minimieren (Kompaktansicht in Bildschirmecke)')}
-          className="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-sky-600 hover:bg-slate-50 transition-colors"
-        >
-          <Minimize2 className="w-4 h-4" />
         </button>
 
         <button

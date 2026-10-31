@@ -123,3 +123,16 @@ it('uses frozen group members for date drops even after selection changes', asyn
     expect(append.mock.calls[0][0].map(command => command.payload.taskId)).toEqual(['A', 'B']);
   } finally { append.mockRestore(); }
 });
+
+it('preserves the full ISO instant supplied by a date drop', async () => {
+  const now = new Date('2026-10-19T09:00:00.000Z');
+  const events: StoredEvent[] = [{ seq: 1, id: 'A', timestamp: now.toISOString(), undone: false,
+    type: 'TASK_CREATED', payload: { taskId: 'A', title: 'A', configuredStart: now.toISOString(), createdAt: now.toISOString() } }];
+  const append = vi.spyOn(eventBridge, 'appendBatch').mockResolvedValue(events);
+  try {
+    const actions = useTaskMutations({ databaseIdentity: { current: 'db' }, confirmedEvents: { current: events }, mutate: operation => operation() },
+      { selectedTaskIds: [], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn() }, now, { current: null }, vi.fn(), vi.fn());
+    await actions.handleSetConfiguredDate('A', '2026-12-31T23:30:12.000Z', '2026-12-31');
+    expect(append).toHaveBeenCalledWith([{ type: 'TASK_START_DATE_SET', payload: { taskId: 'A', configuredStart: '2026-12-31T23:30:12.000Z' } }]);
+  } finally { append.mockRestore(); }
+});

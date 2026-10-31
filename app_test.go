@@ -292,6 +292,7 @@ func TestSettingsMissingAndReadFailure(t *testing.T) {
 
 func TestDockSaveFailureIsVisible(t *testing.T) {
 	a := testApp(t)
+	a.windowMode = WindowModeMini
 	a.settingsPath = filepath.Join(a.appDir, "missing", "settings.json")
 	a.onMiniWindowSnapped("PRIMARY", "top-right")
 	if _, err := a.GetSettings(); err == nil {

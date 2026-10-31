@@ -56,17 +56,13 @@ export function t(key: string, params?: Record<string, string | number>): string
 }
 
 export function formatNumber(value: number): string { return new Intl.NumberFormat(locale).format(value); }
-export function formatDate(value: Date | string, options?: Intl.DateTimeFormatOptions): string {
+// Display the local calendar date only; timestamps remain intact in storage.
+export function formatDate(value: Date | string): string {
   const date = typeof value === 'string' ? new Date(value) : value;
   const y = String(date.getFullYear()).padStart(4, '0');
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
-  const dateStr = `${y}-${m}-${d}`;
-  if (!options || (!options.hour && !options.minute && !options.second)) return dateStr;
-  const hh = String(date.getHours()).padStart(2, '0');
-  const mm = String(date.getMinutes()).padStart(2, '0');
-  const ss = options.second ? `:${String(date.getSeconds()).padStart(2, '0')}` : '';
-  return `${dateStr} ${hh}:${mm}${ss}`;
+  return `${y}-${m}-${d}`;
 }
 export function errorText(context: string, error: unknown): string {
   const detail = error instanceof Error ? error.message : String(error);

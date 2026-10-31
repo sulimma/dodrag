@@ -130,13 +130,46 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       type: 'TASK_ACTIVE_SET', payload: { taskId: '26-104', isActive: true },
     }], now);
     expect(computeMiniWindowTasks([...multipleActive.openTasks].reverse(), now).map(t => t.id)).toEqual([
-      '26-104', '26-108', '26-101', '26-102', '26-103',
+      '26-108', '26-104', '26-101', '26-102', '26-103',
     ]);
     const completed = projectEvents([...events, ...expected.map((taskId, i): StoredEvent => ({
       seq: 7 + i, id: `done${i}`, timestamp: todayIso, undone: false,
       type: 'TASK_COMPLETED', payload: { taskId, completedAt: `2026-10-18T12:00:0${i}Z` },
     }))], now);
     expect(completed.completedTasks.map(t => t.id)).toEqual(expected);
+  });
+
+  it('orders active tasks by the complete dependency graph across incremental changes and undo', () => {
+    const events: StoredEvent[] = ['B', 'A', 'C', 'D'].map((taskId, i) => ({
+      seq: i + 1, id: `create-${taskId}`, timestamp: todayIso, undone: false, type: 'TASK_CREATED',
+      payload: { taskId, title: taskId, configuredStart: todayIso, createdAt: todayIso },
+    }));
+    const add = (event: Omit<StoredEvent, 'seq' | 'id' | 'timestamp' | 'undone'>) => {
+      events.push({ ...event, seq: events.length + 1, id: `event-${events.length}`, timestamp: todayIso, undone: false } as StoredEvent);
+    };
+    add({ type: 'DEPENDENCY_ADDED', payload: { taskId: 'A', predecessorId: 'C' } });
+    add({ type: 'DEPENDENCY_ADDED', payload: { taskId: 'B', predecessorId: 'A' } });
+    for (const taskId of ['B', 'C', 'D']) add({ type: 'TASK_ACTIVE_SET', payload: { taskId, isActive: true } });
+    const check = (expected: string[]) => {
+      const state = projectEvents(events, fixedNow);
+      expect(state.openTasks.filter(t => t.isActive).map(t => t.id)).toEqual(expected);
+      expect(state.listEntries.flatMap(e => e.kind === 'task' && e.task.isActive ? [e.task.id] : [])).toEqual(expected);
+      expect(computeMiniWindowTasks([...state.openTasks].reverse(), fixedNow).filter(t => t.isActive).map(t => t.id)).toEqual(expected);
+    };
+    check(['C', 'D', 'B']); // A is an inactive intermediate; independent D ties C by creation order.
+    add({ type: 'TASK_ACTIVE_SET', payload: { taskId: 'A', isActive: true } });
+    check(['C', 'D', 'A', 'B']); // C -> A -> B opposes their creation and ID order.
+    add({ type: 'TASK_ACTIVE_SET', payload: { taskId: 'A', isActive: false } });
+    add({ type: 'TASK_COMPLETED', payload: { taskId: 'A', completedAt: todayIso } });
+    check(['C', 'D', 'B']); // Completed intermediates still contribute to global levels.
+    add({ type: 'DEPENDENCY_REMOVED', payload: { taskId: 'A', predecessorId: 'C' } });
+    check(['C', 'D', 'B']);
+    add({ type: 'DEPENDENCY_REMOVED', payload: { taskId: 'B', predecessorId: 'A' } });
+    check(['B', 'C', 'D']);
+    events[events.length - 1] = { ...events[events.length - 1], undone: true };
+    check(['C', 'D', 'B']);
+    events[events.length - 1] = { ...events[events.length - 1], undone: false };
+    check(['B', 'C', 'D']);
   });
 
   it('counts the open tasks at the end of the previous local day for the daily change', () => {

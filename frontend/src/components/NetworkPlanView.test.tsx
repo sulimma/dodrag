@@ -7,7 +7,7 @@ import { TaskState } from '../domain/types';
 
 it('lays out complete same-day dependency levels at responsive widths and across midnight', () => {
   const task = (id: string, day: number, predecessorIds: string[] = []): TaskState => ({
-    id, title: id, creationOrder: 0, createdAt: new Date(2026, 9, 10).toISOString(),
+    id, title: id, creationOrder: 0, topologyLevel: 0, createdAt: new Date(2026, 9, 10).toISOString(),
     description: '', logEntries: [], checklistProgress: null,
     configuredStart: new Date(2026, 9, day, 9).toISOString(), calculatedStart: null,
     effectiveStart: new Date(2026, 9, day, 9).toISOString(), effectiveDateKey: `2026-10-${day}`,
@@ -113,10 +113,9 @@ it('lays out complete same-day dependency levels at responsive widths and across
     const activeTasks = tasks.map(task => ({ ...task, isActive: ['C', 'B', 'F'].includes(task.id) }));
     const activeProps = { ...props, openTasks: activeTasks };
     act(() => root.render(<NetworkPlanView {...activeProps} />));
-    // Active priority, not topology: C stays before its active predecessor B.
-    expect(bounds('C').y).toBe(bounds('B').y);
-    expect(bounds('C').x).toBeLessThan(bounds('B').x);
-    expect(bounds('F').y).toBe(bounds('C').y);
+    // Active rows preserve the supplied priority at both wide and narrow widths.
+    expect(bounds('C').y).toBeLessThan(bounds('B').y);
+    expect(bounds('B').y).toBeLessThan(bounds('F').y);
     expect(bounds('A').y).toBeGreaterThan(bounds('F').y + 56);
     expect(bounds('E').y).toBeGreaterThan(bounds('D').y + 56);
     expect(element.querySelector('[data-task-drop-target="2026-10-17"]')).not.toBeNull();

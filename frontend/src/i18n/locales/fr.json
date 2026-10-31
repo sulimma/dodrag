@@ -185,7 +185,7 @@
   "Startdatum {id}": "Date de début de {id}",
   "JJJJ-MM-TT": "AAAA-MM-JJ",
   "Startdatum {id} bearbeiten": "Modifier la date de début de {id}",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Date de début définie : {date} ({weekday}). Cliquez pour la modifier (AAAA-MM-JJ, heure facultative)",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Date de début définie : {date} ({weekday}). Cliquez pour la modifier (AAAA-MM-JJ)",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "{count} prédécesseurs mis en évidence à gauche de la zone visible",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "{count} prédécesseurs mis en évidence au-dessus de la zone visible",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "{count} successeurs mis en évidence à droite de la zone visible",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+2 heures",
   "Zwei Stunden nach dem Tasktermin": "Deux heures après la date et l'heure de la tâche",
   "+1 Tag": "+1 jour",
-  "Folgetag des Tasktermins um 09:00": "Le lendemain de la date de la tâche à 09:00",
+  "Folgetag des Tasktermins um 09:00": "Le lendemain de la date de la tâche",
   "nächste Woche": "la semaine prochaine",
-  "Nächster Montag 09:00": "Lundi prochain à 09:00",
+  "Nächster Montag 09:00": "Lundi prochain",
   "+7 Tage": "+7 jours",
   "Exakt eine Woche später": "Exactement une semaine plus tard",
   "nächsten Monat": "le mois prochain",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "Après un espace ou une fin de phrase reconnue, le texte saisi est remplacé. Le remplacement fonctionne aussi au collage. Le contenu existant reste inchangé. -- exige un espace de chaque côté.",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "Après un espace, 1/2, 1/4 et 3/4 deviennent des caractères Unicode. Les autres fractions N/D deviennent du LaTeX en ligne. Chaque partie peut contenir au plus 12 chiffres. Si le dénominateur est 0, la fraction reste inchangée.",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "Aucun remplacement dans le code, Mermaid, les formules, les liens, les URL, les chemins de fichiers ou les dates enchaînées.",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown pour la description de la tâche. Les marqueurs de syntaxe restent identiques dans toutes les langues."
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown pour la description de la tâche. Les marqueurs de syntaxe restent identiques dans toutes les langues.",
+  "Kompaktansicht": "Vue compacte",
+  "Fenster": "Fenêtre",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "Dans la vue compacte, F2, E et Entrée ouvrent la tâche sélectionnée dans la fenêtre.",
+  "In die Taskleiste minimieren": "Réduire dans la barre des tâches",
+  "Maximieren": "Agrandir"
 }

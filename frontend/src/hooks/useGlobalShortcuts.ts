@@ -41,6 +41,7 @@ interface ShortcutContext {
   onSettings?: () => void;
   onViewChange?: (view: ViewMode) => void;
   onToggleDetails?: () => void;
+  onOpenMiniTask?: (id: string) => void;
 }
 // Routes global keyboard input while respecting editors and overlays.
 export function useGlobalShortcuts({
@@ -61,6 +62,7 @@ export function useGlobalShortcuts({
   onSettings,
   onViewChange,
   onToggleDetails,
+  onOpenMiniTask,
 }: ShortcutContext) {
   const {
     selectedTaskId,
@@ -296,7 +298,11 @@ export function useGlobalShortcuts({
 
       if (e.key === 'F2' || e.key.toLowerCase() === 'e' || e.key === 'Enter') {
         e.preventDefault();
-        startInlineEdit(selTask);
+        if (isMiniMode) {
+          if (!e.repeat) onOpenMiniTask?.(selTask.id);
+        } else {
+          startInlineEdit(selTask);
+        }
         return;
       }
 

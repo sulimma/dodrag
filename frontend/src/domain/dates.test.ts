@@ -14,7 +14,7 @@ it('normalizes the exact comfort date contract', () => {
   expect(key('2025-01-01')).toBe('2025-01-01'); expect(key('0099-01-01')).toBe('2026-10-17');
   expect(new Date(normalizeUserDate('2027-01-01 13:45:12',now)).getSeconds()).toBe(12);
   expect(futureLimit(localDate(2028,2,29)).getDate()).toBe(28);
-  expect(formatIso8601Display(normalizeUserDate('2027-01-01 13:45:12',now)).isoText).toBe('2027-01-01 13:45:12');
+  expect(formatIso8601Display(normalizeUserDate('2027-01-01 13:45:12',now)).isoText).toBe('2027-01-01');
   expect(() => parseCommand({type:'TASK_START_DATE_SET',payload:{taskId:'t1',configuredStart:'2027-01-01T24:00:00Z'}})).toThrow();
   const dst=new Date(normalizeUserDate('2027-03-28 02:30',now));
   expect([2,3]).toContain(dst.getHours());expect(dst.getMinutes()).toBe(30);

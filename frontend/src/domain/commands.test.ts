@@ -71,6 +71,26 @@ it.each([false, true])('replays 10k tasks in forward/reverse dependency order (r
   expect(replayCommands(normalized)).toBe(state);
 });
 
+it('preserves cached topology across non-graph edits and snapshots across graph edits', () => {
+  const commands: EventCommand[] = [create('b'), create('a'),
+    { type: 'DEPENDENCY_ADDED', payload: { taskId: 'b', predecessorId: 'a' } }];
+  const events = stored(commands);
+  const initial = replayCommands(events);
+  expect([...initial.topologyLevels]).toEqual([['a', 0], ['b', 1]]);
+  const renamed = replayCommands(stored([...commands,
+    { type: 'TASK_RENAMED', payload: { taskId: 'a', title: 'renamed' } }]));
+  expect(renamed.topologyLevels).toBe(initial.topologyLevels);
+  const added = replayCommands(stored([...commands,
+    { type: 'TASK_RENAMED', payload: { taskId: 'a', title: 'renamed' } }, create('c')]));
+  expect(added.topologyLevels.get('c')).toBe(0);
+  expect(initial.topologyLevels.has('c')).toBe(false);
+  const removed = replayCommands(stored([...commands,
+    { type: 'TASK_RENAMED', payload: { taskId: 'a', title: 'renamed' } }, create('c'),
+    { type: 'DEPENDENCY_REMOVED', payload: { taskId: 'b', predecessorId: 'a' } }]));
+  expect(removed.topologyLevels.get('b')).toBe(0);
+  expect(initial.topologyLevels.get('b')).toBe(1);
+});
+
 it('keeps schema and reference validation and does not mutate cached state for new commands', () => {
   const events = stored([create('a')]);
   const state = replayCommands(events);

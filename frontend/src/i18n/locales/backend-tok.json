@@ -71,5 +71,6 @@
   "Ordner nicht gefunden: {path}": "poki lipu li lon ala: {path}",
   "Ordner konnte nicht geöffnet werden": "ilo li ken ala open e poki lipu",
   "Visual Studio Code wurde nicht gefunden": "ilo VS Code li lon ala",
-  "Visual Studio Code konnte nicht geöffnet werden": "ilo li ken ala open e ilo VS Code"
+  "Visual Studio Code konnte nicht geöffnet werden": "ilo li ken ala open e ilo VS Code",
+  "Fenstermodus konnte nicht angewendet werden": "ilo li ken ala ante e nasin pi lukin ona"
 }

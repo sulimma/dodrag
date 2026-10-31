@@ -185,7 +185,7 @@
   "Startdatum {id}": "Start date {id}",
   "JJJJ-MM-TT": "YYYY-MM-DD",
   "Startdatum {id} bearbeiten": "Edit start date {id}",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Configured start date: {date} ({weekday}). Click to edit (YYYY-MM-DD, optional time)",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Configured start date: {date} ({weekday}). Click to edit (YYYY-MM-DD)",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "{count} highlighted predecessors to the left of the visible area",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "{count} highlighted predecessors above the visible area",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "{count} highlighted successors to the right of the visible area",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+2 hours",
   "Zwei Stunden nach dem Tasktermin": "Two hours after the task date",
   "+1 Tag": "+1 day",
-  "Folgetag des Tasktermins um 09:00": "The day after the task date at 09:00",
+  "Folgetag des Tasktermins um 09:00": "The day after the task date",
   "nächste Woche": "Next week",
-  "Nächster Montag 09:00": "Next Monday at 09:00",
+  "Nächster Montag 09:00": "Next Monday",
   "+7 Tage": "+7 days",
   "Exakt eine Woche später": "Exactly one week later",
   "nächsten Monat": "Next month",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "Replacements while typing after whitespace or a safe punctuation boundary. Also applies when inserting or pasting. Existing content stays unchanged. -- needs spaces on both sides.",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "Fractions after a space: 1/2, 1/4 and 3/4 become Unicode characters. Other N/D become inline LaTeX. Maximum 12 digits per part. A denominator of 0 stays unchanged.",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "No replacement in code, Mermaid, formulas, links, URLs, file paths or chained date expressions.",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown for the task description. Syntax markers stay the same in every language."
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown for the task description. Syntax markers stay the same in every language.",
+  "Kompaktansicht": "Compact view",
+  "Fenster": "Window",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "In compact view, F2, E and Enter open the selected task in the window.",
+  "In die Taskleiste minimieren": "Minimize to taskbar",
+  "Maximieren": "Maximize"
 }

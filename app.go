@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -82,12 +82,16 @@ type App struct {
 	registerJumpList      func(string)
 	hwnd                  uintptr
 	isMiniMode            bool
+	windowMode            WindowMode
+	modeMu                sync.Mutex
+	nativeMode            atomic.Uint32
+	modeRevision          atomic.Uint64
+	lastVisibleMonitor    string
 	lastMiniItemCount     int
 	savedStyle            uintptr
 	savedRect             winRect
 	savedPlacement        windowPlacement
 	bootMinimized         bool
-	ignoreMinimizeUntil   time.Time
 	unfocusedSince        time.Time
 	watchCancel           context.CancelFunc
 	watchDone             chan struct{}
@@ -169,7 +173,7 @@ func (a *App) ensureWindowHandleLocked() uintptr {
 }
 
 func (a *App) shouldAutoMiniLocked(now time.Time, foreground bool) bool {
-	if a.isMiniMode || foreground {
+	if a.currentWindowModeLocked() != WindowModeWindow || foreground {
 		a.unfocusedSince = time.Time{}
 		return false
 	}
@@ -180,101 +184,62 @@ func (a *App) shouldAutoMiniLocked(now time.Time, foreground bool) bool {
 	return now.Sub(a.unfocusedSince) >= 10*time.Minute
 }
 
+// The observer repairs monitor geometry only. Intentional taskbar minimization is
+// never converted into mini. Auto-mini requests go through the frontend flush path.
 func (a *App) watchNativeMinimize(ctx context.Context) {
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			a.mu.Lock()
-			if ctx.Err() != nil {
-				a.mu.Unlock()
-				return
-			}
 			hwnd := a.ensureWindowHandleLocked()
-			if hwnd != 0 {
-				autoMini := a.shouldAutoMiniLocked(time.Now(), getForegroundWindowNative() == hwnd)
-				if !a.isMiniMode {
-					if isWindowMinimizedNative(hwnd) {
-						if time.Now().Before(a.ignoreMinimizeUntil) {
-							procShowWindow.Call(hwnd, swRestore)
-							a.mu.Unlock()
-							continue
-						}
-						a.enterMiniModeLocked(a.settings.DockCorner, a.lastMiniItemCount, true)
-						a.mu.Unlock()
-						runtime.EventsEmit(ctx, "window:minimized", true)
-						continue
-					}
-					if autoMini {
-						a.enterMiniModeLocked(a.settings.DockCorner, a.lastMiniItemCount, false)
-						a.mu.Unlock()
-						runtime.EventsEmit(ctx, "window:minimized", true)
-						continue
-					}
-					if rect, ok := getWindowRectNative(hwnd); ok && (rect.Right-rect.Left) >= 600 && (rect.Bottom-rect.Top) >= 400 && rect.Left > -10000 && rect.Top > -10000 {
-						if _, onMon := isRectOnAnyMonitor(rect); !onMon {
-							// Desktop/Monitor disappeared while running in normal mode -> move onto Monitor 1
-							a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, rect)
-						} else {
-							a.savedRect = rect
-						}
-					}
-					if style := getWindowStyleNative(hwnd); style != 0 && (style&wsMinimize) == 0 && (style&wsPopup) == 0 {
-						a.savedStyle = style
-					}
-				} else if !isDraggingMini.Load() {
-					// In mini mode: verify the target monitor still exists; if disconnected, switch to Monitor 1
-					mon, exists := resolveMonitorOrPrimary(a.settings.DockMonitor)
-					if a.settings.DockMonitor != "" && !exists {
-						logicalW, logicalH := computeMiniLogicalSize(a.lastMiniItemCount)
-						resolvedMon, resolvedCorner := applyMiniWindowBoundsNative(hwnd, mon.DeviceName, a.settings.DockCorner, logicalW, logicalH, false)
-						a.settings.DockMonitor = resolvedMon
-						a.settings.DockCorner = resolvedCorner
-						_ = a.saveSettingsLocked()
-					} else if rect, ok := getWindowRectNative(hwnd); ok {
-						if _, onMon := isRectOnAnyMonitor(rect); !onMon {
-							logicalW, logicalH := computeMiniLogicalSize(a.lastMiniItemCount)
-							resolvedMon, resolvedCorner := applyMiniWindowBoundsNative(hwnd, mon.DeviceName, a.settings.DockCorner, logicalW, logicalH, false)
-							a.settings.DockMonitor = resolvedMon
-							a.settings.DockCorner = resolvedCorner
-							_ = a.saveSettingsLocked()
-						}
-					}
-				}
-			} else {
-				a.unfocusedSince = time.Time{}
+			auto := a.shouldAutoMiniLocked(time.Now(), getForegroundWindowNative() == hwnd)
+			if auto {
+				a.unfocusedSince = time.Now()
 			}
 			a.mu.Unlock()
+			if auto {
+				runtime.EventsEmit(ctx, "window:mode-requested", WindowModeMini, true)
+			}
 		}
 	}
 }
 
 func (a *App) onDisplayChange() {
+	a.modeMu.Lock()
+	defer a.modeMu.Unlock()
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	mode := a.currentWindowModeLocked()
+	if mode == WindowModeTaskbar {
+		return
+	}
 	hwnd := a.ensureWindowHandleLocked()
 	if hwnd == 0 {
 		return
 	}
-	if a.isMiniMode {
-		logicalW, logicalH := computeMiniLogicalSize(a.lastMiniItemCount)
-		resolvedMon, resolvedCorner := applyMiniWindowBoundsNative(hwnd, a.settings.DockMonitor, a.settings.DockCorner, logicalW, logicalH, false)
-		a.settings.DockMonitor = resolvedMon
-		a.settings.DockCorner = resolvedCorner
-		_ = a.saveSettingsLocked()
+	mon, _ := resolveMonitorOrPrimary(a.lastVisibleMonitor)
+	if mode == WindowModeMini {
+		w, h := computeMiniLogicalSize(a.lastMiniItemCount)
+		a.settings.DockMonitor, a.settings.DockCorner = applyMiniWindowBoundsNative(hwnd, mon.DeviceName, a.settings.DockCorner, w, h, false)
 	} else if rect, ok := getWindowRectNative(hwnd); ok {
-		if _, onMon := isRectOnAnyMonitor(rect); !onMon {
+		if _, valid := isRectOnAnyMonitor(rect); !valid {
 			a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, rect)
 		}
 	}
 }
 
 func (a *App) onMiniWindowSnapped(monitorName string, corner string) {
+	a.modeMu.Lock()
+	defer a.modeMu.Unlock()
 	a.mu.Lock()
+	if a.currentWindowModeLocked() != WindowModeMini {
+		a.mu.Unlock()
+		return
+	}
 	if a.isMiniMode {
 		width, height := computeMiniLogicalSize(a.lastMiniItemCount)
 		monitorName, corner = applyMiniWindowBoundsNative(a.hwnd, monitorName, corner, width, height, true)
@@ -290,39 +255,45 @@ func (a *App) onMiniWindowSnapped(monitorName string, corner string) {
 	}
 }
 
-func (a *App) triggerMinimizeFromNative() {
+// System commands request the same frontend flush as direct mode choices.
+// There is no gesture recognizer or timing heuristic: Windows activates a
+// background window, and its next minimize command advances window -> mini ->
+// taskbar. The iconic restore command always requests the normal window.
+func (a *App) requestWindowMode(mode WindowMode) {
 	a.mu.Lock()
-	if a.isMiniMode {
+	ctx, ready := a.ctx, a.editorReady
+	a.mu.Unlock()
+	if ready && ctx != nil {
+		runtime.EventsEmit(ctx, "window:mode-requested", mode)
+		return
+	}
+	_, _ = a.SetWindowMode(mode)
+}
+
+// Expected mode and revision are captured by the HWND callback before its async
+// dispatch. A delayed callback cannot reinterpret a newer direct mode choice.
+func (a *App) requestNativeWindowMode(target, expected WindowMode, revision uint64) {
+	if a.modeRevision.Load() != revision {
+		return
+	}
+	a.mu.Lock()
+	if a.currentWindowModeLocked() != expected {
 		a.mu.Unlock()
 		return
 	}
-	a.enterMiniModeLocked(a.settings.DockCorner, a.lastMiniItemCount, true)
-	ctx := a.ctx
+	ctx, ready := a.ctx, a.editorReady
 	a.mu.Unlock()
-
-	if ctx != nil {
-		runtime.EventsEmit(ctx, "window:minimized", true)
-	}
-}
-
-func (a *App) triggerRestoreFromNative() {
-	a.mu.Lock()
-	if !a.isMiniMode {
-		hwnd := a.ensureWindowHandleLocked()
-		if hwnd != 0 {
-			a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, a.savedRect)
-		}
-		a.mu.Unlock()
+	if ready && ctx != nil {
+		runtime.EventsEmit(ctx, "window:mode-requested", target, false, expected)
 		return
 	}
-	a.exitMiniModeLocked()
-	ctx := a.ctx
-	a.mu.Unlock()
-
-	if ctx != nil {
-		runtime.EventsEmit(ctx, "window:restored", true)
+	a.modeMu.Lock()
+	defer a.modeMu.Unlock()
+	if a.modeRevision.Load() == revision {
+		_, _ = a.setWindowMode(target)
 	}
 }
+func (a *App) triggerRestoreFromNative() { a.requestWindowMode(WindowModeWindow) }
 
 func (a *App) onSecondInstanceLaunch(secondInstanceData options.SecondInstanceData) {
 	wantMinimize := false
@@ -334,7 +305,7 @@ func (a *App) onSecondInstanceLaunch(secondInstanceData options.SecondInstanceDa
 		}
 	}
 	if wantMinimize {
-		a.triggerMinimizeFromNative()
+		a.requestWindowMode(WindowModeMini)
 	} else {
 		a.triggerRestoreFromNative()
 	}
@@ -546,68 +517,10 @@ func computeMiniLogicalSize(itemCount int) (int, int) {
 	return logicalW, logicalH
 }
 
-func (a *App) enterMiniModeLocked(corner string, itemCount int, activate bool) string {
-	if itemCount > 0 {
-		a.lastMiniItemCount = itemCount
-	}
-	hwnd := a.ensureWindowHandleLocked()
-	if !a.isMiniMode && hwnd != 0 {
-		var placement windowPlacement
-		placement.Length = uint32(unsafe.Sizeof(placement))
-		if result, _, _ := procGetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&placement))); result != 0 {
-			if placement.ShowCmd == 2 || placement.ShowCmd == 6 || placement.ShowCmd == 7 {
-				if placement.Flags&2 != 0 {
-					placement.ShowCmd = 3
-				} else {
-					placement.ShowCmd = swShowNormal
-				}
-			}
-			a.savedPlacement = placement
-		}
-	}
-	if !a.isMiniMode && hwnd != 0 && !isWindowMinimizedNative(hwnd) {
-		if rect, ok := getWindowRectNative(hwnd); ok && (rect.Right-rect.Left) >= 600 && (rect.Bottom-rect.Top) >= 400 && rect.Left > -10000 && rect.Top > -10000 {
-			a.savedRect = rect
-		}
-		if style := getWindowStyleNative(hwnd); style != 0 && (style&wsMinimize) == 0 && (style&wsPopup) == 0 {
-			a.savedStyle = style
-		}
-	}
-
-	if a.ctx != nil {
-		runtime.WindowSetMinSize(a.ctx, 180, 48)
-		// Wails' topmost setter activates the window; native positioning handles automatic entry.
-		if activate {
-			runtime.WindowSetAlwaysOnTop(a.ctx, true)
-		}
-	}
-
-	if corner == "" {
-		corner = a.settings.DockCorner
-	}
-	if corner == "" {
-		corner = "bottom-left"
-	}
-	logicalW, logicalH := computeMiniLogicalSize(a.lastMiniItemCount)
-	resolvedMon, resolvedCorner := applyMiniWindowBoundsNative(hwnd, a.settings.DockMonitor, corner, logicalW, logicalH, activate)
-	a.isMiniMode = true
-	a.unfocusedSince = time.Time{}
-	a.settings.DockMonitor = resolvedMon
-	a.settings.DockCorner = resolvedCorner
-	_ = a.saveSettingsLocked()
-	return resolvedCorner
-}
-
-// EnterMiniMode switches the window into the compact corner-docked task view.
-func (a *App) EnterMiniMode(corner string, itemCount int) (string, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	corner = a.enterMiniModeLocked(corner, itemCount, true)
-	return corner, a.settingsSaveErr
-}
-
 // UpdateMiniModeHeight adjusts the compact window height (up to 4 items) while staying docked in the current corner.
 func (a *App) UpdateMiniModeHeight(itemCount int) error {
+	a.modeMu.Lock()
+	defer a.modeMu.Unlock()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.lastMiniItemCount = itemCount
@@ -624,6 +537,8 @@ func (a *App) UpdateMiniModeHeight(itemCount int) error {
 
 // SnapMiniWindowToNearestCorner snaps the compact window to whichever screen corner is closest after dragging.
 func (a *App) SnapMiniWindowToNearestCorner(itemCount int) (string, error) {
+	a.modeMu.Lock()
+	defer a.modeMu.Unlock()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !a.isMiniMode {
@@ -650,36 +565,6 @@ func (a *App) SnapMiniWindowToNearestCorner(itemCount int) (string, error) {
 		}
 	}
 	return a.settings.DockCorner, nil
-}
-
-func (a *App) exitMiniModeLocked() {
-	a.isMiniMode = false
-	a.unfocusedSince = time.Time{}
-	a.bootMinimized = false
-	a.ignoreMinimizeUntil = time.Now().Add(800 * time.Millisecond)
-	hwnd := a.ensureWindowHandleLocked()
-
-	if a.ctx != nil {
-		runtime.WindowSetAlwaysOnTop(a.ctx, false)
-		runtime.WindowSetMinSize(a.ctx, minimumWindowWidth, minimumWindowHeight)
-	}
-
-	a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, a.savedRect)
-	if a.savedPlacement.Length != 0 {
-		placement := a.savedPlacement
-		if _, valid := isRectOnAnyMonitor(placement.RcNormalPosition); !valid {
-			placement.RcNormalPosition = a.savedRect
-		}
-		procSetWindowPlacement.Call(hwnd, uintptr(unsafe.Pointer(&placement)))
-	}
-}
-
-// ExitMiniMode restores the full application window from compact corner-docked mode.
-func (a *App) ExitMiniMode() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.exitMiniModeLocked()
-	return nil
 }
 
 // shutdown is called when the app terminates.

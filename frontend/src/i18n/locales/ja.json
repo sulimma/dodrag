@@ -185,7 +185,7 @@
   "Startdatum {id}": "開始日 {id}",
   "JJJJ-MM-TT": "YYYY-MM-DD",
   "Startdatum {id} bearbeiten": "{id} の開始日を編集",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "設定済みの開始日: {date}（{weekday}）。クリックして編集（YYYY-MM-DD、時刻は任意）。",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "設定済みの開始日: {date}（{weekday}）。クリックして編集（YYYY-MM-DD）。",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "強調表示された先行タスクが表示範囲の左側に{count}件あります",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "強調表示された先行タスクが表示範囲の上側に{count}件あります",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "強調表示された後続タスクが表示範囲の右側に{count}件あります",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+2時間",
   "Zwei Stunden nach dem Tasktermin": "タスク日時の2時間後",
   "+1 Tag": "+1日",
-  "Folgetag des Tasktermins um 09:00": "タスク日の翌日 09:00",
+  "Folgetag des Tasktermins um 09:00": "タスク日の翌日",
   "nächste Woche": "来週",
-  "Nächster Montag 09:00": "次の月曜日 09:00",
+  "Nächster Montag 09:00": "次の月曜日",
   "+7 Tage": "+7日",
   "Exakt eine Woche später": "ちょうど1週間後",
   "nächsten Monat": "来月",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "入力時は空白または安全な句読点の後で置換し、挿入や貼り付け時にも置換します。既存の内容は変更しません。-- の両側にはスペースが必要です。",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "分数の後にスペースを入力すると置換します。1/2、1/4、3/4 は Unicode 文字になります。その他の N/D はインライン LaTeX になります。分子と分母はそれぞれ最大 12 桁です。分母が 0 の場合は変更しません。",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "コード、Mermaid、数式、リンク、URL、ファイルパス、複数の区切りを含む日付では置換しません。",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "タスクの説明用の Markdown。構文記号はどの言語でも同じです。"
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "タスクの説明用の Markdown。構文記号はどの言語でも同じです。",
+  "Kompaktansicht": "コンパクト表示",
+  "Fenster": "ウィンドウ",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "コンパクト表示では、F2、E、Enter で選択したタスクをウィンドウで開きます。",
+  "In die Taskleiste minimieren": "タスクバーに最小化",
+  "Maximieren": "最大化"
 }

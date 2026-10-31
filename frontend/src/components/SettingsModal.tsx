@@ -35,12 +35,12 @@ interface SettingsModalProps {
   onOpenFolderInVSCode?: (path: string, isFile: boolean) => Promise<void>;
 }
 
-// Build time arrives as RFC3339 (UTC); show it in the local zone, keeping the raw value on parse failure.
+// Build time arrives as RFC3339 (UTC); show its local calendar date.
 export function formatBuildTime(raw?: string): string {
   if (!raw) return t('unbekannt');
   const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-  return formatDate(parsed, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(', ', ' ');
+  if (Number.isNaN(parsed.getTime())) return t('unbekannt');
+  return formatDate(parsed);
 }
 
 // One definition for every displayed path: text cursor, selectable text and

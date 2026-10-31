@@ -172,6 +172,7 @@ export function ShortcutHelp({
                   {t('F2 / E / Enter / Doppelklick')}
                 </kbd>
               </div>
+              <p className="py-1 text-xs text-slate-600">{t('In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.')}</p>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
                 <span>{t('N: Eingabe für neuen Task fokussieren')}</span>
                 <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700 whitespace-normal">

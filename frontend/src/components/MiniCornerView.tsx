@@ -1,12 +1,13 @@
 import React from 'react';
-import { Maximize2, Flame, Check } from 'lucide-react';
+import { Flame, Check } from 'lucide-react';
 import type { QuickResubmitTargetId } from '../domain/projector';
 import type { TaskState } from '../domain/types';
 import appIcon from '../assets/app-icon.png';
 import { t } from '../i18n';
 import type { InlineEditor } from './inlineEditor';
-import { TaskTitle } from './TaskTitle';
 import { TaskChecklistBadge } from './TaskChecklistBadge';
+import { WindowModeControls } from './WindowModeControls';
+import type { WindowMode } from '../bridge/eventBridge';
 import { shortcutLabel } from '../hooks/keyboardNavigation';
 
 interface MiniCornerViewProps {
@@ -16,11 +17,13 @@ interface MiniCornerViewProps {
   listScrollRef?: React.RefObject<HTMLDivElement>;
   onSelectAndRestore: (taskId: string) => void;
   onRestoreWindow: () => void;
+  windowMode?: WindowMode;
+  onWindowMode?: (mode: WindowMode) => void;
   onResubmitTasks: (id: string, target: QuickResubmitTargetId) => void;
   onCompleteTask: (id: string) => void;
   onToggleActive: (task: TaskState) => void;
   onContextMenuTask: (event: React.MouseEvent, id: string) => void;
-  titleEditor: InlineEditor;
+  titleEditor?: InlineEditor;
   newTaskTitle: string;
   setNewTaskTitle: (title: string) => void;
   newTaskInputRef: React.RefObject<HTMLInputElement>;
@@ -36,11 +39,12 @@ export function MiniCornerView({
   listScrollRef,
   onSelectAndRestore,
   onRestoreWindow,
+  windowMode = 'mini',
+  onWindowMode,
   onResubmitTasks,
   onCompleteTask,
   onToggleActive,
   onContextMenuTask,
-  titleEditor,
   newTaskTitle,
   setNewTaskTitle,
   newTaskInputRef,
@@ -91,17 +95,7 @@ export function MiniCornerView({
               className="w-full h-5 px-1 text-[11px] select-text rounded border border-slate-300 bg-white focus:outline-none focus:border-sky-500"
             />
           </form>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRestoreWindow();
-            }}
-            title={t('Fenster wiederherstellen')}
-            className="w-5 h-5 rounded text-slate-500 hover:text-sky-700 hover:bg-sky-100 flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <Maximize2 className="w-3 h-3" />
-          </button>
+          <WindowModeControls mode={windowMode} onChange={onWindowMode ?? (() => onRestoreWindow())} />
         </div>
       </div>
 
@@ -124,10 +118,6 @@ export function MiniCornerView({
               tabIndex={0}
               onFocus={() => onSelectTask?.(task.id)}
               onClick={() => onSelectTask?.(task.id)}
-              onDoubleClick={event => {
-                if ((event.target as Element).closest('input,textarea,button,[contenteditable="true"]')) return;
-                event.stopPropagation(); onSelectAndRestore(task.id);
-              }}
               onContextMenu={(event) => onContextMenuTask(event, task.id)}
               className={`group w-full h-7 px-2 flex items-center gap-1 text-xs transition-colors ${
                 selectedTaskId === task.id
@@ -137,7 +127,11 @@ export function MiniCornerView({
                   : 'bg-white text-slate-800 hover:bg-sky-50 hover:text-sky-900'
               }`}
             >
-              <TaskTitle task={task} editor={titleEditor} className="flex-1 min-w-0 truncate text-left text-xs" />
+              {/* Mini opens the task in the main window instead of starting inline title editing. */}
+              <button type="button" title={task.title} onClick={(event) => { event.stopPropagation(); onSelectAndRestore(task.id); }}
+                className="flex-1 min-w-0 truncate text-left text-xs cursor-pointer">
+                {task.title}
+              </button>
               <TaskChecklistBadge progress={task.checklistProgress} compact />
               <div className="flex items-center gap-0.5 shrink-0 invisible group-hover:visible group-focus-within:visible">
                 <button

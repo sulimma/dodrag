@@ -71,5 +71,6 @@
   "Ordner nicht gefunden: {path}": "Nie znaleziono folderu: {path}",
   "Ordner konnte nicht geöffnet werden": "Nie udało się otworzyć folderu",
   "Visual Studio Code wurde nicht gefunden": "Nie znaleziono Visual Studio Code",
-  "Visual Studio Code konnte nicht geöffnet werden": "Nie udało się otworzyć Visual Studio Code"
+  "Visual Studio Code konnte nicht geöffnet werden": "Nie udało się otworzyć Visual Studio Code",
+  "Fenstermodus konnte nicht angewendet werden": "Nie udało się zastosować trybu okna"
 }

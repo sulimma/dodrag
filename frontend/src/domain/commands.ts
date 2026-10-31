@@ -19,6 +19,7 @@ type MutableTask = { -readonly [K in keyof ReplayTask]: ReplayTask[K] } & { pred
 export interface ReplayState {
   readonly tasks: ReadonlyMap<string, ReplayTask>;
   readonly orderedTasks: readonly ReplayTask[];
+  readonly topologyLevels: ReadonlyMap<string, number>;
   readonly activeEventCount: number;
   readonly canRedo: boolean;
 }
@@ -53,27 +54,29 @@ function cloneTask(task: ReplayTask): MutableTask {
   return { ...task, predecessors: new Set(task.predecessors), logEntries: task.logEntries.map(entry => ({ ...entry })) };
 }
 
-function orderTasks(tasks: ReadonlyMap<string, ReplayTask>): ReplayTask[] {
+function orderTasks(tasks: ReadonlyMap<string, ReplayTask>): { orderedTasks: ReplayTask[]; topologyLevels: Map<string, number> } {
   const successors = new Map<string, string[]>();
   const degree = new Map<string, number>();
   const queue: ReplayTask[] = [];
+  const topologyLevels = new Map<string, number>();
   for (const task of tasks.values()) {
     successors.set(task.id, []);
     degree.set(task.id, task.predecessors.size);
-    if (!task.predecessors.size) queue.push(task);
+    if (!task.predecessors.size) { queue.push(task); topologyLevels.set(task.id, 0); }
   }
   for (const task of tasks.values()) {
     for (const pred of task.predecessors) successors.get(pred)!.push(task.id);
   }
   for (let i = 0; i < queue.length; i++) {
     for (const id of successors.get(queue[i].id)!) {
+      topologyLevels.set(id, Math.max(topologyLevels.get(id) ?? 0, topologyLevels.get(queue[i].id)! + 1));
       const remaining = degree.get(id)! - 1;
       degree.set(id, remaining);
       if (!remaining) queue.push(tasks.get(id)!);
     }
   }
   if (queue.length !== tasks.size) throw new Error(t('Dependency cycle in final event history'));
-  return queue;
+  return { orderedTasks: queue, topologyLevels };
 }
 
 export function normalizeReplayEvents(input: readonly unknown[]): StoredEvent[] {
@@ -159,11 +162,23 @@ export function normalizeReplayEvents(input: readonly unknown[]): StoredEvent[] 
       tasks.get(taskId)!.logEntries.push({ id: `lifecycle:${event.id}`, text: '', createdAt, lifecycle });
     }
   }
-  const orderedTasks = topologyChanged ? orderTasks(tasks) : [
-    ...previous!.state.orderedTasks.map(task => tasks.get(task.id)!),
-    ...[...tasks.values()].filter(task => !previous!.state.tasks.has(task.id)),
-  ];
-  const state: ReplayState = { tasks, orderedTasks, activeEventCount, canRedo };
+  // Levels describe the complete configured graph, including completed tasks. Reuse
+  // them across non-graph edits; appended tasks without dependencies are roots.
+  let topology: { orderedTasks: readonly ReplayTask[]; topologyLevels: ReadonlyMap<string, number> };
+  if (topologyChanged) {
+    topology = orderTasks(tasks);
+  } else {
+    const roots = [...tasks.values()].filter(task => !previous!.state.tasks.has(task.id));
+    const topologyLevels = roots.length ? new Map(previous!.state.topologyLevels) : previous!.state.topologyLevels;
+    if (roots.length) {
+      for (const task of roots) (topologyLevels as Map<string, number>).set(task.id, 0);
+    }
+    topology = {
+      orderedTasks: [...previous!.state.orderedTasks.map(task => tasks.get(task.id)!), ...roots],
+      topologyLevels,
+    };
+  }
+  const state: ReplayState = { tasks, ...topology, activeEventCount, canRedo };
   Object.freeze(events);
   const entry = { events, state, ids, tailBefore };
   // Publish only after parsing, application and final topology all succeeded.

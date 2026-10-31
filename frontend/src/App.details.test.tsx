@@ -46,7 +46,9 @@ beforeEach(() => {
     SwitchDatabase: vi.fn(async () => settings), DeleteDatabase: vi.fn(async () => settings),
     CreateDatabase: vi.fn(async () => settings), OpenExistingDatabaseDialog: vi.fn(async () => settings),
     SetAutostart: vi.fn(async () => settings), SelectFolderDialog: vi.fn(async () => ''),
-    EnterMiniMode: vi.fn(async () => ''), ExitMiniMode: vi.fn(async () => {}),
+    GetWindowMaximized: vi.fn(async () => false), ToggleWindowMaximized: vi.fn(async () => {}),
+    RequestWindowClose: vi.fn(async () => {}), ShowWindowSystemMenu: vi.fn(async () => {}),
+    GetWindowMode: vi.fn(async () => 'window' as const), SetWindowMode: vi.fn(async (mode: 'taskbar' | 'mini' | 'window') => mode),
     ShowTaskContextMenu: vi.fn(async () => ''), UpdateMiniModeHeight: vi.fn(async () => {}),
     SnapMiniWindowToNearestCorner: vi.fn(async () => ''),
   };
@@ -196,11 +198,11 @@ it('opens details when restoring a task from the mini view', async () => {
   const today = new Date().toISOString();
   history = [{ ...history[0], type: 'TASK_CREATED', payload: { taskId, title: 'Alpha', configuredStart: today, createdAt: today } }];
   await act(async () => root.render(<App />));
-  await act(async () => host.querySelector<HTMLButtonElement>('button[title^="' + t('Minimieren (Kompaktansicht in Bildschirmecke)') + '"]')!.click());
+  await act(async () => host.querySelector<HTMLButtonElement>('button[title^="' + t('Kompaktansicht') + '"]')!.click());
   const miniTask = host.querySelector(`[data-mini-task-id="${taskId}"]`)!;
   expect(miniTask).not.toBeNull();
-  await act(async () => miniTask.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
-  expect(api.ExitMiniMode).toHaveBeenCalledOnce();
+  await act(async () => miniTask.querySelector<HTMLButtonElement>('button[title="Alpha"]')!.click());
+  expect(api.SetWindowMode).toHaveBeenCalledWith('window');
   expect(toggle().getAttribute('aria-expanded')).toBe('true');
   expect(panel().querySelector('span[title="Alpha"]')).not.toBeNull();
   expect(api.AppendBatch).not.toHaveBeenCalled();
@@ -259,14 +261,13 @@ it.each(['panel', 'list'] as const)('closes details on task double-click from it
   expect(api.AppendBatch).not.toHaveBeenCalled();
 });
 
-it.each(['list', 'network', 'gantt', 'panel', 'mini'] as const)(
+it.each(['list', 'network', 'gantt', 'panel'] as const)(
   'edits the title on one click in %s without replacing its text surface or toggling details', async view => {
     const today = new Date().toISOString();
     history[0].payload = { taskId, title: 'Alpha', configuredStart: today, createdAt: today };
     await mountWithDetails();
     if (view === 'network' || view === 'gantt') click(host.querySelector(`button[aria-keyshortcuts="Control+${view === 'network' ? '2' : '3'}"]`)!);
-    if (view === 'mini') await act(async () => click(host.querySelector(`button[title^="${t('Minimieren (Kompaktansicht in Bildschirmecke)')}"]`)!));
-    const area = view === 'panel' ? panel() : view === 'mini' ? host.querySelector('[data-mini-task-id]')! : list();
+    const area = view === 'panel' ? panel() : list();
     const title = area.querySelector<HTMLElement>('[data-task-title]')!;
     act(() => { title.focus(); });
     const range = document.createRange(); range.setStart(title.firstChild!, 1); range.setEnd(title.firstChild!, 4);
@@ -275,8 +276,8 @@ it.each(['list', 'network', 'gantt', 'panel', 'mini'] as const)(
     expect(editor(area, 'title')).toBe(title);
     expect(window.getSelection()!.toString()).toBe('lph');
     await act(async () => title.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })));
-    if (view !== 'mini') expect(toggle().getAttribute('aria-expanded')).toBe('true');
-    expect(api.ExitMiniMode).not.toHaveBeenCalled();
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(api.SetWindowMode).not.toHaveBeenCalledWith('window');
     type(title, 'Discard'); await key(title, 'Escape');
     expect(title.textContent).toBe('Alpha'); expect(editor(area, 'title')).toBeNull();
     expect(api.AppendBatch).not.toHaveBeenCalled();

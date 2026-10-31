@@ -12,7 +12,7 @@ import { TaskState } from '../domain/types';
 
 it('places incoming edges from further left lower, then orders equal-column sources by row', () => {
   const task = (id: string, day: number, predecessorIds: string[] = []): TaskState => ({
-    id, title: id, creationOrder: 0,
+    id, title: id, creationOrder: 0, topologyLevel: 0,
     description: '', logEntries: [], checklistProgress: null,
     createdAt: '2026-10-17T12:00:00Z',
     configuredStart: localDate(2026, 10, day, 14, 30, 12).toISOString(),
@@ -65,7 +65,7 @@ it('places incoming edges from further left lower, then orders equal-column sour
   element.innerHTML = networkMarkup;
   expect(element.textContent).not.toContain('14:30');
   expect(element.querySelector('button[aria-label="Startdatum target bearbeiten"]')).not.toBeNull();
-  expect(formatIso8601Display(tasks[3].configuredStart).isoText).toBe('2026-10-19 14:30:12');
+  expect(formatIso8601Display(tasks[3].configuredStart).isoText).toBe('2026-10-19');
 
   const verifyFlameSlot = (markup: string) => {
     element.innerHTML = markup;

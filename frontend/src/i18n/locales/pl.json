@@ -185,7 +185,7 @@
   "Startdatum {id}": "Data rozpoczęcia zadania {id}",
   "JJJJ-MM-TT": "RRRR-MM-DD",
   "Startdatum {id} bearbeiten": "Edytuj datę rozpoczęcia zadania {id}",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Ustawiona data rozpoczęcia: {date} ({weekday}). Kliknij, aby edytować (RRRR-MM-DD, opcjonalnie godzina)",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Ustawiona data rozpoczęcia: {date} ({weekday}). Kliknij, aby edytować (RRRR-MM-DD)",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "Wyróżnione zadania poprzedzające po lewej stronie poza widocznym obszarem: {count}",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "Wyróżnione zadania poprzedzające nad widocznym obszarem: {count}",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "Wyróżnione zadania następujące po prawej stronie poza widocznym obszarem: {count}",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+2 godziny",
   "Zwei Stunden nach dem Tasktermin": "Dwie godziny po terminie zadania",
   "+1 Tag": "+1 dzień",
-  "Folgetag des Tasktermins um 09:00": "Dzień po terminie zadania o 09:00",
+  "Folgetag des Tasktermins um 09:00": "Dzień po terminie zadania",
   "nächste Woche": "w przyszłym tygodniu",
-  "Nächster Montag 09:00": "Najbliższy poniedziałek o 09:00",
+  "Nächster Montag 09:00": "Najbliższy poniedziałek",
   "+7 Tage": "+7 dni",
   "Exakt eine Woche später": "Dokładnie tydzień później",
   "nächsten Monat": "w przyszłym miesiącu",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "Podczas pisania zamiany następują po spacji lub bezpiecznej granicy zdania. Działają też przy wklejaniu. Istniejąca treść nie zmienia się. -- wymaga spacji po obu stronach.",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "Po spacji ułamki 1/2, 1/4 i 3/4 stają się znakami Unicode. Inne ułamki N/D stają się LaTeX w tekście. Każda część może mieć najwyżej 12 cyfr. Jeśli mianownik wynosi 0, ułamek pozostaje bez zmian.",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "Bez zamian w kodzie, Mermaid, wzorach, łączach, URL, ścieżkach plików ani datach z wieloma separatorami.",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown dla opisu zadania. Znaczniki składni są takie same we wszystkich językach."
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown dla opisu zadania. Znaczniki składni są takie same we wszystkich językach.",
+  "Kompaktansicht": "Widok kompaktowy",
+  "Fenster": "Okno",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "W widoku kompaktowym klawisze F2, E i Enter otwierają wybrane zadanie w oknie.",
+  "In die Taskleiste minimieren": "Minimalizowanie do paska zadań",
+  "Maximieren": "Maksymalizowanie"
 }

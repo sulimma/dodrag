@@ -21,11 +21,12 @@ export function useInlineEditors(
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
 
-  // In-place configured date editing state (optional local time)
+  // The initial visible date is retained separately so confirming it never rewrites a timestamp.
   const [editingDateTaskId, setEditingDateTaskId] = useState<string | null>(
     null
   );
   const [editingDateValue, setEditingDateValue] = useState<string>('');
+  const initialDate = useRef('');
   const editGroup = useRef('');
   const editRevision = useRef(0);
   const editSession = editGroup.current;
@@ -81,6 +82,7 @@ export function useInlineEditors(
     setEditingTaskId(null);
     setEditingDateTaskId(task.id);
     const { isoText } = formatIso8601Display(task.configuredStart);
+    initialDate.current = isoText;
     setEditingDateValue(isoText);
     closeContextMenu();
   };
@@ -94,7 +96,7 @@ export function useInlineEditors(
     if (!task) return;
 
     if (
-      currentInput.trim() === formatIso8601Display(task.configuredStart).isoText
+      currentInput.trim() === initialDate.current
     ) {
       setEditingDateTaskId(null);
       return;

@@ -64,7 +64,9 @@ beforeEach(() => {
     OpenExistingDatabaseDialog: vi.fn(async () => activeSettings),
     SetAutostart: vi.fn(async () => activeSettings),
     SelectFolderDialog: vi.fn(async () => ''),
-    EnterMiniMode: vi.fn(async () => ''), ExitMiniMode: vi.fn(async () => {}),
+    GetWindowMaximized: vi.fn(async () => false), ToggleWindowMaximized: vi.fn(async () => {}),
+    RequestWindowClose: vi.fn(async () => {}), ShowWindowSystemMenu: vi.fn(async () => {}),
+    GetWindowMode: vi.fn(async () => 'window' as const), SetWindowMode: vi.fn(async (mode: 'taskbar' | 'mini' | 'window') => mode),
     ShowTaskContextMenu: vi.fn(async () => ''),
     UpdateMiniModeHeight: vi.fn(async () => {}), SnapMiniWindowToNearestCorner: vi.fn(async () => ''),
   };
@@ -102,6 +104,86 @@ function input(label: string): HTMLInputElement | HTMLSpanElement {
     ? element.querySelector<HTMLSpanElement>(`span[role="textbox"][data-task-title-editing="true"][aria-label="${label}"]`)!
     : element.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
 }
+it('displays the native mini mode returned on startup', async () => {
+  vi.mocked(api.GetWindowMode).mockResolvedValueOnce('mini');
+  await mount();
+  expect(element.querySelector('[data-app-title-bar]')).toBeNull();
+  expect(button('Fenster')).not.toBeNull();
+});
+
+it('uses confirmed startup and event modes, including a late startup response', async () => {
+  const startup = deferred<'window'>();
+  vi.mocked(api.GetWindowMode).mockReturnValue(startup.promise);
+  const events = new Map<string, (...args: any[]) => void>();
+  window.runtime = { EventsOn: (name, callback) => { events.set(name, callback); return () => events.delete(name); } };
+  await mount();
+  await act(async () => events.get('window:mode-changed')!('mini'));
+  expect(element.querySelector('[data-app-title-bar]')).toBeNull();
+  await act(async () => startup.resolve('window'));
+  expect(element.querySelector('[data-app-title-bar]')).toBeNull();
+  await act(async () => events.get('window:mode-changed')!('window'));
+  expect(element.querySelector('[data-app-title-bar]')).not.toBeNull();
+});
+
+it('keeps the current view when a native mode change is rejected', async () => {
+  vi.mocked(api.SetWindowMode).mockRejectedValueOnce(new Error('native failure'));
+  await mount();
+  await act(async () => click(button('Kompaktansicht')));
+  expect(api.SetWindowMode).toHaveBeenCalledWith('mini');
+  expect(element.querySelector('main')).not.toBeNull();
+  expect(element.querySelector('[data-mini-task-id]')).toBeNull();
+  expect(element.querySelector('[data-app-title-bar]')).not.toBeNull();
+});
+
+it('ignores a queued native request if its starting mode is stale', async () => {
+  const events = new Map<string, (...args: any[]) => void>();
+  window.runtime = { EventsOn: (name, callback) => { events.set(name, callback); return () => events.delete(name); } };
+  const response = deferred<'mini'>();
+  vi.mocked(api.SetWindowMode).mockReturnValueOnce(response.promise);
+  await mount();
+  act(() => click(button('Kompaktansicht')));
+  await act(async () => { await Promise.resolve(); });
+  act(() => events.get('window:mode-requested')!('taskbar', false, 'window'));
+  await act(async () => response.resolve('mini'));
+  expect(api.SetWindowMode).toHaveBeenCalledTimes(1);
+  expect(api.SetWindowMode).toHaveBeenCalledWith('mini');
+  expect(element.querySelector('[data-app-title-bar]')).toBeNull();
+});
+
+it('does not call the host for a request to the confirmed active mode', async () => {
+  let request: (...args: any[]) => void = () => {};
+  window.runtime = { EventsOn: (name, callback) => { if (name === 'window:mode-requested') request = callback; return () => {}; } };
+  await mount();
+  await act(async () => request('window', false));
+  expect(api.SetWindowMode).not.toHaveBeenCalled();
+});
+
+it('routes title bar actions to native window functions and tracks maximization events', async () => {
+  const events = new Map<string, (...args: any[]) => void>();
+  window.runtime = { EventsOn: (name, callback) => { events.set(name, callback); return () => events.delete(name); } };
+  await mount();
+  await act(async () => click(button('Maximieren')));
+  expect(api.ToggleWindowMaximized).toHaveBeenCalledOnce();
+  act(() => events.get('window:maximized-changed')!(true));
+  expect(button('Fenster wiederherstellen')).not.toBeNull();
+  await act(async () => click(button('Fenster wiederherstellen')));
+  expect(api.ToggleWindowMaximized).toHaveBeenCalledTimes(2);
+  await act(async () => click(button('Schließen')));
+  expect(api.RequestWindowClose).toHaveBeenCalledOnce();
+  await act(async () => element.querySelector('[data-app-title-bar]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  expect(api.ShowWindowSystemMenu).toHaveBeenCalledOnce();
+  await act(async () => click(button('In die Taskleiste minimieren')));
+  expect(api.SetWindowMode).toHaveBeenCalledWith('taskbar');
+});
+
+it('routes mini title controls to taskbar and window modes', async () => {
+  await mount();
+  await act(async () => click(button('Kompaktansicht')));
+  expect(element.querySelector('[data-app-title-bar]')).toBeNull();
+  await act(async () => click(button('In die Taskleiste minimieren')));
+  expect(api.SetWindowMode).toHaveBeenCalledWith('taskbar');
+});
+
 it('shares native mini context actions and task creation', async () => {
   await mount();
   const openContext = (target: Element) => act(() => target.dispatchEvent(
@@ -111,7 +193,7 @@ it('shares native mini context actions and task creation', async () => {
   const menuActions = () => vi.mocked(api.ShowTaskContextMenu).mock.calls.at(-1)![0];
   const fullActions = menuActions();
   expect(fullActions.length).toBeGreaterThan(0);
-  await act(async () => click(button('Minimieren (Kompaktansicht in Bildschirmecke)')));
+  await act(async () => click(button('Kompaktansicht')));
   await act(async () => openContext(button('Alpha')));
   expect(menuActions()).toEqual(fullActions);
   expect(fullActions.map(item => item.id)).toEqual(['toggle', 'today', 'complete']);
@@ -124,7 +206,7 @@ it('shares native mini context actions and task creation', async () => {
     type: 'TASK_CREATED', payload: { title: 'New mini task' },
   });
   expect(creation.value).toBe('');
-  expect(api.ExitMiniMode).not.toHaveBeenCalled();
+  expect(api.SetWindowMode).not.toHaveBeenCalledWith('window');
 });
 
 it('offers completed tasks only reopen and preserves their start date', async () => {
@@ -350,10 +432,10 @@ it('keeps settings visible while busy and after an asynchronous error', async ()
   expect(textButton('Fertig')).toBeUndefined();
 });
 
-it('supports mini navigation, task actions, editors and history without preventing native button keys', async () => {
+it('opens a mini task before editing and keeps task actions, history and native button keys working', async () => {
   await mount();
   selectTask('26-101');
-  await act(async () => click(button('Minimieren (Kompaktansicht in Bildschirmecke)')));
+  await act(async () => click(button('Kompaktansicht')));
   await act(async () => key('Delete'));
   expect(api.AppendBatch).not.toHaveBeenCalled();
   key('ArrowDown');
@@ -361,6 +443,11 @@ it('supports mini navigation, task actions, editors and history without preventi
   await act(async () => key('a'));
   expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({ type: 'TASK_ACTIVE_SET', payload: { taskId: '26-101' } });
   key('ArrowDown');
+  await act(async () => key('F2'));
+  expect(api.SetWindowMode).toHaveBeenCalledWith('window');
+  expect(element.querySelector('[data-mini-task-id]')).toBeNull();
+  expect(element.querySelector('[data-detail-toggle]')!.getAttribute('aria-expanded')).toBe('true');
+  expect(input('Titel 26-102')).toBeNull();
   key('F2');
   expect(input('Titel 26-102')).not.toBeNull();
   key('Delete', input('Titel 26-102'));
@@ -376,25 +463,25 @@ it('supports mini navigation, task actions, editors and history without preventi
   expect(api.Undo).toHaveBeenCalledTimes(1);
   expect(api.Redo).toHaveBeenCalledTimes(2);
   key('n');
-  expect(document.activeElement).toBe(input('Task hinzufügen (Enter)'));
-  key('d', input('Task hinzufügen (Enter)'));
+  const newTaskInput = element.querySelector<HTMLInputElement>('header input')!;
+  expect(document.activeElement).toBe(newTaskInput);
+  key('d', newTaskInput);
   expect(api.AppendBatch).toHaveBeenCalledTimes(2);
   key('?');
   expect(element.textContent).toContain('Tastenkürzel & Drag-and-Drop Steuerung');
-  key('Escape', input('Task hinzufügen (Enter)'));
-  const restore = element.querySelector('button')!;
+  key('Escape', newTaskInput);
+  const restore = element.querySelector<HTMLButtonElement>('button[aria-label="Maximieren"]')!;
   for (const shortcut of ['Enter', ' ']) {
     const event = new KeyboardEvent('keydown', { key: shortcut, bubbles: true, cancelable: true });
     act(() => restore.dispatchEvent(event));
     expect(event.defaultPrevented).toBe(false);
   }
-  await act(async () => click(restore));
-  expect(api.ExitMiniMode).toHaveBeenCalledTimes(1);
+  expect(api.SetWindowMode).toHaveBeenCalledWith('window');
   expect(element.textContent).not.toContain('Tastenkürzel & Drag-and-Drop Steuerung');
   expect(input('Titel 26-101')).toBeNull();
 });
 
-it.each(['a', 'd', 'Delete', 'F2'])('routes mini shortcut %s from task-row focus after keyboard navigation', async shortcut => {
+it.each(['a', 'd', 'Delete', 'F2', 'e', 'Enter'])('routes mini shortcut %s from task-row focus after keyboard navigation', async shortcut => {
   activeSettings.bootMinimized = true;
   await mount();
   const alpha = button('Alpha').closest<HTMLElement>('[data-mini-task-id]')!;
@@ -402,11 +489,15 @@ it.each(['a', 'd', 'Delete', 'F2'])('routes mini shortcut %s from task-row focus
   key('ArrowDown', alpha);
   expect(element.querySelector('[data-mini-task-id="26-102"]')!.getAttribute('data-task-selected')).toBe('true');
   await act(async () => key(shortcut, alpha));
-  if (shortcut === 'F2') expect(input('Titel 26-102')).not.toBeNull();
+  if (['F2', 'e', 'Enter'].includes(shortcut)) {
+    expect(input('Titel 26-102')).toBeNull();
+    expect(api.SetWindowMode).toHaveBeenCalledWith('window');
+    expect(element.querySelector('[data-detail-toggle]')!.getAttribute('aria-expanded')).toBe('true');
+  }
   else expect(vi.mocked(api.AppendBatch).mock.calls[0][0][0]).toMatchObject({
     type: shortcut === 'a' ? 'TASK_ACTIVE_SET' : 'TASK_COMPLETED', payload: { taskId: '26-102' },
   });
-  expect(api.ExitMiniMode).not.toHaveBeenCalled();
+  if (!['F2', 'e', 'Enter'].includes(shortcut)) expect(api.SetWindowMode).not.toHaveBeenCalledWith('window');
 });
 
 it.each(['help', 'context'] as const)('Escape dismisses %s with button or input focus but preserves selection', async overlay => {
@@ -508,7 +599,7 @@ it('documents the implemented drag direction, scoped Alt removal, and active sho
 it.each(['main', 'mini'])('keeps syntax and shortcuts in the same blocking dialog in %s', async mode => {
   let windowMinimized = () => {};
   window.runtime = { EventsOn: (name, callback) => {
-    if (name === 'window:minimized') windowMinimized = callback;
+    if (name === 'window:mode-changed') windowMinimized = () => callback('mini');
     return () => {};
   } };
   await mount();
@@ -535,7 +626,7 @@ it.each(['main', 'mini'])('keeps syntax and shortcuts in the same blocking dialo
 
 it.each(['Liste', 'Netzplan', 'Gantt', 'Mini'])('focuses new-task input with N from any button in %s', async view => {
   await mount();
-  if (view === 'Mini') await act(async () => click(button('Minimieren (Kompaktansicht in Bildschirmecke)')));
+  if (view === 'Mini') await act(async () => click(button('Kompaktansicht')));
   else await chooseView(view);
   const creation = element.querySelector<HTMLInputElement>('input[type="text"]')!;
   for (const target of element.querySelectorAll<HTMLButtonElement>('button')) {
@@ -551,7 +642,7 @@ it.each(['Liste', 'Netzplan', 'Gantt', 'Mini'])('focuses new-task input with N f
 it.each(['Liste', 'Netzplan', 'Gantt', 'Mini'])('sets today with T from toolbar focus in %s', async view => {
   await mount();
   if (view === 'Mini') {
-    await act(async () => click(button('Minimieren (Kompaktansicht in Bildschirmecke)')));
+    await act(async () => click(button('Kompaktansicht')));
     key('ArrowDown');
   } else {
     await chooseView(view);
@@ -586,18 +677,18 @@ it('reopens a selected completed task with O while ignoring other task actions',
 it('toggles compact view with Ctrl+M from buttons and inputs, but not in modals', async () => {
   await mount();
   await act(async () => key('m', element.querySelector('button')!, { ctrlKey: true }));
-  expect(api.EnterMiniMode).toHaveBeenCalledTimes(1);
+  expect(api.SetWindowMode).toHaveBeenCalledWith('mini');
   key('m', input('Task hinzufügen (Enter)'), { ctrlKey: true, repeat: true });
-  expect(api.ExitMiniMode).not.toHaveBeenCalled();
+  expect(api.SetWindowMode).not.toHaveBeenCalledWith('window');
   await act(async () => key('m', input('Task hinzufügen (Enter)'), { ctrlKey: true }));
-  expect(api.ExitMiniMode).toHaveBeenCalledTimes(1);
+  expect(api.SetWindowMode).toHaveBeenCalledWith('window');
   click(button('Tastenkürzel & Bedienung (?)'));
   key('m', document.body, { ctrlKey: true }); key('n'); key('t');
-  expect(api.EnterMiniMode).toHaveBeenCalledTimes(1);
+  expect(api.SetWindowMode).toHaveBeenCalledWith('mini');
   key('Escape');
   await openSettings();
   key('m', document.body, { ctrlKey: true }); key('n'); key('t');
-  expect(api.EnterMiniMode).toHaveBeenCalledTimes(1);
+  expect(api.SetWindowMode).toHaveBeenCalledWith('mini');
   expect(api.AppendBatch).not.toHaveBeenCalled();
 });
 
@@ -881,7 +972,7 @@ it('supports mini F6, anchored task menus and Ctrl++ without restoring, but not 
   await act(async () => key('ContextMenu'));
   expect(api.ShowTaskContextMenuAt).toHaveBeenCalledOnce();
   await act(async () => key('+', document.body, { ctrlKey: true }));
-  expect(api.AppendBatch).toHaveBeenCalledOnce(); expect(api.ExitMiniMode).not.toHaveBeenCalled();
+  expect(api.AppendBatch).toHaveBeenCalledOnce(); expect(api.SetWindowMode).not.toHaveBeenCalledWith('window');
   await act(async () => key('m', document.body, { ctrlKey: true }));
   vi.mocked(api.GetEvents).mockResolvedValue([...history, { seq: 3, id: 'done', timestamp: date, undone: false,
     type: 'TASK_COMPLETED', payload: { taskId: '26-101', completedAt: date } }]);
@@ -1003,9 +1094,9 @@ it('switches main views and details with exact control modifiers but leaves mini
   expect(element.querySelector('[data-detail-toggle]')!.getAttribute('aria-expanded')).toBe('false');
   await act(async () => key('m', document.body, { ctrlKey: true }));
   key('3', document.body, { ctrlKey: true }); key('D', document.body, { ctrlKey: true, shiftKey: true });
-  expect(api.ExitMiniMode).not.toHaveBeenCalled();
+  expect(api.SetWindowMode).not.toHaveBeenCalledWith('window');
   await act(async () => key(',', document.body, { ctrlKey: true }));
-  expect(api.ExitMiniMode).toHaveBeenCalledOnce();
+  expect(api.SetWindowMode).toHaveBeenCalledWith('window');
   expect(element.querySelector('.fixed.inset-0.z-50')).not.toBeNull();
 });
 
@@ -1044,4 +1135,12 @@ it.each([['F10', { shiftKey: true }], ['ContextMenu', {}]])('anchors %s native m
   expect(api.ShowTaskContextMenuAt).toHaveBeenCalledWith(expect.any(Array), { x: 40, y: 80 });
   expect(api.ShowTaskContextMenu).not.toHaveBeenCalled();
   expect(selectedIds()).toEqual(['26-101', '26-102']);
+});
+
+it('keeps caption double-click maximization separate from caption buttons', async () => {
+  await mount();
+  await act(async () => element.querySelector('[data-app-title-bar]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })));
+  expect(api.ToggleWindowMaximized).toHaveBeenCalledOnce();
+  await act(async () => button('In die Taskleiste minimieren').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+  expect(api.ToggleWindowMaximized).toHaveBeenCalledOnce();
 });

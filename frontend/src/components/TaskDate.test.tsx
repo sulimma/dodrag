@@ -25,7 +25,7 @@ function mount(compact: boolean) {
   act(() => root.render(<Harness />));
   const button = host.querySelector('button')!;
   expect(button.textContent).toContain('2026-10-19');
-  expect(button.textContent?.includes('14:30')).toBe(!compact);
+  expect(button.textContent).not.toContain('14:30');
   act(() => button.click());
   const input = host.querySelector('input')!;
   expect(document.activeElement).toBe(input);

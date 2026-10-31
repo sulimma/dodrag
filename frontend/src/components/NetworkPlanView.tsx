@@ -221,8 +221,9 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
         const level = levelOf.get(task.id)!;
         (levels[level] ??= []).push(task);
       }
-      const slices: TaskState[][] = [];
-      for (const level of [active, ...levels]) {
+      // Active priority is already global; each task occupies its own reachable row.
+      const slices: TaskState[][] = active.map(task => [task]);
+      for (const level of levels) {
         for (let start = 0; start < level.length; start += maxCols) {
           slices.push(level.slice(start, start + maxCols));
         }

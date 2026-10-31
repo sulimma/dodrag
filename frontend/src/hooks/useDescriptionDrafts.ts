@@ -93,5 +93,5 @@ export function useDescriptionDrafts(database: Database) {
     const draft = drafts.current.get(keyFor(task.id));
     return draft ? { ...task, description: draft.text } : task;
   };
-  return { change, flush, flushAll, appendSources, taskWithDraft, hasPending: () => saving.current.size > 0 };
+  return { change, flush, flushAll, appendSources, taskWithDraft, hasPending: () => saving.current.size > 0, hasDrafts: () => drafts.current.size > 0 || saving.current.size > 0 };
 }

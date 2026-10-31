@@ -185,7 +185,7 @@
   "Startdatum {id}": "시작일 {id}",
   "JJJJ-MM-TT": "YYYY-MM-DD",
   "Startdatum {id} bearbeiten": "{id} 시작일 편집",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "설정된 시작일: {date} ({weekday}). 클릭하여 편집하세요 (YYYY-MM-DD, 시간 입력은 선택 사항).",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "설정된 시작일: {date} ({weekday}). 클릭하여 편집하세요 (YYYY-MM-DD).",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "표시 영역 왼쪽에 강조된 선행 작업 {count}개",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "표시 영역 위쪽에 강조된 선행 작업 {count}개",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "표시 영역 오른쪽에 강조된 후속 작업 {count}개",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+2시간",
   "Zwei Stunden nach dem Tasktermin": "작업 예정 시간 2시간 후",
   "+1 Tag": "+1일",
-  "Folgetag des Tasktermins um 09:00": "작업 예정일 다음 날 09:00",
+  "Folgetag des Tasktermins um 09:00": "작업 예정일 다음 날",
   "nächste Woche": "다음 주",
-  "Nächster Montag 09:00": "다음 월요일 09:00",
+  "Nächster Montag 09:00": "다음 월요일",
   "+7 Tage": "+7일",
   "Exakt eine Woche später": "정확히 일주일 후",
   "nächsten Monat": "다음 달",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "입력 중 공백이나 안전한 문장 부호 뒤에서 치환하며 삽입하거나 붙여넣을 때도 치환합니다. 기존 내용은 변경하지 않습니다. -- 양쪽에는 공백이 필요합니다.",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "분수 뒤에 공백을 입력하면 1/2, 1/4, 3/4는 Unicode 문자로, 다른 N/D는 인라인 LaTeX로 바뀝니다. 각 부분은 최대 12자리이며 분모가 0이면 변경하지 않습니다.",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "코드, Mermaid, 수식, 링크, URL, 파일 경로 또는 여러 구분자가 있는 날짜에서는 치환하지 않습니다.",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "작업 설명을 위한 Markdown입니다. 문법 기호는 모든 언어에서 동일합니다."
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "작업 설명을 위한 Markdown입니다. 문법 기호는 모든 언어에서 동일합니다.",
+  "Kompaktansicht": "간단히 보기",
+  "Fenster": "창",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "간단히 보기에서 F2, E 또는 Enter를 누르면 선택한 작업이 창에서 열립니다.",
+  "In die Taskleiste minimieren": "작업 표시줄로 최소화",
+  "Maximieren": "최대화"
 }

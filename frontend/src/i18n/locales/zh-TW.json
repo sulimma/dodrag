@@ -185,7 +185,7 @@
   "Startdatum {id}": "開始日期 {id}",
   "JJJJ-MM-TT": "YYYY-MM-DD",
   "Startdatum {id} bearbeiten": "編輯開始日期 {id}",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "已設定的開始日期：{date}（{weekday}）。點選以編輯（YYYY-MM-DD，可選填時間）",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "已設定的開始日期：{date}（{weekday}）。點選以編輯（YYYY-MM-DD）",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "可見範圍左側有 {count} 個醒目標示的前置任務",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "可見範圍上方有 {count} 個醒目標示的前置任務",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "可見範圍右側有 {count} 個醒目標示的後續任務",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+2 小時",
   "Zwei Stunden nach dem Tasktermin": "任務預定時間的兩小時後",
   "+1 Tag": "+1 天",
-  "Folgetag des Tasktermins um 09:00": "任務預定日期的隔天 09:00",
+  "Folgetag des Tasktermins um 09:00": "任務預定日期的隔天",
   "nächste Woche": "下週",
-  "Nächster Montag 09:00": "下週一 09:00",
+  "Nächster Montag 09:00": "下週一",
   "+7 Tage": "+7 天",
   "Exakt eine Woche später": "整整一週後",
   "nächsten Monat": "下個月",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "輸入空白或安全的標點邊界後進行替換，插入或貼上時也會替換。現有內容保持不變。-- 兩側都需要空格。",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "分數後輸入空格：1/2、1/4 和 3/4 轉換為 Unicode 字元；其他 N/D 轉換為行內 LaTeX。每部分最多 12 位數字；分母為 0 時保持不變。",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "程式碼、Mermaid、公式、連結、網址、檔案路徑或多段日期中不進行替換。",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "用於任務描述的 Markdown。語法標記在所有語言中保持不變。"
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "用於任務描述的 Markdown。語法標記在所有語言中保持不變。",
+  "Kompaktansicht": "精簡檢視",
+  "Fenster": "視窗",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "在精簡檢視中，按 F2、E 或 Enter 可在視窗中開啟所選工作。",
+  "In die Taskleiste minimieren": "最小化至工作列",
+  "Maximieren": "最大化"
 }

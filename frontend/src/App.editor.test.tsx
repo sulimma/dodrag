@@ -57,7 +57,9 @@ beforeEach(() => {
     SwitchDatabase: vi.fn(async () => settings), DeleteDatabase: vi.fn(async () => settings),
     CreateDatabase: vi.fn(async () => settings), OpenExistingDatabaseDialog: vi.fn(async () => settings),
     SetAutostart: vi.fn(async () => settings), SelectFolderDialog: vi.fn(async () => ''),
-    EnterMiniMode: vi.fn(async () => ''), ExitMiniMode: vi.fn(async () => {}),
+    GetWindowMaximized: vi.fn(async () => false), ToggleWindowMaximized: vi.fn(async () => {}),
+    RequestWindowClose: vi.fn(async () => {}), ShowWindowSystemMenu: vi.fn(async () => {}),
+    GetWindowMode: vi.fn(async () => 'window' as const), SetWindowMode: vi.fn(async (mode: 'taskbar' | 'mini' | 'window') => mode),
     ShowTaskContextMenu: vi.fn(async () => ''), UpdateMiniModeHeight: vi.fn(async () => {}),
     SnapMiniWindowToNearestCorner: vi.fn(async () => ''),
   };
@@ -140,6 +142,18 @@ const detailPanel = () => host.querySelector<HTMLElement>('[data-task-detail-pan
 const toggle = () => host.querySelector<HTMLButtonElement>('[data-detail-toggle]')!;
 const blurToPanel = async () => { await act(async () => detailPanel().focus()); };
 
+it('keeps the current window and draft when saving fails before entering compact mode', async () => {
+  const { editor, dom } = await mount();
+  await typeLocally(editor, 'Unsaved draft');
+  act(() => host.querySelector<HTMLButtonElement>('button[aria-label="Kompaktansicht"]')!.click());
+  await act(async () => { await Promise.resolve(); });
+  expect(pending).toHaveLength(1);
+  await act(async () => pending.shift()!.reject(new Error('save failed')));
+  expect(api.SetWindowMode).not.toHaveBeenCalled();
+  expect(host.querySelector('main')).not.toBeNull();
+  expect(dom.textContent).toContain('Unsaved draft');
+});
+
 it('keeps Markdown typing and editor undo local, then persists one final result on leaving', async () => {
   const { editor, dom } = await mount();
   await typeLocally(editor, '#');
@@ -165,7 +179,7 @@ it.each(['collapse', 'task', 'mini', 'escape'] as const)('saves the completed se
   await act(async () => {
     if (boundary === 'collapse') toggle().click();
     else if (boundary === 'task') host.querySelector<HTMLElement>('main [data-task-drag="26-102"]')!.click();
-    else if (boundary === 'mini') nativeEvents.get('window:minimized')!();
+    else if (boundary === 'mini') nativeEvents.get('window:mode-changed')!('mini');
     else dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
   });
   expect(api.AppendBatch).toHaveBeenCalledOnce();

@@ -71,5 +71,6 @@
   "Ordner nicht gefunden: {path}": "폴더를 찾을 수 없습니다: {path}",
   "Ordner konnte nicht geöffnet werden": "폴더를 열지 못했습니다",
   "Visual Studio Code wurde nicht gefunden": "Visual Studio Code를 찾을 수 없습니다",
-  "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code를 열지 못했습니다"
+  "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code를 열지 못했습니다",
+  "Fenstermodus konnte nicht angewendet werden": "창 모드를 적용할 수 없습니다"
 }

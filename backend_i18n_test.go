@@ -311,7 +311,7 @@ func TestNativeTextLocalization(t *testing.T) {
 		text, err := strconv.Unquote(value.Value)
 		return text, err == nil
 	}
-	for _, path := range []string{"app.go", "autostart_windows.go", "window_windows.go"} {
+	for _, path := range []string{"app.go", "autostart_windows.go", "window_windows.go", "window_mode.go", "window_titlebar.go"} {
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {

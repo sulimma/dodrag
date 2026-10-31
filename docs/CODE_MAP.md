@@ -22,7 +22,7 @@ Diese Karte nennt Einstiegspunkte. Verhalten, Architekturentscheidungen und loka
 | Sprache und Kataloge | `frontend/src/i18n/index.ts`, `locales/`, `glossary.json`; nativ `backend_i18n.go` |
 | Native App, Datenbanken und Settings | `app.go` |
 | SQLite, Commands und Cache | `internal/eventstore/{sqlite,commands,cache}.go` |
-| Fenster/DPI und native Menüs | `window_windows.go`, `task_context_menu_windows.go` |
+| Fenster/DPI und native Menüs | `window_mode.go`, `window_titlebar.go`, `window_windows.go`, `task_context_menu_windows.go` |
 | Dateipfade und Bildvorschau | `paths.go`, `image_preview.go` |
 | Installation/Autostart | `install_windows.go`, `autostart_windows.go` |
 | Cache, Tests, Packaging, Release | `frontend.ps1`, `scripts/frontend-cache.ps1`, `build.ps1`, `release.ps1` |

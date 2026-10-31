@@ -23,6 +23,10 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
+		// The client titlebar owns compact/minimize/maximize/close together.
+		// Wails' default frameless decorations keep native resize borders and
+		// DWM shadow; its WM_NCCALCSIZE handling hides only the OS caption.
+		Frameless: true,
 		Title:     "DoDrag",
 		Width:     defaultWindowWidth,
 		Height:    defaultWindowHeight,

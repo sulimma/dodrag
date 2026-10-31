@@ -185,7 +185,7 @@
   "Startdatum {id}": "Startdatum {id}",
   "JJJJ-MM-TT": "JJJJ-MM-TT",
   "Startdatum {id} bearbeiten": "Startdatum {id} bearbeiten",
-  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)",
+  "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT, optional Uhrzeit)": "Konfiguriertes Startdatum: {date} ({weekday}). Klicken zum Bearbeiten (JJJJ-MM-TT)",
   "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs": "{count} hervorgehobene Vorgänger links des sichtbaren Bereichs",
   "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs": "{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs",
   "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs": "{count} hervorgehobene Nachfolger rechts des sichtbaren Bereichs",
@@ -226,9 +226,9 @@
   "+2 Stunden": "+2 Stunden",
   "Zwei Stunden nach dem Tasktermin": "Zwei Stunden nach dem Tasktermin",
   "+1 Tag": "+1 Tag",
-  "Folgetag des Tasktermins um 09:00": "Folgetag des Tasktermins um 09:00",
+  "Folgetag des Tasktermins um 09:00": "Folgetag des Tasktermins",
   "nächste Woche": "nächste Woche",
-  "Nächster Montag 09:00": "Nächster Montag 09:00",
+  "Nächster Montag 09:00": "Nächster Montag",
   "+7 Tage": "+7 Tage",
   "Exakt eine Woche später": "Exakt eine Woche später",
   "nächsten Monat": "nächsten Monat",
@@ -342,5 +342,10 @@
   "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze; auch beim Einfügen. Bestehende Inhalte bleiben unverändert. Für -- sind Leerzeichen auf beiden Seiten nötig.": "Ersetzungen beim Tippen nach Leerzeichen oder sicherer Satzgrenze. Auch beim Einfügen wird ersetzt. Bestehende Inhalte bleiben unverändert. -- braucht beidseitig Leerzeichen.",
   "Brüche nach einem Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen; andere N/D werden Inline-LaTeX. Höchstens 12 Ziffern je Teil; Nenner 0 bleibt unverändert.": "Brüche nach Leerzeichen: 1/2, 1/4 und 3/4 werden Unicode-Zeichen. Andere N/D werden Inline-LaTeX. Maximal 12 Ziffern je Teil. Nenner 0 bleibt unverändert.",
   "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.": "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben.",
-  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown für die Aufgabenbeschreibung. Syntaxzeichen bleiben in jeder Sprache gleich."
+  "Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.": "Markdown für die Aufgabenbeschreibung. Syntaxzeichen bleiben in jeder Sprache gleich.",
+  "Kompaktansicht": "Kompaktansicht",
+  "Fenster": "Fenster",
+  "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.",
+  "In die Taskleiste minimieren": "In die Taskleiste minimieren",
+  "Maximieren": "Maximieren"
 }

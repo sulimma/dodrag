@@ -65,10 +65,12 @@ it('shows compact hover/focus actions, targets the task and never restores for a
     act(() => title.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
     expect(context).toHaveBeenCalledWith(expect.anything(), 'A');
     click(title);
-    expect(startEdit).toHaveBeenCalledWith(task);
-    expect(restore).not.toHaveBeenCalled();
-    act(() => title.closest('[data-mini-task-id]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    expect(title.tagName).toBe('BUTTON');
+    expect(startEdit).not.toHaveBeenCalled();
+    expect(restore).toHaveBeenCalledOnce();
     expect(restore).toHaveBeenCalledWith('A');
+    act(() => title.closest('[data-mini-task-id]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    expect(restore).toHaveBeenCalledOnce();
   } finally {
     act(() => root.unmount()); element.remove(); vi.unstubAllGlobals();
   }

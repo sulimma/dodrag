@@ -4,6 +4,8 @@ import type { EventCommand } from '../domain/eventSchema';
 import { normalizeReplayEvents } from '../domain/commands';
 import { resolveLanguage, setLanguage, supportedLanguages, t } from '../i18n';
 
+export type WindowMode = 'taskbar' | 'mini' | 'window';
+
 export interface DatabaseEntry {
   name: string;
   path: string;
@@ -88,15 +90,16 @@ declare global {
           GetPathKind?: (path: string) => Promise<'file' | 'directory'>;
           ClearPreviewCache?: () => Promise<void>;
           OpenPreviewCacheInExplorer?: () => Promise<void>;
-          EnterMiniMode: (
-            corner: string,
-            itemCount: number
-          ) => Promise<string>;
+          GetWindowMaximized: () => Promise<boolean>;
+          ToggleWindowMaximized: () => Promise<void>;
+          RequestWindowClose: () => Promise<void>;
+          ShowWindowSystemMenu: () => Promise<void>;
+          GetWindowMode: () => Promise<WindowMode>;
+          SetWindowMode: (mode: WindowMode) => Promise<WindowMode>;
           UpdateMiniModeHeight: (itemCount: number) => Promise<void>;
           SnapMiniWindowToNearestCorner: (
             itemCount: number
           ) => Promise<string>;
-          ExitMiniMode: () => Promise<void>;
           ShowTaskContextMenu: (items: TaskMenuItem[]) => Promise<string>;
           ShowTaskContextMenuAt?: (items: TaskMenuItem[], anchor: TaskMenuAnchor) => Promise<string>;
         };
@@ -249,8 +252,20 @@ export const eventBridge = {
     return anchor ? nativeMethod('ShowTaskContextMenuAt')(items, anchor) : nativeMethod('ShowTaskContextMenu')(items);
   },
 
-  async enterMiniMode(corner: string, itemCount: number): Promise<string> {
-    return nativeMethod('EnterMiniMode')(corner, itemCount);
+  async getWindowMaximized(): Promise<boolean> { return nativeMethod('GetWindowMaximized')(); },
+  async toggleWindowMaximized(): Promise<void> { await nativeMethod('ToggleWindowMaximized')(); },
+  async requestWindowClose(): Promise<void> { await nativeMethod('RequestWindowClose')(); },
+  async showWindowSystemMenu(): Promise<void> { await nativeMethod('ShowWindowSystemMenu')(); },
+  onWindowMaximizedChanged(callback: (maximized: boolean) => void): () => void {
+    return window.runtime?.EventsOn?.('window:maximized-changed', callback) ?? (() => {});
+  },
+  async getWindowMode(): Promise<WindowMode> { return nativeMethod('GetWindowMode')(); },
+  async setWindowMode(mode: WindowMode): Promise<WindowMode> { return nativeMethod('SetWindowMode')(mode); },
+  onWindowModeChanged(callback: (mode: WindowMode) => void): () => void {
+    return window.runtime?.EventsOn?.('window:mode-changed', callback) ?? (() => {});
+  },
+  onWindowModeRequested(callback: (mode: WindowMode, automatic?: boolean, expectedMode?: WindowMode) => void): () => void {
+    return window.runtime?.EventsOn?.('window:mode-requested', callback) ?? (() => {});
   },
 
   async updateMiniModeHeight(itemCount: number): Promise<void> {
@@ -261,26 +276,8 @@ export const eventBridge = {
     return nativeMethod('SnapMiniWindowToNearestCorner')(itemCount);
   },
 
-  async exitMiniMode(): Promise<void> {
-    await nativeMethod('ExitMiniMode')();
-  },
-
-  onWindowMinimized(callback: () => void): () => void {
-    if (window?.runtime?.EventsOn) {
-      return window.runtime.EventsOn('window:minimized', callback);
-    }
-    return () => {};
-  },
-
   onPreviewCacheWarning(callback: (message: string) => void): () => void {
     return window.runtime?.EventsOn?.('preview:cache-warning', callback) ?? (() => {});
-  },
-
-  onWindowRestored(callback: () => void): () => void {
-    if (window?.runtime?.EventsOn) {
-      return window.runtime.EventsOn('window:restored', callback);
-    }
-    return () => {};
   },
 
   onWindowCornerChanged(callback: (corner: string) => void): () => void {

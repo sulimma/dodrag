@@ -339,7 +339,7 @@ it('renders translated lifecycle statuses instead of persisted text and permits 
       const statuses = [t('Task erstellt'), t('Task geschlossen'), t('Task erneut geöffnet')];
       for (const [index, article] of Array.from(host.querySelectorAll('article')).entries()) {
         const time = article.querySelector('time')!;
-        expect(time.textContent).toMatch(new RegExp(`^${index === 1 ? '🟥' : '🟩'} 2026-10-25 \\d\\d:\\d\\d ${statuses[index]}$`));
+        expect(time.textContent).toMatch(new RegExp(`^${index === 1 ? '🟥' : '🟩'} 2026-10-25 ${statuses[index]}$`));
         expect(article.children).toHaveLength(1); expect(article.querySelector('button')).toBeNull();
         expect(menu(article).items).toEqual([{ id: 'copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: false }]);
         await execute('copy'); expect(writeText).toHaveBeenLastCalledWith(time.textContent);
