@@ -347,5 +347,11 @@
   "Fenster": "Fenster",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.",
   "In die Taskleiste minimieren": "In die Taskleiste minimieren",
-  "Maximieren": "Maximieren"
+  "Maximieren": "Maximieren",
+  "Protokoll": "Protokoll",
+  "Pfad hinzugefügt": "Pfad hinzugefügt",
+  "URL hinzugefügt": "URL hinzugefügt",
+  "Logeintrag hinzugefügt": "Logeintrag hinzugefügt",
+  "Noch keine Ereignisse": "Noch keine Ereignisse",
+  "Umbenannt aus \"{title}\"": "Umbenannt aus \"{title}\""
 }

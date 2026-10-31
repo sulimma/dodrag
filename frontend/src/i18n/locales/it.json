@@ -347,5 +347,11 @@
   "Fenster": "Finestra",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "Nella vista compatta, F2, E e Invio aprono l’attività selezionata nella finestra.",
   "In die Taskleiste minimieren": "Ridurre a icona nella barra delle applicazioni",
-  "Maximieren": "Ingrandire"
+  "Maximieren": "Ingrandire",
+  "Protokoll": "Cronologia",
+  "Pfad hinzugefügt": "Percorso aggiunto",
+  "URL hinzugefügt": "URL aggiunto",
+  "Logeintrag hinzugefügt": "Voce di registro aggiunta",
+  "Noch keine Ereignisse": "Nessun evento per ora",
+  "Umbenannt aus \"{title}\"": "Rinominato da «{title}»"
 }

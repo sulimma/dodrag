@@ -3,10 +3,11 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from 'lucide-react';
 import { t, formatNumber } from '../i18n';
 
 // Counts highlighted dependencies currently outside the scroll viewport.
-export function DependencyHighlightIndicators({ scrollRef, contentKey, horizontal }: {
+export function DependencyHighlightIndicators({ scrollRef, contentKey, horizontal, topInset }: {
   scrollRef: RefObject<HTMLElement>;
   contentKey: unknown;
   horizontal: boolean;
+  topInset?: number;
 }) {
   const [counts, setCounts] = useState({ predecessors: 0, successors: 0, predecessorLeft: 8 });
 
@@ -76,7 +77,7 @@ export function DependencyHighlightIndicators({ scrollRef, contentKey, horizonta
       {counts.predecessors > 0 && (
         <div data-dependency-indicator="predecessor" role="status"
           aria-label={horizontal ? t('{count} hervorgehobene Vorgänger links des sichtbaren Bereichs', { count: formatNumber(counts.predecessors) }) : t('{count} hervorgehobene Vorgänger oberhalb des sichtbaren Bereichs', { count: formatNumber(counts.predecessors) })}
-          style={horizontal ? { left: counts.predecessorLeft } : undefined}
+          style={horizontal ? { left: counts.predecessorLeft } : { top: topInset }}
           className={`absolute ${horizontal ? 'top-1/2 -translate-y-1/2' : 'top-2 left-6'} flex items-center gap-1 rounded-lg border border-amber-500 bg-amber-100 text-amber-800 px-2 py-1 text-sm font-semibold shadow-md`}>
           <PredecessorArrow className="w-5 h-5 text-amber-500" aria-hidden="true" />
           {formatNumber(counts.predecessors)}

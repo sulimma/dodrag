@@ -347,5 +347,11 @@
   "Fenster": "Вікно",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "У компактному вигляді F2, E та Enter відкривають вибране завдання у вікні.",
   "In die Taskleiste minimieren": "Згорнути на панель завдань",
-  "Maximieren": "Розгорнути"
+  "Maximieren": "Розгорнути",
+  "Protokoll": "Історія",
+  "Pfad hinzugefügt": "Шлях додано",
+  "URL hinzugefügt": "URL додано",
+  "Logeintrag hinzugefügt": "Запис журналу додано",
+  "Noch keine Ereignisse": "Подій ще немає",
+  "Umbenannt aus \"{title}\"": "Попередня назва: «{title}»"
 }

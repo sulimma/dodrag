@@ -347,5 +347,11 @@
   "Fenster": "poki lukin",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "lon lukin lili la o luka e F2 anu E anu Enter. ni li open e pali sina lon poki lukin.",
   "In die Taskleiste minimieren": "o lili e poki tawa linja pali",
-  "Maximieren": "o suli e poki"
+  "Maximieren": "o suli e poki",
+  "Protokoll": "tenpo pini",
+  "Pfad hinzugefügt": "nasin poki li kama",
+  "URL hinzugefügt": "linja URL li kama",
+  "Logeintrag hinzugefügt": "sitelen pali li kama",
+  "Noch keine Ereignisse": "pali pini li lon ala",
+  "Umbenannt aus \"{title}\"": "nimi pini li \"{title}\""
 }

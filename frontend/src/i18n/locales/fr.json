@@ -347,5 +347,11 @@
   "Fenster": "Fenêtre",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "Dans la vue compacte, F2, E et Entrée ouvrent la tâche sélectionnée dans la fenêtre.",
   "In die Taskleiste minimieren": "Réduire dans la barre des tâches",
-  "Maximieren": "Agrandir"
+  "Maximieren": "Agrandir",
+  "Protokoll": "Historique",
+  "Pfad hinzugefügt": "Chemin ajouté",
+  "URL hinzugefügt": "URL ajoutée",
+  "Logeintrag hinzugefügt": "Entrée de journal ajoutée",
+  "Noch keine Ereignisse": "Aucun événement pour le moment",
+  "Umbenannt aus \"{title}\"": "Ancien titre : « {title} »"
 }

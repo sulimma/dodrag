@@ -347,5 +347,11 @@
   "Fenster": "Window",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "In compact view, F2, E and Enter open the selected task in the window.",
   "In die Taskleiste minimieren": "Minimize to taskbar",
-  "Maximieren": "Maximize"
+  "Maximieren": "Maximize",
+  "Protokoll": "History",
+  "Pfad hinzugefügt": "Path added",
+  "URL hinzugefügt": "URL added",
+  "Logeintrag hinzugefügt": "Log entry added",
+  "Noch keine Ereignisse": "No events yet",
+  "Umbenannt aus \"{title}\"": "Renamed from \"{title}\""
 }

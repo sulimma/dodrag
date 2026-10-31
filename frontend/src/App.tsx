@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { eventBridge, type WindowMode } from './bridge/eventBridge';
 import { GanttView } from './components/GanttView';
 import { ListView } from './components/ListView';
+import { ProtocolView } from './components/ProtocolView';
+import { projectProtocol } from './domain/protocol';
 import { NetworkPlanView } from './components/NetworkPlanView';
 import { MiniCornerView } from './components/MiniCornerView';
 import { SettingsModal } from './components/SettingsModal';
@@ -64,6 +66,7 @@ export function App() {
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [editOwner, setEditOwner] = useState<'view' | 'detail'>('view');
   const mainScrollRef = useRef<HTMLElement>(null);
+  const protocolNavigation = useRef<((direction: number) => void) | null>(null);
   const miniScrollRef = useRef<HTMLElement>(null);
   const mainInputRef = useRef<HTMLInputElement>(null);
   const miniInputRef = useRef<HTMLInputElement>(null);
@@ -101,6 +104,7 @@ export function App() {
   flushDescriptions.current = descriptions.flushAll;
   descriptionSaving.current = descriptions.hasPending;
   const state = useMemo(() => projectEvents(events, now), [events, now, language]);
+  const protocolDays = useMemo(() => viewMode === 'protocol' ? projectProtocol(events, state.tasks) : [], [viewMode, events, state.tasks]);
   const editors = useInlineEditors(
     database,
     state.tasks,
@@ -167,6 +171,7 @@ export function App() {
     onSettings: () => { if (isMiniMode) void handleRestoreFromMiniMode().then(ok => { if (ok) database.openSettings(); }); else database.openSettings(); },
     onOpenMiniTask: id => { void handleRestoreFromMiniMode(id); },
     onViewChange: setViewMode,
+    onNavigateTask: !isMiniMode && viewMode === 'protocol' ? direction => protocolNavigation.current?.(direction) : undefined,
     onToggleDetails: () => {
       if (isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]')) listScrollRef.current?.focus();
       setIsDetailPanelOpen(open => !open);
@@ -543,7 +548,7 @@ export function App() {
               if (taskId && state.tasks[taskId])
                 actions.handleSetConfiguredDate(taskId, dateKeyToIsoStart(todayKey), todayKey, true);
             } : undefined}
-            className={`flex-1 overflow-y-auto overflow-x-auto ${viewMode === 'gantt' ? '' : 'px-6 py-5'}`}
+            className={`flex-1 overflow-y-auto overflow-x-auto ${viewMode === 'gantt' || viewMode === 'protocol' ? '' : 'px-6 py-5'}`}
             onClick={(e) => {
               if (
                 (e.target as HTMLElement).closest(
@@ -571,6 +576,18 @@ export function App() {
                 titleEditor={isMiniMode ? { ...titleEditor, taskId: null } : titleEditor}
                 dateEditor={isMiniMode ? { ...dateEditor, taskId: null } : dateEditor}
               />
+            ) : viewMode === 'protocol' ? (
+              <ProtocolView
+                key={appSettings?.activeDatabasePath ?? ''}
+                {...interactions} days={protocolDays} tasks={state.tasks} now={now}
+                scrollRef={mainScrollRef} navigationRef={protocolNavigation}
+                onSelectTaskByKeyboard={setSelectedTaskId}
+                titleEditor={isMiniMode ? { ...titleEditor, taskId: null } : titleEditor}
+                dateEditor={isMiniMode ? { ...dateEditor, taskId: null } : dateEditor}
+                onOpenTask={id => { editors.cancelEdit(); setSelectedTaskId(id); setIsDetailPanelOpen(true); }}
+                onNativeMenuChange={open => { nativeDetailMenus.current += open ? 1 : -1; }}
+                onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')}
+              />
             ) : (
               <GanttView
                 {...interactions}
@@ -586,6 +603,7 @@ export function App() {
             scrollRef={mainScrollRef}
             contentKey={highlights}
             horizontal={viewMode === 'gantt'}
+            topInset={viewMode === 'protocol' ? 48 : undefined}
           />
         </div>
         <TaskSidebar

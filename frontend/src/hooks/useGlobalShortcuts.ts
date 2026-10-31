@@ -39,6 +39,7 @@ interface ShortcutContext {
   onMinimize: () => void;
   onRestore: () => void;
   onSettings?: () => void;
+  onNavigateTask?: (direction: number) => void;
   onViewChange?: (view: ViewMode) => void;
   onToggleDetails?: () => void;
   onOpenMiniTask?: (id: string) => void;
@@ -61,6 +62,7 @@ export function useGlobalShortcuts({
   onRestore,
   onSettings,
   onViewChange,
+  onNavigateTask,
   onToggleDetails,
   onOpenMiniTask,
 }: ShortcutContext) {
@@ -134,8 +136,8 @@ export function useGlobalShortcuts({
       if (plainControl && !e.shiftKey && e.key === ',') {
         e.preventDefault(); if (!e.repeat) onSettings?.(); return;
       }
-      if (plainControl && !isMiniMode && !e.shiftKey && ['1', '2', '3'].includes(e.key)) {
-        e.preventDefault(); if (!e.repeat) onViewChange?.((['list', 'network', 'gantt'] as const)[Number(e.key) - 1]); return;
+      if (plainControl && !isMiniMode && !e.shiftKey && ['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault(); if (!e.repeat) onViewChange?.((['list', 'network', 'gantt', 'protocol'] as const)[Number(e.key) - 1]); return;
       }
       if (plainControl && !isMiniMode && e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault(); if (!e.repeat) onToggleDetails?.(); return;
@@ -236,6 +238,10 @@ export function useGlobalShortcuts({
         e.preventDefault();
         setShowShortcutsModal((v) => !v);
         return;
+      }
+
+      if (onNavigateTask && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        e.preventDefault(); clearEdgeSelection(); onNavigateTask(e.key === 'ArrowDown' ? 1 : -1); return;
       }
 
       const taskOrder = isMiniMode ? miniTaskIds : state.listEntries

@@ -347,5 +347,11 @@
   "Fenster": "창",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "간단히 보기에서 F2, E 또는 Enter를 누르면 선택한 작업이 창에서 열립니다.",
   "In die Taskleiste minimieren": "작업 표시줄로 최소화",
-  "Maximieren": "최대화"
+  "Maximieren": "최대화",
+  "Protokoll": "기록",
+  "Pfad hinzugefügt": "경로 추가됨",
+  "URL hinzugefügt": "URL 추가됨",
+  "Logeintrag hinzugefügt": "로그 항목 추가됨",
+  "Noch keine Ereignisse": "아직 이벤트가 없습니다",
+  "Umbenannt aus \"{title}\"": "이전 이름: \"{title}\""
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Calendar,
+  ScrollText,
   List,
   Network,
   Plus,
@@ -11,7 +12,7 @@ import {
 } from 'lucide-react';
 import { t } from '../i18n';
 import { shortcutLabel } from '../hooks/keyboardNavigation';
-export type ViewMode = 'list' | 'network' | 'gantt';
+export type ViewMode = 'list' | 'network' | 'gantt' | 'protocol';
 interface AppToolbarProps {
   viewMode: ViewMode;
   setViewMode: (view: ViewMode) => void;
@@ -52,7 +53,7 @@ export function AppToolbar({
   return (
     <header data-shortcut-region="0" className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white/90 backdrop-blur-md z-20 shadow-sm shrink-0">
       <div className="flex items-center gap-4">
-        {/* View Switcher: Liste vs. Netzplan vs. Gantt */}
+        {/* View Switcher: Liste / Netzplan / Gantt / Protokoll */}
         <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1">
           <button
             type="button"
@@ -92,6 +93,12 @@ export function AppToolbar({
           >
             <Calendar className="w-3.5 h-3.5" />
             <span>{t('Gantt')}</span>
+          </button>
+          <button type="button" title={shortcutLabel(t('Protokoll'), 'Ctrl+4')} aria-keyshortcuts="Control+4"
+            onClick={() => setViewMode('protocol')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${viewMode === 'protocol'
+              ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80' : 'text-slate-600 hover:text-slate-900'}`}>
+            <ScrollText className="w-3.5 h-3.5" /><span>{t('Protokoll')}</span>
           </button>
         </div>
       </div>

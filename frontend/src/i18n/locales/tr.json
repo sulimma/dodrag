@@ -347,5 +347,11 @@
   "Fenster": "Pencere",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "Kompakt görünümde F2, E ve Enter seçili görevi pencerede açar.",
   "In die Taskleiste minimieren": "Görev çubuğuna küçült",
-  "Maximieren": "Ekranı kapla"
+  "Maximieren": "Ekranı kapla",
+  "Protokoll": "Geçmiş",
+  "Pfad hinzugefügt": "Yol eklendi",
+  "URL hinzugefügt": "URL eklendi",
+  "Logeintrag hinzugefügt": "Günlük kaydı eklendi",
+  "Noch keine Ereignisse": "Henüz olay yok",
+  "Umbenannt aus \"{title}\"": "Önceki ad: \"{title}\""
 }

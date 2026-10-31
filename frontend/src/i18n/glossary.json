@@ -707,5 +707,62 @@
       "eo": ["Ruĝa", "Oranĝa", "Flava", "Verda", "Blua", "Viola", "Bruna", "Nigra", "Blanka"],
       "tok": ["loje", "loje jelo", "jelo", "laso jelo", "laso", "laso loje", "kule ma", "pimeja", "walo"]
     }
+  },
+{
+  "id": "term.protocol",
+  "context": "Chronologische Ansicht der gespeicherten Taskereignisse, nach Tag und Task gruppiert. Nicht das technische Netzwerkprotokoll und nicht ein einzelner Logeintrag.",
+  "sourceTerms": [
+    "Protokoll"
+  ],
+  "keys": [
+    "Protokoll"
+  ],
+  "translations": {
+    "de": [
+      "Protokoll"
+    ],
+    "en": [
+      "History"
+    ],
+    "fr": [
+      "Historique"
+    ],
+    "es": [
+      "Historial"
+    ],
+    "zh-CN": [
+      "历史记录"
+    ],
+    "uk": [
+      "Історія"
+    ],
+    "pt-BR": [
+      "Histórico"
+    ],
+    "ja": [
+      "履歴"
+    ],
+    "zh-TW": [
+      "歷史記錄"
+    ],
+    "ko": [
+      "기록"
+    ],
+    "it": [
+      "Cronologia"
+    ],
+    "pl": [
+      "Historia"
+    ],
+    "tr": [
+      "Geçmiş"
+    ],
+    "eo": [
+      "Historio"
+    ],
+    "tok": [
+      "tenpo pini"
+    ]
   }
+}
 ]

@@ -347,5 +347,11 @@
   "Fenster": "Ventana",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "En la vista compacta, F2, E e Intro abren la tarea seleccionada en la ventana.",
   "In die Taskleiste minimieren": "Minimizar a la barra de tareas",
-  "Maximieren": "Maximizar"
+  "Maximieren": "Maximizar",
+  "Protokoll": "Historial",
+  "Pfad hinzugefügt": "Ruta añadida",
+  "URL hinzugefügt": "URL añadida",
+  "Logeintrag hinzugefügt": "Entrada de registro añadida",
+  "Noch keine Ereignisse": "Aún no hay eventos",
+  "Umbenannt aus \"{title}\"": "Renombrado de «{title}»"
 }

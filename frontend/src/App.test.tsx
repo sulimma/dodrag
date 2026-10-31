@@ -567,7 +567,7 @@ async function chooseView(view: string) {
   if (view !== 'Liste') click(textButton(view));
 }
 
-it.each(['Liste', 'Netzplan', 'Gantt'])('preserves selection and context parity in %s', async view => {
+it.each(['Liste', 'Netzplan', 'Gantt', 'Protokoll'])('preserves selection and context parity in %s', async view => {
   await mount();
   await chooseView(view);
   const row = () => element.querySelector('[data-task-drag="26-101"]')!;
@@ -727,7 +727,7 @@ it('places multiple predecessor actions after completion and preserves their han
   });
 });
 
-it.each(['Liste', 'Netzplan', 'Gantt'])('adds the target as predecessor when dragging onto a task in %s', async view => {
+it.each(['Liste', 'Netzplan', 'Gantt', 'Protokoll'])('adds the target as predecessor when dragging onto a task in %s', async view => {
   await mount();
   await chooseView(view);
   const source = element.querySelector('[data-task-drag="26-101"]')!;
@@ -739,7 +739,7 @@ it.each(['Liste', 'Netzplan', 'Gantt'])('adds the target as predecessor when dra
   });
 });
 
-it.each(['Liste', 'Netzplan', 'Gantt'])('selects the drag source on Alt dragover and removes source edges in %s', async view => {
+it.each(['Liste', 'Netzplan', 'Gantt', 'Protokoll'])('selects the drag source on Alt dragover and removes source edges in %s', async view => {
   const linked: StoredEvent[] = [...history, {
     seq: 3, id: 'dependency', timestamp: date, undone: false,
     type: 'DEPENDENCY_ADDED', payload: { taskId: '26-102', predecessorId: '26-101' },
@@ -815,7 +815,7 @@ it('keeps a newer selection when a task completion response arrives', async () =
   });
 });
 
-it.each(['Liste', 'Netzplan', 'Gantt'])('clears edge selection on task context and selects focused edges in %s', async view => {
+it.each(['Liste', 'Netzplan', 'Gantt', 'Protokoll'])('clears edge selection on task context and selects focused edges in %s', async view => {
   vi.mocked(api.GetEvents).mockResolvedValue([...history, {
     seq: 3, id: 'dependency', timestamp: date, undone: false,
     type: 'DEPENDENCY_ADDED', payload: { taskId: '26-102', predecessorId: '26-101' },
@@ -851,7 +851,7 @@ it('changes every view and settings immediately in all languages without rewriti
     expect(document.documentElement.lang).toBe(language);
     expect(element.querySelector('label[for="ui-language"]')!.textContent).toBe(t('Sprache (Language)'));
     expect(element.textContent).toContain(t('Neue Datenbank anlegen'));
-    for (const key of ['Liste', 'Netzplan', 'Gantt']) {
+    for (const key of ['Liste', 'Netzplan', 'Gantt', 'Protokoll']) {
       await act(async () => click(textButton(t(key))));
       expect(element.textContent).toContain('Alpha');
       expect(element.textContent).toContain('Beta');
@@ -883,7 +883,7 @@ const groupHistory: StoredEvent[] = ['Alpha', 'Beta', 'Gamma', 'Delta'].map((tit
   type: 'TASK_CREATED', payload: { taskId: `26-${101 + index}`, title, configuredStart: date, createdAt: date },
 }));
 
-it.each(['Liste', 'Netzplan', 'Gantt'])('supports ranges, additive ranges, Ctrl/Meta toggles and context selection in %s', async view => {
+it.each(['Liste', 'Netzplan', 'Gantt', 'Protokoll'])('supports ranges, additive ranges, Ctrl/Meta toggles and context selection in %s', async view => {
   vi.mocked(api.GetEvents).mockResolvedValue(groupHistory);
   await mount();
   await chooseView(view);
@@ -988,7 +988,7 @@ it('supports mini F6, anchored task menus and Ctrl++ without restoring, but not 
   expect(api.AppendBatch).toHaveBeenCalledOnce();
 });
 
-it.each(['Liste', 'Netzplan', 'Gantt'])('freezes the drag group and links every member to the target in one batch in %s', async view => {
+it.each(['Liste', 'Netzplan', 'Gantt', 'Protokoll'])('freezes the drag group and links every member to the target in one batch in %s', async view => {
   vi.mocked(api.GetEvents).mockResolvedValue(groupHistory);
   vi.mocked(api.AppendBatch).mockResolvedValue(groupHistory);
   await mount(); await chooseView(view);
@@ -1025,10 +1025,10 @@ it('rejects the entire group before persistence when a later member would create
   expect(selectedIds()).toEqual(['26-101', '26-102']);
 });
 
-it.each(['date', 'resubmit', 'complete'])('applies %s drops to the frozen group, not the later selection', async route => {
+it.each(['Liste', 'Protokoll'].flatMap(view => ['date', 'resubmit', 'complete'].map(route => [view, route])))('applies %s %s drops to the frozen group, not the later selection', async (view, route) => {
   vi.mocked(api.GetEvents).mockResolvedValue(groupHistory);
   vi.mocked(api.AppendBatch).mockResolvedValue(groupHistory);
-  await mount(); selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
+  await mount(); await chooseView(view); selectTask('26-101'); selectTask('26-102', { ctrlKey: true });
   dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragstart');
   selectTask('26-104');
   const target = route === 'date' ? element.querySelector('[data-flip-key^="date:"]')!
@@ -1149,4 +1149,25 @@ it('keeps caption double-click maximization separate from caption buttons', asyn
   expect(api.ToggleWindowMaximized).toHaveBeenCalledOnce();
   await act(async () => button('In die Taskleiste minimieren').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
   expect(api.ToggleWindowMaximized).toHaveBeenCalledOnce();
+});
+
+it('opens protocol task details and keeps selection while navigating repeated occurrences with arrow keys', async () => {
+  const later = '2026-10-19T09:00:00Z';
+  vi.mocked(api.GetEvents).mockResolvedValue([...history, {
+    seq: 3, id: 'later-note', timestamp: later, undone: false, type: 'TASK_LOG_ADDED',
+    payload: { taskId: '26-101', entryId: 'note', text: 'Later work', createdAt: later },
+  }]);
+  await mount(); key('4', document.body, { ctrlKey: true });
+  const protocol = element.querySelector('[data-protocol-view]')!;
+  expect(protocol).not.toBeNull();
+  click(protocol.querySelector('[data-task-drag="26-101"]')!);
+  key('ArrowDown');
+  expect(protocol.querySelector('[data-task-drag="26-102"][data-task-selected="true"]')).not.toBeNull();
+  key('ArrowDown');
+  expect(protocol.querySelector('[data-task-drag="26-101"][data-task-selected="true"]')).not.toBeNull();
+  key('ArrowDown'); // At the end, retaining the same task must not toggle selection off.
+  expect(protocol.querySelector('[data-task-drag="26-101"][data-task-selected="true"]')).not.toBeNull();
+  const action = [...protocol.querySelectorAll('[data-protocol-row="action"]')].find(row => row.textContent?.includes('Later work'))!;
+  act(() => action.firstElementChild!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+  expect(element.querySelector('[data-task-detail-panel]')?.textContent).toContain('Later work');
 });

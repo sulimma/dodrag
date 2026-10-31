@@ -116,3 +116,30 @@ it('clears the pending source and draft on database invalidation', async () => {
   expect(api.AppendBatch).toHaveBeenCalledOnce();
   expect(vi.mocked(api.AppendBatch).mock.calls[0][0].map(command => command.type)).toEqual(['TASK_CREATED']);
 });
+
+it('copies a protocol source onto another task through the shared source-drop path', async () => {
+  const records: StoredEvent[] = [...history,
+    { seq: 2, id: 'create-b', timestamp: date, undone: false, type: 'TASK_CREATED',
+      payload: { taskId: '26-102', title: 'Beta', configuredStart: date, createdAt: date } },
+    { seq: 3, id: 'source-a', timestamp: date, undone: false, type: 'TASK_DESCRIPTION_SET',
+      payload: { taskId: '26-101', description: '<https://example.com/source>' } },
+  ];
+  vi.mocked(api.GetEvents).mockResolvedValue(records);
+  vi.mocked(api.AppendBatch).mockResolvedValue(records);
+  await act(async () => root.render(<App />));
+  await click(textButton('Protokoll'));
+  const icon = host.querySelector('[data-protocol-view] [data-source-drag]')!;
+  const data = new Map<string, string>();
+  const transfer = { clearData: () => data.clear(), setData: (key: string, value: string) => data.set(key, value),
+    getData: (key: string) => data.get(key) ?? '', get types() { return [...data.keys()]; }, effectAllowed: '', dropEffect: '' };
+  const start = new Event('dragstart', { bubbles: true, cancelable: true });
+  Object.defineProperty(start, 'dataTransfer', { value: transfer });
+  act(() => icon.dispatchEvent(start));
+  const drop = new Event('drop', { bubbles: true, cancelable: true });
+  Object.defineProperty(drop, 'dataTransfer', { value: transfer });
+  await act(async () => host.querySelector('[data-protocol-view] [data-source-task-id="26-102"]')!.dispatchEvent(drop));
+  expect(api.AppendBatch).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0]).toEqual([
+    expect.objectContaining({ type: 'TASK_DESCRIPTION_SET', payload: { taskId: '26-102', description: '<https://example.com/source>' } }),
+  ]);
+});

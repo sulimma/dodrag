@@ -347,5 +347,11 @@
   "Fenster": "Fenestro",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "En la kompakta vido, F2, E kaj Enter malfermas la elektitan taskon en la fenestro.",
   "In die Taskleiste minimieren": "Minimumigi al la taskobreto",
-  "Maximieren": "Maksimumigi"
+  "Maximieren": "Maksimumigi",
+  "Protokoll": "Historio",
+  "Pfad hinzugefügt": "Vojo aldonita",
+  "URL hinzugefügt": "URL aldonita",
+  "Logeintrag hinzugefügt": "Protokolero aldonita",
+  "Noch keine Ereignisse": "Ankoraŭ neniuj eventoj",
+  "Umbenannt aus \"{title}\"": "Alinomita el \"{title}\""
 }

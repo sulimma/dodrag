@@ -347,5 +347,11 @@
   "Fenster": "Okno",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "W widoku kompaktowym klawisze F2, E i Enter otwierają wybrane zadanie w oknie.",
   "In die Taskleiste minimieren": "Minimalizowanie do paska zadań",
-  "Maximieren": "Maksymalizowanie"
+  "Maximieren": "Maksymalizowanie",
+  "Protokoll": "Historia",
+  "Pfad hinzugefügt": "Dodano ścieżkę",
+  "URL hinzugefügt": "Dodano URL",
+  "Logeintrag hinzugefügt": "Dodano wpis do dziennika",
+  "Noch keine Ereignisse": "Brak zdarzeń",
+  "Umbenannt aus \"{title}\"": "Poprzednia nazwa: „{title}”"
 }

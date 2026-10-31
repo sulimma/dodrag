@@ -347,5 +347,11 @@
   "Fenster": "窗口",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "在紧凑视图中，按 F2、E 或 Enter 可在窗口中打开所选任务。",
   "In die Taskleiste minimieren": "最小化到任务栏",
-  "Maximieren": "最大化"
+  "Maximieren": "最大化",
+  "Protokoll": "历史记录",
+  "Pfad hinzugefügt": "已添加路径",
+  "URL hinzugefügt": "已添加 URL",
+  "Logeintrag hinzugefügt": "已添加日志条目",
+  "Noch keine Ereignisse": "暂无事件",
+  "Umbenannt aus \"{title}\"": "原名称：“{title}”"
 }

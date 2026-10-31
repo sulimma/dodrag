@@ -347,5 +347,11 @@
   "Fenster": "ウィンドウ",
   "In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.": "コンパクト表示では、F2、E、Enter で選択したタスクをウィンドウで開きます。",
   "In die Taskleiste minimieren": "タスクバーに最小化",
-  "Maximieren": "最大化"
+  "Maximieren": "最大化",
+  "Protokoll": "履歴",
+  "Pfad hinzugefügt": "パスを追加",
+  "URL hinzugefügt": "URL を追加",
+  "Logeintrag hinzugefügt": "ログ項目を追加",
+  "Noch keine Ereignisse": "イベントはまだありません",
+  "Umbenannt aus \"{title}\"": "変更前の名前：「{title}」"
 }

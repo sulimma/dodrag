@@ -126,6 +126,7 @@ export function ShortcutHelp({
                 { label: t('Liste'), shortcut: 'Ctrl+1', note: t('Nur Hauptansicht') },
                 { label: t('Netzplan'), shortcut: 'Ctrl+2', note: t('Nur Hauptansicht') },
                 { label: t('Gantt'), shortcut: 'Ctrl+3', note: t('Nur Hauptansicht') },
+                { label: t('Protokoll'), shortcut: 'Ctrl+4', note: t('Nur Hauptansicht') },
                 { label: t('Details ein-/ausblenden'), shortcut: 'Ctrl+Shift+D', note: t('Nur Hauptansicht') },
                 { label: t('Wiedervorlage +1 Tag'), shortcut: 'Ctrl++', note: t('Hauptansicht und Mini-Ansicht'), condition: t('Nur außerhalb Texteingaben. Offener ausgewählter Task erforderlich.') },
               ].map(({ label, shortcut, alternative, note, condition }) => (
