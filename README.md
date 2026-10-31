@@ -42,7 +42,7 @@ The compact, corner-docked view stays out of the way and shows only work that ca
 - **Drag-and-drop planning:** move tasks between dates, connect prerequisites, or remove selected dependency edges with Alt-drag.
 - **Small, traceable edits:** edit titles and dates in place, mark a task active, complete or reopen tasks, and undo or redo changes.
 - **Rich task descriptions:** a TipTap 3 editor with Markdown, checklists, GitHub-style note boxes, Mermaid diagrams, KaTeX mathematics, and Unicode shortcuts. The task log remains plain text.
-- **Native Windows desktop app:** the app stores task history in SQLite and can manage multiple database files. Browser fallback code is an internal development aid, not a supported product target.
+- **Native Windows desktop app:** the app stores task history in SQLite and can manage multiple database files. The frontend requires its native Wails host; there is no browser storage mode.
 - **Compact corner view:** dock a small always-on-top task window to a screen corner and restore the main window when needed.
 
 ## Task descriptions and Markdown
@@ -141,7 +141,7 @@ $version = Read-Host "Version (MAJOR.MINOR.PATCH)"
 
 The script synchronizes frontend dependencies in a local cache, compiles the app, and packages `dodrag.exe` into both `build/bin` and the repository root. Add `-Test` for the full pre-commit checks. During development, use `./frontend.ps1 -Action Test -TestFiles src/domain/dates.test.ts` for selected tests. Linguistic heuristics are optional: `./frontend.ps1 -Action LanguageAudit`. It does not start the application. Supply the desired SemVer version with `-Version`; the script injects it into the application and Windows file metadata at build time. Without build-time values the binary reports `dev` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
 
-Standard validation uses frontend unit/DOM tests, TypeScript checking, Go tests, and native Wails packaging. Targeted Chromium checks are optional aids for SVG geometry or text layout; they do not verify Windows clipboard, WebView2, multi-monitor, or DPI integration.
+Standard validation uses frontend unit/DOM tests, TypeScript checking, Go tests, and native Wails packaging. The optional Chromium helper checks bundled Mermaid SVG rendering; they do not verify Windows clipboard, WebView2, multi-monitor, or DPI integration.
 
 ## Author and affiliation
 

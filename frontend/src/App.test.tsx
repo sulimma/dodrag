@@ -67,6 +67,7 @@ beforeEach(() => {
     ShowTaskContextMenu: vi.fn(async () => ''),
     UpdateMiniModeHeight: vi.fn(async () => {}), SnapMiniWindowToNearestCorner: vi.fn(async () => ''),
   };
+  api.ShowTaskContextMenuAt = api.ShowTaskContextMenu;
   window.go = { main: { App: api } };
   element = document.createElement('div');
   document.body.append(element);

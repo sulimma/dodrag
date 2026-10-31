@@ -14,7 +14,6 @@ const node = (id: string, x: number, y: number, width = 200, bar = false) => {
   const element = document.createElement('div');
   element.dataset.taskDrag = id;
   if (bar) element.dataset.ganttNode = id;
-  element.style.backgroundColor = 'rgb(12, 34, 56)';
   const title = document.createElement('button');
   title.textContent = tasks[id].title; title.id = `title-${id}`;
   element.appendChild(title);

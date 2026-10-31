@@ -23,17 +23,6 @@ const timestamp = v.pipe(
 );
 const utcTimestamp = v.pipe(timestamp, v.check(value => value.endsWith('Z')));
 
-// Only the browser legacy loader may convert validated RFC3339 offsets. Keep the
-// fractional digits verbatim: Date serialization would truncate nanoseconds.
-export function normalizeLegacyTimestamp(input: unknown): string {
-  const value = v.parse(timestamp, input);
-  if (value.endsWith('Z')) return value;
-  const fraction = /\.\d+/.exec(value)?.[0] ?? '';
-  const instant = new Date(Date.parse(value.replace(/\.\d+/, '')));
-  const year = instant.getUTCFullYear();
-  const utc = `${String(year).padStart(4, '0')}-${String(instant.getUTCMonth() + 1).padStart(2, '0')}-${String(instant.getUTCDate()).padStart(2, '0')}T${String(instant.getUTCHours()).padStart(2, '0')}:${String(instant.getUTCMinutes()).padStart(2, '0')}:${String(instant.getUTCSeconds()).padStart(2, '0')}${fraction}Z`;
-  return v.parse(utcTimestamp, utc);
-}
 const title = v.pipe(v.string(), v.minLength(1), v.check(value => value.trim().length > 0));
 export const MAX_DESCRIPTION_BYTES = 256 * 1024;
 const description = v.pipe(v.string(), v.check(value => {

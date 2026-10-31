@@ -60,6 +60,7 @@ beforeEach(() => {
   };
   onFileDrop = vi.fn((callback: typeof nativeDrop) => { nativeDrop = callback; });
   onFileDropOff = vi.fn(() => { nativeDrop = undefined; });
+  api.ShowTaskContextMenuAt = api.ShowTaskContextMenu;
   window.go = { main: { App: api } };
   window.runtime = { OnFileDrop: onFileDrop, OnFileDropOff: onFileDropOff,
     EventsOn: vi.fn(() => () => {}) };

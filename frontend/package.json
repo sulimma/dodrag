@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:browser": "node tests/pointer-drag.browser.mjs && node tests/drag.browser.mjs && node tests/ui-state.browser.mjs",
+    "test:browser": "node tests/mermaid-templates.browser.mjs",
     "test:language": "vitest run --config vitest.language.config.ts"
   },
   "dependencies": {

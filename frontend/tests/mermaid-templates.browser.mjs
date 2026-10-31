@@ -48,17 +48,6 @@ try {
     assert.deepEqual(result.invalidGeometry, [], `${result.labelKey}: non-finite SVG geometry`);
     console.log(`PASS ${result.labelKey}: ${result.width} x ${result.height}`);
   }
-  const zoom = await page.evaluate(() => {
-    const host = document.createElement('div');
-    host.innerHTML = '<div style="width:200px;height:100px"></div>';
-    document.body.append(host);
-    const before = host.getBoundingClientRect().height;
-    host.style.zoom = '0.75';
-    const after = host.getBoundingClientRect().height;
-    host.remove();
-    return after / before;
-  });
-  assert.equal(zoom, 0.75, 'CSS zoom must shrink layout as well as painted content');
 } finally {
   await browser?.close();
   await server.close();
