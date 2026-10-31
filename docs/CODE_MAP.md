@@ -20,6 +20,7 @@ Diese Karte nennt Einstiegspunkte. Verhalten, Architekturentscheidungen und loka
 | Gemeinsame Taskdarstellung/-aktionen | `frontend/src/components/taskInteractions.ts`, `TaskTitle.tsx`, `TaskDate.tsx`, `TaskContextMenu.tsx` |
 | Liste, Netzplan, Gantt, Protokoll, Mini | `frontend/src/components/{ListView,NetworkPlanView,GanttView,ProtocolView,MiniCornerView}.tsx` |
 | Protokollprojektion und gemeinsame Listenzeilen | `frontend/src/domain/protocol.ts`, `frontend/src/components/ListRows.tsx` |
+| Feste Datumstrenner in Liste, Netzplan und Protokoll | `frontend/src/components/DateScrollOverlay.tsx`, `DateLayerLine.tsx` |
 | Sprache und Kataloge | `frontend/src/i18n/index.ts`, `locales/`, `glossary.json`; nativ `backend_i18n.go` |
 | Native App, Datenbanken und Settings | `app.go` |
 | SQLite, Commands und Cache | `internal/eventstore/{sqlite,commands,cache}.go` |

@@ -1,6 +1,6 @@
 import { allowWindowPaint, useWindowPresentation } from './hooks/useWindowPresentation';
 import { flushSync } from 'react-dom';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { eventBridge, type WindowMode } from './bridge/eventBridge';
 import { GanttView } from './components/GanttView';
 import { ListView } from './components/ListView';
@@ -47,7 +47,7 @@ import type { EditorTarget } from './components/editor/types';
 export function App() {
   const language = useLanguage();
   const [now, setNow] = useState(() => new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, updateViewMode] = useState<ViewMode>('list');
   const [lastMovedKey, setLastMovedKey] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const pendingSource = useRef<EditorTarget | null>(null);
@@ -66,6 +66,24 @@ export function App() {
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [editOwner, setEditOwner] = useState<'view' | 'detail'>('view');
   const mainScrollRef = useRef<HTMLElement>(null);
+  // Positions live only for this app session. Capture before replacing content:
+  // the shared scroller may clamp its position as the next view is mounted.
+  const viewScrollPositions = useRef<Partial<Record<ViewMode, { top: number; left: number }>>>({});
+  const setViewMode = useCallback((next: ViewMode) => {
+    if (next === viewMode) return;
+    const scroll = mainScrollRef.current;
+    if (scroll) viewScrollPositions.current[viewMode] = { top: scroll.scrollTop, left: scroll.scrollLeft };
+    updateViewMode(next);
+  }, [viewMode]);
+  useLayoutEffect(() => {
+    const scroll = mainScrollRef.current;
+    if (!scroll) return;
+    const saved = viewScrollPositions.current[viewMode];
+    scroll.scrollLeft = saved?.left ?? 0;
+    // Protocol restores its own position together with its virtual window and
+    // follows the newest entries only on its first visit (or while at the end).
+    if (viewMode !== 'protocol') scroll.scrollTop = saved?.top ?? 0;
+  }, [viewMode]);
   const protocolNavigation = useRef<((direction: number) => void) | null>(null);
   const miniScrollRef = useRef<HTMLElement>(null);
   const mainInputRef = useRef<HTMLInputElement>(null);
@@ -562,6 +580,7 @@ export function App() {
           >
             {viewMode === 'list' ? (
               <ListView
+                scrollRef={mainScrollRef}
                 {...interactions}
                 listEntries={state.listEntries}
                 movedItemKey={lastMovedKey}
@@ -570,6 +589,7 @@ export function App() {
               />
             ) : viewMode === 'network' ? (
               <NetworkPlanView
+                scrollRef={mainScrollRef}
                 {...interactions}
                 openTasks={state.openTasks}
                 now={now}
@@ -581,6 +601,7 @@ export function App() {
                 key={appSettings?.activeDatabasePath ?? ''}
                 {...interactions} days={protocolDays} tasks={state.tasks} now={now}
                 scrollRef={mainScrollRef} navigationRef={protocolNavigation}
+                initialScrollTop={viewScrollPositions.current.protocol?.top}
                 onSelectTaskByKeyboard={setSelectedTaskId}
                 titleEditor={isMiniMode ? { ...titleEditor, taskId: null } : titleEditor}
                 dateEditor={isMiniMode ? { ...dateEditor, taskId: null } : dateEditor}
@@ -603,7 +624,7 @@ export function App() {
             scrollRef={mainScrollRef}
             contentKey={highlights}
             horizontal={viewMode === 'gantt'}
-            topInset={viewMode === 'protocol' ? 48 : undefined}
+            topInset={viewMode === 'gantt' ? undefined : viewMode === 'network' ? 36 : 48}
           />
         </div>
         <TaskSidebar

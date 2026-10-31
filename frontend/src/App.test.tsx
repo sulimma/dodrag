@@ -1171,3 +1171,37 @@ it('opens protocol task details and keeps selection while navigating repeated oc
   act(() => action.firstElementChild!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
   expect(element.querySelector('[data-task-detail-panel]')?.textContent).toContain('Later work');
 });
+
+it('keeps independent view positions and applies first-visit defaults only once', async () => {
+  await mount();
+  const scroll = element.querySelector('main')!;
+  Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 100 });
+  Object.defineProperty(scroll, 'scrollHeight', { configurable: true, get: () => {
+    const protocol = scroll.querySelector<HTMLElement>('[data-protocol-view]');
+    return protocol ? Number.parseFloat(protocol.style.height) : 2000;
+  } });
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const top = this.hasAttribute('data-protocol-view') ? -scroll.scrollTop : 0;
+    return { top, left: 0, right: 900, bottom: top + 100, width: 900, height: 100, x: 0, y: top, toJSON: () => ({}) };
+  });
+  const change = async (label: string) => { await act(async () => click(textButton(label))); };
+  expect(scroll.scrollTop).toBe(0);
+  await change('Protokoll');
+  expect(scroll.scrollTop).toBe(scroll.scrollHeight - scroll.clientHeight);
+  expect(scroll.scrollTop).toBeGreaterThan(0);
+  await change('Liste'); expect(scroll.scrollTop).toBe(0);
+  scroll.scrollTop = 310;
+  await change('Netzplan'); expect(scroll.scrollTop).toBe(0);
+  scroll.scrollTop = 420;
+  await change('Gantt'); expect(scroll.scrollLeft).toBe(0); expect(scroll.scrollTop).toBe(0);
+  scroll.scrollLeft = 650; scroll.scrollTop = 70;
+  await change('Protokoll');
+  expect(scroll.scrollTop).toBe(scroll.scrollHeight - scroll.clientHeight);
+  act(() => { scroll.scrollTop = 30; scroll.dispatchEvent(new Event('scroll')); });
+  await change('Liste'); expect(scroll.scrollTop).toBe(310); expect(scroll.scrollLeft).toBe(0);
+  await change('Netzplan'); expect(scroll.scrollTop).toBe(420);
+  await change('Gantt'); expect(scroll.scrollLeft).toBe(650); expect(scroll.scrollTop).toBe(70);
+  await change('Protokoll'); expect(scroll.scrollTop).toBe(30); expect(scroll.scrollLeft).toBe(0);
+  act(() => { scroll.scrollTop = 0; scroll.dispatchEvent(new Event('scroll')); });
+  await change('Liste'); await change('Protokoll'); expect(scroll.scrollTop).toBe(0);
+});

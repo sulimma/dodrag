@@ -129,7 +129,7 @@ it('keeps the scrolled date visible after its divider is virtualized away and up
     key: `a${i}`, timestamp: now.toISOString(), kind: 'log', text: `First ${i}`,
   }));
   props = { ...props, days: history }; render();
-  const context = () => document.querySelector('[data-protocol-context]')!;
+  const context = () => document.querySelector('[data-date-context]')!;
   scroll(0);
   expect(context().textContent).toContain(history[0].dateKey);
   const overlayNode = context();
@@ -139,10 +139,10 @@ it('keeps the scrolled date visible after its divider is virtualized away and up
   expect((element.querySelector('[data-protocol-row="date"]') as HTMLElement).style.top).toBe('0px');
   scroll(2000);
   expect(element.querySelectorAll('[data-protocol-row="date"]')).toHaveLength(0);
-  expect(context().getAttribute('data-protocol-context')).toBe(history[0].dateKey);
+  expect(context().getAttribute('data-date-context')).toBe(history[0].dateKey);
   const lastDay = element.scrollHeight - 116;
   scroll(lastDay - 20);
-  expect(context().getAttribute('data-protocol-context')).toBe(history[0].dateKey);
+  expect(context().getAttribute('data-date-context')).toBe(history[0].dateKey);
   // The incoming divider pushes the preceding drop target out without overlap.
   expect((context() as HTMLElement).style.transform).toBe('translateY(-20px)');
   scroll(lastDay);

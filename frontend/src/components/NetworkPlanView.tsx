@@ -8,6 +8,7 @@ import {
 } from '../domain/projector';
 import type { HighlightRole, TaskState } from '../domain/types';
 import { DateLayerLine } from './DateLayerLine';
+import { DateScrollOverlay } from './DateScrollOverlay';
 import { TaskTitle } from './TaskTitle';
 import type { InlineEditor } from './inlineEditor';
 import { taskAppearanceRole } from './taskAppearance';
@@ -22,6 +23,7 @@ import { arrowBase, ArrowMarkers } from './arrowGeometry';
 import { t, useLanguage } from '../i18n';
 
 interface NetworkPlanViewProps extends TaskViewInteractions {
+  scrollRef?: React.RefObject<HTMLElement>;
   titleEditor: InlineEditor;
   dateEditor: InlineEditor;
   openTasks: TaskState[];
@@ -449,21 +451,8 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
     };
   }, [openTasks, now, containerWidth, deletionPreview.join('|'), language]);
 
-  return (
-    <div
-      ref={containerRef}
-      className="relative w-full"
-      style={{
-        height: layout.canvasHeight,
-      }}
-      onClick={(event) => {
-        if ((event.target as HTMLElement).closest('[data-task-drag], [data-edge-key], button, input, textarea, [contenteditable="true"]')) return;
-        onClearTaskSelection();
-        if (selectedEdgeKeys.length > 0) onClearEdgeSelection();
-      }}
-    >
-      {/* Thin horizontal Date Lines & Drop Zones sorting nodes into layers */}
-      {layout.dateBands.map((band) => {
+  const dateMarkers = useMemo(() => layout.dateBands.map(band => ({ dateKey: band.dateKey, offset: band.bandTopY })), [layout.dateBands]);
+  const renderDateBand = (band: DateBandLayout, overlay = false) => {
         const dropKey = `net-date:${band.dateKey}`;
         const isDropActive = activeDropTargetKey === dropKey;
         return (
@@ -474,11 +463,8 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
             isWeekend={band.isWeekend}
             isToday={band.isToday}
             isDropActive={isDropActive}
-            className="absolute left-0 right-0"
-            style={{
-              top: band.bandTopY,
-              height: band.bandHeight,
-            }}
+            className={overlay ? undefined : 'absolute left-0 right-0'}
+            style={overlay ? undefined : { top: band.bandTopY, height: band.bandHeight }}
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = 'move';
@@ -500,7 +486,27 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
             }}
           />
         );
-      })}
+
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full"
+      style={{
+        height: layout.canvasHeight,
+      }}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest('[data-task-drag], [data-edge-key], button, input, textarea, [contenteditable="true"]')) return;
+        onClearTaskSelection();
+        if (selectedEdgeKeys.length > 0) onClearEdgeSelection();
+      }}
+    >
+      {/* Thin horizontal Date Lines & Drop Zones sorting nodes into layers */}
+      <DateScrollOverlay scrollRef={props.scrollRef} contentRef={containerRef} dates={dateMarkers}
+        height={28} contentHeight={layout.canvasHeight}
+        renderDate={dateKey => renderDateBand(layout.dateBands.find(band => band.dateKey === dateKey)!, true)} />
+      {layout.dateBands.map(band => renderDateBand(band))}
 
       {/* SVG Layer for Clean, Direct Directed Edges (Multi-Selectable with Ctrl/Shift & Deletable via Del/Backspace) */}
       <svg

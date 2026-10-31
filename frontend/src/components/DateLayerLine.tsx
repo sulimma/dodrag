@@ -37,6 +37,7 @@ export const DateLayerLine: React.FC<DateLayerLineProps> = ({
   return (
     <div
       data-flip-key={dataFlipKey}
+      data-date-divider={dateKey}
       data-task-drop-target={onDrop ? dateKey : undefined}
       style={style}
       onDragOver={onDragOver}

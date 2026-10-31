@@ -1,9 +1,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { ListEntry, TaskState } from '../domain/types';
 import { dateKeyToIsoStart, toDateKey } from '../domain/projector';
 import { protocolRows, type ProtocolAction, type ProtocolDay } from '../domain/protocol';
 import { ListDateRow, ListTaskRow } from './ListRows';
+import { DateScrollOverlay } from './DateScrollOverlay';
 import type { TaskViewInteractions } from './taskInteractions';
 import { taskDropTargetInteractions } from './taskInteractions';
 import type { InlineEditor } from './inlineEditor';
@@ -45,6 +45,7 @@ interface ProtocolViewProps extends TaskViewInteractions {
   days: ProtocolDay[];
   tasks: Record<string, TaskState>;
   scrollRef: React.RefObject<HTMLElement>;
+  initialScrollTop?: number;
   titleEditor: InlineEditor;
   dateEditor: InlineEditor;
   now: Date;
@@ -90,8 +91,6 @@ function ProtocolActionContent({ action, ...props }: Pick<ProtocolViewProps, 'on
 export function ProtocolView(props: ProtocolViewProps) {
   const rows = useMemo(() => protocolRows(props.days), [props.days]);
   const root = useRef<HTMLDivElement>(null);
-  const [overlayHost, setOverlayHost] = useState<HTMLElement | null>(null);
-  const [overlay, setOverlay] = useState({ day: 0, y: 0, width: 0, left: 0, top: 0 });
   const [viewport, setViewport] = useState({ top: 0, height: 600 });
   const [occurrence, setOccurrence] = useState<string | null>(null);
   const [dragRow, setDragRow] = useState<string | null>(null);
@@ -103,7 +102,7 @@ export function ProtocolView(props: ProtocolViewProps) {
     return result;
   }, [rows]);
   const dateIndices = useMemo(() => rows.flatMap((row, index) => row.kind === 'date' ? [index] : []), [rows]);
-  const dateOffsets = useMemo(() => dateIndices.map(index => offsets[index]), [dateIndices, offsets]);
+  const dateMarkers = useMemo(() => dateIndices.map(index => ({ dateKey: (rows[index] as Extract<typeof rows[number], { kind: 'date' }>).dateKey, offset: offsets[index] })), [dateIndices, offsets, rows]);
   const totalHeight = offsets[offsets.length - 1];
   const headerIndices = useMemo(() => rows.flatMap((row, index) => row.kind === 'task' ? [index] : []), [rows]);
   const orderedIds = useMemo(() => [...new Set(props.days.flatMap(day => day.entries.map(entry => entry.taskId)))], [props.days]);
@@ -136,38 +135,17 @@ export function ProtocolView(props: ProtocolViewProps) {
   useLayoutEffect(() => {
     const scroll = props.scrollRef.current;
     if (!scroll) return;
-    if (!initialized.current || following.current) {
+    if (!initialized.current && props.initialScrollTop !== undefined) {
+      scroll.scrollTop = Math.max(0, Math.min(props.initialScrollTop, offset() + totalHeight - scroll.clientHeight));
+      initialized.current = true;
+      following.current = scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop < 24;
+    } else if (!initialized.current || following.current) {
       scroll.scrollTop = Math.max(0, offset() + totalHeight - scroll.clientHeight);
       initialized.current = true;
       following.current = true;
     }
     setViewport({ top: Math.max(0, scroll.scrollTop - offset()), height: scroll.clientHeight || 600 });
   }, [totalHeight]);
-  // Like DependencyHighlightIndicators: a sibling outside the scrolling surface,
-  // measured on animation frames and resize. Its fixed origin never needs scroll
-  // compensation. Only the approaching next divider moves it upwards.
-  useLayoutEffect(() => {
-    const scroll = props.scrollRef.current;
-    const host = scroll?.parentElement;
-    if (!scroll || !host) return;
-    setOverlayHost(host);
-    let frame = 0;
-    const measure = () => {
-      const top = Math.max(0, scroll.scrollTop - offset());
-      const day = rowAt(dateOffsets, top);
-      const viewportRect = scroll.getBoundingClientRect(), hostRect = host.getBoundingClientRect();
-      const next = { day, y: Math.min(0, (dateOffsets[day + 1] ?? totalHeight) - top - DATE_HEIGHT),
-        width: scroll.clientWidth, left: viewportRect.left - hostRect.left + scroll.clientLeft,
-        top: viewportRect.top - hostRect.top + scroll.clientTop };
-      setOverlay(previous => Object.keys(next).every(key => previous[key as keyof typeof next] === next[key as keyof typeof next]) ? previous : next);
-    };
-    const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); };
-    const resize = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedule) : null;
-    resize?.observe(scroll);
-    scroll.addEventListener('scroll', schedule, { passive: true });
-    measure();
-    return () => { cancelAnimationFrame(frame); resize?.disconnect(); scroll.removeEventListener('scroll', schedule); };
-  }, [dateOffsets, totalHeight, props.scrollRef]);
   useEffect(() => { if (!props.draggedTaskId) setDragRow(null); }, [props.draggedTaskId]);
   useLayoutEffect(() => {
     props.navigationRef.current = direction => {
@@ -198,18 +176,11 @@ export function ProtocolView(props: ProtocolViewProps) {
     const index = key ? rowIndex.get(key) : undefined;
     if (index !== undefined) visible.add(index);
   }
-  const overlayRow = rows[dateIndices[overlay.day]];
-  const overlayEntry = overlayRow?.kind === 'date' ? protocolDateEntry(overlayRow.dateKey, props.now) : undefined;
   if (!rows.length) return <p className="px-6 py-5 text-sm text-slate-500">{t('Noch keine Ereignisse')}</p>;
   return <div ref={root} data-protocol-view className="relative w-full" style={{ height: totalHeight, overflowAnchor: 'none' }}>
-    {overlayHost && overlayEntry && createPortal(
-      <div data-protocol-overlay className="absolute z-30 overflow-hidden pointer-events-none"
-        style={{ top: overlay.top, left: overlay.left, width: overlay.width, height: DATE_HEIGHT }}>
-        <div data-protocol-context={overlayEntry.dateKey} className="px-6 bg-slate-100 pointer-events-auto"
-          style={{ height: DATE_HEIGHT, transform: `translateY(${overlay.y}px)` }}>
-          <ListDateRow {...props} entry={overlayEntry} className="py-1" />
-        </div>
-      </div>, overlayHost)}
+    <DateScrollOverlay scrollRef={props.scrollRef} contentRef={root} dates={dateMarkers}
+      height={DATE_HEIGHT} contentHeight={totalHeight} refreshKey={viewport.top}
+      renderDate={dateKey => <ListDateRow {...props} entry={protocolDateEntry(dateKey, props.now)} className="py-1" />} />
     {[...visible].sort((a, b) => a - b).map(index => {
       const row = rows[index];
       const shared = { ...props, orderedTaskIds: orderedIds };
