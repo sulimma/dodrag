@@ -612,12 +612,12 @@ it('inserts a browser URI drop once at the drop position without the native file
     act(() => editor.view.dom.dispatchEvent(drop));
     expect(drop.defaultPrevented).toBe(true);
     expect(native).not.toHaveBeenCalled();
-    expect(editor.state.doc.textContent).toBe('before <https://example.org/page?q=1>after');
+    expect(editor.state.doc.textContent).toBe('before https://example.org/page?q=1after');
   } finally { window.removeEventListener('drop', native); }
 });
 
 it('accepts URL strings delivered through the native editor drop entry point', async () => {
   const { ref, editor } = await mount();
   act(() => ref.current!.insertFiles(['https://example.org/path?q=1']));
-  expect(editor.state.doc.textContent).toBe('<https://example.org/path?q=1>');
+  expect(editor.state.doc.textContent).toBe('https://example.org/path?q=1');
 });

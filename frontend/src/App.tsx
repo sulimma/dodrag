@@ -305,7 +305,7 @@ export function App() {
         if (activeInlineEditor.current) return false;
       }
       const version = modeVersion.current;
-      const finishPresentation = suspendPresentation();
+      const finishPresentation = await suspendPresentation();
       let confirmed: WindowMode;
       try { confirmed = await eventBridge.setWindowMode(mode); }
       finally { finishPresentation(); }

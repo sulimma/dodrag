@@ -98,10 +98,10 @@ describe('shared editor/log targets', () => {
 });
 
 it('distinguishes native URI strings from strict file drops and rejects malformed mixed input', () => {
-  expect(nativeDropText(['C:\\file.txt', 'https://example.org/page?q=1'])).toBe('"C:\\file.txt"\n<https://example.org/page?q=1>');
+  expect(nativeDropText(['C:\\file.txt', 'https://example.org/page?q=1'])).toBe('"C:\\file.txt"\nhttps://example.org/page?q=1');
   expect(() => nativeDropText(['https://example.org', 'relative.txt'])).toThrow();
   expect(() => nativeDropText(['javascript:alert(1)'])).toThrow();
   const transfer = (text: string) => ({ getData: (type: string) => type === 'text/uri-list' ? text : '' }) as DataTransfer;
-  expect(urlDropText(transfer('# title\r\nhttps://example.org'))).toBe('<https://example.org>');
+  expect(urlDropText(transfer('# title\r\nhttps://example.org'))).toBe('https://example.org');
   expect(urlDropText(transfer('javascript:alert(1)'))).toBeUndefined();
 });

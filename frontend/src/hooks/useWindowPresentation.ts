@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from 'react';
 // Native geometry and React mode confirmations travel separately. Keep the root
 // laid out but invisible until loading/fonts and a quiet viewport agree. No
 // transition runs on ordinary user resizing after the surface has been revealed.
-export function useWindowPresentation(ready: boolean, mode: string): () => () => void {
+export function useWindowPresentation(ready: boolean, mode: string): () => Promise<() => void> {
   const controller = useRef({ ready, pending: 0, frame: 0, disposed: false, settle: () => {} });
   controller.current.ready = ready;
   useLayoutEffect(() => {
@@ -13,7 +13,6 @@ export function useWindowPresentation(ready: boolean, mode: string): () => () =>
     if (!root) return;
     let fontsReady = !document.fonts;
     let width = window.innerWidth, height = window.innerHeight, stableSince = performance.now();
-    const hide = () => { root.dataset.windowSettling = 'true'; };
     const tick = () => {
       state.frame = 0;
       if (state.disposed || !state.ready || state.pending) return;
@@ -25,7 +24,10 @@ export function useWindowPresentation(ready: boolean, mode: string): () => () =>
       } else state.frame = requestAnimationFrame(tick);
     };
     state.settle = () => {
-      hide(); stableSince = performance.now();
+      // Readiness/confirmation callbacks may arrive after reveal. They must
+      // never start another blank phase; only an explicit transition can hide.
+      if (!root.dataset.windowSettling) return;
+      stableSince = performance.now();
       cancelAnimationFrame(state.frame);
       state.frame = requestAnimationFrame(tick);
     };
@@ -39,11 +41,21 @@ export function useWindowPresentation(ready: boolean, mode: string): () => () =>
       window.removeEventListener('resize', resize);
     };
   }, [ready, mode]);
-  return () => {
+  return async () => {
     const state = controller.current;
     state.pending++;
     const root = document.getElementById('root');
-    if (root) root.dataset.windowSettling = 'true';
+    if (root) {
+      const alreadyHidden = !!root.dataset.windowSettling;
+      root.dataset.windowSettling = 'true';
+      // Commit a hidden browser frame before Win32 changes/restores the HWND.
+      // Otherwise WebView2 can briefly present its previous visible surface.
+      // An iconic WebView can suspend RAF entirely. Its hidden/previously
+      // hidden surface needs no extra paint before native restoration.
+      if (!alreadyHidden && mode !== 'taskbar' && document.visibilityState !== 'hidden') {
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      }
+    }
     return () => { state.pending--; if (!state.disposed) state.settle(); };
   };
 }

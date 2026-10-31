@@ -107,7 +107,7 @@ export const fileDropText = (paths: readonly string[]): string => paths.map(path
 // Keep fileDropText strict for callers that specifically require filesystem paths.
 export const nativeDropText = (values: readonly string[]): string => values.map(value => {
   const target = classifyTarget(value);
-  return target?.kind === 'url' ? `<${target.value}>` : fileDropText([value]);
+  return target?.kind === 'url' ? target.value : fileDropText([value]);
 }).join('\n');
 
 export function urlDropText(data: DataTransfer): string | undefined {
