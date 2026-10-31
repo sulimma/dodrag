@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { TaskState } from '../domain/types';
 import { formatIso8601Display } from '../domain/projector';
-import type { InlineEditor } from './inlineEditor';
+import { inlineTextHandlers, type InlineEditor } from './inlineEditor';
 import { t, formatDate } from '../i18n';
 
 // Renders a configured task date and its inline editor.
@@ -42,17 +42,7 @@ export function TaskDate({
           value={editor.value}
           placeholder={t('JJJJ-MM-TT')}
           onChange={(event) => editor.onChange(event.target.value)}
-          onBlur={editor.onCommit}
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              editor.onCommit();
-            } else if (event.key === 'Escape') {
-              event.preventDefault();
-              editor.onCancel();
-            }
-          }}
+          {...inlineTextHandlers(editor.onCommit, editor.onCancel)}
           className={`${compact ? 'w-24 px-1' : 'w-28 px-2'} min-w-0 py-0.5 rounded border border-sky-500 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/30`}
         />
       ) : (
