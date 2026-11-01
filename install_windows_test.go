@@ -3,6 +3,9 @@
 package main
 
 import (
+	"context"
+	"errors"
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"os"
 	"path/filepath"
 	"testing"
@@ -69,5 +72,30 @@ func TestCreateShortcutWritesShellLink(t *testing.T) {
 	}
 	if info.Size() == 0 {
 		t.Fatal("shortcut is empty")
+	}
+}
+
+// Exercise the actual confirmation boundary for every supported app language;
+// Windows returns English IDs even when the displayed buttons are localized.
+func TestConfirmOverwriteWindowsResponses(t *testing.T) {
+	for _, language := range uiLanguages {
+		t.Run(language, func(t *testing.T) {
+			for _, response := range []string{"Yes", "No", "Cancel", "", "Error"} {
+				got, err := confirmOverwriteDialog(context.Background(), language, func(_ context.Context, options wailsRuntime.MessageDialogOptions) (string, error) {
+					if options.Type != wailsRuntime.QuestionDialog || options.DefaultButton != "Yes" || options.CancelButton != "No" {
+						t.Fatalf("unexpected confirmation options: %+v", options)
+					}
+					return response, nil
+				})
+				if err != nil || got != (response == "Yes") {
+					t.Fatalf("response %q: confirmed=%v, err=%v", response, got, err)
+				}
+			}
+		})
+	}
+	failure := errors.New("dialog failed")
+	confirmed, err := confirmOverwriteDialog(context.Background(), "de", func(context.Context, wailsRuntime.MessageDialogOptions) (string, error) { return "Yes", failure })
+	if confirmed || err == nil {
+		t.Fatalf("dialog failure: confirmed=%v, err=%v", confirmed, err)
 	}
 }

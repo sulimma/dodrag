@@ -4,6 +4,15 @@
 
 [data-source-task-id] { --wails-drop-target: drop; }
 
+/* Wails 2 sets the resize cursor inline on <html>. Explicit cursors on tasks,
+   inputs and buttons otherwise override inheritance at the frameless window edge.
+   Follow Wails' existing edge detection; restore element cursors when it clears. */
+html[style*="-resize"] *,
+html[style*="-resize"] *::before,
+html[style*="-resize"] *::after {
+  cursor: inherit !important;
+}
+
 @layer base {
   * {
     user-select: text;

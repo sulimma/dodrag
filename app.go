@@ -651,20 +651,17 @@ func (a *App) RunSetupAction(action string) (AppSettings, error) {
 	switch action {
 	case setupActionInstall:
 		installed, err := installProgram(a.ctx, language)
-		if err != nil {
-			settings, _ := a.GetSettings()
-			return settings, err
-		}
 		if installed {
 			a.mu.Lock()
 			autostart := a.settings.Autostart
 			a.mu.Unlock()
 			if autostart {
-				if err := syncWindowsAutostart(true, language); err != nil {
-					settings, _ := a.GetSettings()
-					return settings, err
-				}
+				err = errors.Join(err, syncWindowsAutostart(true, language))
 			}
+		}
+		if err != nil {
+			settings, _ := a.GetSettings()
+			return settings, err
 		}
 	case setupActionDesktopShortcut, setupActionStartMenuShortcut:
 		resolve := desktopShortcutPath

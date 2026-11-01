@@ -147,34 +147,41 @@ func installProgram(ctx context.Context, language string) (bool, error) {
 	}
 
 	// Existing shortcuts and a possible overwrite must point at the target.
+	var shortcutErrors []error
 	for _, resolve := range []func() (string, error){desktopShortcutPath, startMenuShortcutPath} {
 		if path, pathErr := resolve(); pathErr == nil {
 			if _, statErr := os.Stat(path); statErr == nil {
-				_ = createShortcut(path, target, language)
+				if err := createShortcut(path, target, language); err != nil {
+					shortcutErrors = append(shortcutErrors, err)
+				}
 			}
 		}
 	}
-	return true, nil
+	return true, errors.Join(shortcutErrors...)
 }
 
 func confirmOverwrite(ctx context.Context, language string) (bool, error) {
 	if ctx == nil {
 		return true, nil
 	}
-	yes := backendText(language, "Ja")
-	no := backendText(language, "Nein")
-	choice, err := wailsRuntime.MessageDialog(ctx, wailsRuntime.MessageDialogOptions{
+	return confirmOverwriteDialog(ctx, language, wailsRuntime.MessageDialog)
+}
+
+// Wails' Windows MessageBox uses OS-localized buttons but returns fixed English
+// response IDs. Buttons/DefaultButton/CancelButton must not use app translations.
+func confirmOverwriteDialog(ctx context.Context, language string, dialog func(context.Context, wailsRuntime.MessageDialogOptions) (string, error)) (bool, error) {
+	choice, err := dialog(ctx, wailsRuntime.MessageDialogOptions{
 		Type:          wailsRuntime.QuestionDialog,
 		Title:         backendText(language, "Vorhandene Version überschreiben?"),
 		Message:       backendText(language, "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?"),
-		Buttons:       []string{yes, no},
-		DefaultButton: yes,
-		CancelButton:  no,
+		Buttons:       []string{"Yes", "No"},
+		DefaultButton: "Yes",
+		CancelButton:  "No",
 	})
 	if err != nil {
 		return false, localizedError(language, "Überschreiben konnte nicht bestätigt werden", err)
 	}
-	return choice == yes, nil
+	return choice == "Yes", nil
 }
 
 // installedExecutable returns the install target if it exists, so shortcuts and
