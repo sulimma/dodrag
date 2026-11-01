@@ -353,5 +353,7 @@
   "URL hinzugefügt": "URL додано",
   "Logeintrag hinzugefügt": "Запис журналу додано",
   "Noch keine Ereignisse": "Подій ще немає",
-  "Umbenannt aus \"{title}\"": "Попередня назва: «{title}»"
+  "Umbenannt aus \"{title}\"": "Попередня назва: «{title}»",
+  "Markdown-Hinweise für KI kopieren": "Копіювати інструкції Markdown для ШІ",
+  "Markdown-Hinweise kopiert": "Інструкції Markdown скопійовано"
 }

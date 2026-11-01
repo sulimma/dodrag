@@ -2,6 +2,7 @@ import { useCallback, useReducer, useRef } from 'react';
 import { eventBridge } from '../bridge/eventBridge';
 import { projectEvents } from '../domain/projector';
 import { appendTaskSources } from '../domain/taskSources';
+import { isMarkdownPath, readMarkdownSources, type DescriptionAddition } from '../components/editor/markdownImport';
 import type { EditorTarget } from '../components/editor/types';
 import type { TaskState } from '../domain/types';
 import type { useDatabaseSnapshot } from './useDatabaseSnapshot';
@@ -61,17 +62,22 @@ export function useDescriptionDrafts(database: Database) {
     if (!sources.length) return Promise.resolve(true);
     appendTaskSources('', sources); // Validate the complete group before changing any draft.
     const db = current.current, identity = db.databaseIdentity.current;
-    const tasks = projectEvents(db.confirmedEvents.current).tasks;
-    const entries: [string, Draft][] = [...new Set(taskIds)].filter(id => tasks[id]).map(taskId => {
-      const key = JSON.stringify([identity, taskId]);
-      return [key, { database: identity, taskId,
-        text: appendTaskSources(drafts.current.get(key)?.text ?? tasks[taskId].description, sources) }];
-    });
-    // Publish sources into the local document BEFORE awaiting native persistence.
-    // Further typing therefore includes them, even while this atomic group waits.
-    for (const [key, draft] of entries) drafts.current.set(key, draft);
-    if (entries.length) redraw();
-    return persistDrafts(entries, true);
+    const append = (additions: readonly DescriptionAddition[]) => {
+      if (identity !== current.current.databaseIdentity.current) return Promise.resolve(false);
+      const tasks = projectEvents(db.confirmedEvents.current).tasks;
+      const entries: [string, Draft][] = [...new Set(taskIds)].filter(id => tasks[id]).map(taskId => {
+        const key = JSON.stringify([identity, taskId]);
+        return [key, { database: identity, taskId,
+          text: appendTaskSources(drafts.current.get(key)?.text ?? tasks[taskId].description, additions) }];
+      });
+      // Publish sources into the local document BEFORE awaiting native persistence.
+      // Further typing therefore includes them, even while this atomic group waits.
+      for (const [key, draft] of entries) drafts.current.set(key, draft);
+      if (entries.length) redraw();
+      return persistDrafts(entries, true);
+    };
+    return sources.some(source => source.kind === 'path' && isMarkdownPath(source.value))
+      ? readMarkdownSources(sources).then(append) : append(sources);
   }, [persistDrafts]);
   const flush = useCallback((taskId: string) => flushKey(keyFor(taskId)), [flushKey]);
   const flushAll = useCallback(async () => {

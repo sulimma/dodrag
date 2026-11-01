@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TaskDescriptionEditor, markdownStorage, type TaskDescriptionEditorHandle } from './TaskDescriptionEditor';
 import { getLanguage, setLanguage, supportedLanguages, t } from '../../i18n';
 import { MERMAID_TEMPLATES } from './MermaidTemplates';
+import { eventBridge } from '../../bridge/eventBridge';
 import { SYMBOL_GROUPS } from './SymbolReplacements';
 
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -35,7 +36,9 @@ async function mount(description = '') {
   await act(async () => root.render(<TaskDescriptionEditor ref={ref} taskId="t1" description={description}
     onChange={onChange} onError={onError} onEscape={vi.fn()} onContextMenu={vi.fn()} />));
   const editor = (element.querySelector('.tiptap') as HTMLElement & { editor: Editor }).editor;
-  return { element, editor, onChange, onError, ref };
+  const switchTask = async () => { await act(async () => root.render(<TaskDescriptionEditor ref={ref} taskId="t2" description="Other task"
+    onChange={onChange} onError={onError} onEscape={vi.fn()} onContextMenu={vi.fn()} />)); };
+  return { element, editor, onChange, onError, ref, switchTask };
 }
 
 function type(editor: Editor, text: string) {
@@ -620,4 +623,138 @@ it('accepts URL strings delivered through the native editor drop entry point', a
   const { ref, editor } = await mount();
   act(() => ref.current!.insertFiles(['https://example.org/path?q=1']));
   expect(editor.state.doc.textContent).toBe('https://example.org/path?q=1');
+});
+
+
+it.each([false, true])('parses Markdown source copied as one HTML code block (HTML only: %s)', async htmlOnly => {
+  const { editor, element } = await mount();
+  const source = '# Heading\n\n> [!IMPORTANT]\n> **Read this**\n\n- [ ] Check\n\n```mermaid\ngraph LR\n A --> B\n```';
+  const container = document.createElement('pre'); container.textContent = source;
+  const paste = new Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(paste, 'clipboardData', { value: { files: [], types: htmlOnly ? ['text/html'] : ['text/html', 'text/plain'],
+    getData: (kind: string) => kind === 'text/html' ? container.outerHTML : kind === 'text/plain' && !htmlOnly ? source : '' } });
+  await act(async () => editor.view.dom.dispatchEvent(paste));
+  if (htmlOnly) {
+    expect(editor.state.doc.firstChild?.type.name).toBe('codeBlock');
+    expect(editor.state.doc.textContent).toBe(source);
+    return;
+  }
+  expect(element.querySelector('h1')?.textContent).toBe('Heading');
+  expect(element.querySelector('[data-alert=IMPORTANT] strong')?.textContent).toBe('Read this');
+  expect(element.querySelector('input[type=checkbox]')).not.toBeNull();
+  expect(editor.state.doc.lastChild?.attrs.language).toBe('mermaid');
+  act(() => { expect(editor.commands.undo()).toBe(true); });
+  expect(editor.state.doc.textContent).toBe('');
+});
+
+it('retains explicit programming-language code when pasting HTML', async () => {
+  const { editor } = await mount();
+  const paste = new Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(paste, 'clipboardData', { value: { files: [], types: ['text/html'],
+    getData: (kind: string) => kind === 'text/html' ? '<pre><code class="language-python"># Comment\nprint(1)</code></pre>' : '' } });
+  await act(async () => editor.view.dom.dispatchEvent(paste));
+  expect(editor.state.doc.firstChild?.type.name).toBe('codeBlock');
+  expect(editor.state.doc.textContent).toBe('# Comment\nprint(1)');
+});
+
+it('appends dropped Markdown to the live document and undoes the import as one action', async () => {
+  const { editor, ref, element, onError } = await mount('Existing');
+  let resolve!: (value: string) => void;
+  const read = vi.spyOn(eventBridge, 'readMarkdownFile').mockImplementation(() => new Promise(done => { resolve = done; }));
+  cleanups.push(() => read.mockRestore());
+  let importing!: void | Promise<void>;
+  act(() => { editor.commands.setTextSelection(1); importing = ref.current!.insertFiles(['C:\\Notes.MD']); });
+  act(() => { editor.view.dispatch(editor.state.tr.insertText('Typed ')); });
+  await act(async () => { resolve('# Imported\n\n- [x] Done'); await importing; });
+  expect(editor.state.doc.firstChild?.textContent).toBe('Typed Existing');
+  expect(element.querySelector('h1')?.textContent).toBe('Imported');
+  expect(element.querySelector<HTMLInputElement>('input[type=checkbox]')?.checked).toBe(true);
+  act(() => { expect(editor.commands.undo()).toBe(true); });
+  expect(editor.state.doc.textContent).toBe('Typed Existing');
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it('keeps the document intact when a dropped Markdown file cannot be read', async () => {
+  const { editor, ref, onError } = await mount('Keep');
+  const failure = new Error('Read failed');
+  const read = vi.spyOn(eventBridge, 'readMarkdownFile').mockRejectedValue(failure);
+  cleanups.push(() => read.mockRestore());
+  await act(async () => { await ref.current!.insertFiles(['C:\\missing.md', 'C:\\other.txt']); });
+  expect(editor.state.doc.textContent).toBe('Keep');
+  expect(onError).toHaveBeenCalledWith(failure);
+});
+
+
+it('discards an unfinished Markdown import after switching the editor to another task', async () => {
+  const { editor, ref, switchTask, onChange } = await mount('Original task');
+  let resolve!: (value: string) => void;
+  const read = vi.spyOn(eventBridge, 'readMarkdownFile').mockImplementation(() => new Promise(done => { resolve = done; }));
+  cleanups.push(() => read.mockRestore());
+  const importing = ref.current!.insertFiles(['C:\\notes.md']);
+  await switchTask();
+  await act(async () => { resolve('# Wrong task'); await importing; });
+  expect(editor.state.doc.textContent).toBe('Other task');
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+
+it('keeps dropped Markdown URLs as URLs without reading them as local files', async () => {
+  const { editor, ref } = await mount();
+  const read = vi.spyOn(eventBridge, 'readMarkdownFile'); cleanups.push(() => read.mockRestore());
+  await act(async () => { await ref.current!.insertFiles(['https://example.com/notes.md']); });
+  expect(editor.state.doc.textContent).toBe('https://example.com/notes.md');
+  expect(read).not.toHaveBeenCalled();
+});
+
+
+// Same nesting as the reported document: an alert with numbered entries and
+// bold spans containing inline code, plus ordinary source blocks around it.
+const nestedCodeDocument = '# Heading\n\n- [ ] Check\n\n> [!NOTE]\n> 1. **`§ 3 Nr. 30` (Definition):** Keep **bold** and `code`.\n> 2. **`§ 8 Abs. 5` (Connection):** More text.\n\n```mermaid\ngraph LR\n A --> B\n```';
+
+function vscodeClipboardHTML(source: string): string {
+  const container = document.createElement('div');
+  container.style.whiteSpace = 'pre'; container.style.fontFamily = 'Consolas, monospace';
+  for (const line of source.split('\n')) {
+    const row = document.createElement('div');
+    const span = document.createElement('span'); span.style.color = '#123456'; span.textContent = line;
+    row.append(span); container.append(row);
+  }
+  return '<meta charset="utf-8">' + container.outerHTML;
+}
+
+it.each(['plain', 'vscode', 'pre', 'file'] as const)('imports nested formatted inline code through %s without invalid marks', async transport => {
+  const { editor, ref, element, onError, onChange } = await mount();
+  if (transport === 'file') {
+    const read = vi.spyOn(eventBridge, 'readMarkdownFile').mockResolvedValue(nestedCodeDocument);
+    cleanups.push(() => read.mockRestore());
+    await act(async () => { await ref.current!.insertFiles(['C:\\notes.md']); });
+  } else {
+    const pre = document.createElement('pre'); pre.textContent = nestedCodeDocument;
+    const html = transport === 'plain' ? '' : transport === 'vscode' ? vscodeClipboardHTML(nestedCodeDocument) : pre.outerHTML;
+    const paste = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, 'clipboardData', { value: { files: [], types: html ? ['text/html', 'text/plain'] : ['text/plain'],
+      getData: (type: string) => type === 'text/plain' ? nestedCodeDocument : type === 'text/html' ? html : '' } });
+    await act(async () => editor.view.dom.dispatchEvent(paste));
+  }
+  expect(onError).not.toHaveBeenCalled();
+  expect(element.querySelector('h1')?.textContent).toBe('Heading');
+  expect(element.querySelector('[data-alert=NOTE] strong code')?.textContent).toBe('§ 3 Nr. 30');
+  expect(element.querySelector('input[type=checkbox]')).not.toBeNull();
+  expect(editor.state.doc.lastChild?.attrs.language).toBe('mermaid');
+  expect(() => editor.state.doc.check()).not.toThrow();
+  const saved = onChange.mock.lastCall![0];
+  const reloaded = await mount(saved);
+  expect(reloaded.editor.getJSON()).toEqual(editor.getJSON());
+});
+
+it('parses VS Code clipboard lines as Markdown while preserving line breaks and indentation', async () => {
+  const { editor, element } = await mount();
+  const source = '# Heading\n\n> [!TIP]\n> Keep this\n\n```mermaid\ngraph LR\n    A --> B\n```';
+  const paste = new Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(paste, 'clipboardData', { value: { files: [], types: ['text/html', 'text/plain'],
+    getData: (type: string) => type === 'text/plain' ? source : type === 'text/html' ? vscodeClipboardHTML(source) : '' } });
+  await act(async () => editor.view.dom.dispatchEvent(paste));
+  expect(element.querySelector('h1')?.textContent).toBe('Heading');
+  expect(element.querySelector('[data-alert=TIP]')?.textContent).toContain('Keep this');
+  expect(editor.state.doc.lastChild?.textContent).toBe('graph LR\n    A --> B');
 });

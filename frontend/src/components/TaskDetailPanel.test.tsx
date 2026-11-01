@@ -3,6 +3,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TaskDetailPanel } from './TaskDetailPanel';
+import { markdownAgentInstructions } from './editor/markdownSyntax';
 import { taskMenuItems } from './TaskContextMenu';
 import type { TaskDescriptionEditorProps } from './editor/TaskDescriptionEditor';
 import type { TaskLogSectionProps } from './TaskLogSection';
@@ -222,7 +223,7 @@ it('shows the no-task placeholder without editors, task menu or file insertion',
   expect(mocks.showMenu).not.toHaveBeenCalled();
   mocks.subscribe.mock.calls[0][0](10, 10, ['C:\\fixture.txt']);
   expect(mocks.editorFiles).not.toHaveBeenCalled(); expect(mocks.logFiles).not.toHaveBeenCalled();
-  act(() => host.querySelector<HTMLButtonElement>('button')!.click());
+  act(() => host.querySelector<HTMLButtonElement>('button[data-detail-toggle]')!.click());
   expect(props.onClose).toHaveBeenCalledOnce();
 });
 
@@ -437,4 +438,27 @@ it.each([true, false])('shows syntax help only in the expanded detail panel whil
   expect(help.title).toBe(t('Markdown-Syntax'));
   act(() => help.click());
   expect(onSyntaxHelp).toHaveBeenCalledOnce();
+});
+
+
+it('copies agent Markdown guidance and reports clipboard failures', async () => {
+  const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  try {
+    const props = makeProps(); render(props);
+    const copy = host.querySelector<HTMLButtonElement>(`button[aria-label="${t('Markdown-Hinweise für KI kopieren')}"]`)!;
+    await act(async () => copy.click());
+    expect(writeText).toHaveBeenCalledWith(markdownAgentInstructions());
+    const guidance = writeText.mock.calls[0][0];
+    for (const symbol of ['✅', '❌', 'ℹ️', '❓', '⛔']) expect(guidance).toContain(symbol);
+    expect(guidance).toContain('```mermaid');
+    expect(host.querySelector('[role=status]')?.textContent).toBe(t('Markdown-Hinweise kopiert'));
+    const failure = new Error('Clipboard denied'); writeText.mockRejectedValue(failure);
+    await act(async () => copy.click());
+    expect(props.onError).toHaveBeenCalledWith(failure);
+    expect(host.querySelector('[role=status]')?.textContent).toBe('');
+  } finally {
+    if (original) Object.defineProperty(navigator, 'clipboard', original); else Reflect.deleteProperty(navigator, 'clipboard');
+  }
 });

@@ -1,9 +1,10 @@
 import { classifyTarget, fileDropText } from '../components/editor/targets';
-import type { EditorTarget } from '../components/editor/types';
+import type { DescriptionAddition } from '../components/editor/markdownImport';
 import { t } from '../i18n';
 
-export function appendTaskSources(description: string, sources: readonly EditorTarget[]): string {
+export function appendTaskSources(description: string, sources: readonly DescriptionAddition[]): string {
   const entries = sources.map(source => {
+    if (source.kind === 'markdown') return source.value;
     const target = classifyTarget(source.value);
     if (!target || target.kind !== source.kind) throw new Error(t('Ungültige URL'));
     return target.kind === 'path' ? fileDropText([target.value]) : `<${target.value}>`;

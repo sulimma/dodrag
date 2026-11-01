@@ -8,7 +8,7 @@ import { projectEvents } from '../domain/projector';
 import type { StoredEvent } from '../domain/types';
 import type { AppSettings } from '../bridge/eventBridge';
 
-const bridge = vi.hoisted(() => ({ getSettings: vi.fn(), getEvents: vi.fn(), appendEvent: vi.fn(), appendBatch: vi.fn() }));
+const bridge = vi.hoisted(() => ({ getSettings: vi.fn(), getEvents: vi.fn(), appendEvent: vi.fn(), appendBatch: vi.fn(), readMarkdownFile: vi.fn() }));
 vi.mock('../bridge/eventBridge', () => ({ eventBridge: bridge }));
 const date = '2026-10-25T09:00:00Z';
 let root: Root, host: HTMLDivElement, history: StoredEvent[], settings: AppSettings;
@@ -169,4 +169,29 @@ it('validates all sources before changing drafts and ignores empty or missing ta
     expect(await drafts.appendSources(['missing'], [{ kind: 'url', value: 'https://example.com/source' }])).toBe(true);
   });
   expect(bridge.appendBatch).not.toHaveBeenCalled(); expect(bridge.appendEvent).not.toHaveBeenCalled();
+});
+
+it('appends Markdown files to current drafts in a mixed drop and preserves typing during the read', async () => {
+  let resolve!: (text: string) => void;
+  bridge.readMarkdownFile.mockImplementation(() => new Promise(done => { resolve = done; }));
+  bridge.appendBatch.mockImplementation(async commands => {
+    history = [...history, ...commands.map((command: any, index: number) => ({ ...command, seq: history.length + index + 1,
+      id: `import-${index}`, timestamp: date, undone: false }))];
+    return history;
+  });
+  change('Before');
+  let saving!: Promise<boolean>;
+  act(() => { saving = drafts.appendSources(['A', 'B'], [{ kind: 'path', value: 'C:\\notes.md' }, { kind: 'path', value: 'C:\\other.pdf' }]); });
+  change('Typed while reading');
+  await act(async () => { resolve('# Imported\n\n- [ ] Check'); expect(await saving).toBe(true); });
+  expect(visible('A')).toBe('Typed while reading\n\n# Imported\n\n- [ ] Check\n\n"C:\\other.pdf"');
+  expect(visible('B')).toBe('# Imported\n\n- [ ] Check\n\n"C:\\other.pdf"');
+  expect(bridge.appendBatch).toHaveBeenCalledOnce();
+});
+
+it('does not partially append a mixed drop when a Markdown file read fails', async () => {
+  change('Keep');
+  bridge.readMarkdownFile.mockRejectedValue(new Error('Read failed'));
+  await expect(drafts.appendSources(['A'], [{ kind: 'path', value: 'C:\\other.pdf' }, { kind: 'path', value: 'C:\\missing.md' }])).rejects.toThrow('Read failed');
+  expect(visible()).toBe('Keep'); expect(bridge.appendBatch).not.toHaveBeenCalled();
 });

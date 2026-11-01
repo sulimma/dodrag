@@ -353,5 +353,7 @@
   "URL hinzugefügt": "Dodano URL",
   "Logeintrag hinzugefügt": "Dodano wpis do dziennika",
   "Noch keine Ereignisse": "Brak zdarzeń",
-  "Umbenannt aus \"{title}\"": "Poprzednia nazwa: „{title}”"
+  "Umbenannt aus \"{title}\"": "Poprzednia nazwa: „{title}”",
+  "Markdown-Hinweise für KI kopieren": "Kopiowanie instrukcji Markdown dla AI",
+  "Markdown-Hinweise kopiert": "Instrukcje Markdown skopiowane"
 }

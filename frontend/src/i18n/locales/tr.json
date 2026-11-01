@@ -353,5 +353,7 @@
   "URL hinzugefügt": "URL eklendi",
   "Logeintrag hinzugefügt": "Günlük kaydı eklendi",
   "Noch keine Ereignisse": "Henüz olay yok",
-  "Umbenannt aus \"{title}\"": "Önceki ad: \"{title}\""
+  "Umbenannt aus \"{title}\"": "Önceki ad: \"{title}\"",
+  "Markdown-Hinweise für KI kopieren": "Yapay zekâ için Markdown talimatlarını kopyala",
+  "Markdown-Hinweise kopiert": "Markdown talimatları kopyalandı"
 }

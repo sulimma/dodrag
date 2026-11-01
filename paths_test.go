@@ -113,3 +113,33 @@ func TestTaskMenuSeparators(t *testing.T) {
 		}
 	}
 }
+
+func TestReadMarkdownFile(t *testing.T) {
+	dir := t.TempDir()
+	app := &App{}
+	for _, name := range []string{"notes.md", "NOTES.MD"} {
+		path := filepath.Join(dir, name)
+		content := "# Heading\r\n\r\n✅ **text**\n```mermaid\ngraph LR; A-->B\n```"
+		if err := os.WriteFile(path, []byte("\ufeff"+content), 0600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := app.ReadMarkdownFile(path)
+		if err != nil || got != content {
+			t.Fatalf("got %q, %v", got, err)
+		}
+	}
+	for name, data := range map[string][]byte{"other.txt": []byte("text"), "invalid.md": {0xff}, "large.md": make([]byte, 16*1024*1024+1)} {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := app.ReadMarkdownFile(path); err == nil {
+			t.Errorf("accepted %s", name)
+		}
+	}
+	for _, path := range []string{dir, filepath.Join(dir, "missing.md"), "relative.md"} {
+		if _, err := app.ReadMarkdownFile(path); err == nil {
+			t.Errorf("accepted %s", path)
+		}
+	}
+}

@@ -353,5 +353,7 @@
   "URL hinzugefügt": "URL ajoutée",
   "Logeintrag hinzugefügt": "Entrée de journal ajoutée",
   "Noch keine Ereignisse": "Aucun événement pour le moment",
-  "Umbenannt aus \"{title}\"": "Ancien titre : « {title} »"
+  "Umbenannt aus \"{title}\"": "Ancien titre : « {title} »",
+  "Markdown-Hinweise für KI kopieren": "Copier les consignes Markdown pour l’IA",
+  "Markdown-Hinweise kopiert": "Consignes Markdown copiées"
 }

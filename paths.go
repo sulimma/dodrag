@@ -2,12 +2,14 @@ package main
 
 import (
 	"errors"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -122,4 +124,33 @@ func (a *App) OpenExternalURL(rawURL string) error {
 	}
 	runtime.BrowserOpenURL(ctx, target)
 	return nil
+}
+
+// ReadMarkdownFile imports source text, never HTML. Bound reads and validate UTF-8
+// before returning anything so a failed drop cannot replace or partially append data.
+func (a *App) ReadMarkdownFile(raw string) (string, error) {
+	a.mu.Lock()
+	language := a.settings.UILanguage
+	a.mu.Unlock()
+	path, info, err := existingPath(raw, language)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() || !strings.EqualFold(filepath.Ext(path), ".md") {
+		return "", localizedError(language, "Pfad konnte nicht geoeffnet werden", errors.New("Markdown .md file required"))
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return "", localizedError(language, "Pfad konnte nicht geoeffnet werden", err)
+	}
+	defer file.Close()
+	const limit = 16 * 1024 * 1024
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err == nil && (len(data) > limit || !utf8.Valid(data)) {
+		err = errors.New("Markdown must be UTF-8 and at most 16 MiB")
+	}
+	if err != nil {
+		return "", localizedError(language, "Pfad konnte nicht geoeffnet werden", err)
+	}
+	return strings.TrimPrefix(string(data), "\ufeff"), nil
 }

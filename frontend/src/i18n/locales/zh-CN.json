@@ -353,5 +353,7 @@
   "URL hinzugefügt": "已添加 URL",
   "Logeintrag hinzugefügt": "已添加日志条目",
   "Noch keine Ereignisse": "暂无事件",
-  "Umbenannt aus \"{title}\"": "原名称：“{title}”"
+  "Umbenannt aus \"{title}\"": "原名称：“{title}”",
+  "Markdown-Hinweise für KI kopieren": "复制 AI Markdown 指南",
+  "Markdown-Hinweise kopiert": "已复制 Markdown 指南"
 }

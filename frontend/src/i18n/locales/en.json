@@ -353,5 +353,7 @@
   "URL hinzugefügt": "URL added",
   "Logeintrag hinzugefügt": "Log entry added",
   "Noch keine Ereignisse": "No events yet",
-  "Umbenannt aus \"{title}\"": "Renamed from \"{title}\""
+  "Umbenannt aus \"{title}\"": "Renamed from \"{title}\"",
+  "Markdown-Hinweise für KI kopieren": "Copy Markdown instructions for AI",
+  "Markdown-Hinweise kopiert": "Markdown instructions copied"
 }

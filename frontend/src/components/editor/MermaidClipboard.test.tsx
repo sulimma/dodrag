@@ -141,6 +141,7 @@ it.each(['keyboard', 'menu'] as const)('keeps fenced clipboard text raw in an ex
   act(() => { editor.commands.setTextSelection(1); editor.view.focus(); });
   const data = new ClipboardData(); data.setData('text/plain', fenced);
   data.setData('text/html', '<p><strong>not the code source</strong></p>');
+  data.setData('vscode-editor-data', JSON.stringify({ mode: 'markdown' }));
   await pasteVia(route, mounted, data);
   expect(editor.state.doc.childCount).toBe(1);
   expect(editor.state.doc.firstChild!.attrs.language).toBe('js');
@@ -148,7 +149,7 @@ it.each(['keyboard', 'menu'] as const)('keeps fenced clipboard text raw in an ex
   expect(element.querySelector('[data-mermaid-block]')).toBeNull();
 });
 
-it('preserves ordinary plaintext and prefers schema-parsed HTML over fenced plaintext', async () => {
+it('preserves ordinary plaintext and prefers recognized Markdown over HTML', async () => {
   const { editor, element } = await mount('');
   act(() => editor.view.focus());
   const data = new ClipboardData(); data.setData('text/plain', 'ordinary clipboard text');
@@ -158,9 +159,9 @@ it('preserves ordinary plaintext and prefers schema-parsed HTML over fenced plai
   data.setData('text/plain', fenced);
   data.setData('text/html', '<p><strong>preferred HTML</strong><script>untrusted()</script></p>');
   await clipboardEvent(editor, 'paste', data);
-  expect(element.querySelector('.tiptap strong')?.textContent).toBe('preferred HTML');
+  expect(element.querySelector('.tiptap strong')).toBeNull();
   expect(element.querySelector('.tiptap script')).toBeNull();
-  expect(element.querySelector('[data-mermaid-block]')).toBeNull();
+  expect(element.querySelector('[data-mermaid-block]')).not.toBeNull();
   expect(editor.state.doc.textContent).not.toContain('untrusted()');
 });
 
@@ -284,4 +285,78 @@ it.each([
   if (rich) expect(clipboard.read).toHaveBeenCalledOnce(); else expect(clipboard.readText).toHaveBeenCalledOnce();
   await expectPersistedDiagram(editor, onChange, action === 'copy' ? 2 : 1);
   expect(onError).not.toHaveBeenCalled();
+});
+it.each(['keyboard', 'menu'] as const)('renders source-editor HTML with nonbreaking indentation via %s', async route => {
+  const mounted = await mount('');
+  const source = '  # Heading\n\n  - First\n  - Second\n\n```text\n    indented\n```';
+  const container = document.createElement('div'); container.style.whiteSpace = 'pre';
+  for (const line of source.split('\n')) {
+    const row = document.createElement('div');
+    const span = document.createElement('span'); span.textContent = line.replace(/ /g, '\u00a0');
+    row.append(span); container.append(row);
+  }
+  const data = new ClipboardData();
+  data.setData('text/plain', source); data.setData('text/html', container.outerHTML);
+  await pasteVia(route, mounted, data);
+  expect(mounted.editor.getJSON()).toEqual((await mount(source)).editor.getJSON());
+});
+
+it.each(['keyboard', 'menu'] as const)('detects Markdown in plain text before VS Code HTML and metadata via %s', async route => {
+  const mounted = await mount('');
+  const source = '# Heading\n\n**Guide:** first  \nsecond\n\n> [!IMPORTANT]\n> **Read this**\n> - First\n> - Second';
+  const block = document.createElement('div'); block.style.whiteSpace = 'pre';
+  for (const line of source.split('\n')) {
+    if (!line) { block.append(document.createElement('br')); continue; }
+    const row = document.createElement('div'); const span = document.createElement('span');
+    span.textContent = line; row.append(span); block.append(row);
+  }
+  const data = new ClipboardData(); data.setData('text/plain', source);
+  data.setData('text/html', '<html><body><!--StartFragment-->' + block.outerHTML + '<!--EndFragment--></body></html>');
+  data.setData('vscode-editor-data', JSON.stringify({ mode: 'markdown' }));
+  await pasteVia(route, mounted, data);
+  expect(mounted.editor.getJSON()).toEqual((await mount(source)).editor.getJSON());
+  act(() => { expect(mounted.editor.commands.undo()).toBe(true); });
+  expect(mounted.editor.state.doc.textContent).toBe('');
+});
+
+it.each(['**bold**', '*italic*', '[label](https://example.org)', '- one\n- two', '# Heading'])(
+  'prefers parser-recognized Markdown %s over unrelated HTML', async source => {
+    const mounted = await mount(''); const data = new ClipboardData();
+    data.setData('text/plain', source); data.setData('text/html', '<p>HTML alternative</p>');
+    await clipboardEvent(mounted.editor, 'paste', data);
+    expect(mounted.editor.getJSON()).toEqual((await mount(source)).editor.getJSON());
+  });
+
+it.each([true, false])('falls back without Markdown to HTML when available (%s), ignoring VS Code metadata', async html => {
+  const mounted = await mount(''); const data = new ClipboardData();
+  data.setData('text/plain', 'ordinary text');
+  data.setData('vscode-editor-data', JSON.stringify({ mode: 'plaintext' }));
+  if (html) data.setData('text/html', '<p><strong>HTML formatting</strong></p>');
+  await clipboardEvent(mounted.editor, 'paste', data);
+  expect(mounted.editor.getJSON()).toEqual((await mount(html ? '**HTML formatting**' : 'ordinary text')).editor.getJSON());
+});
+it('keeps explicit plain paste literal even with Markdown and VS Code metadata', async () => {
+  const { editor } = await mount('');
+  const source = '# Heading\n\n**bold**';
+  const data = new ClipboardData(); data.setData('text/plain', source);
+  data.setData('text/html', '<h1>HTML alternative</h1>');
+  data.setData('vscode-editor-data', JSON.stringify({ mode: 'markdown' }));
+  const event = new Event('paste', { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'clipboardData', { value: data });
+  await act(async () => {
+    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'v', ctrlKey: true, shiftKey: true, bubbles: true }));
+    editor.view.dom.dispatchEvent(event);
+  });
+  expect(editor.state.doc.textContent).toContain('# Heading');
+  expect(editor.state.doc.textContent).toContain('**bold**');
+  expect(editor.state.doc.firstChild?.type.name).toBe('paragraph');
+});
+
+it('preserves literal Markdown characters within fallback HTML', async () => {
+  const mounted = await mount(''); const data = new ClipboardData();
+  data.setData('text/plain', 'ordinary text');
+  data.setData('text/html', '<p><strong>formatted</strong> **literal stars**</p>');
+  await clipboardEvent(mounted.editor, 'paste', data);
+  expect(mounted.editor.state.doc.textContent).toBe('formatted **literal stars**');
+  expect(mounted.element.querySelector('.tiptap strong')?.textContent).toBe('formatted');
 });

@@ -353,5 +353,7 @@
   "URL hinzugefügt": "URL を追加",
   "Logeintrag hinzugefügt": "ログ項目を追加",
   "Noch keine Ereignisse": "イベントはまだありません",
-  "Umbenannt aus \"{title}\"": "変更前の名前：「{title}」"
+  "Umbenannt aus \"{title}\"": "変更前の名前：「{title}」",
+  "Markdown-Hinweise für KI kopieren": "AI 向け Markdown ガイドをコピー",
+  "Markdown-Hinweise kopiert": "Markdown ガイドをコピーしました"
 }

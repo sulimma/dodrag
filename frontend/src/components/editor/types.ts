@@ -9,7 +9,7 @@ export interface EditorContextMenu {
 }
 export type EditorContextMenuCallback = (event: React.MouseEvent, context: EditorContextMenu) => void;
 export interface TaskDescriptionEditorHandle {
-  insertFiles(paths: readonly string[], x?: number, y?: number): void;
+  insertFiles(paths: readonly string[], x?: number, y?: number): void | Promise<void>;
   focus(): void;
 }
 export type TaskLogSectionHandle = TaskDescriptionEditorHandle;

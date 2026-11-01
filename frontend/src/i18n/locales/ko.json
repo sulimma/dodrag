@@ -353,5 +353,7 @@
   "URL hinzugefügt": "URL 추가됨",
   "Logeintrag hinzugefügt": "로그 항목 추가됨",
   "Noch keine Ereignisse": "아직 이벤트가 없습니다",
-  "Umbenannt aus \"{title}\"": "이전 이름: \"{title}\""
+  "Umbenannt aus \"{title}\"": "이전 이름: \"{title}\"",
+  "Markdown-Hinweise für KI kopieren": "AI용 Markdown 안내 복사",
+  "Markdown-Hinweise kopiert": "Markdown 안내 복사됨"
 }

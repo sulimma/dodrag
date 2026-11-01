@@ -1,9 +1,10 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { t, useLanguage } from '../i18n';
-import { ALERT_TYPES, EMOTICONS } from './editor/MarkdownFeatures';
+import { EMOTICONS } from './editor/MarkdownFeatures';
 import { SYMBOL_GROUPS } from './editor/SymbolReplacements';
 import { MERMAID_TEMPLATES } from './editor/MermaidTemplates';
+import { markdownSyntaxExamples } from './editor/markdownSyntax';
 export type HelpPage = 'shortcuts' | 'syntax';
 let helpMermaidModule: Promise<typeof import('mermaid')['default']> | undefined;
 let helpDiagramSequence = 0;
@@ -241,24 +242,7 @@ export function ShortcutHelp({
 }
 
 function SyntaxHelp() {
-  const text = t('Text');
-  const examples = [
-    [t('Überschrift'), [1, 2, 3, 4, 5, 6].map(level => `${'#'.repeat(level)} ${text}`).join('\n')],
-    [t('Absatz'), `${text}\n\n${text}`],
-    [t('Fett'), `**${text}**`],
-    [t('Kursiv'), `*${text}*`],
-    [t('Durchgestrichen'), `~~${text}~~`],
-    [t('Code'), `\`${text}\``],
-    [t('Listen'), `- ${text}\n- ${text}\n\n1. ${text}\n2. ${text}\n\n- [ ] ${text}\n- [x] ${text}`],
-    [t('Zitat'), `> ${text}`],
-    [t('Codeblock'), `\`\`\`text\n${text}\n\`\`\``],
-    [t('GitHub Alerts'), ALERT_TYPES.map(({ type, labelKey }) => `> [!${type}]\n> ${t(labelKey)}`).join('\n\n')],
-    [t('Mermaid-Diagramm'), `\`\`\`mermaid\ngraph LR\n  A[${t('Start')}] --> B[${t('Ende')}]\n\`\`\``],
-    [t('Formel'), '$E = mc^2$'],
-    [t('Formelblock'), '$$\n\\frac{a}{b} = c\n$$'],
-    [t('Link'), `[${text}](https://example.com)`],
-    [t('Bild'), `![${t('Bildbeschreibung')}](https://example.com/image.png)`],
-  ];
+  const examples = markdownSyntaxExamples();
   return <div className="space-y-3 text-xs text-slate-600" style={{ fontVariantLigatures: 'none', fontFeatureSettings: '"liga" 0, "clig" 0, "calt" 0' }}>
     <p>{t('Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.')}</p>
     {examples.map(([label, example], index) => <section key={index}>

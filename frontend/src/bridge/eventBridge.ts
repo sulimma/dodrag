@@ -87,6 +87,7 @@ declare global {
           OpenPathInExplorer?: (path: string) => Promise<void>;
           OpenPathInVSCode?: (path: string) => Promise<void>;
           OpenExternalURL?: (url: string) => Promise<void>;
+          ReadMarkdownFile?: (path: string) => Promise<string>;
           GetPathKind?: (path: string) => Promise<'file' | 'directory'>;
           ClearPreviewCache?: () => Promise<void>;
           OpenPreviewCacheInExplorer?: () => Promise<void>;
@@ -126,6 +127,7 @@ export function normalizeEvents(rawList: unknown): StoredEvent[] {
 }
 
 export const eventBridge = {
+  async readMarkdownFile(path: string): Promise<string> { return nativeMethod('ReadMarkdownFile')(path); },
   async setEditorReady(ready: boolean): Promise<void> { await nativeMethod('SetEditorReady')(ready); },
   async finishClose(saved: boolean): Promise<void> { await nativeMethod('FinishClose')(saved); },
   onBeforeClose(callback: () => void): () => void {

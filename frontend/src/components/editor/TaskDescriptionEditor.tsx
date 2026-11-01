@@ -1,6 +1,7 @@
 import React, { forwardRef, useEffect, useLayoutEffect, useImperativeHandle, useRef } from 'react';
 import { EditorContent, ReactNodeViewRenderer, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Code from '@tiptap/extension-code';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { MarkdownLink } from './MarkdownLink';
@@ -20,9 +21,10 @@ import { DescriptionToolbar } from './DescriptionToolbar';
 import { PathAndUrlExtension } from './PathAndUrlExtension';
 import { LocalImage } from './LocalImage';
 import { EMOTICON_SHAPE_VARIANTS, MarkdownFeatures, markdownFeaturesCSS } from './MarkdownFeatures';
+import { hasMarkdownFormatting, isMarkdownPath, readMarkdownSources } from './markdownImport';
 import { MarkdownTargets } from './MarkdownTargets';
 import { SymbolReplacements } from './SymbolReplacements';
-import { nativeDropText, urlDropText, SOURCE_MIME, targetFromElement } from './targets';
+import { classifyTarget, nativeDropText, urlDropText, SOURCE_MIME, targetFromElement } from './targets';
 import { openTarget, targetMenuItems } from './contextMenu';
 import type { EditorContextMenuCallback, EditorTarget, TaskDescriptionEditorHandle } from './types';
 export type { TaskDescriptionEditorHandle } from './types';
@@ -73,10 +75,18 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
   const taskSession = useRef(0);
   const documentRevision = useRef(0);
   const liveEditor = useRef<Editor | null>(null);
+  const routingPaste = useRef(false);
   const editor: Editor | null = useEditor({
     shouldRerenderOnTransaction: false,
+    // The Markdown parser owns paste formatting. Regex paste rules would
+    // reformat literal Shift+paste and text inside the chosen HTML afterwards.
+    enablePasteRules: false,
     editable: props.active !== false,
-    extensions: [StarterKit.configure({ codeBlock: false, link: false, trailingNode: false }), MarkdownTargets,
+    extensions: [StarterKit.configure({ code: false, codeBlock: false, link: false, trailingNode: false }), MarkdownTargets,
+      // CommonMark permits formatted code spans, e.g. **`§ 3` (Definition):**.
+      // The Markdown parser emits both marks; Code's default excludes all other
+      // marks and makes these valid documents fail schema validation on import.
+      Code.extend({ excludes: '' }),
       CodeBlock.extend({ addNodeView() { return ReactNodeViewRenderer(MermaidBlockView); } }),
       TaskList, MarkdownTaskItem.configure({ nested: true, HTMLAttributes: { 'data-type': 'taskItem' }, a11y: { checkboxLabel: () => t('Checkliste ein-/ausschalten') } }),
       MarkdownLink.configure({ openOnClick: false, autolink: false, linkOnPaste: false, protocols: ['http', 'https', 'mailto', 'sip', 'tel'] }),
@@ -133,7 +143,32 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
           if (handled) input.preventDefault();
           return !!handled;
         },
-        paste: view => { view.dispatch(closeHistory(view.state.tr)); return false; },
+        paste: (view, event) => {
+          if (routingPaste.current) return false;
+          view.dispatch(closeHistory(view.state.tr));
+          const data = event.clipboardData;
+          const current = liveEditor.current;
+          if (!data || !current) return false;
+          const text = data.getData('text/plain');
+          // Decide from the parsed plain-text document, not HTML wrappers or
+          // VS Code's language metadata. The normal pipeline still owns code
+          // destinations, Shift+paste, slice fitting, symbol rules and undo.
+          const markdown = !!text && !view.state.selection.$from.parent.type.spec.code &&
+            hasMarkdownFormatting(current.markdown!.parse(text));
+          if (!markdown && !data.getData('vscode-editor-data')) return false;
+          const hidden = new Set(['vscode-editor-data', ...(markdown ? ['text/html'] : [])]);
+          const routed = new Event('paste', { cancelable: true });
+          Object.defineProperty(routed, 'clipboardData', { value: {
+            files: data.files, types: Array.from(data.types).filter(type => !hidden.has(type)),
+            getData: (type: string) => hidden.has(type) ? '' : data.getData(type),
+          } });
+          // Tiptap otherwise turns every VS Code language (even Markdown)
+          // into a code block after parsing. Filter that hint for all formats.
+          event.preventDefault();
+          routingPaste.current = true;
+          try { view.dispatchEvent(routed); } finally { routingPaste.current = false; }
+          return true;
+        },
         drop: (view, event) => {
           if (event.dataTransfer?.types.includes(SOURCE_MIME)) { event.preventDefault(); return true; }
           const text = event.dataTransfer && urlDropText(event.dataTransfer);
@@ -192,9 +227,21 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
     focus: () => { editor?.view.focus(); },
     insertFiles(paths, x, y) {
       if (!editor || callbacks.current.active === false || !paths.length) return;
+      const text = nativeDropText(paths); // Validate mixed drops before any asynchronous read.
+      if (paths.some(value => classifyTarget(value)?.kind === 'path' && isMarkdownPath(value))) {
+        const session = taskSession.current;
+        return readMarkdownSources(paths.map(value => classifyTarget(value)!)).then(additions => {
+          if (editor.isDestroyed || session !== taskSession.current || callbacks.current.active === false) return;
+          // Append to the live document after reading; typing during I/O survives.
+          const nodes = additions.flatMap(item => editor.markdown!.parse(item.kind === 'markdown' ? item.value : nativeDropText([item.value])).content ?? []);
+          if (!nodes.length) return;
+          editor.view.dispatch(closeHistory(editor.state.tr));
+          editor.chain().insertContentAt(editor.state.doc.content.size, nodes).setMeta('description:boundary', true).run();
+          editor.view.focus();
+        }).catch(error => callbacks.current.onError(error));
+      }
       const pos = x === undefined || y === undefined ? undefined : editor.view.posAtCoords({ left: x, top: y })?.pos;
       const start = pos ?? editor.state.selection.from;
-      const text = nativeDropText(paths);
       const transaction = closeHistory(editor.state.tr).insertText(text, start, start);
       transaction.setSelection(TextSelection.create(transaction.doc, start + text.length));
       transaction.setMeta('description:boundary', true);
