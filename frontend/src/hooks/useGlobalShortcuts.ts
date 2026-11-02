@@ -38,6 +38,8 @@ interface ShortcutContext {
   startInlineEdit: InlineEditor['onStart'];
   onMinimize: () => void;
   onRestore: () => void;
+  onSearch?: () => void;
+  onResetSearch?: () => boolean;
   onSettings?: () => void;
   onNavigateTask?: (direction: number) => void;
   onViewChange?: (view: ViewMode) => void;
@@ -61,6 +63,8 @@ export function useGlobalShortcuts({
   onMinimize,
   onRestore,
   onSettings,
+  onSearch,
+  onResetSearch,
   onViewChange,
   onNavigateTask,
   onToggleDetails,
@@ -127,6 +131,10 @@ export function useGlobalShortcuts({
            ));
 
       const plainControl = e.ctrlKey && !e.altKey && !e.metaKey;
+      if (plainControl && !e.shiftKey && e.key.toLowerCase() === 'f' && !isMiniMode && onSearch) {
+        e.preventDefault(); if (!e.repeat) onSearch(); return;
+      }
+      if (e.key === 'Escape' && !isMiniMode && onResetSearch?.()) { e.preventDefault(); return; }
       if (e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
         e.preventDefault(); if (!e.repeat) setShowShortcutsModal(true); return;
       }

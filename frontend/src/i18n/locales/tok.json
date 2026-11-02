@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "pali pini li lon ala",
   "Umbenannt aus \"{title}\"": "nimi pini li \"{title}\"",
   "Markdown-Hinweise für KI kopieren": "o pana e sona nasin Markdown tawa ilo sona",
-  "Markdown-Hinweise kopiert": "sona nasin Markdown li lon poki pi pana sin"
+  "Markdown-Hinweise kopiert": "sona nasin Markdown li lon poki pi pana sin",
+  "Tasks filtern": "o pana e pali pi nimi alasa taso",
+  "Task hinzufügen": "o pana e pali",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: o alasa nimi / o ante e nasin alasa",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter lon alasa: o open e pali nanpa wan · Escape: o weka e alasa"
 }

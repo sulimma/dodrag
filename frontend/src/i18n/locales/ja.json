@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "イベントはまだありません",
   "Umbenannt aus \"{title}\"": "変更前の名前：「{title}」",
   "Markdown-Hinweise für KI kopieren": "AI 向け Markdown ガイドをコピー",
-  "Markdown-Hinweise kopiert": "Markdown ガイドをコピーしました"
+  "Markdown-Hinweise kopiert": "Markdown ガイドをコピーしました",
+  "Tasks filtern": "タスクを絞り込む",
+  "Task hinzufügen": "タスクを追加",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F：検索にフォーカス / フィルター切替",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "絞り込み中の Enter：最初のタスクを開く · Escape：検索をリセット"
 }

@@ -764,5 +764,83 @@
       "tenpo pini"
     ]
   }
+},
+{
+  "id": "term.taskFilter",
+  "context": "Omni-Bar: Der Filter blendet Tasks ohne Treffer aus; Suche markiert sichtbare Treffer auch bei ausgeschaltetem Filter. Nur die neuen Omni-Bar-Bedienhinweise.",
+  "sourceTerms": [
+    "Filter",
+    "filtern"
+  ],
+  "keys": [
+    "Tasks filtern",
+    "Ctrl+F: Suche fokussieren / Filter umschalten",
+    "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen"
+  ],
+  "translations": {
+    "de": [
+      "filtern",
+      "Filter"
+    ],
+    "en": [
+      "Filter",
+      "filter"
+    ],
+    "fr": [
+      "Filtrer",
+      "filtre"
+    ],
+    "es": [
+      "Filtrar",
+      "filtro"
+    ],
+    "zh-CN": [
+      "筛选"
+    ],
+    "uk": [
+      "Фільтрувати",
+      "фільтра",
+      "фільтром"
+    ],
+    "pt-BR": [
+      "Filtrar",
+      "filtro"
+    ],
+    "ja": [
+      "絞り込む",
+      "フィルター",
+      "絞り込み"
+    ],
+    "zh-TW": [
+      "篩選"
+    ],
+    "ko": [
+      "필터링",
+      "필터"
+    ],
+    "it": [
+      "Filtrare",
+      "filtro"
+    ],
+    "pl": [
+      "Filtrowanie",
+      "filtra",
+      "filtrem"
+    ],
+    "tr": [
+      "filtrele",
+      "filtreyi",
+      "Filtrede"
+    ],
+    "eo": [
+      "Filtri",
+      "filtrilon",
+      "filtrilo"
+    ],
+    "tok": [
+      "alasa",
+      "nasin alasa"
+    ]
+  }
 }
 ]

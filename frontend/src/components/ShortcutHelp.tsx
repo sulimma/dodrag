@@ -181,6 +181,8 @@ export function ShortcutHelp({
                   {t('Enter (Eingabe): Task anlegen')}
                 </kbd>
               </div>
+              <p className="py-1 text-xs text-slate-600">{t('Ctrl+F: Suche fokussieren / Filter umschalten')}</p>
+              <p className="py-1 text-xs text-slate-600">{t('Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen')}</p>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
                 <span>{t('Ausgewählten Task erledigen')}</span>
                 <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700">

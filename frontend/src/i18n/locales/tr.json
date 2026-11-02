@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "Henüz olay yok",
   "Umbenannt aus \"{title}\"": "Önceki ad: \"{title}\"",
   "Markdown-Hinweise für KI kopieren": "Yapay zekâ için Markdown talimatlarını kopyala",
-  "Markdown-Hinweise kopiert": "Markdown talimatları kopyalandı"
+  "Markdown-Hinweise kopiert": "Markdown talimatları kopyalandı",
+  "Tasks filtern": "Görevleri filtrele",
+  "Task hinzufügen": "Görev ekle",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: aramaya odaklan / filtreyi değiştir",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Filtrede Enter: ilk görevi aç · Escape: aramayı sıfırla"
 }

@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "No events yet",
   "Umbenannt aus \"{title}\"": "Renamed from \"{title}\"",
   "Markdown-Hinweise für KI kopieren": "Copy Markdown instructions for AI",
-  "Markdown-Hinweise kopiert": "Markdown instructions copied"
+  "Markdown-Hinweise kopiert": "Markdown instructions copied",
+  "Tasks filtern": "Filter tasks",
+  "Task hinzufügen": "Add task",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: focus search / toggle filter",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter with filter: open first task · Escape: reset search"
 }

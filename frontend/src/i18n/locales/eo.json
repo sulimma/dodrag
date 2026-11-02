@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "Ankoraŭ neniuj eventoj",
   "Umbenannt aus \"{title}\"": "Alinomita el \"{title}\"",
   "Markdown-Hinweise für KI kopieren": "Kopii Markdown-instrukciojn por AI",
-  "Markdown-Hinweise kopiert": "Markdown-instrukcioj kopiitaj"
+  "Markdown-Hinweise kopiert": "Markdown-instrukcioj kopiitaj",
+  "Tasks filtern": "Filtri taskojn",
+  "Task hinzufügen": "Aldoni taskon",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: fokusigi serĉon / ŝalti filtrilon",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter kun filtrilo: malfermi unuan taskon · Escape: nuligi serĉon"
 }

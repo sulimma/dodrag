@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "Nessun evento per ora",
   "Umbenannt aus \"{title}\"": "Rinominato da «{title}»",
   "Markdown-Hinweise für KI kopieren": "Copiare le istruzioni Markdown per IA",
-  "Markdown-Hinweise kopiert": "Istruzioni Markdown copiate"
+  "Markdown-Hinweise kopiert": "Istruzioni Markdown copiate",
+  "Tasks filtern": "Filtrare le attività",
+  "Task hinzufügen": "Aggiungere attività",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: cercare / attivare il filtro",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Invio con filtro: aprire la prima attività · Escape: reimpostare la ricerca"
 }

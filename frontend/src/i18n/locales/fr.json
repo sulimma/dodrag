@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "Aucun événement pour le moment",
   "Umbenannt aus \"{title}\"": "Ancien titre : « {title} »",
   "Markdown-Hinweise für KI kopieren": "Copier les consignes Markdown pour l’IA",
-  "Markdown-Hinweise kopiert": "Consignes Markdown copiées"
+  "Markdown-Hinweise kopiert": "Consignes Markdown copiées",
+  "Tasks filtern": "Filtrer les tâches",
+  "Task hinzufügen": "Ajouter une tâche",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F : rechercher / activer le filtre",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Entrée avec filtre : ouvrir la première tâche · Échap : réinitialiser la recherche"
 }

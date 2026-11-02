@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "暂无事件",
   "Umbenannt aus \"{title}\"": "原名称：“{title}”",
   "Markdown-Hinweise für KI kopieren": "复制 AI Markdown 指南",
-  "Markdown-Hinweise kopiert": "已复制 Markdown 指南"
+  "Markdown-Hinweise kopiert": "已复制 Markdown 指南",
+  "Tasks filtern": "筛选任务",
+  "Task hinzufügen": "添加任务",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F：聚焦搜索 / 切换筛选",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "筛选时按 Enter：打开首个任务 · Escape：重置搜索"
 }

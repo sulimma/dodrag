@@ -48,7 +48,7 @@ it('finds only newly added sources, preserves historical values and recognizes r
   expect(actions.filter(a => a.kind === 'source').map(a => a.target.value)).toEqual([
     'C:\\My Project',
   ]);
-  expect(actions.find(a => a.kind === 'log')).toMatchObject({ text: 'See https://other.example.com' });
+  expect(actions.find(a => a.kind === 'log')).toBeUndefined();
 });
 
 it('recomputes source differences after undo rather than comparing against undone snapshots', () => {
@@ -104,4 +104,21 @@ it('omits days containing only dates, dependencies or source additions removed t
   ]);
   events.slice(2).forEach(event => { event.timestamp = later; });
   expect(project(events).map(d => d.dateKey)).toEqual(['2026-10-17']);
+});
+
+it('projects edited notes at their original position and removes deleted notes, including undo/redo', () => {
+  const events = history([create(),
+    { type: 'TASK_LOG_ADDED', payload: { taskId: 'a', entryId: 'note', text: 'obsolete', createdAt: day } },
+    { type: 'TASK_LOG_UPDATED', payload: { taskId: 'a', entryId: 'note', text: 'current' } },
+    { type: 'TASK_LOG_REMOVED', payload: { taskId: 'a', entryId: 'note' } },
+  ]);
+  events[2].timestamp = later; events[3].timestamp = later;
+  const notes = () => project(events).flatMap(d => d.entries.flatMap(e => e.actions)).filter(a => a.kind === 'log');
+  expect(notes()).toEqual([]);
+  events[3].undone = true;
+  expect(notes()).toEqual([{ key: 'e1', timestamp: day, kind: 'log', text: 'current' }]);
+  events[2].undone = true;
+  expect(notes()[0]).toMatchObject({ text: 'obsolete' });
+  events[2].undone = false; events[3].undone = false;
+  expect(notes()).toEqual([]);
 });

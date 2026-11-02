@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ListEntry, TaskState } from '../domain/types';
 import { dateKeyToIsoStart, toDateKey } from '../domain/projector';
-import { protocolRows, type ProtocolAction, type ProtocolDay } from '../domain/protocol';
+import { protocolRows, protocolActionText, protocolTime, type ProtocolAction, type ProtocolDay } from '../domain/protocol';
 import { ListDateRow, ListTaskRow } from './ListRows';
 import { DateScrollOverlay } from './DateScrollOverlay';
 import type { TaskViewInteractions } from './taskInteractions';
@@ -28,10 +28,6 @@ function rowAt(offsets: number[], position: number): number {
     else high = middle - 1;
   }
   return low;
-}
-function eventTime(timestamp: string): string {
-  const date = new Date(timestamp);
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 function protocolDateEntry(dateKey: string, now: Date): Extract<ListEntry, { kind: 'date' }> {
   const isoDate = dateKeyToIsoStart(dateKey), date = new Date(isoDate);
@@ -81,11 +77,11 @@ function ProtocolActionContent({ action, ...props }: Pick<ProtocolViewProps, 'on
         </> : <span className="truncate">{target.value}</span>}</button>
     </div>;
   }
-  if (action.kind === 'renamed') return <span className="block truncate" title={action.oldTitle}>{t('Umbenannt aus "{title}"', { title: action.oldTitle })}</span>;
+  if (action.kind === 'renamed') return <span className="block truncate" title={action.oldTitle}>{protocolActionText(action)}</span>;
   if (action.kind === 'log') return <div className="truncate" title={action.text}>
     🟦 {action.text}
   </div>;
-  return <span>{action.kind === 'completed' ? '🟥 ' : '🟩 '}{action.kind === 'created' ? t('Task erstellt') : action.kind === 'completed' ? t('Task geschlossen') : t('Task erneut geöffnet')}</span>;
+  return <span>{action.kind === 'completed' ? '🟥 ' : '🟩 '}{protocolActionText(action)}</span>;
 }
 
 export function ProtocolView(props: ProtocolViewProps) {
@@ -204,7 +200,7 @@ export function ProtocolView(props: ProtocolViewProps) {
           onDoubleClick={event => { if (!(event.target as Element).closest('button,[data-source-drag]')) props.onOpenTask(row.entry.taskId); }}
           onClick={event => { event.stopPropagation(); setOccurrence(row.entry.key); if (!(event.target as Element).closest('button,[data-source-drag]')) props.onSelectTask(row.entry.taskId, event, orderedIds); }}
           className="h-full ml-6 pl-4 pr-3 border-l-2 border-slate-200 flex items-center gap-3 text-xs leading-5 text-slate-600">
-          <time dateTime={row.action.timestamp} className="font-mono text-slate-400 shrink-0">{eventTime(row.action.timestamp)}</time>
+          <time dateTime={row.action.timestamp} className="font-mono text-slate-400 shrink-0">{protocolTime(row.action.timestamp)}</time>
           <div className="min-w-0 flex-1"><ProtocolActionContent action={row.action} onError={props.onError} onNativeMenuChange={props.onNativeMenuChange} /></div>
         </div>;
       }

@@ -5,6 +5,7 @@ import {
   List,
   Network,
   Plus,
+  Filter,
   Undo2,
   Redo2,
   Settings,
@@ -26,6 +27,9 @@ interface AppToolbarProps {
   setNewTaskTitle: (title: string) => void;
   newTaskInputRef: React.RefObject<HTMLInputElement>;
   onCreateTask: (event: React.FormEvent) => void;
+  filterEnabled: boolean;
+  onToggleFilter: () => void;
+  onSubmit: (event: React.FormEvent) => void;
   onUndo: () => void;
   onRedo: () => void;
   onSettings: () => void;
@@ -45,6 +49,9 @@ export function AppToolbar({
   setNewTaskTitle,
   newTaskInputRef,
   onCreateTask,
+  filterEnabled,
+  onToggleFilter,
+  onSubmit,
   onUndo,
   onRedo,
   onSettings,
@@ -104,27 +111,37 @@ export function AppToolbar({
       </div>
 
       {/* Quick Task Creation Bar */}
-      <form onSubmit={onCreateTask} className="flex-1 max-w-md mx-6">
+      <form onSubmit={onSubmit} className="flex-1 max-w-md mx-6">
         <div className="relative flex items-center">
           <span className="absolute left-3 text-xs font-mono font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
             {nextTaskId}
           </span>
           <input
+            data-search-ignore
             ref={newTaskInputRef}
             type="text"
             disabled={!snapshotReady}
             value={newTaskTitle}
             onChange={(e) => setNewTaskTitle(e.target.value)}
             placeholder={t('Neues kleines TODO eingeben... (Taste N)')}
-            className="w-full pl-20 pr-9 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+            className="w-full pl-20 pr-[4.5rem] py-1.5 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
           />
           <button
-            type="submit"
+            type="button"
+            onClick={onCreateTask}
             disabled={!snapshotReady}
-            title={t('Task hinzufügen (Enter)')}
-            className="absolute right-2 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+            title={filterEnabled ? t('Task hinzufügen') : t('Task hinzufügen (Enter)')}
+            className="absolute right-10 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
           >
             <Plus className="w-4 h-4" />
+          </button>
+          <button type="button" disabled={!snapshotReady} aria-pressed={filterEnabled}
+            aria-label={t('Tasks filtern')} title={shortcutLabel(t('Tasks filtern'), 'Ctrl+F')} aria-keyshortcuts="Control+F"
+            onMouseDown={event => event.preventDefault()}
+            onClick={onToggleFilter}
+            className={`absolute right-2 p-1.5 rounded-lg transition-colors ${filterEnabled
+              ? 'text-sky-700 bg-sky-100' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/60'}`}>
+            <Filter className="w-4 h-4" />
           </button>
         </div>
       </form>

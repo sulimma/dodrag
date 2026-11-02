@@ -18,6 +18,7 @@ const RESUBMIT_ICONS: Record<QuickResubmitTargetId, React.ReactNode> = {
 interface TaskSidebarProps {
   tasks: Record<string, TaskState>;
   completedTasks: TaskState[];
+  completedTotal?: number;
   now: Date;
   interactions: Pick<
     TaskViewInteractions,
@@ -37,6 +38,7 @@ interface TaskSidebarProps {
 export function TaskSidebar({
   tasks,
   completedTasks,
+  completedTotal,
   now,
   interactions,
   onResubmitTasks,
@@ -181,7 +183,7 @@ export function TaskSidebar({
         <div className="px-3 py-2.5 border-b border-slate-200/80 bg-white/70 flex items-center justify-between shrink-0">
           <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            {t('Erledigte Tasks ({count})', { count: formatNumber(completedTasks.length) })}
+            {t('Erledigte Tasks ({count})', { count: completedTotal === undefined ? formatNumber(completedTasks.length) : `${formatNumber(completedTasks.length)} / ${formatNumber(completedTotal)}` })}
           </span>
         </div>
 

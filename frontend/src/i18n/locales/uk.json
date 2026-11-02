@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "Подій ще немає",
   "Umbenannt aus \"{title}\"": "Попередня назва: «{title}»",
   "Markdown-Hinweise für KI kopieren": "Копіювати інструкції Markdown для ШІ",
-  "Markdown-Hinweise kopiert": "Інструкції Markdown скопійовано"
+  "Markdown-Hinweise kopiert": "Інструкції Markdown скопійовано",
+  "Tasks filtern": "Фільтрувати завдання",
+  "Task hinzufügen": "Додати завдання",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: фокус пошуку / перемикання фільтра",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter із фільтром: відкрити перше завдання · Escape: скинути пошук"
 }

@@ -35,3 +35,17 @@ Die DOM-Tests decken Zwischenablageformate, Markdown-Struktur, Importende, lokal
 2. Vorhandene Beschreibung bearbeiten, Cursor an den Anfang setzen, eine `.md`-Datei aus Explorer auf den Editor ziehen. Der Dateiinhalt steht formatiert am Ende; Ctrl+Z entfernt nur diesen Import.
 3. Dieselbe Datei auf einen Task bzw. eine Auswahl ziehen. Der Inhalt wird an die jeweiligen aktuellen Beschreibungen angefügt. Auch einen gemischten Drop mit PDF prüfen: Markdown wird Inhalt, PDF bleibt Dateiverweis. Zu einem anderen Task wechseln und zurück: Inhalt bleibt gespeichert.
 4. Neben (?) das Kopiericon betätigen und in einen Texteditor einfügen: KI-Hinweise enthalten Markdown-Beispiele und die Empfehlung ✅ ❌ ℹ️ ❓ ⛔; keine Ersetzungstabellen oder Mermaid-Typenliste.
+
+## Omni-Bar: gezielte Prüfung und native Abnahme
+
+`frontend/src/domain/search.test.ts`, `App.search.test.tsx` und `hooks/useSearchHighlight.test.tsx` prüfen aktuelle Projektionen, entfernte/überschriebene Inhalte, Sonderzeichen, mehrzeilige Phrasen, Filterzustände, Tastatur, stabile Details und leere Gruppen. `domain/protocol.test.ts` sichert aktuelle Notiztexte sowie Löschen/Undo/Redo ab. Historische Quellen und Umbenennungshinweise bleiben als bewusste Protokolldarstellung erhalten; entfernte Quellen aus früheren Beschreibungssnapshots erzeugen keinen Filtertreffer.
+
+Der optionale, auf diese Interaktion begrenzte Chromiumtest `node tests/omni-search.browser.mjs` läuft nach `./frontend.ps1 -Action Sync` im Frontendcache. Er prüft CSS-Highlight-Ranges in formatiertem Text/SVG, mehrzeilige Textarea-Spiegel, Bearbeiten/Scrollen, unveränderte Toolbar-Geometrie und Zurücksetzen. Das ersetzt keine WebView2-/DPI-Abnahme. Der Test startet die native App nicht.
+
+Manueller Regressionsablauf in der bereitgestellten Test-EXE:
+
+1. Zwei offene Tasks und einen erledigten Task vorbereiten. In Titel, ID, Markdown mit Checkliste und Log nach einer Phrase mit Sonderzeichen sowie mit einem Zeilenumbruch suchen. Ohne Filter bleiben alle Tasks sichtbar; Treffer erscheinen auch im geöffneten Detailpanel und in erledigten Tasks. Links, Textauswahl, Editor-Caret und lokale Rückgängig-Aktion bleiben benutzbar.
+2. Filter per Trichter und Ctrl+F umschalten. Ctrl+F von außerhalb markiert den vorhandenen Suchtext; innerhalb bleibt die Caretposition erhalten. Liste, Netzplan, Gantt und Protokoll wechseln: tiefe Treffer bleiben, leere Tage und Kanten zu ausgeblendeten Tasks verschwinden. Der geöffnete Detailtask bleibt erhalten. Erledigte Tasks zeigen Treffer/Gesamt, auch bei leerem Suchtext.
+3. Enter öffnet den obersten Treffer; ohne Treffer bleibt die Auswahl erhalten. Ein Klick auf Plus legt auch im Filtermodus an. Ohne Filter legt Enter an und leert die Suche. Escape leert die Suche, deaktiviert den Filter und verlässt das Eingabefeld.
+4. Eine Notiz ändern und löschen, jeweils Undo/Redo ausführen. Nur der projizierte Notiztext darf gefunden werden. Eine Beschreibung und darin enthaltene Quelle ersetzen/entfernen: der alte Text darf keinen Task im Filter halten. Weiterhin sichtbare Umbenennungshinweise sind als Protokolltext durchsuchbar.
+5. Bei aktivem Suchtext Detail- und Loggrößen ändern, lange Notizen bearbeiten und scrollen, zwischen Ansichten wechseln und Windows-Skalierung prüfen. Hervorhebungen müssen auf den sichtbaren Zeichen liegen und mit Escape vollständig verschwinden. Diese Darstellung in der nativen WebView2-Instanz ist durch DOM-/Chromiumtests nicht belegt.

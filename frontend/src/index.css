@@ -40,3 +40,9 @@ html[style*="-resize"] *::after {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.7);
 }
+
+/* Native range paint preserves caret, Markdown node views and task geometry. */
+::highlight(omni-search) {
+  background-color: #fde047;
+  color: #0f172a;
+}

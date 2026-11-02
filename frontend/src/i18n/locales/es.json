@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "Aún no hay eventos",
   "Umbenannt aus \"{title}\"": "Renombrado de «{title}»",
   "Markdown-Hinweise für KI kopieren": "Copiar instrucciones Markdown para IA",
-  "Markdown-Hinweise kopiert": "Instrucciones Markdown copiadas"
+  "Markdown-Hinweise kopiert": "Instrucciones Markdown copiadas",
+  "Tasks filtern": "Filtrar tareas",
+  "Task hinzufügen": "Añadir tarea",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: buscar / alternar filtro",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Intro con filtro: abrir primera tarea · Escape: restablecer búsqueda"
 }

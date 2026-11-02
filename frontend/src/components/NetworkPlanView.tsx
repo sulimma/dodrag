@@ -28,6 +28,7 @@ interface NetworkPlanViewProps extends TaskViewInteractions {
   dateEditor: InlineEditor;
   openTasks: TaskState[];
   now: Date;
+  hideEmptyDates?: boolean;
 }
 
 interface PositionedNode {
@@ -159,7 +160,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
     const todayKey = toDateKey(now);
 
     // 1. Collect all relevant date layers (Today + each open task's effectiveDateKey)
-    const dateKeysSet = new Set<string>([todayKey]);
+    const dateKeysSet = new Set<string>(props.hideEmptyDates ? [] : [todayKey]);
     for (const t of openTasks) {
       const dk = t.isActive || t.effectiveDateKey < todayKey ? todayKey : t.effectiveDateKey;
       dateKeysSet.add(dk);
@@ -449,7 +450,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
       canvasWidth,
       canvasHeight,
     };
-  }, [openTasks, now, containerWidth, deletionPreview.join('|'), language]);
+  }, [openTasks, now, props.hideEmptyDates, containerWidth, deletionPreview.join('|'), language]);
 
   const dateMarkers = useMemo(() => layout.dateBands.map(band => ({ dateKey: band.dateKey, offset: band.bandTopY })), [layout.dateBands]);
   const renderDateBand = (band: DateBandLayout, overlay = false) => {

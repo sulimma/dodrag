@@ -1,6 +1,7 @@
 import type { StoredEvent, TaskState } from './types';
 import { toDateKey } from './projector';
 import { tokenizeTargets } from '../components/editor/targets';
+import { t } from '../i18n';
 import type { EditorTarget } from '../components/editor/types';
 
 export type ProtocolAction = { timestamp: string } & (
@@ -36,6 +37,7 @@ export function projectProtocol(events: readonly StoredEvent[], tasks: Record<st
   const titles = new Map<string, string>();
   const descriptions = new Map<string, string>();
   const logs = new Map<string, string>();
+  const noteActions = new Map<string, Extract<ProtocolAction, { kind: 'log' }>>();
   // Track each saved source location separately. A same-day removal cancels
   // that addition; removal on a later day preserves the historical event.
   const additions = new Map<string, Map<string, { dateKey: string; action: ProtocolAction }>>();
@@ -85,21 +87,29 @@ export function projectProtocol(events: readonly StoredEvent[], tasks: Record<st
         addSources(`description:${taskId}`, descriptions.get(taskId) ?? '', event.payload.description);
         descriptions.set(taskId, event.payload.description);
         break;
-      case 'TASK_LOG_ADDED':
-        entry.actions.push({ key: event.id, timestamp: event.timestamp, kind: 'log', text: event.payload.text });
+      case 'TASK_LOG_ADDED': {
+        const action: Extract<ProtocolAction, { kind: 'log' }> = { key: event.id, timestamp: event.timestamp, kind: 'log', text: event.payload.text };
+        entry.actions.push(action);
+        noteActions.set(`${taskId}:${event.payload.entryId}`, action);
         addSources(`log:${taskId}:${event.payload.entryId}`, '', event.payload.text);
         logs.set(`${taskId}:${event.payload.entryId}`, event.payload.text);
         break;
+      }
       case 'TASK_LOG_UPDATED': {
         const key = `${taskId}:${event.payload.entryId}`;
         addSources(`log:${key}`, logs.get(key) ?? '', event.payload.text);
         logs.set(key, event.payload.text);
+        const note = noteActions.get(key);
+        if (note) note.text = event.payload.text;
         break;
       }
       case 'TASK_LOG_REMOVED': {
         const key = `${taskId}:${event.payload.entryId}`;
         addSources(`log:${key}`, logs.get(key) ?? '', '');
         logs.delete(key);
+        const note = noteActions.get(key);
+        if (note) hidden.add(note);
+        noteActions.delete(key);
         break;
       }
     }
@@ -125,4 +135,21 @@ export function protocolRows(days: readonly ProtocolDay[]): ProtocolRow[] {
       ...entry.actions.map(action => ({ key: `${entry.key}:${action.key}`, kind: 'action' as const, entry, action })),
     ]),
   ]);
+}
+
+// Notes retain their creation position but always display current text. Removal
+// hides the projected note; undo/redo reconstructs it from the active sequence.
+export function protocolActionText(action: ProtocolAction): string {
+  switch (action.kind) {
+    case 'source': return action.target.value;
+    case 'renamed': return t('Umbenannt aus "{title}"', { title: action.oldTitle });
+    case 'log': return action.text;
+    case 'created': return t('Task erstellt');
+    case 'completed': return t('Task geschlossen');
+    case 'reopened': return t('Task erneut geöffnet');
+  }
+}
+export function protocolTime(timestamp: string): string {
+  const date = new Date(timestamp);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }

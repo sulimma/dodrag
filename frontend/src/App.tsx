@@ -5,6 +5,8 @@ import { eventBridge, type WindowMode } from './bridge/eventBridge';
 import { GanttView } from './components/GanttView';
 import { ListView } from './components/ListView';
 import { ProtocolView } from './components/ProtocolView';
+import { filterListEntries, filterProtocolDays, matchingTaskIds } from './domain/search';
+import { useSearchHighlight } from './hooks/useSearchHighlight';
 import { projectProtocol } from './domain/protocol';
 import { NetworkPlanView } from './components/NetworkPlanView';
 import { MiniCornerView } from './components/MiniCornerView';
@@ -50,6 +52,7 @@ export function App() {
   const [viewMode, updateViewMode] = useState<ViewMode>('list');
   const [lastMovedKey, setLastMovedKey] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [filterEnabled, setFilterEnabled] = useState(false);
   const pendingSource = useRef<EditorTarget | null>(null);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [helpPage, setHelpPage] = useState<HelpPage>('shortcuts');
@@ -57,6 +60,7 @@ export function App() {
   const [startupComplete, setStartupComplete] = useState(false);
   useWindowPresentation(startupComplete);
   const isMiniMode = windowMode === 'mini';
+  useSearchHighlight(isMiniMode ? '' : newTaskTitle);
   const confirmedMode = useRef<WindowMode | null>(null);
   const modeQueue = useRef<Promise<unknown>>(Promise.resolve());
   const pendingModeReply = useRef<((mode: WindowMode) => void) | null>(null);
@@ -102,6 +106,7 @@ export function App() {
   const database = useDatabaseSnapshot(pushToast, dragIdentity, () => {
     editors.cancelEdit();
     setNewTaskTitle('');
+    setFilterEnabled(false);
     pendingSource.current = null;
     mainSelection.reset();
     miniSelection.reset();
@@ -122,7 +127,17 @@ export function App() {
   flushDescriptions.current = descriptions.flushAll;
   descriptionSaving.current = descriptions.hasPending;
   const state = useMemo(() => projectEvents(events, now), [events, now, language]);
-  const protocolDays = useMemo(() => viewMode === 'protocol' ? projectProtocol(events, state.tasks) : [], [viewMode, events, state.tasks]);
+  const needsProtocol = viewMode === 'protocol' || newTaskTitle.length > 0;
+  const protocolDays = useMemo(() => needsProtocol ? projectProtocol(events, state.tasks) : [], [needsProtocol, events, state.tasks]);
+  const matchingIds = useMemo(() => matchingTaskIds(state.tasks, protocolDays, newTaskTitle), [state.tasks, protocolDays, newTaskTitle, language]);
+  const filtering = filterEnabled && newTaskTitle.length > 0;
+  // Keep the complete task map for actions/details; only view collections shrink.
+  const visibleState = useMemo(() => filtering ? { ...state,
+    openTasks: state.openTasks.filter(task => matchingIds.has(task.id)),
+    completedTasks: state.completedTasks.filter(task => matchingIds.has(task.id)),
+    listEntries: filterListEntries(state.listEntries, matchingIds),
+  } : state, [state, filtering, matchingIds]);
+  const visibleProtocol = useMemo(() => filtering ? filterProtocolDays(protocolDays, matchingIds) : protocolDays, [protocolDays, filtering, matchingIds]);
   const editors = useInlineEditors(
     database,
     state.tasks,
@@ -177,7 +192,15 @@ export function App() {
   useGlobalShortcuts({
     selection,
     actions: historyActions,
-    state,
+    state: visibleState,
+    onSearch: () => {
+      if (document.activeElement === mainInputRef.current) setFilterEnabled(value => !value);
+      else { setFilterEnabled(true); mainInputRef.current?.focus(); mainInputRef.current?.select(); }
+    },
+    onResetSearch: () => {
+      if (!newTaskTitle && !filterEnabled && document.activeElement !== mainInputRef.current) return false;
+      setNewTaskTitle(''); setFilterEnabled(false); pendingSource.current = null; mainInputRef.current?.blur(); return true;
+    },
     showSettingsModal,
     showShortcutsModal,
     setShowShortcutsModal: open => { if (open === true) setHelpPage('shortcuts'); setShowShortcutsModal(open); },
@@ -298,7 +321,8 @@ export function App() {
   );
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = normalizeTitleInput(newTaskTitle).trim();
+    const submittedTitle = newTaskTitle;
+    const trimmed = normalizeTitleInput(submittedTitle).trim();
     if (!trimmed) return;
 
     if (mutationBusy.current) return;
@@ -319,7 +343,7 @@ export function App() {
     );
     if (!updated) return;
     if (pendingSource.current === source) pendingSource.current = null;
-    setNewTaskTitle((current) => (current.trim() === trimmed ? '' : current));
+    setNewTaskTitle((current) => (current === submittedTitle ? '' : current));
     setSelectedTaskId(taskId);
   };
   const handleCreateSourceTask = (source: EditorTarget) => {
@@ -502,6 +526,15 @@ export function App() {
         newTaskTitle={newTaskTitle}
         setNewTaskTitle={setNewTaskTitle}
         newTaskInputRef={mainInputRef}
+        filterEnabled={filterEnabled}
+        onToggleFilter={() => { setFilterEnabled(value => !value); mainInputRef.current?.focus(); }}
+        onSubmit={event => {
+          if (!filterEnabled) { void handleCreateTask(event); return; }
+          event.preventDefault();
+          const id = viewMode === 'protocol' ? visibleProtocol[0]?.entries[0]?.taskId
+            : mainScrollRef.current?.querySelector<HTMLElement>('[data-task-drag]')?.dataset.taskDrag;
+          if (id) { editors.cancelEdit(); clearEdgeSelection(); setSelectedTaskId(id); setIsDetailPanelOpen(true); }
+        }}
         onCreateTask={handleCreateTask}
         onUndo={historyActions.handleUndo}
         onRedo={historyActions.handleRedo}
@@ -582,16 +615,17 @@ export function App() {
               <ListView
                 scrollRef={mainScrollRef}
                 {...interactions}
-                listEntries={state.listEntries}
+                listEntries={visibleState.listEntries}
                 movedItemKey={lastMovedKey}
                 titleEditor={isMiniMode ? { ...titleEditor, taskId: null } : titleEditor}
                 dateEditor={isMiniMode ? { ...dateEditor, taskId: null } : dateEditor}
               />
             ) : viewMode === 'network' ? (
               <NetworkPlanView
+                hideEmptyDates={filtering}
                 scrollRef={mainScrollRef}
                 {...interactions}
-                openTasks={state.openTasks}
+                openTasks={visibleState.openTasks}
                 now={now}
                 titleEditor={isMiniMode ? { ...titleEditor, taskId: null } : titleEditor}
                 dateEditor={isMiniMode ? { ...dateEditor, taskId: null } : dateEditor}
@@ -599,7 +633,7 @@ export function App() {
             ) : viewMode === 'protocol' ? (
               <ProtocolView
                 key={appSettings?.activeDatabasePath ?? ''}
-                {...interactions} days={protocolDays} tasks={state.tasks} now={now}
+                {...interactions} days={visibleProtocol} tasks={state.tasks} now={now}
                 scrollRef={mainScrollRef} navigationRef={protocolNavigation}
                 initialScrollTop={viewScrollPositions.current.protocol?.top}
                 onSelectTaskByKeyboard={setSelectedTaskId}
@@ -612,8 +646,8 @@ export function App() {
             ) : (
               <GanttView
                 {...interactions}
-                openTasks={state.openTasks}
-                listEntries={state.listEntries}
+                openTasks={visibleState.openTasks}
+                listEntries={visibleState.listEntries}
                 now={now}
                 titleEditor={isMiniMode ? { ...titleEditor, taskId: null } : titleEditor}
               />
@@ -629,7 +663,8 @@ export function App() {
         </div>
         <TaskSidebar
           tasks={state.tasks}
-          completedTasks={state.completedTasks}
+          completedTasks={visibleState.completedTasks}
+          completedTotal={filterEnabled ? state.completedTasks.length : undefined}
           now={now}
           interactions={interactions}
           onResubmitTasks={actions.handleResubmitTasks}

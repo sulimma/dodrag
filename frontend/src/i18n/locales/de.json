@@ -355,5 +355,9 @@
   "Noch keine Ereignisse": "Noch keine Ereignisse",
   "Umbenannt aus \"{title}\"": "Umbenannt aus \"{title}\"",
   "Markdown-Hinweise für KI kopieren": "Markdown-Hinweise für KI kopieren",
-  "Markdown-Hinweise kopiert": "Markdown-Hinweise kopiert"
+  "Markdown-Hinweise kopiert": "Markdown-Hinweise kopiert",
+  "Tasks filtern": "Tasks filtern",
+  "Task hinzufügen": "Task hinzufügen",
+  "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: Suche fokussieren / Filter umschalten",
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen"
 }
