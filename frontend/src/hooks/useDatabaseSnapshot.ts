@@ -1,3 +1,4 @@
+import { reportError } from '../diagnostics';
 import { useRef, useState } from 'react';
 import { eventBridge } from '../bridge/eventBridge';
 import type { AppSettings } from '../bridge/eventBridge';
@@ -50,6 +51,7 @@ export function useDatabaseSnapshot(
       setEvents(updated);
       return updated;
     } catch (error) {
+      reportError('task mutation', error);
       pushToast(errorText(t('Änderung konnte nicht gespeichert werden'), error), 'warning');
       return null;
     } finally {

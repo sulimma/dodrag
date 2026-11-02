@@ -60,6 +60,7 @@ declare global {
     go?: {
       main?: {
         App?: {
+          ReportFrontendError?: (detail: string) => Promise<void>;
           SetEditorReady: (ready: boolean) => Promise<void>;
           FinishClose: (saved: boolean) => Promise<void>;
           GetEvents: () => Promise<unknown>;
