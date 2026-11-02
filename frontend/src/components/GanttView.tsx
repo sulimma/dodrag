@@ -1,5 +1,7 @@
+import { TaskProgressLine } from './TaskProgressLine';
 import React, { useMemo } from 'react';
-import { futureLimit } from '../domain/dates';
+import { addDuration, durationDays } from '../domain/duration';
+import { calendarDistance, futureLimit } from '../domain/dates';
 import { Flame, GripVertical } from 'lucide-react';
 import {
   computeTransitiveReductionEdges,
@@ -41,6 +43,7 @@ interface GanttBarItem {
   task: TaskState;
   rowIndex: number;
   colIndex: number;
+  anchorX: number;
   x: number;
   y: number;
   width: number;
@@ -50,7 +53,7 @@ interface GanttBarItem {
 }
 
 const LEFT_LIST_WIDTH = 248;
-const NODE_WIDTH = 50; // Compact width for just the ID (e.g. "26-109")
+const NODE_WIDTH = 50; // ID width determines the calendar scale, not task duration.
 const CHANNEL_WIDTH = 42; // Horizontal space between columns for parallel vertical arrow lanes
 const DAY_COL_WIDTH = NODE_WIDTH + CHANNEL_WIDTH; // 92px per calendar day
 const NODE_OFFSET_X = 6; // Left offset of node inside its day column
@@ -98,6 +101,14 @@ export function buildChannelGanttPath(
   ].join(' ');
 }
 
+// Enter from above at the remaining-work anchor. The final horizontal segment
+// runs in the gap above the target row, keeping it clear of task bars.
+export function buildProgressGanttPath(startX: number, startY: number, laneX: number, endX: number, endY: number, gapY: number, sourceGapY: number, ingressX: number, allowRightApproach = false): string {
+  const base = arrowBase({ x: endX, y: endY }, { x: 0, y: 1 });
+  if (allowRightApproach || laneX < endX) return `M ${startX} ${startY} L ${laneX} ${startY} L ${laneX} ${gapY} L ${endX} ${gapY} L ${base.x} ${base.y}`;
+  return `M ${startX} ${startY} L ${laneX} ${startY} L ${laneX} ${sourceGapY} L ${ingressX} ${sourceGapY} L ${ingressX} ${gapY} L ${endX} ${gapY} L ${base.x} ${base.y}`;
+}
+
 // Renders task dates and dependencies on a horizontal timeline.
 export function GanttView(props: GanttViewProps) {
   const language = useLanguage();
@@ -123,15 +134,27 @@ export function GanttView(props: GanttViewProps) {
   const layout = useMemo(() => {
     const todayKey = toDateKey(now);
 
-    // A bounded 42-day window starting today; legacy dates never expand the axis.
+    // Keep the 42 future days; show up to 42 additional past days when recorded
+    // progress extends a visible task to the left of Today. Huge legacy spans
+    // are clipped instead of growing the calendar without a bound.
+    let firstKey = todayKey;
+    for (const task of openTasks) {
+      if (task.progress === null || task.progress === 0) continue;
+      const anchorKey = task.isActive || task.effectiveDateKey < todayKey ? todayKey : task.effectiveDateKey;
+      const anchor = new Date(`${anchorKey}T00:00:00`).toISOString();
+      const startKey = toDateKey(new Date(addDuration(anchor, -task.progress, task.durationUnit)));
+      if (startKey < firstKey) firstKey = startKey;
+    }
+    const pastDays = Math.min(42, Math.max(0, calendarDistance(firstKey, todayKey)));
     const calendarDays: CalendarDayCol[] = [];
     const dateKeyToCol = new Map<string, number>();
 
     const [sy, sm, sd] = todayKey.split('-').map(Number);
     const cur = new Date(sy, (sm || 1) - 1, sd || 1);
+    cur.setDate(cur.getDate() - pastDays);
 
     let colIdx = 0;
-    while (colIdx < 42 && cur <= futureLimit(now)) {
+    while (colIdx < 42 + pastDays && cur <= futureLimit(now)) {
       const dk = toDateKey(cur);
       const { isToday, isWeekend, weekdayShort } = formatDateHeading(dk, now);
       calendarDays.push({
@@ -174,16 +197,24 @@ export function GanttView(props: GanttViewProps) {
       const cIdx = dateKeyToCol.get(effKey);
       if (cIdx === undefined) return;
 
-      const x = LEFT_LIST_WIDTH + cIdx * DAY_COL_WIDTH + NODE_OFFSET_X;
+      // The calendar keeps its existing whole-day anchors. Subday durations
+      // remain readable through the one-day minimum; progress shifts in time units.
+      const anchorX = LEFT_LIST_WIDTH + cIdx * DAY_COL_WIDTH + NODE_OFFSET_X;
+      const elapsedDays = (task.progress ?? 0) * durationDays(task) / task.duration;
+      const x = anchorX - elapsedDays * DAY_COL_WIDTH;
       const y =
         HEADER_HEIGHT + rIdx * ROW_HEIGHT + (ROW_HEIGHT - NODE_HEIGHT) / 2;
-      const width = NODE_WIDTH;
+      // Reserve the same routing channel at the end of every day span.
+      const width = Math.max(1, durationDays(task)) * DAY_COL_WIDTH - CHANNEL_WIDTH;
       const height = NODE_HEIGHT;
 
       const item: GanttBarItem = {
         task,
         rowIndex: rIdx,
         colIndex: cIdx,
+        // The port follows the visible progress fraction, including the routing gap
+        // removed from the bar and the minimum width of short tasks.
+        anchorX: x + width * ((task.progress ?? 0) / task.duration),
         x,
         y,
         width,
@@ -217,7 +248,7 @@ export function GanttView(props: GanttViewProps) {
       if (!incomingByTarget[edge.to]) incomingByTarget[edge.to] = [];
       incomingByTarget[edge.to].push(edge);
 
-      const channelCol = bars[edge.from].colIndex;
+      const channelCol = Math.floor((bars[edge.from].x + bars[edge.from].width - LEFT_LIST_WIDTH) / DAY_COL_WIDTH);
       if (!edgesByChannel[channelCol]) edgesByChannel[channelCol] = [];
       edgesByChannel[channelCol].push(edge);
     }
@@ -264,8 +295,7 @@ export function GanttView(props: GanttViewProps) {
         return bars[a.from].rowIndex - bars[b.from].rowIndex;
       });
 
-      const channelStartX =
-        LEFT_LIST_WIDTH + cIdx * DAY_COL_WIDTH + NODE_OFFSET_X + NODE_WIDTH + 6;
+      const channelStartX = Math.max(...edges.map(edge => bars[edge.from].x + bars[edge.from].width)) + 6;
       const channelEndX =
         LEFT_LIST_WIDTH + (cIdx + 1) * DAY_COL_WIDTH + NODE_OFFSET_X - 8;
       const usableWidth = Math.max(12, channelEndX - channelStartX);
@@ -292,16 +322,31 @@ export function GanttView(props: GanttViewProps) {
       const startX = fromBar.x + fromBar.width;
       const startY = startYByEdgeKey[key] ?? fromBar.cy;
       const enterRight = toBar.colIndex <= fromBar.colIndex;
-      const endX = enterRight ? toBar.x + toBar.width : toBar.x;
-      const endY = endYByEdgeKey[key] ?? toBar.cy;
+      const hasProgress = toBar.task.progress !== null;
+      const sameDay = toBar.colIndex === fromBar.colIndex;
+      const enterTop = sameDay || hasProgress;
+      // Same-day links use a distinct top-center inlet, leaving the right outlet free.
+      const endX = sameDay ? toBar.cx : hasProgress ? toBar.anchorX : enterRight ? toBar.x + toBar.width : toBar.x;
+      const endY = enterTop ? toBar.y : endYByEdgeKey[key] ?? toBar.cy;
       const laneX =
         laneXByEdgeKey[key] ?? startX + Math.max(10, (endX - startX) / 2);
 
+      // Adjacent rows in the same day can connect bottom-to-top without a lane
+      // when the target inlet lies within the source bar's horizontal extent.
+      const straightDown = sameDay && toBar.rowIndex === fromBar.rowIndex + 1 &&
+        endX >= fromBar.x && endX <= fromBar.x + fromBar.width;
+      const topBase = arrowBase({ x: endX, y: toBar.y }, { x: 0, y: 1 });
       return {
         from,
         to,
         edgeKey: key,
-        pathD: buildChannelGanttPath(startX, startY, laneX, endX, endY,enterRight?-1:1),
+        pathD: straightDown
+          ? `M ${endX} ${fromBar.y + fromBar.height} L ${topBase.x} ${topBase.y}`
+          : enterTop
+          ? buildProgressGanttPath(startX, startY, Math.max(startX + 6, laneX), endX, endY, toBar.y - 12,
+              toBar.rowIndex > fromBar.rowIndex ? fromBar.y + fromBar.height + 4 : fromBar.y - 12,
+              LEFT_LIST_WIDTH + Math.floor((endX - LEFT_LIST_WIDTH) / DAY_COL_WIDTH) * DAY_COL_WIDTH - 16, sameDay)
+          : buildChannelGanttPath(startX, startY, Math.max(startX + 6, laneX), endX, endY,enterRight?-1:1),
       };
     });
 
@@ -422,8 +467,9 @@ export function GanttView(props: GanttViewProps) {
               data-task-drag-disabled={titleEditor.taskId === task.id || undefined}
               className={`absolute left-0 right-0 px-2.5 border-b border-slate-200/60 flex items-center gap-1.5 cursor-pointer transition-colors ${rowBgClasses} ${
                 isBeingDragged ? 'opacity-35' : ''
-              } ${task.isDeemphasized && !role ? 'opacity-80' : ''}`}
+              }`}
             >
+              <TaskProgressLine task={task} deemphasized={false} />
               <TaskDragHandle />
               <button
                 type="button"
@@ -663,9 +709,7 @@ export function GanttView(props: GanttViewProps) {
         } else if (appearance === 'active') {
           containerClasses =
             'bg-emerald-100 border-emerald-500 text-emerald-950 font-semibold ring-2 ring-emerald-500/25 shadow-sm';
-        } else if (appearance === 'deemphasized') {
-          containerClasses =
-            'bg-white/80 border-slate-200/80 text-slate-600 opacity-80 hover:opacity-100';
+
         }
 
         return (

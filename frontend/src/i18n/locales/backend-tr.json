@@ -72,5 +72,6 @@
   "Ordner konnte nicht geöffnet werden": "Klasör açılamadı",
   "Visual Studio Code wurde nicht gefunden": "Visual Studio Code bulunamadı",
   "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code açılamadı",
-  "Fenstermodus konnte nicht angewendet werden": "Pencere modu uygulanamadı"
+  "Fenstermodus konnte nicht angewendet werden": "Pencere modu uygulanamadı",
+  "Ungültige Standarddauer": "Geçersiz varsayılan süre"
 }

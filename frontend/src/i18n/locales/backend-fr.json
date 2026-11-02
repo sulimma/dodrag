@@ -72,5 +72,6 @@
   "Ordner konnte nicht geöffnet werden": "Impossible d'ouvrir le dossier",
   "Visual Studio Code wurde nicht gefunden": "Visual Studio Code est introuvable",
   "Visual Studio Code konnte nicht geöffnet werden": "Impossible d'ouvrir Visual Studio Code",
-  "Fenstermodus konnte nicht angewendet werden": "Impossible d’appliquer le mode de fenêtre"
+  "Fenstermodus konnte nicht angewendet werden": "Impossible d’appliquer le mode de fenêtre",
+  "Ungültige Standarddauer": "Durée par défaut non valide"
 }

@@ -359,5 +359,14 @@
   "Tasks filtern": "筛选任务",
   "Task hinzufügen": "添加任务",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F：聚焦搜索 / 切换筛选",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "筛选时按 Enter：打开首个任务 · Escape：重置搜索"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "筛选时按 Enter：打开首个任务 · Escape：重置搜索",
+  "Standarddauer": "默认时长",
+  "Fortschritt / Dauer": "进度 / 时长",
+  "Fortschritt": "进度",
+  "Dauer": "时长",
+  "Einheit": "单位",
+  "Minuten": "分钟",
+  "Stunden": "小时",
+  "Tage": "天",
+  "Ungültige Dauer oder Fortschritt": "时长或进度无效"
 }

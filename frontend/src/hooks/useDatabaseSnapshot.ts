@@ -185,6 +185,10 @@ export function useDatabaseSnapshot(
       'info'
     );
   };
+  const handleSetDefaultDuration = async (value: number, unit: string) => {
+    setAppSettings(await eventBridge.setDefaultDuration(value, unit));
+  };
+
   const handleSetUILanguage = async (language: string) => {
     const updated = await eventBridge.setUILanguage(language);
     setAppSettings(updated);
@@ -230,6 +234,7 @@ export function useDatabaseSnapshot(
     handleDeleteDatabase,
     handleToggleAutostart,
     handleSetUILanguage,
+    handleSetDefaultDuration,
     handleRunSetupAction,
     openSettings,
   };

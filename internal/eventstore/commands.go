@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -19,6 +20,9 @@ type Command struct {
 }
 type task struct {
 	title, start      string
+	duration          float64
+	durationUnit      string
+	progress          *float64
 	description       string
 	logEntries        []taskLogEntry
 	active, completed bool
@@ -56,6 +60,8 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 	switch kind {
 	case "TASK_CREATED":
 		fields = append(fields, "title", "configuredStart", "createdAt")
+	case "TASK_TIMING_SET":
+		fields = append(fields, "duration", "durationUnit", "progress")
 	case "TASK_RENAMED":
 		fields = append(fields, "title")
 	case "TASK_DESCRIPTION_SET":
@@ -81,7 +87,22 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 	if len(p) != len(fields) {
 		return nil, fmt.Errorf("unexpected payload fields for %s", kind)
 	}
+	if kind == "TASK_TIMING_SET" {
+		duration, ok := p["duration"].(float64)
+		unit, unitOK := p["durationUnit"].(string)
+		factor := map[string]float64{"minutes": 1, "hours": 60, "days": 1440}[unit]
+		progress, progressOK := p["progress"].(float64)
+		if !ok || !unitOK || factor == 0 || math.IsNaN(duration) || math.IsInf(duration, 0) || duration <= 0 || duration*factor > 52560000 || (p["progress"] != nil && (!progressOK || math.IsNaN(progress) || math.IsInf(progress, 0) || progress < 0 || progress > duration)) {
+			return nil, fmt.Errorf("invalid task duration or progress")
+		}
+	}
 	for _, field := range fields {
+		if _, exists := p[field]; !exists {
+			return nil, fmt.Errorf("missing payload field: %s", field)
+		}
+		if field == "duration" || field == "durationUnit" || field == "progress" {
+			continue
+		}
 		if field == "isActive" {
 			if _, ok := p[field].(bool); !ok {
 				return nil, fmt.Errorf("isActive must be boolean")
@@ -132,13 +153,24 @@ func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]int
 		if t != nil {
 			return false, fmt.Errorf("duplicate task: %s", id)
 		}
-		tasks[id] = &task{title: p["title"].(string), start: p["configuredStart"].(string), logEntries: []taskLogEntry{}, predecessors: make(map[string]bool)}
+		tasks[id] = &task{duration: 1, durationUnit: "days", title: p["title"].(string), start: p["configuredStart"].(string), logEntries: []taskLogEntry{}, predecessors: make(map[string]bool)}
 		return true, nil
 	}
 	if t == nil {
 		return false, fmt.Errorf("unknown task: %s", id)
 	}
 	switch kind {
+	case "TASK_TIMING_SET":
+		duration := p["duration"].(float64)
+		unit := p["durationUnit"].(string)
+		var progress *float64
+		if value, ok := p["progress"].(float64); ok {
+			progress = &value
+		}
+		if t.duration == duration && t.durationUnit == unit && ((t.progress == nil && progress == nil) || (t.progress != nil && progress != nil && *t.progress == *progress)) {
+			return false, nil
+		}
+		t.duration, t.durationUnit, t.progress = duration, unit, progress
 	case "TASK_RENAMED":
 		value := p["title"].(string)
 		if t.title == value {

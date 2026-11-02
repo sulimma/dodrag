@@ -359,5 +359,14 @@
   "Tasks filtern": "Filtrar tarefas",
   "Task hinzufügen": "Adicionar tarefa",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: buscar / alternar filtro",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter com filtro: abrir primeira tarefa · Escape: redefinir busca"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter com filtro: abrir primeira tarefa · Escape: redefinir busca",
+  "Standarddauer": "Duração padrão",
+  "Fortschritt / Dauer": "Progresso / Duração",
+  "Fortschritt": "Progresso",
+  "Dauer": "Duração",
+  "Einheit": "Unidade",
+  "Minuten": "Minutos",
+  "Stunden": "Horas",
+  "Tage": "Dias",
+  "Ungültige Dauer oder Fortschritt": "Duração ou progresso inválido"
 }

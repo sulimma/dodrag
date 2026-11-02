@@ -27,7 +27,7 @@ export function markdownSyntaxExamples(): string[][] {
 export function markdownAgentInstructions(): string {
   return [
     '# DoDrag Markdown for AI agents',
-    'Write Markdown source for a DoDrag task description or log. Do not wrap the whole document in a code fence or indent the whole document as code. Use fenced blocks only for code and Mermaid.',
+    'Write Markdown source with the content described by the user.. Do not wrap the whole document in a code fence or indent the whole document as code. Use fenced blocks only for code and Mermaid.\nPresent the text in a way that allows the user to copy it as a whole and paste it into a markdown editor. If you harness does not provide such a copy feature, present the markdown source to the user as plain text such that it can be marked and copied using strg+c. ',
     'Use Unicode directly. Symbols such as ✅ ❌ ℹ️ ❓ ⛔ are encouraged to structure the content.',
     'Supported syntax (examples):',
     ...markdownSyntaxExamples().map(([label, example]) => `${label}:\n${example}`),

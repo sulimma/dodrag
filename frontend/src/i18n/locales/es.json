@@ -359,5 +359,14 @@
   "Tasks filtern": "Filtrar tareas",
   "Task hinzufügen": "Añadir tarea",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: buscar / alternar filtro",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Intro con filtro: abrir primera tarea · Escape: restablecer búsqueda"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Intro con filtro: abrir primera tarea · Escape: restablecer búsqueda",
+  "Standarddauer": "Duración predeterminada",
+  "Fortschritt / Dauer": "Progreso / Duración",
+  "Fortschritt": "Progreso",
+  "Dauer": "Duración",
+  "Einheit": "Unidad",
+  "Minuten": "Minutos",
+  "Stunden": "Horas",
+  "Tage": "Días",
+  "Ungültige Dauer oder Fortschritt": "Duración o progreso no válido"
 }

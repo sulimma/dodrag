@@ -1,4 +1,5 @@
 import * as v from 'valibot';
+import { validTiming } from './duration';
 import type { StoredEvent } from './types';
 
 const id = v.pipe(
@@ -37,6 +38,7 @@ const description = v.pipe(v.string(), v.check(value => {
 }));
 export const CommandSchema = v.variant('type', [
   v.object({ type: v.literal('TASK_CREATED'), payload: v.strictObject({ taskId: id, title, configuredStart: timestamp, createdAt: utcTimestamp }) }),
+  v.object({ type: v.literal('TASK_TIMING_SET'), payload: v.pipe(v.strictObject({ taskId: id, duration: v.number(), durationUnit: v.picklist(['minutes', 'hours', 'days']), progress: v.nullable(v.number()) }), v.check(value => validTiming(value))) }),
   v.object({ type: v.literal('TASK_RENAMED'), payload: v.strictObject({ taskId: id, title }) }),
   v.object({ type: v.literal('TASK_DESCRIPTION_SET'), payload: v.strictObject({ taskId: id, description }) }),
   v.object({ type: v.literal('TASK_LOG_ADDED'), payload: v.strictObject({ taskId: id, entryId: id, text: title, createdAt: utcTimestamp }) }),

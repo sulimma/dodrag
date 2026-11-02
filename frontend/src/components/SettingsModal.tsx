@@ -1,3 +1,5 @@
+import { TaskTimingInput } from './TaskTimingInput';
+import type { DurationUnit } from '../domain/duration';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Check,
@@ -29,6 +31,7 @@ interface SettingsModalProps {
   onSwitchDatabase: (dbPath: string) => Promise<void>;
   onDeleteDatabase: (dbPath: string, deleteFile: boolean) => Promise<void>;
   onToggleAutostart: (enabled: boolean) => Promise<void>;
+  onSetDefaultDuration?: (value: number, unit: DurationUnit) => Promise<void>;
   onSetUILanguage?: (language: string) => Promise<void>;
   onRunSetupAction?: (action: 'install' | 'desktop-shortcut' | 'startmenu-shortcut') => Promise<void>;
   onOpenFolderInExplorer?: (path: string, isFile: boolean) => Promise<void>;
@@ -83,6 +86,7 @@ export function SettingsModal({
   onDeleteDatabase,
   onToggleAutostart,
   onSetUILanguage,
+  onSetDefaultDuration,
   onRunSetupAction,
   onOpenFolderInExplorer,
   onOpenFolderInVSCode,
@@ -350,6 +354,16 @@ export function SettingsModal({
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-6">
+          <div className="flex items-center gap-3 text-sm">
+            <span>{t('Standarddauer')}</span>
+            <TaskTimingInput defaultOnly value={{ duration: settings.defaultDuration ?? 1, durationUnit: settings.defaultDurationUnit ?? 'days', progress: null }}
+              onSave={async value => {
+                setBusy(true); setErrorMsg(null);
+                try { await onSetDefaultDuration?.(value.duration, value.durationUnit); }
+                finally { setBusy(false); }
+              }}
+              onError={error => setErrorMsg(errorText(t('Änderung konnte nicht gespeichert werden'), error))} />
+          </div>
           {!isDbReady && (
             <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-900">
               {settings.activeDatabasePath ? (

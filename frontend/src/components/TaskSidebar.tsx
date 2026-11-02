@@ -1,3 +1,4 @@
+import { TaskProgressLine } from './TaskProgressLine';
 import React, { useLayoutEffect, useRef } from 'react';
 import { Calendar, CalendarClock, CheckCircle2 } from 'lucide-react';
 import type { QuickResubmitTargetId } from '../domain/projector';
@@ -126,7 +127,7 @@ export function TaskSidebar({
                     onResubmitTasks(selectedTaskId, target.id);
                   }
                 }}
-                className={`p-2.5 rounded-xl border transition-colors cursor-pointer flex items-center justify-between ${
+                className={`relative p-2.5 rounded-xl border transition-colors cursor-pointer flex items-center justify-between ${
                   isOver
                     ? 'bg-sky-50 border-sky-400 shadow-sm'
                     : 'bg-slate-50/80 border-slate-200 hover:border-slate-300 hover:bg-slate-100/70'
@@ -140,7 +141,7 @@ export function TaskSidebar({
                     <div className="text-xs font-semibold text-slate-800">
                       {t(target.label)}
                     </div>
-                    {target.id === 'plus_1d' && <kbd className="text-[10px] text-slate-500">{'Ctrl++'}</kbd>}
+                    {target.id === 'plus_1d' && <kbd className="absolute right-2.5 top-2.5 text-[10px] text-slate-500">{'Ctrl++'}</kbd>}
                     <div className="text-[10px] text-slate-500">
                       {t(target.sublabel)}
                     </div>
@@ -217,12 +218,13 @@ export function TaskSidebar({
                       interactions.onSelectTask(task.id, event, completedTasks.map(task => task.id));
                   }}
                   onContextMenu={(event) => interactions.onContextMenuTask(event, task.id)}
-                  className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs cursor-pointer hover:border-slate-300 transition-colors ${
+                  className={`relative flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs cursor-pointer hover:border-slate-300 transition-colors ${
                     draggedTaskId === task.id ? 'opacity-40' : ''
                   } ${
                     interactions.selectedTaskId === task.id ? 'ring-1 ring-sky-400' : ''
                   }`}
                 >
+                  <TaskProgressLine task={task} />
                   <div className="truncate min-w-0">
                     <span className="font-mono text-[11px] text-slate-400 mr-1.5">
                       {task.id}

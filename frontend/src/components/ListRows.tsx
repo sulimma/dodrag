@@ -1,3 +1,4 @@
+import { TaskProgressLine } from './TaskProgressLine';
 import React from 'react';
 import { Flame, CornerDownRight } from 'lucide-react';
 import type { HighlightRole, ListEntry } from '../domain/types';
@@ -78,6 +79,7 @@ export function ListTaskRow(props: SharedListRowProps & {
         isBeingDragged ? 'opacity-35' : ''
       }`}
     >
+      <TaskProgressLine task={task} />
       {/* Left section: Drag Handle + Active Toggle + Task ID + In-place Editable Title */}
       <div className="flex items-center gap-2.5 flex-1 min-w-0">
         <div

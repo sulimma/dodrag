@@ -1,6 +1,7 @@
+import { TaskTimingInput } from './TaskTimingInput';
+import type { TaskTiming } from '../domain/duration';
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Flame, RotateCcw, PanelLeftClose, PanelLeftOpen, CircleHelp, ClipboardCopy } from 'lucide-react';
-import { markdownAgentInstructions } from './editor/markdownSyntax';
+import { ArrowRight, Check, Flame, RotateCcw, PanelLeftClose, PanelLeftOpen, CircleHelp } from 'lucide-react';
 import { eventBridge } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';
 import { t, formatDate } from '../i18n';
@@ -29,6 +30,7 @@ interface TaskDetailPanelProps extends TaskMenuActions {
   open?: boolean;
   onToggle?: () => void;
   onSyntaxHelp?: () => void;
+  onTimingChange?: (taskId: string, timing: TaskTiming) => Promise<void>;
   onDescriptionChange: (taskId: string, markdown: string) => void;
   onDescriptionCommit?: (taskId: string) => void;
   onAddLog: (taskId: string, text: string) => Promise<void>;
@@ -48,7 +50,6 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
   const log = useRef<TaskLogSectionHandle>(null);
   const logArea = useRef<HTMLDivElement>(null);
   const [historyTarget, setHistoryTarget] = useState<HTMLDivElement | null>(null);
-  const [syntaxCopied, setSyntaxCopied] = useState(false);
   const [detailWidth, setDetailWidth] = useState(560);
   const [logHeight, setLogHeight] = useState(224);
   const widthLimits = (): [number, number] => {
@@ -123,17 +124,6 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
           className="absolute top-3 right-7 z-20 flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-200 focus-visible:outline focus-visible:outline-sky-500">
           <CircleHelp className="h-5 w-5" aria-hidden="true" />
         </button>}
-        {open && <button type="button" title={t(syntaxCopied ? 'Markdown-Hinweise kopiert' : 'Markdown-Hinweise für KI kopieren')}
-          aria-label={t('Markdown-Hinweise für KI kopieren')}
-          onClick={async () => {
-            setSyntaxCopied(false);
-            try { await navigator.clipboard.writeText(markdownAgentInstructions()); setSyntaxCopied(true); }
-            catch (error) { props.onError(error); }
-          }}
-          className="absolute top-3 right-14 z-20 flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-200 focus-visible:outline focus-visible:outline-sky-500">
-          {syntaxCopied ? <Check className="h-5 w-5" aria-hidden="true" /> : <ClipboardCopy className="h-5 w-5" aria-hidden="true" />}
-          <span role="status" className="sr-only">{syntaxCopied ? t('Markdown-Hinweise kopiert') : ''}</span>
-        </button>}
         <button data-detail-toggle type="button" title={shortcutLabel(open ? t('Details schließen') : t('Details anzeigen'), 'Ctrl+Shift+D')} aria-keyshortcuts="Control+Shift+D"
           aria-label={open ? t('Details schließen') : t('Details anzeigen')} aria-expanded={open}
           onClick={props.onToggle ?? props.onClose}
@@ -145,7 +135,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
       <header {...(task ? taskDragSourceInteractions(task.id, interactions) : {})}
         data-task-drag-disabled={task && (titleEditor.taskId === task.id || dateEditor.taskId === task.id) || undefined}
         className={`p-3 border border-slate-200 space-y-3 shrink-0 ${task ? 'cursor-grab rounded bg-slate-50/50' : ''}`}>
-        <div className="flex items-center gap-2 pr-20">
+        <div className="flex items-center gap-2 pr-14">
           {task && <><TaskDragHandle /><span className="font-mono text-xs px-2 py-1 bg-slate-100 rounded">{task.id}</span>
             <TaskChecklistBadge progress={task.checklistProgress} />
             {!task.completed && <button type="button" title={task.isActive ? t('Deaktivieren (Space)') : t('Aktivieren (Space)')}
@@ -156,7 +146,8 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
               onClick={() => task.completed ? props.onReopenTask(task.id) : props.onCompleteTask(task.id)}>
               {task.completed ? <RotateCcw size={16} /> : <Check size={16} />}</button></>}
         </div>
-        {task && <><div data-task-title-area><TaskTitle task={task} editor={titleEditor} className="text-base font-semibold break-words" /></div>
+        {task && <><div className="flex items-start gap-2"><div className="min-w-0 flex-1" data-task-title-area><TaskTitle task={task} editor={titleEditor} className="text-base font-semibold break-words" /></div>
+          <TaskTimingInput key={task.id} value={task} onSave={async timing => { await props.onTimingChange?.(task.id, timing); }} onError={props.onError} /></div>
           <div data-detail-dates className="text-xs text-slate-500 flex items-center gap-1 whitespace-nowrap min-w-0">
             <span className="detail-date-label">{t('Konfiguriert')}:</span><TaskDate task={task} editor={dateEditor} compact />
             <ArrowRight className="w-3 h-3 shrink-0" aria-hidden="true" />

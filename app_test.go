@@ -413,3 +413,48 @@ func TestDeletePartialFailures(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultDurationSettings(t *testing.T) {
+	a := testApp(t)
+	if err := a.loadOrInitSettingsLocked(); err != nil {
+		t.Fatal(err)
+	}
+	if a.settings.DefaultDuration != 1 || a.settings.DefaultDurationUnit != "days" {
+		t.Fatal("missing duration defaults")
+	}
+	got, err := a.SetDefaultDuration(2.5, "hours")
+	if err != nil || got.DefaultDuration != 2.5 || got.DefaultDurationUnit != "hours" {
+		t.Fatal(got, err)
+	}
+	if err = a.loadOrInitSettingsLocked(); err != nil {
+		t.Fatal(err)
+	}
+	if a.settings.DefaultDuration != 2.5 || a.settings.DefaultDurationUnit != "hours" {
+		t.Fatal("duration not persisted")
+	}
+	for _, invalid := range []struct {
+		value float64
+		unit  string
+	}{{0, "days"}, {-1, "hours"}, {4, "weeks"}, {36501, "days"}} {
+		if _, err = a.SetDefaultDuration(invalid.value, invalid.unit); err == nil {
+			t.Fatal("accepted invalid default", invalid)
+		}
+	}
+	a.settingsPath = a.appDir
+	if _, err = a.SetDefaultDuration(45, "minutes"); err == nil {
+		t.Fatal("save failure ignored")
+	}
+	if a.settings.DefaultDuration != 2.5 || a.settings.DefaultDurationUnit != "hours" {
+		t.Fatal("failed save replaced defaults")
+	}
+	a = testApp(t)
+	if err = os.WriteFile(a.settingsPath, []byte(`{"uiLanguage":"de"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = a.loadOrInitSettingsLocked(); err != nil {
+		t.Fatal(err)
+	}
+	if a.settings.DefaultDuration != 1 || a.settings.DefaultDurationUnit != "days" {
+		t.Fatal("legacy settings not migrated")
+	}
+}

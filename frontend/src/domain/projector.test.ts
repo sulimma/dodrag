@@ -95,10 +95,10 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       { seq: 4, id: 'dep', timestamp: todayIso, undone: false, type: 'DEPENDENCY_ADDED',
         payload: { taskId: 'b', predecessorId: 'a' } },
     ];
-    // 12:30 local on a 09:00-day task used to produce "today at 12:30 + 24h".
+    // A one-day default now preserves the active start time.
     const now = new Date(2026, 9, 16, 12, 30);
     const state = projectEvents(events, now);
-    expect(state.tasks.b.calculatedStart).toBe(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9).toISOString());
+    expect(state.tasks.b.calculatedStart).toBe(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, now.getHours(), now.getMinutes()).toISOString());
     expect(state.tasks.b.effectiveDateKey).toBe(toDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)));
     expect(state.tasks.b.isDeemphasized).toBe(true);
   });
@@ -252,8 +252,8 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     expect(active.openTasks[0].id).toBe('b');
     expect(active.listEntries.flatMap(e => e.kind === 'task' ? [e.task.id] : [])[0]).toBe('b');
     expect(computeMiniWindowTasks(active.openTasks, fixedNow)[0].id).toBe('b');
-    // An active predecessor schedules its successor on the next local day at 09:00.
-    expect(active.tasks.c.calculatedStart).toBe(new Date(fixedNow.getFullYear(), fixedNow.getMonth(), fixedNow.getDate() + 1, 9).toISOString());
+    // The default duration is a local calendar day from the active start.
+    expect(active.tasks.c.calculatedStart).toBe(new Date(fixedNow.getFullYear(), fixedNow.getMonth(), fixedNow.getDate() + 1, fixedNow.getHours(), fixedNow.getMinutes()).toISOString());
     const later = new Date('2026-10-17T10:00:00.000Z');
     expect(projectEvents(activeEvents, later).tasks.b.effectiveStart).toBe(later.toISOString());
     const inactive = projectEvents([...activeEvents, { seq: 8, id: 'deactivate', timestamp: todayIso, undone: false,
@@ -266,8 +266,8 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
   it('preserves local time when adding a calendar day across DST and year boundaries', () => {
     for (const [year, month, day] of [[2027, 3, 27], [2027, 10, 30], [2026, 12, 31]]) {
       const start = localDate(year, month, day, 14, 30, 12).toISOString();
-      // Successors are due on the following local day at 09:00.
-      const expected = localDate(year, month, day + 1, 9).toISOString();
+      // Calendar-day durations preserve the predecessor time across DST.
+      const expected = localDate(year, month, day + 1, 14, 30, 12).toISOString();
       const state = projectEvents([
         { seq: 1, id: 'a', timestamp: start, undone: false, type: 'TASK_CREATED', payload: { taskId: 'a', title: 'A', configuredStart: start, createdAt: start } },
         { seq: 2, id: 'b', timestamp: start, undone: false, type: 'TASK_CREATED', payload: { taskId: 'b', title: 'B', configuredStart: start, createdAt: start } },

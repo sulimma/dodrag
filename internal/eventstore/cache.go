@@ -13,7 +13,7 @@ import (
 )
 
 const snapshotInterval = 500
-const snapshotVersion = 1
+const snapshotVersion = 2
 
 type changeStamp struct{ Changes, Data, Schema int64 }
 
@@ -259,6 +259,9 @@ type snapshotLog struct {
 	CreatedAt string `json:"createdAt"`
 }
 type snapshotTask struct {
+	Duration     float64         `json:"duration"`
+	DurationUnit string          `json:"durationUnit"`
+	Progress     *float64        `json:"progress"`
 	Title        string          `json:"title"`
 	Start        string          `json:"start"`
 	Description  string          `json:"description"`
@@ -284,7 +287,7 @@ func makeSnapshot(tasks map[string]*task, count int) snapshotState {
 		for pred, value := range t.predecessors {
 			preds[pred] = value
 		}
-		state.Tasks[id] = snapshotTask{t.title, t.start, t.description, logs, t.active, t.completed, preds}
+		state.Tasks[id] = snapshotTask{t.duration, t.durationUnit, t.progress, t.title, t.start, t.description, logs, t.active, t.completed, preds}
 	}
 	return state
 }
@@ -292,7 +295,7 @@ func makeSnapshot(tasks map[string]*task, count int) snapshotState {
 func (state snapshotState) tasks() map[string]*task {
 	tasks := make(map[string]*task, len(state.Tasks))
 	for id, dto := range state.Tasks {
-		t := &task{title: dto.Title, start: dto.Start, description: dto.Description, active: dto.Active, completed: dto.Completed, logEntries: []taskLogEntry{}, predecessors: make(map[string]bool)}
+		t := &task{duration: dto.Duration, durationUnit: dto.DurationUnit, progress: dto.Progress, title: dto.Title, start: dto.Start, description: dto.Description, active: dto.Active, completed: dto.Completed, logEntries: []taskLogEntry{}, predecessors: make(map[string]bool)}
 		for _, log := range dto.Logs {
 			t.logEntries = append(t.logEntries, taskLogEntry{log.ID, log.Text, log.CreatedAt})
 		}

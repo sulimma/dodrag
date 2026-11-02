@@ -3,7 +3,6 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { TaskDetailPanel } from './TaskDetailPanel';
-import { markdownAgentInstructions } from './editor/markdownSyntax';
 import { taskMenuItems } from './TaskContextMenu';
 import type { TaskDescriptionEditorProps } from './editor/TaskDescriptionEditor';
 import type { TaskLogSectionProps } from './TaskLogSection';
@@ -58,7 +57,7 @@ vi.mock('./TaskLogSection', async () => {
 
 const task: TaskState = {
   id: '26-101', title: 'Task fixture', description: 'Description fixture', logEntries: [],
-  checklistProgress: null, creationOrder: 1, topologyLevel: 0, createdAt: '2026-10-25T10:00:00Z',
+  checklistProgress: null, duration: 1, durationUnit: 'days', progress: null, creationOrder: 1, topologyLevel: 0, createdAt: '2026-10-25T10:00:00Z',
   configuredStart: '2026-10-25T10:00:00Z', calculatedStart: null,
   effectiveStart: '2026-10-25T10:00:00Z', effectiveDateKey: '2026-10-25',
   predecessorIds: ['26-100'], allPredecessorIds: ['26-100'], successorIds: [],
@@ -438,27 +437,4 @@ it.each([true, false])('shows syntax help only in the expanded detail panel whil
   expect(help.title).toBe(t('Markdown-Syntax'));
   act(() => help.click());
   expect(onSyntaxHelp).toHaveBeenCalledOnce();
-});
-
-
-it('copies agent Markdown guidance and reports clipboard failures', async () => {
-  const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
-  try {
-    const props = makeProps(); render(props);
-    const copy = host.querySelector<HTMLButtonElement>(`button[aria-label="${t('Markdown-Hinweise für KI kopieren')}"]`)!;
-    await act(async () => copy.click());
-    expect(writeText).toHaveBeenCalledWith(markdownAgentInstructions());
-    const guidance = writeText.mock.calls[0][0];
-    for (const symbol of ['✅', '❌', 'ℹ️', '❓', '⛔']) expect(guidance).toContain(symbol);
-    expect(guidance).toContain('```mermaid');
-    expect(host.querySelector('[role=status]')?.textContent).toBe(t('Markdown-Hinweise kopiert'));
-    const failure = new Error('Clipboard denied'); writeText.mockRejectedValue(failure);
-    await act(async () => copy.click());
-    expect(props.onError).toHaveBeenCalledWith(failure);
-    expect(host.querySelector('[role=status]')?.textContent).toBe('');
-  } finally {
-    if (original) Object.defineProperty(navigator, 'clipboard', original); else Reflect.deleteProperty(navigator, 'clipboard');
-  }
 });

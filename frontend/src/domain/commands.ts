@@ -1,8 +1,9 @@
 import { EventCommand, parseStoredEvent } from './eventSchema';
 import type { StoredEvent, TaskLogEntry } from './types';
+import { legacyTiming, type TaskTiming } from './duration';
 import { t } from '../i18n';
 
-export interface ReplayTask {
+export interface ReplayTask extends TaskTiming {
   readonly id: string;
   readonly title: string;
   readonly description: string;
@@ -33,7 +34,7 @@ interface ReplayCacheEntry {
 const replayCache = new WeakMap<readonly StoredEvent[], ReplayCacheEntry>();
 const rawPayloadStrings = new WeakMap<StoredEvent, string>();
 let latestReplay: ReplayCacheEntry | undefined;
-const coalescingTypes = new Set(['TASK_RENAMED', 'TASK_START_DATE_SET', 'TASK_ACTIVE_SET', 'TASK_DESCRIPTION_SET']);
+const coalescingTypes = new Set(['TASK_RENAMED', 'TASK_START_DATE_SET', 'TASK_ACTIVE_SET', 'TASK_DESCRIPTION_SET', 'TASK_TIMING_SET']);
 
 function sameEvent(input: unknown, event: StoredEvent): boolean {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return false;
@@ -206,6 +207,7 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
       id: p.taskId,
       title: command.payload.title,
       description: '',
+      ...legacyTiming,
       logEntries: [],
       creationOrder: tasks.size + 1,
       createdAt: command.payload.createdAt,
@@ -218,6 +220,12 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
   }
   if (!task) throw new Error(t('Unknown task: {id}', { id: p.taskId }));
   switch (command.type) {
+    case 'TASK_TIMING_SET': {
+      const { duration, durationUnit, progress } = command.payload;
+      if (task.duration === duration && task.durationUnit === durationUnit && task.progress === progress) return false;
+      Object.assign(task, { duration, durationUnit, progress });
+      break;
+    }
     case 'TASK_RENAMED':
       if (task.title === command.payload.title) return false;
       task.title = command.payload.title;

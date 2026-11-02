@@ -72,5 +72,6 @@
   "Ordner konnte nicht geöffnet werden": "Não foi possível abrir a pasta",
   "Visual Studio Code wurde nicht gefunden": "O Visual Studio Code não foi encontrado",
   "Visual Studio Code konnte nicht geöffnet werden": "Não foi possível abrir o Visual Studio Code",
-  "Fenstermodus konnte nicht angewendet werden": "Não foi possível aplicar o modo de janela"
+  "Fenstermodus konnte nicht angewendet werden": "Não foi possível aplicar o modo de janela",
+  "Ungültige Standarddauer": "Duração padrão inválida"
 }

@@ -72,5 +72,6 @@
   "Ordner konnte nicht geöffnet werden": "无法打开文件夹",
   "Visual Studio Code wurde nicht gefunden": "未找到 Visual Studio Code",
   "Visual Studio Code konnte nicht geöffnet werden": "无法打开 Visual Studio Code",
-  "Fenstermodus konnte nicht angewendet werden": "无法应用窗口模式"
+  "Fenstermodus konnte nicht angewendet werden": "无法应用窗口模式",
+  "Ungültige Standarddauer": "默认时长无效"
 }

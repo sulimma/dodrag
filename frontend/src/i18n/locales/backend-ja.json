@@ -72,5 +72,6 @@
   "Ordner konnte nicht geöffnet werden": "フォルダーを開けませんでした",
   "Visual Studio Code wurde nicht gefunden": "Visual Studio Code が見つかりません",
   "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code を開けませんでした",
-  "Fenstermodus konnte nicht angewendet werden": "ウィンドウモードを適用できませんでした"
+  "Fenstermodus konnte nicht angewendet werden": "ウィンドウモードを適用できませんでした",
+  "Ungültige Standarddauer": "既定の所要時間が無効です"
 }

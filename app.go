@@ -5,6 +5,7 @@ import (
 	"dodrag/internal/eventstore"
 	"encoding/json"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,28 +43,32 @@ type SetupState struct {
 
 // AppSettings stores known databases, the currently active database, autostart flag, and dock monitor/corner in %APPDATA%\DoDrag\settings.json.
 type AppSettings struct {
-	KnownDatabases     []DatabaseEntry `json:"knownDatabases"`
-	ActiveDatabasePath string          `json:"activeDatabasePath"`
-	Autostart          bool            `json:"autostart"`
-	DockMonitor        string          `json:"dockMonitor"`
-	DockCorner         string          `json:"dockCorner"`
-	UILanguage         string          `json:"uiLanguage"`
-	BootMinimized      bool            `json:"bootMinimized,omitempty"`
-	DatabaseReady      bool            `json:"databaseReady,omitempty"`
-	Version            string          `json:"version,omitempty"`
-	BuildTime          string          `json:"buildTime,omitempty"`
-	PreviewCacheDir    string          `json:"previewCacheDir,omitempty"`
-	PreviewCacheError  string          `json:"previewCacheError,omitempty"`
-	Setup              SetupState      `json:"setup"`
+	DefaultDuration     float64         `json:"defaultDuration"`
+	DefaultDurationUnit string          `json:"defaultDurationUnit"`
+	KnownDatabases      []DatabaseEntry `json:"knownDatabases"`
+	ActiveDatabasePath  string          `json:"activeDatabasePath"`
+	Autostart           bool            `json:"autostart"`
+	DockMonitor         string          `json:"dockMonitor"`
+	DockCorner          string          `json:"dockCorner"`
+	UILanguage          string          `json:"uiLanguage"`
+	BootMinimized       bool            `json:"bootMinimized,omitempty"`
+	DatabaseReady       bool            `json:"databaseReady,omitempty"`
+	Version             string          `json:"version,omitempty"`
+	BuildTime           string          `json:"buildTime,omitempty"`
+	PreviewCacheDir     string          `json:"previewCacheDir,omitempty"`
+	PreviewCacheError   string          `json:"previewCacheError,omitempty"`
+	Setup               SetupState      `json:"setup"`
 }
 
 type persistedSettings struct {
-	KnownDatabases     []DatabaseEntry `json:"knownDatabases"`
-	ActiveDatabasePath string          `json:"activeDatabasePath"`
-	Autostart          bool            `json:"autostart"`
-	DockMonitor        string          `json:"dockMonitor"`
-	DockCorner         string          `json:"dockCorner"`
-	UILanguage         string          `json:"uiLanguage"`
+	DefaultDuration     float64         `json:"defaultDuration"`
+	DefaultDurationUnit string          `json:"defaultDurationUnit"`
+	KnownDatabases      []DatabaseEntry `json:"knownDatabases"`
+	ActiveDatabasePath  string          `json:"activeDatabasePath"`
+	Autostart           bool            `json:"autostart"`
+	DockMonitor         string          `json:"dockMonitor"`
+	DockCorner          string          `json:"dockCorner"`
+	UILanguage          string          `json:"uiLanguage"`
 }
 
 // App struct binds Go methods to the Wails frontend.
@@ -365,13 +370,18 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 		if loaded.DockCorner == "" {
 			loaded.DockCorner = "bottom-left"
 		}
+		if !validDefaultDuration(loaded.DefaultDuration, loaded.DefaultDurationUnit) {
+			loaded.DefaultDuration, loaded.DefaultDurationUnit = 1, "days"
+		}
 		a.settings = AppSettings{
-			KnownDatabases:     loaded.KnownDatabases,
-			ActiveDatabasePath: activePath,
-			Autostart:          loaded.Autostart,
-			DockMonitor:        loaded.DockMonitor,
-			DockCorner:         loaded.DockCorner,
-			UILanguage:         loaded.UILanguage,
+			DefaultDuration:     loaded.DefaultDuration,
+			DefaultDurationUnit: loaded.DefaultDurationUnit,
+			KnownDatabases:      loaded.KnownDatabases,
+			ActiveDatabasePath:  activePath,
+			Autostart:           loaded.Autostart,
+			DockMonitor:         loaded.DockMonitor,
+			DockCorner:          loaded.DockCorner,
+			UILanguage:          loaded.UILanguage,
 		}
 		if migrateLanguage {
 			return a.saveSettingsLocked()
@@ -389,11 +399,13 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 				IsDemo: true,
 			},
 		},
-		ActiveDatabasePath: "",
-		Autostart:          false,
-		DockMonitor:        primaryMonName,
-		DockCorner:         "bottom-left",
-		UILanguage:         language,
+		ActiveDatabasePath:  "",
+		Autostart:           false,
+		DockMonitor:         primaryMonName,
+		DockCorner:          "bottom-left",
+		UILanguage:          language,
+		DefaultDuration:     1,
+		DefaultDurationUnit: "days",
 	}
 	return a.saveSettingsLocked()
 }
@@ -410,12 +422,14 @@ func (a *App) saveSettingsLocked() (err error) {
 		return a.settingsLoadErr
 	}
 	toSave := persistedSettings{
-		KnownDatabases:     a.settings.KnownDatabases,
-		ActiveDatabasePath: a.settings.ActiveDatabasePath,
-		Autostart:          a.settings.Autostart,
-		DockMonitor:        a.settings.DockMonitor,
-		DockCorner:         a.settings.DockCorner,
-		UILanguage:         a.settings.UILanguage,
+		KnownDatabases:      a.settings.KnownDatabases,
+		ActiveDatabasePath:  a.settings.ActiveDatabasePath,
+		Autostart:           a.settings.Autostart,
+		DockMonitor:         a.settings.DockMonitor,
+		DockCorner:          a.settings.DockCorner,
+		UILanguage:          a.settings.UILanguage,
+		DefaultDuration:     a.settings.DefaultDuration,
+		DefaultDurationUnit: a.settings.DefaultDurationUnit,
 	}
 	data, err := json.MarshalIndent(toSave, "", "  ")
 	if err != nil {
@@ -482,19 +496,21 @@ func (a *App) openActiveDatabaseLocked() {
 
 func (a *App) snapshotSettingsLocked() AppSettings {
 	out := AppSettings{
-		ActiveDatabasePath: a.settings.ActiveDatabasePath,
-		Autostart:          a.settings.Autostart,
-		DockMonitor:        a.settings.DockMonitor,
-		DockCorner:         a.settings.DockCorner,
-		UILanguage:         a.settings.UILanguage,
-		BootMinimized:      a.bootMinimized && a.store != nil,
-		DatabaseReady:      a.store != nil,
-		Version:            buildVersion,
-		BuildTime:          buildTime,
-		PreviewCacheDir:    a.previewCacheDirectory(),
-		PreviewCacheError:  a.previewCacheError,
-		Setup:              computeSetupState(),
-		KnownDatabases:     make([]DatabaseEntry, len(a.settings.KnownDatabases)),
+		ActiveDatabasePath:  a.settings.ActiveDatabasePath,
+		Autostart:           a.settings.Autostart,
+		DockMonitor:         a.settings.DockMonitor,
+		DockCorner:          a.settings.DockCorner,
+		UILanguage:          a.settings.UILanguage,
+		DefaultDuration:     a.settings.DefaultDuration,
+		DefaultDurationUnit: a.settings.DefaultDurationUnit,
+		BootMinimized:       a.bootMinimized && a.store != nil,
+		DatabaseReady:       a.store != nil,
+		Version:             buildVersion,
+		BuildTime:           buildTime,
+		PreviewCacheDir:     a.previewCacheDirectory(),
+		PreviewCacheError:   a.previewCacheError,
+		Setup:               computeSetupState(),
+		KnownDatabases:      make([]DatabaseEntry, len(a.settings.KnownDatabases)),
 	}
 	for i, entry := range a.settings.KnownDatabases {
 		info, err := os.Stat(entry.Path)
@@ -594,6 +610,29 @@ func (a *App) GetSettings() (AppSettings, error) {
 		return a.snapshotSettingsLocked(), a.settingsLoadErr
 	}
 	return a.snapshotSettingsLocked(), a.settingsSaveErr
+}
+
+func validDefaultDuration(value float64, unit string) bool {
+	factor := map[string]float64{"minutes": 1, "hours": 60, "days": 1440}[unit]
+	return factor > 0 && !math.IsNaN(value) && !math.IsInf(value, 0) && value > 0 && value*factor <= 52560000
+}
+
+func (a *App) SetDefaultDuration(value float64, unit string) (AppSettings, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.settingsLoadErr != nil {
+		return a.snapshotSettingsLocked(), a.settingsLoadErr
+	}
+	if !validDefaultDuration(value, unit) {
+		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Ungültige Standarddauer"))
+	}
+	previous, previousUnit := a.settings.DefaultDuration, a.settings.DefaultDurationUnit
+	a.settings.DefaultDuration, a.settings.DefaultDurationUnit = value, unit
+	if err := a.saveSettingsLocked(); err != nil {
+		a.settings.DefaultDuration, a.settings.DefaultDurationUnit = previous, previousUnit
+		return a.snapshotSettingsLocked(), err
+	}
+	return a.snapshotSettingsLocked(), nil
 }
 
 // SetAutostart enables or disables launching DoDrag automatically on Windows boot/login.

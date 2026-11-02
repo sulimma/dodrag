@@ -359,5 +359,14 @@
   "Tasks filtern": "o pana e pali pi nimi alasa taso",
   "Task hinzufügen": "o pana e pali",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: o alasa nimi / o ante e nasin alasa",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter lon alasa: o open e pali nanpa wan · Escape: o weka e alasa"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter lon alasa: o open e pali nanpa wan · Escape: o weka e alasa",
+  "Standarddauer": "tenpo pi pali sin",
+  "Fortschritt / Dauer": "pali pini / tenpo pali",
+  "Fortschritt": "pali pini",
+  "Dauer": "tenpo pali",
+  "Einheit": "wan tenpo",
+  "Minuten": "tenpo lili",
+  "Stunden": "tenpo ilo",
+  "Tage": "tenpo suno",
+  "Ungültige Dauer oder Fortschritt": "tenpo pali anu pali pini li ike"
 }

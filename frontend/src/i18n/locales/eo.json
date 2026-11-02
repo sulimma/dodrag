@@ -359,5 +359,14 @@
   "Tasks filtern": "Filtri taskojn",
   "Task hinzufügen": "Aldoni taskon",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: fokusigi serĉon / ŝalti filtrilon",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter kun filtrilo: malfermi unuan taskon · Escape: nuligi serĉon"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter kun filtrilo: malfermi unuan taskon · Escape: nuligi serĉon",
+  "Standarddauer": "Defaŭlta daŭro",
+  "Fortschritt / Dauer": "Progreso / Daŭro",
+  "Fortschritt": "Progreso",
+  "Dauer": "Daŭro",
+  "Einheit": "Unuo",
+  "Minuten": "Minutoj",
+  "Stunden": "Horoj",
+  "Tage": "Tagoj",
+  "Ungültige Dauer oder Fortschritt": "Nevalida daŭro aŭ progreso"
 }

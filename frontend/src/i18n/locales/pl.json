@@ -359,5 +359,14 @@
   "Tasks filtern": "Filtrowanie zadań",
   "Task hinzufügen": "Dodawanie zadania",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: fokus wyszukiwania / przełączanie filtra",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter z filtrem: otwarcie pierwszego zadania · Escape: resetowanie wyszukiwania"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter z filtrem: otwarcie pierwszego zadania · Escape: resetowanie wyszukiwania",
+  "Standarddauer": "Domyślny czas trwania",
+  "Fortschritt / Dauer": "Postęp / Czas trwania",
+  "Fortschritt": "Postęp",
+  "Dauer": "Czas trwania",
+  "Einheit": "Jednostka",
+  "Minuten": "Minuty",
+  "Stunden": "Godziny",
+  "Tage": "Dni",
+  "Ungültige Dauer oder Fortschritt": "Nieprawidłowy czas trwania lub postęp"
 }

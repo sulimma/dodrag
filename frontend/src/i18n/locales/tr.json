@@ -359,5 +359,14 @@
   "Tasks filtern": "Görevleri filtrele",
   "Task hinzufügen": "Görev ekle",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: aramaya odaklan / filtreyi değiştir",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Filtrede Enter: ilk görevi aç · Escape: aramayı sıfırla"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Filtrede Enter: ilk görevi aç · Escape: aramayı sıfırla",
+  "Standarddauer": "Varsayılan süre",
+  "Fortschritt / Dauer": "İlerleme / Süre",
+  "Fortschritt": "İlerleme",
+  "Dauer": "Süre",
+  "Einheit": "Birim",
+  "Minuten": "Dakika",
+  "Stunden": "Saat",
+  "Tage": "Gün",
+  "Ungültige Dauer oder Fortschritt": "Geçersiz süre veya ilerleme"
 }

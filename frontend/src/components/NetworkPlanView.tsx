@@ -1,3 +1,4 @@
+import { TaskProgressLine } from './TaskProgressLine';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Flame, GripVertical } from 'lucide-react';
 import {
@@ -683,6 +684,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
             </div>
 
             <div className="text-xs font-medium text-slate-900 truncate pl-1">
+              <TaskProgressLine task={task} />
               <TaskTitle task={task} editor={titleEditor} className="block truncate" />
             </div>
           </div>

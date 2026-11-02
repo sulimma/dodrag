@@ -359,5 +359,14 @@
   "Tasks filtern": "Filtrare le attività",
   "Task hinzufügen": "Aggiungere attività",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: cercare / attivare il filtro",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Invio con filtro: aprire la prima attività · Escape: reimpostare la ricerca"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Invio con filtro: aprire la prima attività · Escape: reimpostare la ricerca",
+  "Standarddauer": "Durata predefinita",
+  "Fortschritt / Dauer": "Avanzamento / Durata",
+  "Fortschritt": "Avanzamento",
+  "Dauer": "Durata",
+  "Einheit": "Unità",
+  "Minuten": "Minuti",
+  "Stunden": "Ore",
+  "Tage": "Giorni",
+  "Ungültige Dauer oder Fortschritt": "Durata o avanzamento non valido"
 }

@@ -359,5 +359,14 @@
   "Tasks filtern": "Filter tasks",
   "Task hinzufügen": "Add task",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: focus search / toggle filter",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter with filter: open first task · Escape: reset search"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter with filter: open first task · Escape: reset search",
+  "Standarddauer": "Default duration",
+  "Fortschritt / Dauer": "Progress / Duration",
+  "Fortschritt": "Progress",
+  "Dauer": "Duration",
+  "Einheit": "Unit",
+  "Minuten": "Minutes",
+  "Stunden": "Hours",
+  "Tage": "Days",
+  "Ungültige Dauer oder Fortschritt": "Invalid duration or progress"
 }

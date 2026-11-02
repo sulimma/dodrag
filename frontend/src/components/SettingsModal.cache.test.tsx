@@ -130,3 +130,26 @@ it('ignores stale, Escape-cancelled and unmounted native popup responses', async
   await act(async () => { finish('open-cache-explorer'); });
   expect(eventBridge.openPreviewCacheInExplorer).not.toHaveBeenCalled();
 });
+
+it('keeps Settings open while saving default duration and reports a failed write', async () => {
+  let reject!: (error: Error) => void;
+  const save = vi.fn(() => new Promise<void>((_resolve, failure) => { reject = failure; }));
+  act(() => root.render(<SettingsModal settings={settings} onClose={close}
+    onSelectFolder={async () => ''} onCreateDatabase={async () => {}}
+    onOpenExistingDatabase={async () => {}} onSwitchDatabase={async () => {}}
+    onDeleteDatabase={async () => {}} onToggleAutostart={async () => {}} onSetDefaultDuration={save} />));
+  const input = element.querySelector<HTMLInputElement>(`input[aria-label="${t('Standarddauer')}"]`)!;
+  act(() => {
+    input.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '2');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => input.blur());
+  expect(save).toHaveBeenCalledWith(2, 'days');
+  const done = [...element.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === t('Fertig'))!;
+  expect(done.disabled).toBe(true);
+  act(() => { done.click(); element.firstElementChild!.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+  expect(close).not.toHaveBeenCalled();
+  await act(async () => reject(new Error('Default duration write failure')));
+  expect(input.value).toBe('1'); expect(done.disabled).toBe(false);
+  expect(element.textContent).toContain('Default duration write failure');
+});

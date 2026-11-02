@@ -359,5 +359,14 @@
   "Tasks filtern": "タスクを絞り込む",
   "Task hinzufügen": "タスクを追加",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F：検索にフォーカス / フィルター切替",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "絞り込み中の Enter：最初のタスクを開く · Escape：検索をリセット"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "絞り込み中の Enter：最初のタスクを開く · Escape：検索をリセット",
+  "Standarddauer": "既定の所要時間",
+  "Fortschritt / Dauer": "進捗 / 所要時間",
+  "Fortschritt": "進捗",
+  "Dauer": "所要時間",
+  "Einheit": "単位",
+  "Minuten": "分",
+  "Stunden": "時間",
+  "Tage": "日",
+  "Ungültige Dauer oder Fortschritt": "所要時間または進捗が無効です"
 }

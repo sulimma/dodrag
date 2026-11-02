@@ -75,7 +75,7 @@ The main window starts at **1440 × 820 logical outer-window pixels**, limited t
 
 The **Mermaid** menu inserts small templates for 30 bundled diagram families. Diagram previews are displayed at 75% scale. Selecting and copying a whole diagram copies its source, not its preview controls; pasting it into the description creates another diagram block.
 
-The clipboard button next to syntax help copies Markdown instructions for AI agents, including a recommendation to structure content with Unicode symbols. Dropping a `.md` file onto a description or task appends its Markdown content to the current description; other dropped files remain references.
+The **Copy Markdown instructions for AI** text button in syntax help copies Markdown instructions for AI agents, including a recommendation to structure content with Unicode symbols. It briefly highlights after copying and then returns to its neutral state. Dropping a `.md` file onto a description or task appends its Markdown content to the current description; other dropped files remain references.
 
 The question-mark button beside the expanded detail panel's collapse button opens **syntax help**. Syntax help and keyboard-shortcut help link to each other. The syntax page includes expandable rendered Mermaid examples and a link to the [official Mermaid syntax documentation](https://mermaid.js.org/intro/syntax-reference.html), opened in your default browser. The external documentation may describe features newer than the bundled Mermaid version.
 

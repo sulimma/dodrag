@@ -359,5 +359,14 @@
   "Tasks filtern": "Filtrer les tâches",
   "Task hinzufügen": "Ajouter une tâche",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F : rechercher / activer le filtre",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Entrée avec filtre : ouvrir la première tâche · Échap : réinitialiser la recherche"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Entrée avec filtre : ouvrir la première tâche · Échap : réinitialiser la recherche",
+  "Standarddauer": "Durée par défaut",
+  "Fortschritt / Dauer": "Progression / Durée",
+  "Fortschritt": "Progression",
+  "Dauer": "Durée",
+  "Einheit": "Unité",
+  "Minuten": "Minutes",
+  "Stunden": "Heures",
+  "Tage": "Jours",
+  "Ungültige Dauer oder Fortschritt": "Durée ou progression non valide"
 }

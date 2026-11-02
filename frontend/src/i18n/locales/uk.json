@@ -359,5 +359,14 @@
   "Tasks filtern": "Фільтрувати завдання",
   "Task hinzufügen": "Додати завдання",
   "Ctrl+F: Suche fokussieren / Filter umschalten": "Ctrl+F: фокус пошуку / перемикання фільтра",
-  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter із фільтром: відкрити перше завдання · Escape: скинути пошук"
+  "Enter im Filter: ersten Task öffnen · Escape: Suche zurücksetzen": "Enter із фільтром: відкрити перше завдання · Escape: скинути пошук",
+  "Standarddauer": "Типова тривалість",
+  "Fortschritt / Dauer": "Прогрес / Тривалість",
+  "Fortschritt": "Прогрес",
+  "Dauer": "Тривалість",
+  "Einheit": "Одиниця",
+  "Minuten": "Хвилини",
+  "Stunden": "Години",
+  "Tage": "Дні",
+  "Ungültige Dauer oder Fortschritt": "Некоректна тривалість або прогрес"
 }

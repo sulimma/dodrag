@@ -1,3 +1,4 @@
+import type { TaskTiming } from './duration';
 import type { EventCommand } from './eventSchema';
 export type EventType = EventCommand['type'];
 
@@ -21,7 +22,7 @@ export interface ChecklistProgress {
   total: number;
 }
 
-export interface TaskState {
+export interface TaskState extends TaskTiming {
   id: string; // e.g. "26-125"
   title: string;
   description: string;
@@ -31,7 +32,7 @@ export interface TaskState {
   topologyLevel: number; // Level in the complete configured dependency graph
   createdAt: string;
   configuredStart: string; // ISO timestamp
-  calculatedStart: string | null; // Now for active tasks; otherwise latest effective predecessor timestamp + 1 calendar day, or null
+  calculatedStart: string | null; // Now for active tasks; otherwise latest effective predecessor timestamp + remaining duration, or null
   effectiveStart: string; // Now for active tasks; otherwise max(configuredStart, calculatedStart)
   effectiveDateKey: string; // YYYY-MM-DD in local time
   predecessorIds: string[]; // Open predecessor IDs

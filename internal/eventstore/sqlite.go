@@ -337,7 +337,7 @@ func replayEvents(events []Event, initial map[string]*task, after int64) (map[st
 
 func isCoalescableEventType(eventType string) bool {
 	switch eventType {
-	case "TASK_RENAMED", "TASK_START_DATE_SET", "TASK_ACTIVE_SET", "TASK_DESCRIPTION_SET":
+	case "TASK_RENAMED", "TASK_START_DATE_SET", "TASK_ACTIVE_SET", "TASK_DESCRIPTION_SET", "TASK_TIMING_SET":
 		return true
 	default:
 		return false

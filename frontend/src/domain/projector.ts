@@ -6,6 +6,7 @@ import {
   StoredEvent,
   TaskState,
 } from './types';
+import { addDuration, remainingDuration } from './duration';
 import { calendarDistance, localDate } from './dates';
 import { replayCommands } from './commands';
 import { t, locale, formatDate, formatNumber } from '../i18n';
@@ -297,21 +298,19 @@ export function projectEvents(
   const calculatedStartCache: Record<string, string | null> = Object.create(null);
   const effectiveStartCache: Record<string, string> = Object.create(null);
   const activeStart = now.toISOString();
-  // Whole local calendar days only: a dependent task is due the day after its
-  // predecessor's visible day, so an active task today never schedules its
-  // successors into today's remaining hours. Future predecessor days stay exact.
-  const todayStart = dateKeyToIsoStart(toDateKey(now));
-  const successorDueAfter = (iso: string) =>
-    toDateKey(new Date(iso)) > toDateKey(now) ? iso : todayStart;
+  // Each predecessor contributes its own finish instant; choose the latest finish,
+  // not the latest start. Overdue remaining work starts now. Checklist completion
+  // is presentation only.
   for (const raw of replay.orderedTasks) {
     let latest: string | null = null;
     // Completed predecessors no longer block the task, just as in the visible graph.
     for (const pred of openPredsMap[raw.id]) {
-      const value = effectiveStartCache[pred];
+      const start = Date.parse(effectiveStartCache[pred]) < now.getTime() ? activeStart : effectiveStartCache[pred];
+      const value = addDuration(start, remainingDuration(rawTasks[pred]), rawTasks[pred].durationUnit);
       if (!latest || Date.parse(value) > Date.parse(latest)) latest = value;
     }
     const active = raw.isActive && !raw.completed;
-    const calculated = active ? activeStart : latest ? addCalendarDays(successorDueAfter(latest), 1) : null;
+    const calculated = active ? activeStart : latest;
     calculatedStartCache[raw.id] = calculated;
     effectiveStartCache[raw.id] = active ? activeStart : calculated && Date.parse(calculated) > Date.parse(raw.configuredStart) ? calculated : raw.configuredStart;
   }
@@ -365,6 +364,7 @@ export function projectEvents(
       id: raw.id,
       title: raw.title,
       description: raw.description,
+      duration: raw.duration, durationUnit: raw.durationUnit, progress: raw.progress,
       logEntries: raw.logEntries.map(entry => ({ ...entry })),
       checklistProgress: computeChecklistProgress(raw.description),
       creationOrder: raw.creationOrder,

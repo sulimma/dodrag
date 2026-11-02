@@ -78,7 +78,7 @@ describe('task details validation and replay', () => {
   it('defaults legacy tasks and applies description changes/no-ops/clearing and derived progress', () => {
     const initial = stored([create]);
     expect(projectEvents(initial, new Date(iso)).tasks.a).toMatchObject({
-      description: '', logEntries: [{ id: 'lifecycle:e0', text: '', createdAt: iso, lifecycle: 'created' }], checklistProgress: null,
+      description: '', logEntries: [{ id: 'lifecycle:e0', text: '', createdAt: iso, lifecycle: 'created' }], checklistProgress: null, duration: 1, durationUnit: 'days', progress: null,
     });
     const tasks = copyReplayTasks(replayCommands(initial));
     const command: EventCommand = { type: 'TASK_DESCRIPTION_SET', payload: { taskId: 'a', description: '- [x] done\n- [ ] open' } };

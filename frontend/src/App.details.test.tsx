@@ -469,3 +469,48 @@ it('continues the mode queue on native confirmation when the bridge reply never 
   expect(api.SetWindowMode).toHaveBeenLastCalledWith('window');
   expect(panel().closest('[inert]')).toBeNull();
 });
+
+it('copies configured duration defaults into new tasks and persists progress through the detail editor', async () => {
+  vi.mocked(api.GetSettings).mockResolvedValue({ ...settings, defaultDuration: 45, defaultDurationUnit: 'minutes' });
+  await mountWithDetails();
+  const creation = host.querySelector<HTMLInputElement>('header input')!;
+  type(creation, 'Duration fixture');
+  await act(async () => { creation.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+  const duration = () => panel().querySelector<HTMLInputElement>(`input[aria-label="${t('Dauer')}"]`)!;
+  const progress = () => panel().querySelector<HTMLInputElement>(`input[aria-label="${t('Fortschritt')}"]`)!;
+  expect(duration().value).toBe('45'); expect(progress().value).toBe('');
+  expect(panel().querySelector('select')!.value).toBe('minutes');
+  const creationCommands = vi.mocked(api.AppendBatch).mock.calls[0][0];
+  expect(creationCommands).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'TASK_TIMING_SET', payload: expect.objectContaining({ duration: 45, durationUnit: 'minutes', progress: null }) })]));
+  act(() => progress().focus()); type(progress(), '15');
+  await act(async () => progress().blur());
+  expect(vi.mocked(api.AppendBatch).mock.calls.at(-1)![0]).toEqual([
+    expect.objectContaining({ type: 'TASK_TIMING_SET', payload: expect.objectContaining({ duration: 45, durationUnit: 'minutes', progress: 15 }) }),
+  ]);
+  const id = creationCommands[0].payload.taskId;
+  expect(Number(list().querySelector(`[data-task-drag="${id}"] [role="progressbar"]`)!.getAttribute('aria-valuenow'))).toBeCloseTo(100 / 3);
+  click(list().querySelector(`[data-task-drag="${taskId}"]`)!);
+  expect(duration().value).toBe('1'); expect(progress().value).toBe('');
+  click(list().querySelector(`[data-task-drag="${id}"]`)!);
+  expect(duration().value).toBe('45'); expect(progress().value).toBe('15');
+});
+
+it('saves the default duration through Settings and uses it for subsequent creation', async () => {
+  api.SetDefaultDuration = vi.fn(async (defaultDuration, defaultDurationUnit) => ({ ...settings, defaultDuration, defaultDurationUnit: defaultDurationUnit as 'hours' }));
+  await act(async () => root.render(<App />));
+  click(host.querySelector('button[aria-keyshortcuts="Control+Comma"]')!);
+  const defaultField = host.querySelector<HTMLInputElement>(`input[aria-label="${t('Standarddauer')}"]`)!;
+  act(() => defaultField.focus()); type(defaultField, '2');
+  await act(async () => defaultField.blur());
+  expect(api.SetDefaultDuration).toHaveBeenLastCalledWith(2, 'days');
+  const unit = defaultField.parentElement!.querySelector('select')!;
+  await act(async () => { unit.value = 'hours'; unit.dispatchEvent(new Event('change', { bubbles: true })); });
+  expect(api.SetDefaultDuration).toHaveBeenLastCalledWith(2, 'hours');
+  click([...host.querySelectorAll('button')].find(button => button.textContent === t('Fertig'))!);
+  const creation = host.querySelector<HTMLInputElement>('header input')!;
+  type(creation, 'Two hours');
+  await act(async () => { creation.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+  expect(vi.mocked(api.AppendBatch).mock.calls.at(-1)![0]).toEqual(expect.arrayContaining([
+    expect.objectContaining({ type: 'TASK_TIMING_SET', payload: expect.objectContaining({ duration: 2, durationUnit: 'hours', progress: null }) }),
+  ]));
+});

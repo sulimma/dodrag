@@ -72,5 +72,6 @@
   "Ordner konnte nicht geöffnet werden": "Impossibile aprire la cartella",
   "Visual Studio Code wurde nicht gefunden": "Visual Studio Code non trovato",
   "Visual Studio Code konnte nicht geöffnet werden": "Impossibile aprire Visual Studio Code",
-  "Fenstermodus konnte nicht angewendet werden": "Impossibile applicare la modalità finestra"
+  "Fenstermodus konnte nicht angewendet werden": "Impossibile applicare la modalità finestra",
+  "Ungültige Standarddauer": "Durata predefinita non valida"
 }

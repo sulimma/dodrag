@@ -1,3 +1,4 @@
+import { TaskProgressLine } from './TaskProgressLine';
 import React from 'react';
 import { Flame, Check } from 'lucide-react';
 import type { QuickResubmitTargetId } from '../domain/projector';
@@ -119,7 +120,7 @@ export function MiniCornerView({
               onFocus={() => onSelectTask?.(task.id)}
               onClick={() => onSelectTask?.(task.id)}
               onContextMenu={(event) => onContextMenuTask(event, task.id)}
-              className={`group w-full h-7 px-2 flex items-center gap-1 text-xs transition-colors ${
+              className={`group relative w-full h-7 px-2 flex items-center gap-1 text-xs transition-colors ${
                 selectedTaskId === task.id
                   ? 'bg-sky-100 text-sky-950 ring-1 ring-inset ring-sky-400'
                   : task.isActive
@@ -127,6 +128,7 @@ export function MiniCornerView({
                   : 'bg-white text-slate-800 hover:bg-sky-50 hover:text-sky-900'
               }`}
             >
+              <TaskProgressLine task={task} />
               {/* Mini opens the task in the main window instead of starting inline title editing. */}
               <button type="button" title={task.title} onClick={(event) => { event.stopPropagation(); onSelectAndRestore(task.id); }}
                 className="flex-1 min-w-0 truncate text-left text-xs cursor-pointer">

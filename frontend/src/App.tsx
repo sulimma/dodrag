@@ -337,6 +337,8 @@ export function App() {
         { type: 'TASK_CREATED', payload: {
           taskId, title: trimmed, configuredStart: now.toISOString(), createdAt: now.toISOString(),
         } },
+        ...((appSettings?.defaultDuration ?? 1) !== 1 || (appSettings?.defaultDurationUnit ?? 'days') !== 'days'
+          ? [{ type: 'TASK_TIMING_SET' as const, payload: { taskId, duration: appSettings?.defaultDuration ?? 1, durationUnit: appSettings?.defaultDurationUnit ?? 'days', progress: null } }] : []),
         ...(source ? [{ type: 'TASK_DESCRIPTION_SET' as const,
           payload: { taskId, description: appendTaskSources('', [source]) } }] : []),
       ])
@@ -555,6 +557,10 @@ export function App() {
           onToggleActive={actions.handleToggleActive}
           onCompleteTask={actions.handleCompleteTask} onReopenTask={actions.handleReopenTask}
           onSetConfiguredDate={actions.handleSetConfiguredDate} onRemovePredecessor={actions.handleRemovePredecessor}
+          onTimingChange={async (taskId, timing) => {
+            const result = await mutate(() => eventBridge.appendEvent('TASK_TIMING_SET', { taskId, ...timing }));
+            if (!result) throw new Error(t('Änderung konnte nicht gespeichert werden'));
+          }}
           onDescriptionChange={descriptions.change}
           onDescriptionCommit={taskId => { void descriptions.flush(taskId); }}
           onAddLog={async (taskId, text) => {
@@ -698,6 +704,7 @@ export function App() {
           onDeleteDatabase={database.handleDeleteDatabase}
           onToggleAutostart={database.handleToggleAutostart}
           onSetUILanguage={database.handleSetUILanguage}
+          onSetDefaultDuration={database.handleSetDefaultDuration}
           onRunSetupAction={database.handleRunSetupAction}
           onOpenFolderInExplorer={(path, isFile) => eventBridge.openFolderInExplorer(path, isFile)}
           onOpenFolderInVSCode={(path, isFile) => eventBridge.openFolderInVSCode(path, isFile)}

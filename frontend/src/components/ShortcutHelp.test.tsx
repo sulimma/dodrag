@@ -6,6 +6,7 @@ import { ShortcutHelp } from './ShortcutHelp';
 import { ALERT_TYPES, EMOTICONS } from './editor/MarkdownFeatures';
 import { SYMBOL_GROUPS } from './editor/SymbolReplacements';
 import { MERMAID_TEMPLATES } from './editor/MermaidTemplates';
+import { markdownAgentInstructions } from './editor/markdownSyntax';
 import { getLanguage, setLanguage, supportedLanguages, t } from '../i18n';
 
 const mermaid = vi.hoisted(() => ({ initialize: vi.fn(), render: vi.fn() }));
@@ -19,7 +20,7 @@ beforeEach(() => {
   host = document.createElement('div'); document.body.append(host); root = createRoot(host);
 });
 afterEach(() => {
-  act(() => root.unmount()); host.remove(); setLanguage(previous); vi.unstubAllGlobals();
+  act(() => root.unmount()); host.remove(); setLanguage(previous); vi.useRealTimers(); vi.unstubAllGlobals();
 });
 const render = (props: React.ComponentProps<typeof ShortcutHelp>) => act(() => root.render(<ShortcutHelp {...props} />));
 
@@ -82,6 +83,7 @@ it('reactively localizes every syntax helper in all languages while retaining sy
   render({ open: true, initialPage: 'syntax', onClose: vi.fn() });
   for (const language of supportedLanguages) {
     act(() => setLanguage(language));
+    expect(copyButton().textContent).toBe(t('Markdown-Hinweise für KI kopieren'));
     const headings = [...host.querySelectorAll('h4')].map(node => node.textContent);
     const keys = ['Überschrift', 'Absatz', 'Fett', 'Kursiv', 'Durchgestrichen', 'Code', 'Listen', 'Zitat', 'Codeblock', 'GitHub Alerts', 'Mermaid-Diagramm', 'Formel', 'Formelblock', 'Link', 'Bild', 'Emotion-Shortcuts', 'Sonderzeichen', 'Mermaid'];
     expect(headings).toEqual(keys.map(key => t(key)));
@@ -245,4 +247,69 @@ it('localizes preview errors and labels reactively without applying symbol repla
     expect(host.textContent).toContain(' -- ');
   }
   expect(document.querySelector('[data-help-mermaid-render]')).toBeNull();
+});
+
+
+const copyButton = () => [...host.querySelectorAll<HTMLButtonElement>('button')]
+  .find(button => button.textContent === t('Markdown-Hinweise für KI kopieren'))!;
+function mockClipboard() {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal('navigator', { clipboard: { writeText } });
+  return writeText;
+}
+
+it('copies AI guidance with a brief confirmation that resets and restarts on repeated copies', async () => {
+  vi.useFakeTimers();
+  const writeText = mockClipboard();
+  render({ open: true, initialPage: 'syntax', onClose: vi.fn() });
+  const copy = copyButton();
+  const status = host.querySelector('[role=status]')!;
+  const label = copy.textContent;
+  expect(status.textContent).toBe('');
+  await act(async () => copy.click());
+  expect(writeText).toHaveBeenCalledWith(markdownAgentInstructions());
+  const guidance = writeText.mock.calls[0][0];
+  for (const symbol of ['✅', '❌', 'ℹ️', '❓', '⛔']) expect(guidance).toContain(symbol);
+  expect(guidance).toContain('```mermaid');
+  expect(status.textContent).toBe(t('Markdown-Hinweise kopiert'));
+  expect(copy.textContent).toBe(label);
+  act(() => vi.advanceTimersByTime(1000));
+  await act(async () => copy.click());
+  act(() => vi.advanceTimersByTime(500));
+  expect(status.textContent).toBe(t('Markdown-Hinweise kopiert'));
+  act(() => vi.advanceTimersByTime(1000));
+  expect(status.textContent).toBe('');
+  expect(copy.textContent).toBe(label);
+  expect(copy.disabled).toBe(false);
+});
+
+it('reports clipboard failures without success feedback and allows retrying', async () => {
+  const writeText = mockClipboard();
+  render({ open: true, initialPage: 'syntax', onClose: vi.fn() });
+  await act(async () => copyButton().click());
+  writeText.mockRejectedValueOnce(new Error('Clipboard denied'));
+  await act(async () => copyButton().click());
+  expect(host.querySelector('[role=status]')!.textContent).toBe('');
+  expect(host.querySelector('[role=alert]')!.textContent).toContain(t('Aktion fehlgeschlagen'));
+  await act(async () => copyButton().click());
+  expect(host.querySelector('[role=alert]')).toBeNull();
+  expect(host.querySelector('[role=status]')!.textContent).toBe(t('Markdown-Hinweise kopiert'));
+});
+
+it('clears copy feedback on page changes and reopening, ignoring a late clipboard response', async () => {
+  const writeText = mockClipboard();
+  let complete!: () => void;
+  writeText.mockImplementationOnce(() => new Promise<void>(resolve => { complete = resolve; }));
+  const props = { open: true, initialPage: 'syntax' as const, onClose: vi.fn() };
+  render(props);
+  act(() => copyButton().click());
+  act(() => host.querySelectorAll<HTMLButtonElement>('nav button')[0].click());
+  expect(copyButton()).toBeUndefined();
+  act(() => host.querySelectorAll<HTMLButtonElement>('nav button')[1].click());
+  await act(async () => complete());
+  expect(host.querySelector('[role=status]')!.textContent).toBe('');
+  await act(async () => copyButton().click());
+  render({ ...props, open: false });
+  render(props);
+  expect(host.querySelector('[role=status]')!.textContent).toBe('');
 });

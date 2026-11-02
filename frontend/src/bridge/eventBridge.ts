@@ -33,6 +33,8 @@ export interface SetupState {
 }
 
 export interface AppSettings {
+  defaultDuration?: number;
+  defaultDurationUnit?: import('../domain/duration').DurationUnit;
   knownDatabases: DatabaseEntry[];
   activeDatabasePath: string;
   autostart: boolean;
@@ -71,6 +73,7 @@ declare global {
           Redo: () => Promise<unknown>;
           GetSettings: () => Promise<AppSettings>;
           SetAutostart: (enabled: boolean) => Promise<AppSettings>;
+          SetDefaultDuration?: (value: number, unit: string) => Promise<AppSettings>;
           SetUILanguage?: (language: string) => Promise<AppSettings>;
           SelectFolderDialog: () => Promise<string>;
           CreateDatabase: (
@@ -165,6 +168,10 @@ export const eventBridge = {
     const settings = await nativeMethod('GetSettings')();
     if (settings.uiLanguage) setLanguage(resolveLanguage(settings.uiLanguage));
     return settings;
+  },
+
+  async setDefaultDuration(value: number, unit: string): Promise<AppSettings> {
+    return nativeMethod('SetDefaultDuration')(value, unit);
   },
 
   async setUILanguage(language: string): Promise<AppSettings> {

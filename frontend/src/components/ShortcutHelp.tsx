@@ -1,10 +1,10 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { t, useLanguage } from '../i18n';
+import { t, useLanguage, errorText } from '../i18n';
 import { EMOTICONS } from './editor/MarkdownFeatures';
 import { SYMBOL_GROUPS } from './editor/SymbolReplacements';
 import { MERMAID_TEMPLATES } from './editor/MermaidTemplates';
-import { markdownSyntaxExamples } from './editor/markdownSyntax';
+import { markdownAgentInstructions, markdownSyntaxExamples } from './editor/markdownSyntax';
 export type HelpPage = 'shortcuts' | 'syntax';
 let helpMermaidModule: Promise<typeof import('mermaid')['default']> | undefined;
 let helpDiagramSequence = 0;
@@ -245,8 +245,39 @@ export function ShortcutHelp({
 
 function SyntaxHelp() {
   const examples = markdownSyntaxExamples();
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
+  const feedback = useRef<{ request: number; timer?: ReturnType<typeof setTimeout> }>({ request: 0 });
+  // Each copy gets a fresh confirmation interval; leaving this page also invalidates pending writes.
+  useEffect(() => () => {
+    feedback.current.request++;
+    clearTimeout(feedback.current.timer);
+  }, []);
+  const copyInstructions = async () => {
+    const request = ++feedback.current.request;
+    clearTimeout(feedback.current.timer);
+    setCopied(false); setCopyError('');
+    try {
+      await navigator.clipboard.writeText(markdownAgentInstructions());
+      if (request !== feedback.current.request) return;
+      setCopied(true);
+      feedback.current.timer = setTimeout(() => setCopied(false), 1500);
+    } catch (error) {
+      if (request === feedback.current.request) setCopyError(errorText(t('Aktion fehlgeschlagen'), error));
+    }
+  };
   return <div className="space-y-3 text-xs text-slate-600" style={{ fontVariantLigatures: 'none', fontFeatureSettings: '"liga" 0, "clig" 0, "calt" 0' }}>
     <p>{t('Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.')}</p>
+    <div>
+      <button type="button" onClick={() => void copyInstructions()}
+        className={`rounded border px-3 py-1.5 transition-colors focus-visible:outline focus-visible:outline-sky-500 ${copied
+          ? 'border-emerald-400 bg-emerald-100 text-emerald-800'
+          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+        {t('Markdown-Hinweise für KI kopieren')}
+      </button>
+      <span role="status" className="sr-only">{copied ? t('Markdown-Hinweise kopiert') : ''}</span>
+      {copyError && <p role="alert" className="mt-2 text-red-700">{copyError}</p>}
+    </div>
     {examples.map(([label, example], index) => <section key={index}>
       <h4 className="font-semibold text-slate-800 mb-1">{label}</h4>
       {label === t('Mermaid-Diagramm') ? <MermaidExample label={t('Mermaid-Vorschau')} source={example.slice('```mermaid\n'.length, -'\n```'.length)} /> :

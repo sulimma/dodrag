@@ -13,7 +13,7 @@ import { TaskState } from '../domain/types';
 it('places incoming edges from further left lower, then orders equal-column sources by row', () => {
   const task = (id: string, day: number, predecessorIds: string[] = []): TaskState => ({
     id, title: id, creationOrder: 0, topologyLevel: 0,
-    description: '', logEntries: [], checklistProgress: null,
+    description: '', logEntries: [], checklistProgress: null, duration: 1, durationUnit: 'days', progress: null,
     createdAt: '2026-10-17T12:00:00Z',
     configuredStart: localDate(2026, 10, day, 14, 30, 12).toISOString(),
     calculatedStart: null,
@@ -114,6 +114,15 @@ it('places incoming edges from further left lower, then orders equal-column sour
     expect(node('target').style.left).toBe(node('left-upper').style.left);
     expect(node('other').style.left).toBe(node('left-upper').style.left);
     expect(parseFloat(node('target').style.top)).toBeLessThan(parseFloat(node('left-upper').style.top));
+    const sameDay = points('left-upper->target');
+    expect(sameDay[2]).toBeGreaterThan(sameDay[0]);
+    expect(sameDay.at(-2)).toBe(parseFloat(node('target').style.left) + parseFloat(node('target').style.width) / 2);
+    expect(sameDay.at(-1)).toBe(parseFloat(node('target').style.top) - 8);
+    expect(sameDay.at(-4)).toBe(sameDay.at(-2));
+    expect(sameDay.at(-3)).toBeLessThan(sameDay.at(-1)!);
+    expect(sameDay.at(-6)).toBeGreaterThan(sameDay.at(-2)!);
+    expect(Math.min(...sameDay.filter((_, index) => index % 2 === 0))).toBe(sameDay.at(-2));
+
     const backward = points('near->target');
     const [prevX, prevY, endX, endY] = backward.slice(-4);
     expect(endX).toBe(parseFloat(node('target').style.left) + parseFloat(node('target').style.width) + 8);
@@ -122,6 +131,15 @@ it('places incoming edges from further left lower, then orders equal-column sour
     expect(backward[1]).toBeGreaterThan(endY);
     expect(activeTasks[3].predecessorIds).toEqual(['left-upper', 'near', 'left-lower']);
     expect(activeTasks[3].effectiveDateKey).toBe('2026-10-19');
+    const aligned = tasks.map(task => ({ ...task, isActive: true }));
+    act(() => root.render(<GanttView {...props} openTasks={aligned}
+      listEntries={aligned.map(task => ({ kind: 'task', key: task.id, task }))} />));
+    const direct = points('left-lower->target');
+    const center = parseFloat(node('target').style.left) + parseFloat(node('target').style.width) / 2;
+    expect(direct).toEqual([center,
+      parseFloat(node('left-lower').style.top) + parseFloat(node('left-lower').style.height),
+      center, parseFloat(node('target').style.top) - 8]);
+
   } finally {
     act(() => root.unmount()); element.remove(); vi.unstubAllGlobals();
   }
