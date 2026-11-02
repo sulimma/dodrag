@@ -57,7 +57,7 @@ beforeEach(() => {
     RequestWindowClose: vi.fn(async () => {}), ShowWindowSystemMenu: vi.fn(async () => {}),
     GetWindowMode: vi.fn(async () => 'window' as const), SetWindowMode: vi.fn(async (mode: 'taskbar' | 'mini' | 'window') => mode),
     ShowTaskContextMenu: vi.fn(async () => ''), UpdateMiniModeHeight: vi.fn(async () => {}),
-    SnapMiniWindowToNearestCorner: vi.fn(async () => ''),
+
   };
   api.ShowTaskContextMenuAt = api.ShowTaskContextMenu;
   window.go = { main: { App: api } };

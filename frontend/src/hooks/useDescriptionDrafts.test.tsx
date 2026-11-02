@@ -195,3 +195,67 @@ it('does not partially append a mixed drop when a Markdown file read fails', asy
   await expect(drafts.appendSources(['A'], [{ kind: 'path', value: 'C:\\other.pdf' }, { kind: 'path', value: 'C:\\missing.md' }])).rejects.toThrow('Read failed');
   expect(visible()).toBe('Keep'); expect(bridge.appendBatch).not.toHaveBeenCalled();
 });
+
+// Regression: a close boundary must include already accepted file reads.
+it('review: waits for an accepted Markdown import before approving the final flush', async () => {
+  let resolveRead!: (text: string) => void;
+  bridge.readMarkdownFile.mockImplementation(() => new Promise<string>(resolve => { resolveRead = resolve; }));
+  bridge.appendBatch.mockImplementation(async commands => {
+    history = [...history, ...commands.map((command: any, index: number) => ({ ...command,
+      seq: history.length + index + 1, id: `review-import-${index}`, timestamp: date, undone: false }))];
+    return history;
+  });
+  let importing!: Promise<boolean>, final!: Promise<boolean>;
+  let approved = false;
+  await act(async () => {
+    importing = drafts.appendSources(['A'], [{ kind: 'path', value: 'C:\\notes.md' }]);
+    final = drafts.flushAll().then(saved => { approved = saved; return saved; });
+  });
+  const approvedBeforeRead = approved;
+  await act(async () => { resolveRead('# Accepted import'); await importing; await final; });
+  expect(task().description).toContain('Accepted import');
+  expect(approvedBeforeRead).toBe(false);
+});
+
+it('waits for an accepted Markdown import before switching databases', async () => {
+  let resolveRead!: (text: string) => void;
+  bridge.readMarkdownFile.mockImplementation(() => new Promise<string>(resolve => { resolveRead = resolve; }));
+  bridge.appendBatch.mockImplementation(async commands => {
+    history = [...history, ...commands.map((command: any, index: number) => ({ ...command,
+      seq: history.length + index + 1, id: `switch-import-${index}`, timestamp: date, undone: false }))];
+    return history;
+  });
+  let importing!: Promise<boolean>, switching!: Promise<AppSettings>;
+  let savedBeforeSwitch = '';
+  const switchStore = vi.fn(async () => {
+    savedBeforeSwitch = projectEvents(history).tasks.A.description;
+    settings = { ...settings, activeDatabasePath: 'B.db' };
+    history = history.filter(event => event.type === 'TASK_CREATED');
+    return settings;
+  });
+  await act(async () => {
+    importing = drafts.appendSources(['A'], [{ kind: 'path', value: 'C:\\notes.md' }]);
+    switching = database.changeDatabase(switchStore);
+  });
+  expect(drafts.hasPending()).toBe(true);
+  expect(switchStore).not.toHaveBeenCalled();
+  await act(async () => { resolveRead('# Saved in A'); await importing; await switching; });
+  expect(savedBeforeSwitch).toContain('Saved in A');
+  expect(database.databaseIdentity.current).toBe('B.db');
+  expect(visible()).toBe('');
+});
+
+it('refuses final flush when an accepted Markdown read fails and permits a retry', async () => {
+  let rejectRead!: (error: Error) => void;
+  bridge.readMarkdownFile.mockImplementation(() => new Promise<string>((_resolve, reject) => { rejectRead = reject; }));
+  let importing!: Promise<unknown>, closing!: Promise<boolean>;
+  await act(async () => {
+    importing = drafts.appendSources(['A'], [{ kind: 'path', value: 'C:\\notes.md' }]).catch(error => error);
+    closing = drafts.flushAll();
+  });
+  await act(async () => { rejectRead(new Error('read failed')); await importing; });
+  expect(await closing).toBe(false);
+  expect(drafts.hasPending()).toBe(false);
+  expect(await drafts.flushAll()).toBe(true);
+  expect(bridge.appendBatch).not.toHaveBeenCalled();
+});

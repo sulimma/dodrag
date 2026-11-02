@@ -102,9 +102,6 @@ declare global {
           GetWindowMode: () => Promise<WindowMode>;
           SetWindowMode: (mode: WindowMode) => Promise<WindowMode>;
           UpdateMiniModeHeight: (itemCount: number) => Promise<void>;
-          SnapMiniWindowToNearestCorner: (
-            itemCount: number
-          ) => Promise<string>;
           ShowTaskContextMenu: (items: TaskMenuItem[]) => Promise<string>;
           ShowTaskContextMenuAt?: (items: TaskMenuItem[], anchor: TaskMenuAnchor) => Promise<string>;
         };
@@ -280,10 +277,6 @@ export const eventBridge = {
 
   async updateMiniModeHeight(itemCount: number): Promise<void> {
     await nativeMethod('UpdateMiniModeHeight')(itemCount);
-  },
-
-  async snapMiniWindowToNearestCorner(itemCount: number): Promise<string> {
-    return nativeMethod('SnapMiniWindowToNearestCorner')(itemCount);
   },
 
   onPreviewCacheWarning(callback: (message: string) => void): () => void {

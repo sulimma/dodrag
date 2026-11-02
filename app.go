@@ -86,7 +86,6 @@ type App struct {
 	userDefaultUILanguage func() uint16
 	registerJumpList      func(string)
 	hwnd                  uintptr
-	isMiniMode            bool
 	windowMode            WindowMode
 	modeMu                sync.Mutex
 	nativeMode            atomic.Uint32
@@ -131,8 +130,15 @@ func (a *App) startup(ctx context.Context) {
 	a.mu.Lock()
 	a.ctx = ctx
 
-	if hwnd := a.ensureWindowHandleLocked(); hwnd != 0 {
-		a.savedRect = applyInitialWindowBoundsNative(hwnd)
+	hwnd := a.ensureWindowHandleLocked()
+	a.mu.Unlock()
+	var rect winRect
+	if hwnd != 0 {
+		rect = applyInitialWindowBoundsNative(hwnd)
+	}
+	a.mu.Lock()
+	if hwnd != 0 {
+		a.savedRect = rect
 	}
 
 	appDir := "."
@@ -217,22 +223,28 @@ func (a *App) onDisplayChange() {
 	a.modeMu.Lock()
 	defer a.modeMu.Unlock()
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	mode := a.currentWindowModeLocked()
-	if mode == WindowModeTaskbar {
-		return
-	}
 	hwnd := a.ensureWindowHandleLocked()
-	if hwnd == 0 {
+	monitor, corner, count := a.lastVisibleMonitor, a.settings.DockCorner, a.lastMiniItemCount
+	style := a.savedStyle
+	a.mu.Unlock()
+	if mode == WindowModeTaskbar || hwnd == 0 {
 		return
 	}
-	mon, _ := resolveMonitorOrPrimary(a.lastVisibleMonitor)
+	mon, _ := resolveMonitorOrPrimary(monitor)
+	// Win32 may wait for the HWND thread, which needs mu to process WM_CLOSE.
 	if mode == WindowModeMini {
-		w, h := computeMiniLogicalSize(a.lastMiniItemCount)
-		a.settings.DockMonitor, a.settings.DockCorner = applyMiniWindowBoundsNative(hwnd, mon.DeviceName, a.settings.DockCorner, w, h, false)
+		w, h := computeMiniLogicalSize(count)
+		monitor, corner = applyMiniWindowBoundsNative(hwnd, mon.DeviceName, corner, w, h, false)
+		a.mu.Lock()
+		a.settings.DockMonitor, a.settings.DockCorner = monitor, corner
+		a.mu.Unlock()
 	} else if rect, ok := getWindowRectNative(hwnd); ok {
 		if _, valid := isRectOnAnyMonitor(rect); !valid {
-			a.savedRect = restoreNormalWindowBoundsNative(hwnd, a.savedStyle, rect)
+			restored := restoreNormalWindowBoundsNative(hwnd, style, rect)
+			a.mu.Lock()
+			a.savedRect = restored
+			a.mu.Unlock()
 		}
 	}
 }
@@ -245,10 +257,11 @@ func (a *App) onMiniWindowSnapped(monitorName string, corner string) {
 		a.mu.Unlock()
 		return
 	}
-	if a.isMiniMode {
-		width, height := computeMiniLogicalSize(a.lastMiniItemCount)
-		monitorName, corner = applyMiniWindowBoundsNative(a.hwnd, monitorName, corner, width, height, true)
-	}
+	hwnd, count := a.hwnd, a.lastMiniItemCount
+	a.mu.Unlock()
+	width, height := computeMiniLogicalSize(count)
+	monitorName, corner = applyMiniWindowBoundsNative(hwnd, monitorName, corner, width, height, true)
+	a.mu.Lock()
 	a.settings.DockMonitor = monitorName
 	a.settings.DockCorner = corner
 	_ = a.saveSettingsLocked()
@@ -538,49 +551,20 @@ func (a *App) UpdateMiniModeHeight(itemCount int) error {
 	a.modeMu.Lock()
 	defer a.modeMu.Unlock()
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	a.lastMiniItemCount = itemCount
-	if !a.isMiniMode {
+	if a.currentWindowModeLocked() != WindowModeMini {
+		a.mu.Unlock()
 		return nil
 	}
 	hwnd := a.ensureWindowHandleLocked()
+	monitor, corner := a.settings.DockMonitor, a.settings.DockCorner
+	a.mu.Unlock()
 	logicalW, logicalH := computeMiniLogicalSize(itemCount)
-	resolvedMon, resolvedCorner := applyMiniWindowBoundsNative(hwnd, a.settings.DockMonitor, a.settings.DockCorner, logicalW, logicalH, false)
-	a.settings.DockMonitor = resolvedMon
-	a.settings.DockCorner = resolvedCorner
-	return nil
-}
-
-// SnapMiniWindowToNearestCorner snaps the compact window to whichever screen corner is closest after dragging.
-func (a *App) SnapMiniWindowToNearestCorner(itemCount int) (string, error) {
-	a.modeMu.Lock()
-	defer a.modeMu.Unlock()
+	monitor, corner = applyMiniWindowBoundsNative(hwnd, monitor, corner, logicalW, logicalH, false)
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	if !a.isMiniMode {
-		return a.settings.DockCorner, nil
-	}
-	hwnd := a.ensureWindowHandleLocked()
-	if rect, ok := getWindowRectNative(hwnd); ok {
-		tx, ty, monName, cornerName := findNearestCornerAcrossMonitors(rect)
-		physW := rect.Right - rect.Left
-		physH := rect.Bottom - rect.Top
-		procSetWindowPos.Call(
-			hwnd,
-			hwndTopMost,
-			uintptr(tx),
-			uintptr(ty),
-			uintptr(physW),
-			uintptr(physH),
-			swpNoActivate|swpShowWindow,
-		)
-		a.settings.DockMonitor = monName
-		a.settings.DockCorner = cornerName
-		if err := a.saveSettingsLocked(); err != nil {
-			return cornerName, err
-		}
-	}
-	return a.settings.DockCorner, nil
+	a.settings.DockMonitor, a.settings.DockCorner = monitor, corner
+	a.mu.Unlock()
+	return nil
 }
 
 // shutdown is called when the app terminates.

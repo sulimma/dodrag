@@ -110,7 +110,6 @@ const calls: Array<{ name: keyof NativeApp; invoke: () => Promise<unknown>; args
   { name: 'ShowWindowSystemMenu', invoke: () => eventBridge.showWindowSystemMenu(), args: [] },
   { name: 'GetWindowMode', invoke: () => eventBridge.getWindowMode(), args: [], result: 'window' },
   { name: 'UpdateMiniModeHeight', invoke: () => eventBridge.updateMiniModeHeight(3), args: [3] },
-  { name: 'SnapMiniWindowToNearestCorner', invoke: () => eventBridge.snapMiniWindowToNearestCorner(3), args: [3], result: 'bottom-left' },
   { name: 'SetEditorReady', invoke: () => eventBridge.setEditorReady(true), args: [true] },
   { name: 'FinishClose', invoke: () => eventBridge.finishClose(false), args: [false] },
   { name: 'SetWindowMode', invoke: () => eventBridge.setWindowMode('mini'), args: ['mini'], result: 'mini' },

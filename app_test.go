@@ -35,7 +35,10 @@ func TestAutoMiniUnfocusedTimer(t *testing.T) {
 		{"restored starts fresh", 25 * time.Hour, false, false, false, start.Add(25 * time.Hour)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a.isMiniMode = tc.mini
+			a.windowMode = WindowModeWindow
+			if tc.mini {
+				a.windowMode = WindowModeMini
+			}
 			if got := a.shouldAutoMiniLocked(start.Add(tc.after), tc.foreground); got != tc.want {
 				t.Fatalf("auto mini = %v, want %v", got, tc.want)
 			}

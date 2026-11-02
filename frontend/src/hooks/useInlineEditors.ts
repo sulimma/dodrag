@@ -50,6 +50,7 @@ export function useInlineEditors(
     const task = tasks[editingTaskId];
     const trimmed = normalizeTitleInput(editingTitle).trim();
     if (!task || !trimmed || trimmed === task.title) {
+      editGroup.current = '';
       setEditingTaskId(null);
       return;
     }
@@ -70,8 +71,10 @@ export function useInlineEditors(
       updated &&
       editSession === editGroup.current &&
       revision === editRevision.current
-    )
+    ) {
+      editGroup.current = '';
       setEditingTaskId(null);
+    }
   };
 
   const startInlineDateEdit = (task: TaskState) => {
@@ -98,12 +101,14 @@ export function useInlineEditors(
     if (
       currentInput.trim() === initialDate.current
     ) {
+      editGroup.current = '';
       setEditingDateTaskId(null);
       return;
     }
 
     const parsedIso = normalizeUserDate(currentInput, now);
     if (Date.parse(task.configuredStart) === Date.parse(parsedIso)) {
+      editGroup.current = '';
       setEditingDateTaskId(null);
       return;
     }
@@ -124,8 +129,10 @@ export function useInlineEditors(
       updated &&
       editSession === editGroup.current &&
       revision === editRevision.current
-    )
+    ) {
+      editGroup.current = '';
       setEditingDateTaskId(null);
+    }
   };
   const cancelEdit = () => {
     editGroup.current = '';
@@ -155,5 +162,6 @@ export function useInlineEditors(
     onCommit: commitInlineDateEdit,
     onCancel: cancelEdit,
   };
-  return { titleEditor, dateEditor, cancelEdit, startInlineEdit };
+  // Read synchronously after a queue drain, before React necessarily renders.
+  return { titleEditor, dateEditor, cancelEdit, startInlineEdit, hasOpen: () => editGroup.current !== '' };
 }

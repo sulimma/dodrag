@@ -67,7 +67,7 @@ beforeEach(() => {
     RequestWindowClose: vi.fn(async () => {}), ShowWindowSystemMenu: vi.fn(async () => {}),
     GetWindowMode: vi.fn(async () => 'window' as const), SetWindowMode: vi.fn(async (mode: 'taskbar' | 'mini' | 'window') => mode),
     ShowTaskContextMenu: vi.fn(async () => ''), UpdateMiniModeHeight: vi.fn(async () => {}),
-    SnapMiniWindowToNearestCorner: vi.fn(async () => ''),
+
   };
   onFileDrop = vi.fn((callback: typeof nativeDrop) => { nativeDrop = callback; });
   onFileDropOff = vi.fn(() => { nativeDrop = undefined; });
@@ -287,4 +287,32 @@ it('waits for final persistence before acknowledging native close and retries fa
   await act(async () => nativeEvents.get('app:before-close')!());
   await acknowledge(); expect(api.FinishClose).toHaveBeenLastCalledWith(true);
   expect(storedDescription()).toBe('Before close');
+});
+
+// Regression: a failed title save must not be acknowledged as safe to close.
+it('review: refuses native close when an in-flight title save fails', async () => {
+  await mount();
+  const title = host.querySelector<HTMLElement>(`main [data-task-drag="${taskId}"] [data-task-title]`)!;
+  act(() => title.focus());
+  act(() => { title.textContent = 'Unsaved title'; title.dispatchEvent(new Event('input', { bubbles: true })); });
+  await act(async () => title.blur());
+  expect(pending).toHaveLength(1);
+  expect(pending[0].commands[0].type).toBe('TASK_RENAMED');
+  await act(async () => nativeEvents.get('app:before-close')!());
+  expect(api.FinishClose).not.toHaveBeenCalled();
+  await act(async () => pending.shift()!.reject(new Error('Disk unavailable')));
+  expect(api.FinishClose).toHaveBeenLastCalledWith(false);
+  expect(document.body.inert).not.toBe(true);
+  expect(title.textContent).toBe('Unsaved title');
+  act(() => title.focus());
+  await key(title, 'Enter');
+  await act(async () => {
+    const write = pending.shift()!;
+    history = [...history, ...write.commands.map((command, index) => ({ ...command,
+      seq: history.length + index + 1, timestamp: date, undone: false }))];
+    write.resolve(history);
+  });
+  await act(async () => nativeEvents.get('app:before-close')!());
+  expect(api.FinishClose).toHaveBeenLastCalledWith(true);
+  expect(projectEvents(history, new Date(date)).tasks[taskId].title).toBe('Unsaved title');
 });

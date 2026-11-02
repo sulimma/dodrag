@@ -101,8 +101,8 @@ export function App() {
   const mainSelection = useTaskSelection(!isMiniMode);
   const miniSelection = useTaskSelection(isMiniMode);
   const selection = isMiniMode ? miniSelection : mainSelection;
-  const flushDescriptions = useRef<() => Promise<boolean>>(async () => true);
-  const descriptionSaving = useRef<() => boolean>(() => false);
+  const finishEditing = useRef<() => Promise<boolean>>(async () => true);
+  const editingPending = useRef<() => boolean>(() => false);
   const database = useDatabaseSnapshot(pushToast, dragIdentity, () => {
     editors.cancelEdit();
     setNewTaskTitle('');
@@ -110,7 +110,7 @@ export function App() {
     pendingSource.current = null;
     mainSelection.reset();
     miniSelection.reset();
-  }, () => flushDescriptions.current(), () => descriptionSaving.current());
+  }, () => finishEditing.current(), () => editingPending.current());
   const {
     events,
     appSettings,
@@ -124,8 +124,6 @@ export function App() {
     changeDatabase,
   } = database;
   const descriptions = useDescriptionDrafts(database);
-  flushDescriptions.current = descriptions.flushAll;
-  descriptionSaving.current = descriptions.hasPending;
   const state = useMemo(() => projectEvents(events, now), [events, now, language]);
   const needsProtocol = viewMode === 'protocol' || newTaskTitle.length > 0;
   const protocolDays = useMemo(() => needsProtocol ? projectProtocol(events, state.tasks) : [], [needsProtocol, events, state.tasks]);
@@ -145,6 +143,12 @@ export function App() {
     setLastMovedKey,
     () => selection.setContextMenu(null)
   );
+  // All destructive boundaries use the same completion contract. A drained
+  // queue does not mean a failed inline draft has been saved.
+  finishEditing.current = async () => await descriptions.flushAll() && !editors.hasOpen();
+  // Preserve the admission rule: a pending inline write rejects a database
+  // switch; description saves/imports may finish before switching.
+  editingPending.current = descriptions.hasPending;
   const scopedEditor = (editor: InlineEditor, owner: 'view' | 'detail'): InlineEditor => ({
     ...editor,
     taskId: editOwner === owner ? editor.taskId : null,
@@ -286,8 +290,9 @@ export function App() {
       closing = true;
       // No user input may create another draft between final flush and native
       // close approval. Restore interaction if saving fails; no extra dialog.
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
       document.body.inert = true;
-      void flushDescriptions.current().then(async saved => {
+      void finishEditing.current().then(async saved => {
         if (!saved) { closing = false; document.body.inert = previousInert; }
         await eventBridge.finishClose(saved);
       }).catch(async error => {
@@ -368,9 +373,7 @@ export function App() {
       if (confirmedMode.current === mode && !selectTaskId) return true;
       if (automatic && mode === 'mini' && automaticBlocked()) return false;
       if (mode === 'mini' || mode === 'taskbar') {
-        if (!await descriptions.flushAll()) return false;
-        // Blur may already be saving an inline draft. Never discard a failed or still-open editor.
-        if (activeInlineEditor.current) return false;
+        if (!await finishEditing.current()) return false;
         if (expectedMode !== undefined && confirmedMode.current !== expectedMode) return false;
         if (automatic && mode === 'mini' && automaticBlocked()) return false;
       }

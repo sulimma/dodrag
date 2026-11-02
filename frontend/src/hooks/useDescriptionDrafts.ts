@@ -17,6 +17,7 @@ type Database = Pick<ReturnType<typeof useDatabaseSnapshot>, 'databaseIdentity' 
 export function useDescriptionDrafts(database: Database) {
   const current = useRef(database); current.current = database;
   const drafts = useRef(new Map<string, Draft>());
+  const imports = useRef(new Set<Promise<boolean>>());
   const saving = useRef(new Map<string, { draft: Draft; promise: Promise<boolean> }>());
   const [, redraw] = useReducer((revision: number) => revision + 1, 0);
   const keyFor = (taskId: string) => JSON.stringify([current.current.databaseIdentity.current, taskId]);
@@ -76,8 +77,13 @@ export function useDescriptionDrafts(database: Database) {
       if (entries.length) redraw();
       return persistDrafts(entries, true);
     };
-    return sources.some(source => source.kind === 'path' && isMarkdownPath(source.value))
-      ? readMarkdownSources(sources).then(append) : append(sources);
+    if (!sources.some(source => source.kind === 'path' && isMarkdownPath(source.value))) return append(sources);
+    // Admission starts at the file read, before a draft or queued write exists.
+    const operation = readMarkdownSources(sources).then(append);
+    imports.current.add(operation);
+    const finished = () => { imports.current.delete(operation); };
+    void operation.then(finished, finished);
+    return operation;
   }, [persistDrafts]);
   const flush = useCallback((taskId: string) => flushKey(keyFor(taskId)), [flushKey]);
   const flushAll = useCallback(async () => {
@@ -85,13 +91,16 @@ export function useDescriptionDrafts(database: Database) {
     const identity = db.databaseIdentity.current;
     // A second boundary while a save is pending must also cover newer typing.
     for (;;) {
+      try {
+        if ((await Promise.all([...imports.current])).some(saved => !saved)) return false;
+      } catch { return false; } // The drop caller reports the original read error.
       const keys = [...drafts.current].filter(([, draft]) => draft.database === identity).map(([key]) => key);
       for (const key of keys) if (!await flushKey(key)) return false;
       await db.waitForMutations();
       if (identity !== db.databaseIdentity.current) return false;
       // Draining other mutations yields to React/input too. Recheck drafts
       // afterwards; a pre-drain empty map is not a completed final flush.
-      if (![...drafts.current.values()].some(draft => draft.database === identity)) return true;
+      if (!imports.current.size && ![...drafts.current.values()].some(draft => draft.database === identity)) return true;
     }
   }, [flushKey]);
   const taskWithDraft = (task: TaskState | null): TaskState | null => {
@@ -99,5 +108,5 @@ export function useDescriptionDrafts(database: Database) {
     const draft = drafts.current.get(keyFor(task.id));
     return draft ? { ...task, description: draft.text } : task;
   };
-  return { change, flush, flushAll, appendSources, taskWithDraft, hasPending: () => saving.current.size > 0, hasDrafts: () => drafts.current.size > 0 || saving.current.size > 0 };
+  return { change, flush, flushAll, appendSources, taskWithDraft, hasPending: () => imports.current.size > 0 || saving.current.size > 0, hasDrafts: () => imports.current.size > 0 || drafts.current.size > 0 || saving.current.size > 0 };
 }

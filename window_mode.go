@@ -66,9 +66,6 @@ func (a *App) currentWindowModeLocked() WindowMode {
 	if a.windowMode != "" {
 		return a.windowMode
 	}
-	if a.isMiniMode {
-		return WindowModeMini
-	}
 	return WindowModeWindow
 }
 func (a *App) GetWindowMode() WindowMode {
@@ -196,7 +193,6 @@ func (a *App) setWindowMode(mode WindowMode) (WindowMode, error) {
 	a.mu.Lock()
 	a.windowMode = mode
 	a.storeNativeWindowMode(mode)
-	a.isMiniMode = mode == WindowModeMini
 	a.unfocusedSince = time.Time{}
 	a.bootMinimized = false
 	a.lastVisibleMonitor = mon.DeviceName
