@@ -755,11 +755,15 @@ export function SettingsModal({
           </div>
           <button
             type="button"
-            disabled={!isDbReady || busy}
-            onClick={onClose}
+            disabled={busy}
+            onClick={() => {
+              // With no confirmed database, the modal blocks task interaction.
+              if (isDbReady) onClose();
+              else void eventBridge.requestWindowClose().catch(error => setErrorMsg(String(error)));
+            }}
             className="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-medium hover:bg-slate-900 disabled:opacity-40 disabled:pointer-events-none transition-colors"
           >
-            {t('Fertig')}
+            {isDbReady ? t('Fertig') : t('Schließen')}
           </button>
         </div>
       </div>

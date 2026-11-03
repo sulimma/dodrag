@@ -367,8 +367,9 @@ it('clears old DB tasks after activation plus snapshot failure and recovers by r
   await act(async () => click(textButton('Verwenden')));
   expect(activeSettings.activeDatabasePath).toBe('B.db');
   expect(element.querySelector('span[title="Alpha"]')).toBeNull();
-  expect(textButton('Fertig').disabled).toBe(true);
-  key('Escape', textButton('Fertig'));
+  key('Escape', textButton('Schließen'));
+  expect(textButton('Schließen')).toBeDefined();
+  expect(api.RequestWindowClose).not.toHaveBeenCalled();
   key('Delete'); key('z', document.body, { ctrlKey: true });
   expect(api.AppendBatch).not.toHaveBeenCalled();
   expect(api.Undo).not.toHaveBeenCalled();
@@ -392,7 +393,7 @@ it.each([false, true])('reconciles partial native delete failure, snapshot failu
   click(element.querySelectorAll('button[title="Datenbank löschen"]')[0]);
   await act(async () => click(textButton('Endgültig löschen')));
   expect(element.textContent).toContain('File deletion failed after activation');
-  expect(textButton('Fertig').disabled).toBe(snapshotFails);
+  expect(textButton(snapshotFails ? 'Schließen' : 'Fertig').disabled).toBe(false);
   expect(element.querySelector('span[title="Alpha"]')).toBeNull();
   if (snapshotFails) await act(async () => click(textButton('Aktive Datenbank erneut laden')));
   expect(activeSettings.activeDatabasePath).toBe('B.db');
@@ -410,11 +411,14 @@ it('ignores obsolete startup responses after a StrictMode effect restart', async
   expect(api.GetEvents).toHaveBeenCalledTimes(1);
 });
 
-it.each(['settings', 'events'])('blocks unconfirmed startup after %s failure and allows recovery', async failure => {
+it.each(['settings', 'events'])('blocks unconfirmed startup after %s failure and allows closing or recovery', async failure => {
   vi.mocked(failure === 'settings' ? api.GetSettings : api.GetEvents).mockRejectedValueOnce(new Error('Startup failed'));
   await mount();
   expect(element.textContent).toContain('Startup failed');
-  expect(textButton('Fertig').disabled).toBe(true);
+  const close = textButton('Schließen');
+  expect(close.disabled).toBe(false);
+  await act(async () => click(close));
+  expect(api.RequestWindowClose).toHaveBeenCalledOnce();
   expect(element.querySelector('span[title="Alpha"]')).toBeNull();
   key('Delete'); key('n');
   expect(api.AppendBatch).not.toHaveBeenCalled();
