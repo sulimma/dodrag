@@ -39,6 +39,12 @@ export function useTaskMutations(
   const reopen = (id: string, current: CurrentState): EventCommand[] =>
     current.tasks[id].completed ? [{ type: 'TASK_REOPENED', payload: { taskId: id } }] : [];
 
+  // Moving a task ends its active override. Inline date editing writes only the
+  // date event and deliberately retains activity. Keep both changes in one batch
+  // so failed writes and undo cannot leave a half-applied move.
+  const deactivate = (id: string, current: CurrentState): EventCommand[] =>
+    current.tasks[id].isActive ? [{ type: 'TASK_ACTIVE_SET', payload: { taskId: id, isActive: false } }] : [];
+
   const commit = async (
     build: (current: CurrentState) => EventCommand[],
     onInvalid?: (command: EventCommand) => void
@@ -81,6 +87,7 @@ export function useTaskMutations(
     setLastMovedKey(`task:${taskId}`);
     const result = await commit(current => present(ids, current).flatMap(id => [
       ...reopen(id, current),
+      ...deactivate(id, current),
       { type: 'TASK_START_DATE_SET' as const, payload: { taskId: id, configuredStart } },
     ]));
     if (result) pushToast(t('Startdatum von {id} → {date}', {
@@ -93,6 +100,7 @@ export function useTaskMutations(
     if (!ids.length) return;
     await commit(current => present(ids, current).flatMap(id => [
       ...reopen(id, current),
+      ...deactivate(id, current),
       { type: 'TASK_START_DATE_SET' as const, payload: { taskId: id, configuredStart: calculateQuickResubmitDate(target, current.tasks[id]) } },
     ]));
   };
@@ -103,6 +111,7 @@ export function useTaskMutations(
     setLastMovedKey(`task:${draggedId}`);
     await commit(current => !current.tasks[targetTaskId] ? [] : present(ids, current).flatMap(id => [
       ...reopen(id, current),
+      ...deactivate(id, current),
       { type: 'DEPENDENCY_ADDED' as const, payload: { taskId: id, predecessorId: targetTaskId } },
     ]), command => pushToast(t('Zyklus verhindert: {id} ist bereits Vorgänger von {target}', {
       id: command.payload.taskId, target: targetTaskId,

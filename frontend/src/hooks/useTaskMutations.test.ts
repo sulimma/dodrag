@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { useTaskMutations } from './useTaskMutations';
 import type { DragIdentity } from './useTaskDrag';
-import { projectEvents } from '../domain/projector';
+import { calculateQuickResubmitDate, toDateKey, projectEvents } from '../domain/projector';
 import type { StoredEvent } from '../domain/types';
 import { eventBridge } from '../bridge/eventBridge';
 
@@ -136,3 +136,54 @@ it('preserves the full ISO instant supplied by a date drop', async () => {
     expect(append).toHaveBeenCalledWith([{ type: 'TASK_START_DATE_SET', payload: { taskId: 'A', configuredStart: '2026-12-31T23:30:12.000Z' } }]);
   } finally { append.mockRestore(); }
 });
+
+it.each(['date', 'same-date', 'plus_1d', 'next_week', 'plus_7d', 'next_month', 'predecessor', 'complete'] as const)(
+  'ends activity for a grouped %s move and allows future tasks to be activated again', async target => {
+    const now = new Date('2026-10-19T09:00:00.000Z');
+    const future = '2026-12-01T09:00:00.000Z';
+    const confirmed = { current: ['A', 'B', 'C'].map((taskId, index): StoredEvent => ({
+      seq: index + 1, id: taskId, timestamp: now.toISOString(), undone: false, type: 'TASK_CREATED',
+      payload: { taskId, title: taskId, configuredStart: future, createdAt: now.toISOString() },
+    })) };
+    const append = vi.spyOn(eventBridge, 'appendBatch').mockImplementation(async commands => {
+      confirmed.current = [...confirmed.current, ...commands.map((command, index): StoredEvent => ({
+        ...command, seq: confirmed.current.length + index + 1, id: `event-${confirmed.current.length}-${index}`,
+        timestamp: now.toISOString(), undone: false,
+      }))];
+      return confirmed.current;
+    });
+    const state = () => projectEvents(confirmed.current, now);
+    const actions = useTaskMutations({ databaseIdentity: { current: 'db' }, confirmedEvents: confirmed,
+      mutate: operation => operation() }, { selectedTaskIds: [], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn() },
+      now, { current: { database: 'db', taskId: 'A', taskIds: ['A', 'B'] } }, vi.fn(), vi.fn());
+    try {
+      for (const id of ['A', 'B']) await actions.handleToggleActive(state().tasks[id]);
+      const beforeMove = state();
+      expect(beforeMove.tasks.A.effectiveDateKey).toBe(toDateKey(now));
+      append.mockClear();
+      const date = target === 'same-date' ? future : '2026-11-02T09:00:00.000Z';
+      if (target === 'date' || target === 'same-date') await actions.handleSetConfiguredDate('A', date, date, true);
+      else if (target === 'predecessor') await actions.handleAddPredecessor('A', 'C');
+      else if (target === 'complete') await actions.handleCompleteTask('A', true);
+      else await actions.handleResubmitTasks('A', target, true);
+      expect(append).toHaveBeenCalledTimes(1);
+      for (const id of ['A', 'B']) {
+        expect(state().tasks[id].isActive).toBe(false);
+        if (target === 'complete') {
+          expect(state().tasks[id].completed).toBe(true);
+          await actions.handleReopenTask(id);
+          expect(state().tasks[id].isActive).toBe(false);
+        } else {
+          const expected = target === 'date' || target === 'same-date' ? date : target === 'predecessor' ? future
+            : calculateQuickResubmitDate(target, beforeMove.tasks[id]);
+          expect(state().tasks[id].configuredStart).toBe(expected);
+          expect(state().tasks[id].effectiveDateKey > toDateKey(now)).toBe(true);
+        }
+        const configuredStart = state().tasks[id].configuredStart;
+        await actions.handleToggleActive(state().tasks[id]);
+        expect(state().tasks[id]).toMatchObject({ isActive: true, configuredStart, effectiveDateKey: toDateKey(now) });
+      }
+      expect(state().tasks.C).toMatchObject({ isActive: false, configuredStart: future });
+    } finally { append.mockRestore(); }
+  }
+);
