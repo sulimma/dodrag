@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { AppSettings } from './bridge/eventBridge';
 import { StoredEvent } from './domain/types';
+import { projectEvents, toDateKey } from './domain/projector';
 import { setLanguage, supportedLanguages, t } from './i18n';
 
 // jsdom has no compositor; frame scheduling is verified by the hook tests.
@@ -202,8 +203,8 @@ it('shares native mini context actions and task creation', async () => {
   await act(async () => click(button('Kompaktansicht')));
   await act(async () => openContext(button('Alpha')));
   expect(menuActions()).toEqual(fullActions);
-  expect(fullActions.map(item => item.id)).toEqual(['toggle', 'today', 'complete']);
-  expect(fullActions.map(item => item.shortcut)).toEqual(['Space / A', 'T', 'Del / D']);
+  expect(fullActions.map(item => item.id)).toEqual(['toggle', 'today', 'complete', 'open-copy']);
+  expect(fullActions.flatMap(item => item.shortcut ? [item.shortcut] : [])).toEqual(['Space / A', 'T', 'Del / D']);
   expect(element.querySelector('.fixed.z-50.w-64')).toBeNull();
   const creation = input('Task hinzufügen (Enter)');
   type(creation, 'New mini task');
@@ -215,22 +216,30 @@ it('shares native mini context actions and task creation', async () => {
   expect(api.SetWindowMode).not.toHaveBeenCalledWith('window');
 });
 
-it('offers completed tasks only reopen and preserves their start date', async () => {
-  vi.mocked(api.GetEvents).mockResolvedValue([...history, {
+it('selects the reopened task and preserves its configured date', async () => {
+  const events: StoredEvent[] = [...history, {
     seq: 3, id: 'completed-alpha', timestamp: date, undone: false,
     type: 'TASK_COMPLETED', payload: { taskId: '26-101', completedAt: date },
-  }]);
+  }];
+  vi.mocked(api.GetEvents).mockResolvedValue(events);
+  vi.mocked(api.AppendBatch).mockImplementation(async commands => [...events, ...commands.map(command => ({
+    ...command, seq: 4, timestamp: date, undone: false,
+  }))]);
   vi.mocked(api.ShowTaskContextMenu).mockResolvedValueOnce('reopen');
   await mount();
+  click(element.querySelector('[data-completed-task="26-101"]')!);
+  selectTask('26-102', { ctrlKey: true });
   await act(async () => element.querySelector('[data-completed-task="26-101"]')!.dispatchEvent(
     new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
   ));
   expect(vi.mocked(api.ShowTaskContextMenu).mock.calls[0][0]).toEqual([
-    { id: 'reopen', label: 'Erneut öffnen', shortcut: 'O', disabled: false },
+    { id: 'reopen', label: t('Erneut öffnen'), shortcut: 'O', disabled: false },
+    { id: 'open-copy', label: t('Kopie Öffnen'), disabled: false },
   ]);
   expect(vi.mocked(api.AppendBatch).mock.calls[0][0]).toEqual([
     expect.objectContaining({ type: 'TASK_REOPENED', payload: { taskId: '26-101' } }),
   ]);
+  expect(selectedIds()).toEqual(['26-101']);
 });
 
 it('opens exactly one native menu under StrictMode and ignores unknown actions', async () => {
@@ -588,6 +597,87 @@ it.each(['Liste', 'Netzplan', 'Gantt', 'Protokoll'])('preserves selection and co
   });
 });
 
+it.each([
+  { view: 'Protokoll', completed: true, title: 'Alpha', expectedTitle: 'Alpha (2)' },
+  { view: 'Liste', completed: false, title: 'Alpha (99)', expectedTitle: 'Alpha (100)' },
+])('opens and selects a copy of $title in $view', async ({ view, completed, title, expectedTitle }) => {
+    const sourceId = '26-101';
+    const events: StoredEvent[] = [
+      { ...history[0], type: 'TASK_CREATED', payload: {
+        taskId: sourceId, title, configuredStart: date, createdAt: date,
+      } },
+      { seq: 2, id: 'description', timestamp: date, undone: false, type: 'TASK_DESCRIPTION_SET',
+        payload: { taskId: sourceId, description: 'Saved details' } },
+      { seq: 3, id: 'timing', timestamp: date, undone: false, type: 'TASK_TIMING_SET',
+        payload: { taskId: sourceId, duration: 2.5, durationUnit: 'hours', progress: 1 } },
+      { seq: 4, id: 'note', timestamp: date, undone: false, type: 'TASK_LOG_ADDED',
+        payload: { taskId: sourceId, entryId: 'note', text: 'Old note', createdAt: date } },
+    ];
+    if (completed) events.push({ seq: 5, id: 'complete', timestamp: date, undone: false, type: 'TASK_COMPLETED',
+      payload: { taskId: sourceId, completedAt: date } });
+    vi.mocked(api.GetEvents).mockResolvedValue(events);
+    vi.mocked(api.ShowTaskContextMenu).mockImplementation(async items =>
+      items.find(item => item.label === t('Kopie Öffnen'))?.id ?? '');
+    let saved = events;
+    vi.mocked(api.AppendBatch).mockImplementation(async commands => {
+      saved = [...events, ...commands.map((command, index) => ({
+        ...command, seq: events.length + index + 1, timestamp: new Date().toISOString(), undone: false,
+      }))];
+      return saved;
+    });
+    await mount();
+    await chooseView(view);
+    const row = element.querySelector(`[data-task-drag="${sourceId}"]:not([data-completed-task])`)!;
+    await act(async () => row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+
+    expect(api.AppendBatch).toHaveBeenCalledOnce();
+    const state = projectEvents(saved, new Date());
+    expect(state.tasks[sourceId].completed).toBe(completed);
+    const copies = state.openTasks.filter(task => task.id !== sourceId);
+    expect(copies).toHaveLength(1);
+    const [copy] = copies;
+    expect(copy).toMatchObject({
+      title: expectedTitle, allPredecessorIds: [sourceId],
+      description: 'Saved details', duration: 2.5, durationUnit: 'hours', progress: null,
+    });
+    expect(toDateKey(new Date(copy.configuredStart))).toBe(toDateKey(new Date(copy.createdAt)));
+
+    expect(element.querySelector(`[data-task-drag="${copy.id}"][data-task-selected="true"]`)).not.toBeNull();
+    expect(row.getAttribute('data-dependency-highlight')).toBe('predecessor');
+    const detailToggle = element.querySelector('[data-detail-toggle]')!;
+    if (detailToggle.getAttribute('aria-expanded') === 'false') click(detailToggle);
+    const entries = element.querySelectorAll('[data-task-log] [data-log-entry]');
+    expect(entries).toHaveLength(1);
+    expect(entries[0].textContent).toContain(t('Aus {id} als Kopie erstellt', { id: sourceId }));
+    expect(entries[0].textContent).toContain('🟩');
+});
+
+it('highlights closed predecessors and successors in the sidebar and protocol', async () => {
+  const events: StoredEvent[] = [
+    ...groupHistory,
+    { seq: 5, id: 'pred', timestamp: date, undone: false, type: 'DEPENDENCY_ADDED',
+      payload: { taskId: '26-102', predecessorId: '26-101' } },
+    { seq: 6, id: 'succ', timestamp: date, undone: false, type: 'DEPENDENCY_ADDED',
+      payload: { taskId: '26-103', predecessorId: '26-102' } },
+    ...['26-101', '26-103', '26-104'].map((taskId, index) => ({
+      seq: 7 + index, id: `close-${taskId}`, timestamp: date, undone: false, type: 'TASK_COMPLETED' as const,
+      payload: { taskId, completedAt: date },
+    })),
+  ];
+  vi.mocked(api.GetEvents).mockResolvedValue(events);
+  await mount();
+  selectTask('26-102');
+  const role = (selector: string) => element.querySelector(selector)!.getAttribute('data-dependency-highlight');
+  expect(role('[data-completed-task="26-101"]')).toBe('predecessor');
+  expect(role('[data-completed-task="26-103"]')).toBe('successor');
+  expect(role('[data-completed-task="26-104"]')).toBeNull();
+
+  await chooseView('Protokoll');
+  expect(role('[data-protocol-view] [data-task-drag="26-101"]')).toBe('predecessor');
+  expect(role('[data-protocol-view] [data-task-drag="26-103"]')).toBe('successor');
+  expect(role('[data-protocol-view] [data-task-drag="26-104"]')).toBeNull();
+});
+
 it('documents the implemented drag direction, scoped Alt removal, and active shortcuts', async () => {
   await mount();
   click(button('Tastenkürzel & Bedienung (?)'));
@@ -721,7 +811,7 @@ it('places multiple predecessor actions after completion and preserves their han
   const labels = vi.mocked(api.ShowTaskContextMenu).mock.calls[0][0].map(item => item.label);
   const completedIndex = labels.findIndex(label => label?.includes('Als erledigt markieren'));
   expect(completedIndex).toBeGreaterThan(-1);
-  expect(labels.slice(completedIndex + 1)).toEqual([
+  expect(labels.slice(completedIndex + 1).filter(label => label?.startsWith('Vorgänger '))).toEqual([
     'Vorgänger 26-101 lösen', 'Vorgänger 26-102 lösen',
     'Vorgänger 26-103 lösen', 'Vorgänger 26-104 lösen',
   ]);

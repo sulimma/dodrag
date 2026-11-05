@@ -3,12 +3,19 @@ import type { TaskState } from './types';
 export interface DependencyEdge { from: string; to: string }
 export const edgeKey = (edge: DependencyEdge) => `${edge.from}->${edge.to}`;
 
+export function configuredSuccessors(tasks: Record<string, TaskState>): Map<string, string[]> {
+  const successors = new Map<string, string[]>();
+  for (const task of Object.values(tasks)) successors.set(task.id, []);
+  for (const task of Object.values(tasks)) {
+    for (const pred of task.allPredecessorIds) successors.get(pred)?.push(task.id);
+  }
+  return successors;
+}
+
 // Only source-incident stored edges leading towards the target, in either direction.
 export function dependencyPathEdges(tasks: Record<string, TaskState>, source: string, target: string): DependencyEdge[] {
   if (source === target || !tasks[source] || !tasks[target]) return [];
-  const successors = new Map<string, string[]>();
-  for (const task of Object.values(tasks)) successors.set(task.id, []);
-  for (const task of Object.values(tasks)) for (const pred of task.allPredecessorIds) successors.get(pred)?.push(task.id);
+  const successors = configuredSuccessors(tasks);
   const reachable = (start: string, next: (id: string) => readonly string[]) => {
     const visited = new Set<string>(), stack = [start];
     while (stack.length) { const id = stack.pop()!; if (visited.has(id)) continue; visited.add(id); stack.push(...next(id)); }

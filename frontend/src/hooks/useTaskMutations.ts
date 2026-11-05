@@ -1,6 +1,6 @@
 import { eventBridge } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';
-import { calculateQuickResubmitDate, formatIso8601Display, projectEvents } from '../domain/projector';
+import { calculateQuickResubmitDate, dateKeyToIsoStart, formatIso8601Display, projectEvents, toDateKey } from '../domain/projector';
 import type { QuickResubmitTargetId } from '../domain/projector';
 import { applyCommand, copyReplayTasks, replayCommands } from '../domain/commands';
 import { parseCommand, type EventCommand } from '../domain/eventSchema';
@@ -19,7 +19,7 @@ type CurrentState = ReturnType<typeof projectEvents>;
 // same date twice. SQLite remains the final authority and revalidates atomically.
 export function useTaskMutations(
   database: Pick<ReturnType<typeof useDatabaseSnapshot>, 'mutate' | 'databaseIdentity' | 'confirmedEvents'>,
-  selection: Pick<ReturnType<typeof useTaskSelection>, 'selectedTaskIds' | 'setSelectedTaskIds' | 'clearEdgeSelection'>,
+  selection: Pick<ReturnType<typeof useTaskSelection>, 'selectedTaskIds' | 'setSelectedTaskIds' | 'setSelectedTaskId' | 'clearEdgeSelection'>,
   now: Date,
   dragIdentity: React.MutableRefObject<DragIdentity | null>,
   setLastMovedKey: (key: string) => void,
@@ -27,7 +27,7 @@ export function useTaskMutations(
   refreshNow?: (now: Date) => void
 ) {
   const { mutate, databaseIdentity, confirmedEvents } = database;
-  const { selectedTaskIds, setSelectedTaskIds, clearEdgeSelection } = selection;
+  const { selectedTaskIds, setSelectedTaskIds, setSelectedTaskId, clearEdgeSelection } = selection;
   const taskGroup = (taskId: string, fromDrag: boolean, includeCompleted = true) => {
     const identity = dragIdentity.current;
     if (fromDrag && (!identity || identity.database !== databaseIdentity.current || identity.taskId !== taskId)) return [];
@@ -47,12 +47,13 @@ export function useTaskMutations(
 
   const commit = async (
     build: (current: CurrentState) => EventCommand[],
-    onInvalid?: (command: EventCommand) => void
+    onInvalid?: (command: EventCommand) => void,
+    at = now
   ) => {
     let committed: EventCommand[] = [];
     const updated = await mutate(async () => {
       const replay = replayCommands(confirmedEvents.current);
-      const commands = build(projectEvents(confirmedEvents.current, now)).map(parseCommand);
+      const commands = build(projectEvents(confirmedEvents.current, at)).map(parseCommand);
       const proposed = copyReplayTasks(replay);
       const effective: EventCommand[] = [];
       for (const command of commands) {
@@ -168,7 +169,38 @@ export function useTaskMutations(
 
   const handleReopenTask = async (taskId: string) => {
     setLastMovedKey(`task:${taskId}`);
-    await commit(current => current.tasks[taskId] ? reopen(taskId, current) : []);
+    const result = await commit(current => current.tasks[taskId] ? reopen(taskId, current) : []);
+    if (result) {
+      clearEdgeSelection();
+      setSelectedTaskId(taskId);
+    }
+  };
+
+  const handleOpenCopy = async (sourceId: string) => {
+    const createdAt = new Date();
+    const result = await commit(current => {
+      const source = current.tasks[sourceId];
+      if (!source) return [];
+      const { nextTaskId: taskId } = current;
+      const suffix = /\((\d+)\)$/.exec(source.title);
+      const title = suffix
+        ? source.title.slice(0, suffix.index) + `(${BigInt(suffix[1]) + 1n})`
+        : `${source.title} (2)`;
+      return [
+        { type: 'TASK_CREATED', payload: {
+          taskId, title, configuredStart: dateKeyToIsoStart(toDateKey(createdAt)),
+          createdAt: createdAt.toISOString(), copiedFromId: sourceId,
+        } },
+        { type: 'TASK_DESCRIPTION_SET', payload: { taskId, description: source.description } },
+        { type: 'TASK_TIMING_SET', payload: { taskId, duration: source.duration, durationUnit: source.durationUnit, progress: null } },
+        { type: 'DEPENDENCY_ADDED', payload: { taskId, predecessorId: sourceId } },
+      ];
+    }, undefined, createdAt);
+    if (result) {
+      clearEdgeSelection();
+      setSelectedTaskId(result.commands[0].payload.taskId);
+      refreshNow?.(new Date());
+    }
   };
 
   const handleUndo = async () => {
@@ -182,5 +214,5 @@ export function useTaskMutations(
 
   return { handleToggleActive, handleSetConfiguredDate, handleResubmitTasks,
     handleAddPredecessor, handleRemovePredecessor, handleRemoveSelectedEdges, handleRemoveDependencyBetween,
-    handleCompleteTask, handleReopenTask, handleUndo, handleRedo };
+    handleCompleteTask, handleReopenTask, handleOpenCopy, handleUndo, handleRedo };
 }

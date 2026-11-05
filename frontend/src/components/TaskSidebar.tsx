@@ -7,6 +7,7 @@ import type { TaskState } from '../domain/types';
 import type { TaskDragDropActions, TaskViewInteractions } from './taskInteractions';
 import { taskDragSourceInteractions, draggedTaskIdOf } from './taskInteractions';
 import { DateLayerLine } from './DateLayerLine';
+import { taskAppearanceRole } from './taskAppearance';
 import { t, formatNumber } from '../i18n';
 import { shortcutLabel } from '../hooks/keyboardNavigation';
 // Icon tints only; labels stay here so the i18n AST check sees the keys.
@@ -24,6 +25,7 @@ interface TaskSidebarProps {
   interactions: Pick<
     TaskViewInteractions,
     | 'selectedTaskId'
+    | 'highlights'
     | 'activeDropTargetKey'
     | 'draggedTaskId'
     | 'setActiveDropTargetKey'
@@ -194,8 +196,10 @@ export function TaskSidebar({
               {t('Tasks hierher ziehen, um sie als erledigt abzulegen')}
             </div>
           ) : (
-            completedTasks.map((task, index) => (
-              <React.Fragment key={task.id}>
+            completedTasks.map((task, index) => {
+              const appearance = taskAppearanceRole(task, interactions.highlights[task.id] ?? null, false, false);
+              const dependency = appearance === 'predecessor' || appearance === 'successor' ? appearance : undefined;
+              return <React.Fragment key={task.id}>
                 {completedDateKeys[index] !== completedDateKeys[index - 1] && (
                   <DateLayerLine
                     dateKey={completedDateKeys[index]}
@@ -207,6 +211,7 @@ export function TaskSidebar({
                 <div
                   {...taskDragSourceInteractions(task.id, dragDropActions)}
                   data-completed-task={task.id}
+                  data-dependency-highlight={dependency}
                   data-source-task-id={task.id}
                   data-task-selected={interactions.selectedTaskId === task.id ? 'true' : undefined}
                   tabIndex={0}
@@ -218,10 +223,12 @@ export function TaskSidebar({
                       interactions.onSelectTask(task.id, event, completedTasks.map(task => task.id));
                   }}
                   onContextMenu={(event) => interactions.onContextMenuTask(event, task.id)}
-                  className={`relative flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/90 text-xs shadow-2xs cursor-pointer hover:border-slate-300 transition-colors ${
+                  className={`relative flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-xs shadow-2xs cursor-pointer transition-colors ${
                     draggedTaskId === task.id ? 'opacity-40' : ''
                   } ${
-                    interactions.selectedTaskId === task.id ? 'ring-1 ring-sky-400' : ''
+                    dependency === 'predecessor' ? 'bg-amber-100/85 border-amber-500 ring-1 ring-amber-400/30'
+                      : dependency === 'successor' ? 'bg-purple-100/85 border-purple-500 ring-1 ring-purple-400/30'
+                        : `bg-white border-slate-200/90 hover:border-slate-300 ${appearance === 'selected' ? 'ring-1 ring-sky-400' : ''}`
                   }`}
                 >
                   <TaskProgressLine task={task} />
@@ -237,8 +244,8 @@ export function TaskSidebar({
                     </span>
                   </div>
                 </div>
-              </React.Fragment>
-            ))
+              </React.Fragment>;
+            })
           )}
         </div>
       </div>

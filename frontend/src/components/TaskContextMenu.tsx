@@ -1,4 +1,4 @@
-// Product rule: native Windows popups extend beyond the mini window. All views share these actions; completed tasks offer only reopen as a mutation, and title editing stays outside the menu.
+// Product rule: native Windows popups extend beyond the mini window. All views share these actions; any task can be used as the source of a new task, and title editing stays outside the menu.
 import { useEffect, useRef } from 'react';
 import { eventBridge, type TaskMenuItem } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';
@@ -16,14 +16,16 @@ interface TaskContextMenuProps {
   onRemovePredecessor: (id: string, predecessor: string) => void;
   onCompleteTask: (id: string) => void;
   onReopenTask: (id: string) => void;
+  onOpenCopy: (id: string) => void;
   onError: (error: unknown) => void;
 }
 
-export type TaskMenuActions = Pick<TaskContextMenuProps, 'onToggleActive' | 'onSetConfiguredDate' | 'onRemovePredecessor' | 'onCompleteTask' | 'onReopenTask'>;
+export type TaskMenuActions = Pick<TaskContextMenuProps, 'onToggleActive' | 'onSetConfiguredDate' | 'onRemovePredecessor' | 'onCompleteTask' | 'onReopenTask' | 'onOpenCopy'>;
 
 export function executeTaskMenuAction(id: string, task: TaskState, actions: TaskMenuActions) {
   if (!taskMenuItems(task).some(item => item.id === id && !item.disabled)) return;
   if (id === 'reopen') actions.onReopenTask(task.id);
+  else if (id === 'open-copy') actions.onOpenCopy(task.id);
   else if (id === 'toggle') actions.onToggleActive(task);
   else if (id === 'today') actions.onSetConfiguredDate(task.id, new Date().toISOString(), t('Heute'));
   else if (id === 'complete') actions.onCompleteTask(task.id);
@@ -32,11 +34,16 @@ export function executeTaskMenuAction(id: string, task: TaskState, actions: Task
 
 // One menu definition and action path for every layout; Windows owns placement and keyboard input.
 export function taskMenuItems(task: TaskState): TaskMenuItem[] {
-  if (task.completed) return [{ id: 'reopen', label: t('Erneut öffnen'), shortcut: 'O', disabled: false }];
+  const openCopy = { id: 'open-copy', label: t('Kopie Öffnen'), disabled: false };
+  if (task.completed) return [
+    { id: 'reopen', label: t('Erneut öffnen'), shortcut: 'O', disabled: false },
+    openCopy,
+  ];
   return [
     { id: 'toggle', label: task.isActive ? t('Deaktivieren') : t('Aktivieren (Hervorheben)'), shortcut: `${t('Space')} / A`, disabled: false },
     { id: 'today', label: t('Startdatum auf Heute setzen'), shortcut: 'T', disabled: false },
     { id: 'complete', label: t('Als erledigt markieren'), shortcut: 'Del / D', disabled: false },
+    openCopy,
     ...task.predecessorIds.map(id => ({ id: `remove:${id}`, label: t('Vorgänger {id} lösen', { id }), disabled: false })),
   ];
 }

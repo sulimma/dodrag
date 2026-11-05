@@ -1,7 +1,8 @@
 import type { ListEntry, TaskState } from './types';
 import type { ProtocolDay } from './protocol';
 import { protocolActionText, protocolTime } from './protocol';
-import { formatDate, t } from '../i18n';
+import { formatDate } from '../i18n';
+import { taskLifecycleText } from './taskLog';
 
 // One literal phrase, with flexible whitespace. Never split words into AND terms.
 // No event stream enters this module: callers supply current read models only.
@@ -17,8 +18,7 @@ export function matchingTaskIds(tasks: Record<string, TaskState>, days: readonly
   const result = new Set<string>();
   for (const task of Object.values(tasks)) {
     const texts = [task.id, task.title, task.description, ...task.logEntries.flatMap(entry => [entry.text,
-      formatDate(entry.createdAt), entry.lifecycle === 'created' ? t('Task erstellt') : entry.lifecycle === 'completed'
-        ? t('Task geschlossen') : entry.lifecycle === 'reopened' ? t('Task erneut geöffnet') : ''])];
+      formatDate(entry.createdAt), taskLifecycleText(entry)])];
     if (texts.some(matches)) result.add(task.id);
   }
   // Current notes and explicitly projected history labels (status, rename, time)

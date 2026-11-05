@@ -58,7 +58,7 @@ it('shows compact hover/focus actions, targets the task and never restores for a
     click(buttons[0]);
     expect(toggle).toHaveBeenCalledTimes(2);
     expect(taskMenuItems(task).find(item => item.id === 'toggle')).toMatchObject({ label: 'Deaktivieren', disabled: false });
-    expect(taskMenuItems({ ...task, completed: true }).map(item => item.id)).toEqual(['reopen']);
+    expect(taskMenuItems({ ...task, completed: true }).map(item => item.id)).toEqual(['reopen', 'open-copy']);
     expect(task.predecessorIds).toEqual(['P']);
     const title = element.querySelector('[title="Task A"]')!;
     expect(title.closest('[data-source-task-id]')!.getAttribute('data-source-task-id')).toBe('A');

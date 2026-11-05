@@ -160,7 +160,11 @@ export function normalizeReplayEvents(input: readonly unknown[]): StoredEvent[] 
       const createdAt = event.type === 'TASK_CREATED' ? event.payload.createdAt :
         event.type === 'TASK_COMPLETED' ? event.payload.completedAt : event.timestamp;
       // Colon cannot occur in validated note IDs; system rows never collide with user notes.
-      tasks.get(taskId)!.logEntries.push({ id: `lifecycle:${event.id}`, text: '', createdAt, lifecycle });
+      const copiedFromId = event.type === 'TASK_CREATED' ? event.payload.copiedFromId : undefined;
+      tasks.get(taskId)!.logEntries.push({
+        id: `lifecycle:${event.id}`, text: '', createdAt, lifecycle,
+        ...(copiedFromId ? { copiedFromId } : {}),
+      });
     }
   }
   // Levels describe the complete configured graph, including completed tasks. Reuse

@@ -60,6 +60,9 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 	switch kind {
 	case "TASK_CREATED":
 		fields = append(fields, "title", "configuredStart", "createdAt")
+		if _, exists := p["copiedFromId"]; exists {
+			fields = append(fields, "copiedFromId")
+		}
 	case "TASK_TIMING_SET":
 		fields = append(fields, "duration", "durationUnit", "progress")
 	case "TASK_RENAMED":
@@ -114,7 +117,7 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 			return nil, fmt.Errorf("%s must be string", field)
 		}
 		switch field {
-		case "taskId", "predecessorId", "entryId":
+		case "taskId", "predecessorId", "entryId", "copiedFromId":
 			if err := checkID(value); err != nil {
 				return nil, err
 			}

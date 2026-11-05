@@ -3,9 +3,10 @@ import { toDateKey } from './projector';
 import { tokenizeTargets } from '../components/editor/targets';
 import { t } from '../i18n';
 import type { EditorTarget } from '../components/editor/types';
+import { taskCreatedText } from './taskLog';
 
 export type ProtocolAction = { timestamp: string } & (
-  | { key: string; kind: 'created' | 'completed' | 'reopened' }
+  | { key: string; kind: 'created' | 'completed' | 'reopened'; copiedFromId?: string }
   | { key: string; kind: 'source'; target: EditorTarget }
   | { key: string; kind: 'renamed'; oldTitle: string }
   | { key: string; kind: 'log'; text: string });
@@ -71,7 +72,7 @@ export function projectProtocol(events: readonly StoredEvent[], tasks: Record<st
     switch (event.type) {
       case 'TASK_CREATED':
         titles.set(taskId, event.payload.title);
-        entry.actions.push({ key: event.id, timestamp: event.timestamp, kind: 'created' });
+        entry.actions.push({ key: event.id, timestamp: event.timestamp, kind: 'created', copiedFromId: event.payload.copiedFromId });
         break;
       case 'TASK_RENAMED': {
         const oldTitle = titles.get(taskId);
@@ -144,7 +145,7 @@ export function protocolActionText(action: ProtocolAction): string {
     case 'source': return action.target.value;
     case 'renamed': return t('Umbenannt aus "{title}"', { title: action.oldTitle });
     case 'log': return action.text;
-    case 'created': return t('Task erstellt');
+    case 'created': return taskCreatedText(action.copiedFromId);
     case 'completed': return t('Task geschlossen');
     case 'reopened': return t('Task erneut geöffnet');
   }

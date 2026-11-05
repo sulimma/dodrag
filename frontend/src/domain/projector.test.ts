@@ -415,7 +415,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     expect(firstDay).toEqual(['26-4', '26-1', '26-3']);
   });
 
-  it('highlights ONLY true graph predecessors and successors, ignoring unrelated tasks earlier or later in the list', () => {
+  it.each([false, true])('highlights only related tasks with completed neighbors: %s', completed => {
     const events: StoredEvent[] = [
       {
         seq: 1,
@@ -491,6 +491,12 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       },
     ];
 
+    if (completed) {
+      for (const taskId of ['26-2', '26-4']) {
+        events.push({ seq: events.length + 1, id: `close-${taskId}`, timestamp: todayIso,
+          type: 'TASK_COMPLETED', payload: { taskId, completedAt: todayIso }, undone: false });
+      }
+    }
     const state = projectEvents(events, fixedNow);
     const highlights = computeDependencyHighlights('26-3', state.tasks);
 

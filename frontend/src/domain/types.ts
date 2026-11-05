@@ -15,6 +15,7 @@ export interface TaskLogEntry {
   text: string;
   createdAt: string;
   lifecycle?: 'created' | 'completed' | 'reopened';
+  copiedFromId?: string;
 }
 
 export interface ChecklistProgress {

@@ -295,7 +295,7 @@ export function useGlobalShortcuts({
         }
         return;
       }
-      // Completed tasks expose only reopen, matching the native context menu.
+      // Reopen is the keyboard shortcut for completed tasks.
       if (selTask.completed) return;
 
       if (e.key.toLowerCase() === 't') {

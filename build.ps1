@@ -1,7 +1,7 @@
 # Build and test with a local dependency cache; never stop or start user processes.
 param(
     [Parameter(Mandatory = $true)]
-    [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')]
+    [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(rc)?$')]
     [string]$Version,
     [ValidateSet('amd64', 'arm64')][string]$Architecture = 'amd64',
     [switch]$Test
@@ -51,7 +51,8 @@ try {
         try {
             $wailsConfig = [Text.Encoding]::UTF8.GetString($wailsConfigBytes) | ConvertFrom-Json
             if (-not $wailsConfig.PSObject.Properties['info']) { $wailsConfig | Add-Member -MemberType NoteProperty -Name info -Value ([pscustomobject]@{}) }
-            $wailsConfig.info | Add-Member -MemberType NoteProperty -Name productVersion -Value $Version -Force
+            # Windows file metadata uses a numeric version; the app reports the full build label.
+            $wailsConfig.info | Add-Member -MemberType NoteProperty -Name productVersion -Value ($Version -replace 'rc$', '') -Force
             $wailsConfigJson = $wailsConfig | ConvertTo-Json -Depth 100
             [IO.File]::WriteAllText($wailsConfigPath, $wailsConfigJson, (New-Object System.Text.UTF8Encoding -ArgumentList $false))
             go run github.com/wailsapp/wails/v2/cmd/wails@v2.9.2 build -s -platform "windows/$Architecture" -ldflags "-X main.buildVersion=$buildVersion -X main.buildTime=$buildTime" -o dodrag.exe

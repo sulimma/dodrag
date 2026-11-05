@@ -464,6 +464,7 @@ export function App() {
       onRemovePredecessor={actions.handleRemovePredecessor}
       onCompleteTask={actions.handleCompleteTask}
       onReopenTask={actions.handleReopenTask}
+      onOpenCopy={actions.handleOpenCopy}
       onError={(error) => pushToast(errorText(t('Kontextmenü konnte nicht geöffnet werden'), error), 'warning')}
     />
   );
@@ -558,7 +559,7 @@ export function App() {
           interactions={interactions} titleEditor={scopedEditor(editors.titleEditor, 'detail')} dateEditor={scopedEditor(editors.dateEditor, 'detail')}
           onClose={() => setIsDetailPanelOpen(false)}
           onToggleActive={actions.handleToggleActive}
-          onCompleteTask={actions.handleCompleteTask} onReopenTask={actions.handleReopenTask}
+          onCompleteTask={actions.handleCompleteTask} onReopenTask={actions.handleReopenTask} onOpenCopy={actions.handleOpenCopy}
           onSetConfiguredDate={actions.handleSetConfiguredDate} onRemovePredecessor={actions.handleRemovePredecessor}
           onTimingChange={async (taskId, timing) => {
             const result = await mutate(() => eventBridge.appendEvent('TASK_TIMING_SET', { taskId, ...timing }));

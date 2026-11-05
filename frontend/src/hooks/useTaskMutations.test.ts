@@ -27,7 +27,7 @@ it('toggles activity with predecessors without changing the configured date and 
   try {
     const state = projectEvents(events, now);
     const actions = useTaskMutations({ databaseIdentity: { current: 'A.db' }, confirmedEvents: confirmed,
-      mutate: operation => operation() }, { selectedTaskIds: [], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn() },
+      mutate: operation => operation() }, { selectedTaskIds: [], setSelectedTaskIds: vi.fn(), setSelectedTaskId: vi.fn(), clearEdgeSelection: vi.fn() },
       now, { current: null }, moved, toast, refresh);
     await actions.handleToggleActive(state.tasks.B);
     expect(append).toHaveBeenCalledWith([{ type: 'TASK_ACTIVE_SET', payload: { taskId: 'B', isActive: true } }]);
@@ -48,7 +48,7 @@ it('guards every group drop with the frozen database and source identity', async
   const database = { databaseIdentity: { current: 'B.db' }, confirmedEvents: { current: events }, mutate: vi.fn() };
   const identity: { current: DragIdentity | null } = { current: { database: 'A.db', taskId: 'A', taskIds: ['A', 'B'] } };
   const actions = useTaskMutations(database, {
-    selectedTaskIds: ['C'], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn(),
+    selectedTaskIds: ['C'], setSelectedTaskIds: vi.fn(), setSelectedTaskId: vi.fn(), clearEdgeSelection: vi.fn(),
   }, now, identity, vi.fn(), vi.fn());
   const drops = async (source: string) => {
     await actions.handleSetConfiguredDate(source, '2026-10-21T09:00:00.000Z', '2026-10-21', true);
@@ -86,7 +86,7 @@ it('reopens a completed task on every drop except the completed list', async () 
     const actions = useTaskMutations({
       databaseIdentity: { current: 'A.db' }, confirmedEvents: { current: events }, mutate: operation => operation(),
     }, {
-      selectedTaskIds: [], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn(),
+      selectedTaskIds: [], setSelectedTaskIds: vi.fn(), setSelectedTaskId: vi.fn(), clearEdgeSelection: vi.fn(),
     }, now, { current: { database: 'A.db', taskId: 'B', taskIds: ['B'] } }, vi.fn(), vi.fn());
 
     await actions.handleSetConfiguredDate('B', '2026-10-21T09:00:00.000Z', '2026-10-21', true);
@@ -116,7 +116,7 @@ it('uses frozen group members for date drops even after selection changes', asyn
   const append = vi.spyOn(eventBridge, 'appendBatch').mockResolvedValue(events);
   try {
     const actions = useTaskMutations({ databaseIdentity: { current: 'A.db' }, confirmedEvents: { current: events }, mutate: operation => operation() }, {
-      selectedTaskIds: ['C'], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn(),
+      selectedTaskIds: ['C'], setSelectedTaskIds: vi.fn(), setSelectedTaskId: vi.fn(), clearEdgeSelection: vi.fn(),
     }, now, { current: { database: 'A.db', taskId: 'A', taskIds: ['A', 'B'] } }, vi.fn(), vi.fn());
     await actions.handleSetConfiguredDate('A', '2026-10-21T09:00:00.000Z', '2026-10-21', true);
     expect(append).toHaveBeenCalledTimes(1);
@@ -131,7 +131,7 @@ it('preserves the full ISO instant supplied by a date drop', async () => {
   const append = vi.spyOn(eventBridge, 'appendBatch').mockResolvedValue(events);
   try {
     const actions = useTaskMutations({ databaseIdentity: { current: 'db' }, confirmedEvents: { current: events }, mutate: operation => operation() },
-      { selectedTaskIds: [], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn() }, now, { current: null }, vi.fn(), vi.fn());
+      { selectedTaskIds: [], setSelectedTaskIds: vi.fn(), setSelectedTaskId: vi.fn(), clearEdgeSelection: vi.fn() }, now, { current: null }, vi.fn(), vi.fn());
     await actions.handleSetConfiguredDate('A', '2026-12-31T23:30:12.000Z', '2026-12-31');
     expect(append).toHaveBeenCalledWith([{ type: 'TASK_START_DATE_SET', payload: { taskId: 'A', configuredStart: '2026-12-31T23:30:12.000Z' } }]);
   } finally { append.mockRestore(); }
@@ -154,7 +154,7 @@ it.each(['date', 'same-date', 'plus_1d', 'next_week', 'plus_7d', 'next_month', '
     });
     const state = () => projectEvents(confirmed.current, now);
     const actions = useTaskMutations({ databaseIdentity: { current: 'db' }, confirmedEvents: confirmed,
-      mutate: operation => operation() }, { selectedTaskIds: [], setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn() },
+      mutate: operation => operation() }, { selectedTaskIds: [], setSelectedTaskIds: vi.fn(), setSelectedTaskId: vi.fn(), clearEdgeSelection: vi.fn() },
       now, { current: { database: 'db', taskId: 'A', taskIds: ['A', 'B'] } }, vi.fn(), vi.fn());
     try {
       for (const id of ['A', 'B']) await actions.handleToggleActive(state().tasks[id]);

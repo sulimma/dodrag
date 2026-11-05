@@ -39,9 +39,9 @@ it('opens the full folder from the shared menu and reports failures after the me
   await act(async () => root.render(<TaskContextMenu task={task} databaseKey="db"
     contextMenu={{ taskId: 't1', x: 0, y: 0 }} onClose={() => root.unmount()} onError={onError}
     onToggleActive={vi.fn()} onSetConfiguredDate={vi.fn()} onRemovePredecessor={vi.fn()}
-    onCompleteTask={vi.fn()} onReopenTask={vi.fn()} />));
+    onCompleteTask={vi.fn()} onReopenTask={vi.fn()} onOpenCopy={vi.fn()} />));
   expect(show.mock.calls[0][0].map(item => [item.id, item.disabled, !!item.separator])).toEqual([
-    ['reopen', false, false], ['directories:separator', false, true],
+    ['reopen', false, false], ['open-copy', false, false], ['directories:separator', false, true],
     ['directories:heading', true, false], ['directory:0', false, false],
   ]);
   expect(open).toHaveBeenCalledWith('C:\\My project\\', false);

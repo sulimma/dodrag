@@ -119,3 +119,43 @@ func TestMultipleTaskDependenciesAreAtomic(t *testing.T) {
 		}
 	}
 }
+
+func TestTaskCopyProvenanceSurvivesUndoRedo(t *testing.T) {
+	s, err := NewStoreWithOptions(filepath.Join(t.TempDir(), "copy.db"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.AppendEvent("create", "TASK_CREATED", `{"taskId":"a","title":"A","configuredStart":"2026-10-17T09:00:00Z","createdAt":"2026-10-17T09:00:00Z"}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AppendEvent("close", "TASK_COMPLETED", `{"taskId":"a","completedAt":"2026-10-17T10:00:00Z"}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AppendBatch([]Command{
+		{ID: "copy", Type: "TASK_CREATED", Payload: json.RawMessage(`{"taskId":"b","title":"A (2)","configuredStart":"2026-10-18T00:00:00Z","createdAt":"2026-10-18T09:00:00Z","copiedFromId":"a"}`)},
+		{ID: "link", Type: "DEPENDENCY_ADDED", Payload: json.RawMessage(`{"taskId":"b","predecessorId":"a"}`)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	events, err := s.Undo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 4 || events[1].Undone || !events[2].Undone || !events[3].Undone {
+		t.Fatal("copy and its predecessor link must undo together", events)
+	}
+	events, err = s.Redo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 4 || events[2].Undone || events[3].Undone {
+		t.Fatal("copy and its predecessor link must redo together", events)
+	}
+	var creation struct {
+		CopiedFromID string `json:"copiedFromId"`
+	}
+	if err := json.Unmarshal(events[2].Payload, &creation); err != nil || creation.CopiedFromID != "a" {
+		t.Fatalf("missing copy provenance after redo: %+v (%v)", creation, err)
+	}
+}

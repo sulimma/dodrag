@@ -9,6 +9,7 @@ import {
 import { addDuration, remainingDuration } from './duration';
 import { calendarDistance, localDate } from './dates';
 import { replayCommands } from './commands';
+import { configuredSuccessors } from './dependencyPaths';
 import { t, locale, formatDate, formatNumber } from '../i18n';
 
 export function computeChecklistProgress(markdown: string): ChecklistProgress | null {
@@ -580,9 +581,9 @@ export function computeDependencyHighlights(
 
   result[selectedTaskId] = 'selected';
 
-  // Traverse all predecessors (direct & transitive)
+  // Selection highlights follow stored dependencies, including completed tasks.
   const predQueue: Array<{ id: string; depth: number }> = [];
-  for (const pId of tasks[selectedTaskId].predecessorIds) {
+  for (const pId of tasks[selectedTaskId].allPredecessorIds) {
     predQueue.push({ id: pId, depth: 1 });
   }
   const visitedPreds = new Set<string>();
@@ -594,7 +595,7 @@ export function computeDependencyHighlights(
     result[id] = depth === 1 ? 'predecessor-direct' : 'predecessor-transitive';
     const node = tasks[id];
     if (node) {
-      for (const nextPred of node.predecessorIds) {
+      for (const nextPred of node.allPredecessorIds) {
         if (!visitedPreds.has(nextPred)) {
           predQueue.push({ id: nextPred, depth: depth + 1 });
         }
@@ -602,9 +603,9 @@ export function computeDependencyHighlights(
     }
   }
 
-  // Traverse all successors (direct & transitive)
+  const successors = configuredSuccessors(tasks);
   const succQueue: Array<{ id: string; depth: number }> = [];
-  for (const sId of tasks[selectedTaskId].successorIds) {
+  for (const sId of successors.get(selectedTaskId) ?? []) {
     succQueue.push({ id: sId, depth: 1 });
   }
   const visitedSuccs = new Set<string>();
@@ -614,12 +615,9 @@ export function computeDependencyHighlights(
     visitedSuccs.add(id);
 
     result[id] = depth === 1 ? 'successor-direct' : 'successor-transitive';
-    const node = tasks[id];
-    if (node) {
-      for (const nextSucc of node.successorIds) {
-        if (!visitedSuccs.has(nextSucc)) {
-          succQueue.push({ id: nextSucc, depth: depth + 1 });
-        }
+    for (const nextSucc of successors.get(id) ?? []) {
+      if (!visitedSuccs.has(nextSucc)) {
+        succQueue.push({ id: nextSucc, depth: depth + 1 });
       }
     }
   }

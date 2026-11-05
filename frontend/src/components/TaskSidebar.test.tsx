@@ -26,7 +26,7 @@ it('orders completions by instant, separates local days and scrolls to the newes
   let state = projectEvents(events, now);
   expect(state.completedTasks.map(task => task.id)).toEqual(['B', 'A', 'C']);
   const noop = vi.fn();
-  const interactions = { selectedTaskId: null, activeDropTargetKey: null, draggedTaskId: null,
+  const interactions = { selectedTaskId: null, highlights: {}, activeDropTargetKey: null, draggedTaskId: null,
     setActiveDropTargetKey: noop, onDragStartTask: noop, onAddPredecessor: noop,
     onRemoveDependencyBetween: noop, onContextMenuTask: noop, onSelectTask: noop };
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -81,7 +81,7 @@ it('anchors a visible bottom on resize, keeps a hidden bottom stationary and cap
   const noop = vi.fn();
   try {
     act(() => root.render(<TaskSidebar tasks={{}} completedTasks={[]} now={new Date(2027, 0, 2, 12)}
-      interactions={{ selectedTaskId: null, activeDropTargetKey: null, draggedTaskId: null,
+      interactions={{ selectedTaskId: null, highlights: {}, activeDropTargetKey: null, draggedTaskId: null,
         setActiveDropTargetKey: noop, onDragStartTask: noop, onAddPredecessor: noop,
         onRemoveDependencyBetween: noop, onContextMenuTask: noop, onSelectTask: noop }}
       onCompleteTask={noop} onResubmitTasks={noop} />));

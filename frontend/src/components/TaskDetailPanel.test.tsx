@@ -71,7 +71,7 @@ const makeProps = () => {
     onDescriptionChange: vi.fn(async () => {}), onAddLog: vi.fn(async () => {}), onError: vi.fn(),
     onRemoveLog: vi.fn(async () => {}),
     onToggleActive: vi.fn(), onSetConfiguredDate: vi.fn(), onRemovePredecessor: vi.fn(),
-    onCompleteTask: vi.fn(), onReopenTask: vi.fn(),
+    onCompleteTask: vi.fn(), onReopenTask: vi.fn(), onOpenCopy: vi.fn(),
     interactions: {
       draggedTaskId: null, selectedTaskId: null, selectedEdgeKeys: [], highlights: {},
       deletionPreview: [], activeDropTargetKey: null, isAltDrag: false,
@@ -280,12 +280,12 @@ it('ignores cancelled, disabled, separator, unknown and stale native menu result
   expect(props.onError).toHaveBeenCalledWith(error);
 });
 
-it('offers only reopening as a task action for completed tasks', async () => {
+it('offers reopening and opening a copy for completed tasks', async () => {
   const props = makeProps(); const completed = { ...task, completed: true };
   render({ ...props, task: completed }); mocks.showMenu.mockResolvedValueOnce('reopen');
   await openMenu(host.querySelector('header')!);
   expect(mocks.showMenu).toHaveBeenLastCalledWith(taskMenuItems(completed), undefined);
-  expect(taskMenuItems(completed).map(item => item.id)).toEqual(['reopen']);
+  expect(taskMenuItems(completed).map(item => item.id)).toEqual(['reopen', 'open-copy']);
   expect(props.onReopenTask).toHaveBeenCalledWith(task.id);
 });
 

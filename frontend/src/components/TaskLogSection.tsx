@@ -6,6 +6,7 @@ import { nativeDropText, targetFromElement } from './editor/targets';
 import { openTarget, targetMenuItems } from './editor/contextMenu';
 import type { EditorContextMenu, EditorContextMenuCallback, EditorTarget, TaskLogSectionHandle } from './editor/types';
 import type { TaskLogEntry } from '../domain/types';
+import { taskLifecycleText } from '../domain/taskLog';
 import { inlineTextHandlers } from './inlineEditor';
 export type { TaskLogSectionHandle } from './editor/types';
 
@@ -40,9 +41,7 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
     setDraft(''); setPending(false); submitting.current = false;
     setEditing(null); setEditPending(false); editSubmitting.current = null;
   }, [props.taskId]);
-  const statusText = (entry: TaskLogEntry) => entry.lifecycle === 'created' ? t('Task erstellt')
-    : entry.lifecycle === 'completed' ? t('Task geschlossen') : t('Task erneut geöffnet');
-  const dateLine = (entry: TaskLogEntry) => `${entry.lifecycle ? (entry.lifecycle === 'completed' ? '🟥 ' : '🟩 ') : '⬛ '}${formatDate(entry.createdAt)}${entry.lifecycle ? ` ${statusText(entry)}` : ''}`;
+  const dateLine = (entry: TaskLogEntry) => `${entry.lifecycle ? (entry.lifecycle === 'completed' ? '🟥 ' : '🟩 ') : '⬛ '}${formatDate(entry.createdAt)}${entry.lifecycle ? ` ${taskLifecycleText(entry)}` : ''}`;
   const startEdit = (entry: TaskLogEntry) => {
     if (!props.onUpdate || entry.lifecycle || editSubmitting.current) return;
     const next = { id: entry.id, text: entry.text, token: {} };

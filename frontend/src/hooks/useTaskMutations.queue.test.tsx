@@ -43,7 +43,7 @@ beforeEach(async () => {
   }));
   function Harness() {
     database = useDatabaseSnapshot(toast, identity, vi.fn());
-    actions = useTaskMutations(database, { selectedTaskIds: selected, setSelectedTaskIds: vi.fn(), clearEdgeSelection: vi.fn() },
+    actions = useTaskMutations(database, { selectedTaskIds: selected, setSelectedTaskIds: vi.fn(), setSelectedTaskId: vi.fn(), clearEdgeSelection: vi.fn() },
       now, identity, vi.fn(), toast);
     return null;
   }
