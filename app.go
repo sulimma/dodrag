@@ -25,10 +25,11 @@ var (
 
 // DatabaseEntry represents a known SQLite database file on this computer.
 type DatabaseEntry struct {
-	Name   string `json:"name"`
-	Path   string `json:"path"`
-	IsDemo bool   `json:"isDemo"`
-	Exists bool   `json:"exists"`
+	Name           string `json:"name"`
+	Path           string `json:"path"`
+	IsDemo         bool   `json:"isDemo"`
+	Exists         bool   `json:"exists"`
+	RequiresUpdate bool   `json:"requiresUpdate,omitempty"`
 }
 
 // SetupState describes whether the executable and its shortcuts are installed.
@@ -53,6 +54,7 @@ type AppSettings struct {
 	UILanguage          string          `json:"uiLanguage"`
 	BootMinimized       bool            `json:"bootMinimized,omitempty"`
 	DatabaseReady       bool            `json:"databaseReady,omitempty"`
+	DatabaseError       string          `json:"databaseError,omitempty"`
 	Version             string          `json:"version,omitempty"`
 	BuildTime           string          `json:"buildTime,omitempty"`
 	PreviewCacheDir     string          `json:"previewCacheDir,omitempty"`
@@ -83,6 +85,7 @@ type App struct {
 	settings              AppSettings
 	settingsLoadErr       error
 	settingsSaveErr       error
+	databaseOpenErr       error
 	userDefaultUILanguage func() uint16
 	registerJumpList      func(string)
 	hwnd                  uintptr
@@ -469,6 +472,7 @@ func (a *App) saveSettingsLocked() (err error) {
 }
 
 func (a *App) openActiveDatabaseLocked() {
+	a.databaseOpenErr = nil
 	if a.store != nil {
 		_ = a.store.Close()
 		a.store = nil
@@ -496,12 +500,14 @@ func (a *App) openActiveDatabaseLocked() {
 	}
 
 	_ = isDemo // Demo seeding is exclusively an explicit creation option.
-	store, err := eventstore.NewStoreWithOptions(targetPath, false)
+	store, err := eventstore.NewStoreWithBuildInfo(targetPath, false, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
 	if err != nil {
+		a.databaseOpenErr = err
 		return
 	}
 	if _, err := store.GetEvents(); err != nil {
 		_ = store.Close()
+		a.databaseOpenErr = err
 		return
 	}
 	a.store = store
@@ -525,9 +531,19 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 		Setup:               computeSetupState(),
 		KnownDatabases:      make([]DatabaseEntry, len(a.settings.KnownDatabases)),
 	}
+	if a.databaseOpenErr != nil {
+		out.DatabaseError = a.errorLocked("Datenbank konnte nicht geöffnet werden", a.databaseOpenErr).Error()
+	}
 	for i, entry := range a.settings.KnownDatabases {
 		info, err := os.Stat(entry.Path)
 		entry.Exists = err == nil && !info.IsDir()
+		entry.RequiresUpdate = false
+		if entry.Exists {
+			// Inspect local metadata only, including inactive databases. Never ask
+			// GitHub whether an update exists; the user explicitly opens Releases.
+			var compatibility *eventstore.CompatibilityError
+			entry.RequiresUpdate = errors.As(eventstore.CheckCompatibility(entry.Path, eventstore.BuildInfo{Version: buildVersion}), &compatibility)
+		}
 		out.KnownDatabases[i] = entry
 	}
 	return out
@@ -771,7 +787,7 @@ func (a *App) CreateDatabase(folderPath string, dbName string, seedDemo bool) (A
 		os.Remove(fullPath)
 		return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht geschlossen werden", err)
 	}
-	newStore, err := eventstore.NewStoreWithOptions(fullPath, seedDemo, func(title string) string { return a.textLocked(title) })
+	newStore, err := eventstore.NewStoreWithBuildInfo(fullPath, seedDemo, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime}, func(title string) string { return a.textLocked(title) })
 	if err != nil {
 		os.Remove(fullPath)
 		return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht angelegt werden", err)
@@ -843,7 +859,7 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 	if err != nil || info.IsDir() {
 		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank nicht vorhanden: {path}", "path", fullPath))
 	}
-	newStore, err := eventstore.NewStoreWithOptions(fullPath, false)
+	newStore, err := eventstore.NewStoreWithBuildInfo(fullPath, false, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
 	if err != nil {
 		return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht geöffnet werden", err)
 	}
@@ -915,7 +931,7 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 		}
 	}
 
-	newStore, err := eventstore.NewStoreWithOptions(cleanTarget, false)
+	newStore, err := eventstore.NewStoreWithBuildInfo(cleanTarget, false, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
 	if err != nil {
 		return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht geladen werden", err)
 	}
@@ -1016,6 +1032,7 @@ func (a *App) activateStoreLocked(candidate *eventstore.Store, previous AppSetti
 	}
 	old := a.store
 	a.store = candidate
+	a.databaseOpenErr = nil
 	if old != nil {
 		if err := old.Close(); err != nil {
 			if a.ctx != nil {
@@ -1033,8 +1050,22 @@ func (a *App) GetEvents() ([]eventstore.Event, error) {
 	if a.store == nil {
 		return []eventstore.Event{}, nil
 	}
+	if err := a.store.RecoverDescriptionDrafts(); err != nil {
+		return nil, a.errorLocked("Ereignisse konnten nicht geladen werden", err)
+	}
 	events, err := a.store.GetEvents()
 	return events, a.errorLocked("Ereignisse konnten nicht geladen werden", err)
+}
+
+// Checkpoints are bound to their database, even if a delayed bridge call arrives
+// after a switch. Errors use the same visible save-failure path as event writes.
+func (a *App) SaveDescriptionDraft(database, taskID, description, base, session string, revision int64) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.store == nil || database != a.settings.ActiveDatabasePath {
+		return errors.New(a.textLocked("keine Datenbank geöffnet"))
+	}
+	return a.errorLocked("Änderung konnte nicht gespeichert werden", a.store.SaveDescriptionDraft(taskID, description, base, session, revision))
 }
 
 // AppendEvent appends a new domain event to the SQLite event store and returns the updated list.

@@ -49,12 +49,27 @@ func NewStore(dbPath string) (*Store, error) {
 // NewStoreWithOptions opens or creates the database and optionally seeds it if empty.
 // An optional translator applies only to newly seeded titles, never to stored data.
 func NewStoreWithOptions(dbPath string, seedDemo bool, translateTitle ...func(string) string) (*Store, error) {
+	return NewStoreWithBuildInfo(dbPath, seedDemo, BuildInfo{}, translateTitle...)
+}
+
+// NewStoreWithBuildInfo checks compatibility before touching the schema and
+// records the invoking app build only after the existing data validates.
+func NewStoreWithBuildInfo(dbPath string, seedDemo bool, build BuildInfo, translateTitle ...func(string) string) (*Store, error) {
+	build, appVersion, err := normalizeBuildInfo(build)
+	if err != nil {
+		return nil, err
+	}
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	// total_changes() is connection-local; keep the change detector on one connection.
 	db.SetMaxOpenConns(1)
+	required, err := checkDatabaseVersion(db, appVersion)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 
 	schema := `
 	CREATE TABLE IF NOT EXISTS events (
@@ -73,16 +88,24 @@ func NewStoreWithOptions(dbPath string, seedDemo bool, translateTitle ...func(st
 
 	if err := validateSchema(db); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("incompatible events schema: %w", err)
+		return nil, &CompatibilityError{MinimumVersion: required, Err: fmt.Errorf("incompatible events schema: %w", err)}
 	}
 	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("enable WAL: %w", err)
 	}
+	if _, err := db.Exec(`PRAGMA synchronous=FULL`); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	s := &Store{db: db}
+	if err := s.initDescriptionDrafts(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	if err := s.normalizeLegacyTimes(); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("validate event store: %w", err)
+		return nil, &CompatibilityError{MinimumVersion: required, Err: fmt.Errorf("validate event store: %w", err)}
 	}
 	if seedDemo {
 		if err := s.seedIfEmpty(translateTitle...); err != nil {
@@ -92,9 +115,17 @@ func NewStoreWithOptions(dbPath string, seedDemo bool, translateTitle ...func(st
 	}
 	if _, err := s.GetEvents(); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("validate event store: %w", err)
+		return nil, &CompatibilityError{MinimumVersion: required, Err: fmt.Errorf("validate event store: %w", err)}
 	}
 
+	if err := writeDatabaseVersion(db, build, required); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("write database version: %w", err)
+	}
+	if err := s.RecoverDescriptionDrafts(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return s, nil
 }
 

@@ -73,5 +73,6 @@
   "Visual Studio Code wurde nicht gefunden": "Visual Studio Code не знайдено",
   "Visual Studio Code konnte nicht geöffnet werden": "Не вдалося відкрити Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "Не вдалося застосувати режим вікна",
-  "Ungültige Standarddauer": "Некоректна типова тривалість"
+  "Ungültige Standarddauer": "Некоректна типова тривалість",
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Ця база даних несумісна з цією версією застосунку. Установіть новішу версію DoDrag (щонайменше {version})."
 }

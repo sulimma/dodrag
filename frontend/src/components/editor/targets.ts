@@ -39,6 +39,9 @@ export function classifyTarget(raw: string): EditorTarget | undefined {
       return { kind: 'url', value };
     } catch { return; }
   }
+  // Clipboard paths may use /C:/... (ChatGPT) or C:/... . Normalize only
+  // absolute drive paths, after URL handling; never reinterpret a URI scheme.
+  if (/^\/?[a-z]:[\\/]/i.test(value)) value = value.replace(/^\//, '').replaceAll('/', '\\');
   if (/^(?:[a-z]:\\|\\\\[^\\\s/:*?"<>|]+\\[^\\/:*?"<>|]+)(?:[^:*?"<>|\r\n]*)$/i.test(value)) {
     if (/[\x00-\x1f\x7f]/.test(value) || /^\\\\[?.]\\/.test(value)) return;
     return { kind: 'path', value };
@@ -65,13 +68,22 @@ export const isImagePath = (path: string): boolean => /\.(?:jpe?g|png|gif|webp|b
 export const mediaSource = (taskId: string, path: string): string =>
   `/dodrag-media?taskId=${encodeURIComponent(taskId)}&path=${encodeURIComponent(path)}`;
 
-// Quoted paths retain whitespace. Bare paths stop at whitespace; no filename guessing.
+// A standalone drive-path line retains spaces. In prose, quote paths with spaces.
+// Decorations preserve the source spelling; native actions receive normalized paths.
 export function tokenizeTargets(text: string): TargetToken[] {
   const result: TargetToken[] = [];
+  for (const line of text.matchAll(/^[ \t]*\/?[a-z]:[\\/][^\r\n]*$/gim)) {
+    const source = line[0].trim();
+    const target = classifyTarget(source);
+    if (target?.kind === 'path') {
+      const start = line.index! + line[0].indexOf(source);
+      result.push({ ...target, start, end: start + source.length, image: isImagePath(target.value) });
+    }
+  }
   // Consume ISO dates/timestamps before the phone branch can take a date plus hour or timezone.
-  const pattern = new RegExp(String.raw`(?<iso>(?<![\w])\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)|!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|"([^"\r\n]+)"|((?:[a-z]:\\|\\\\)[^\r\n]*?)|([^\s)]+))\s*\)|"((?:[a-z]:\\|\\\\)[^"\r\n]*)"|tel:\+?[\d(][\d ()_-]*[\d)]|(?:https?:\/\/|mailto:|sip:|tel:)[^\s<>"]+|(?:[a-z]:\\|\\\\)[^\s<>"|:*?]*|(?<![a-z0-9!#$%&'*+/=?^_\x60{|}~.@:"\\-])(?<email>${emailAddress})(?![a-z0-9@_-]|\.[a-z0-9.])|(?<![\w+:(/-])\+?[\d(][\d ()_-]*[\d)](?![\w+()-])`, 'gi');
+  const pattern = new RegExp(String.raw`(?<iso>(?<![\w])\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)|!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|"([^"\r\n]+)"|((?:/?[a-z]:[\\/]|\\\\)[^\r\n]*?)|([^\s)]+))\s*\)|"((?:/?[a-z]:[\\/]|\\\\)[^"\r\n]*)"|tel:\+?[\d(][\d ()_-]*[\d)]|(?:https?:\/\/|mailto:|sip:|tel:)[^\s<>"]+|(?<![\w/:\\])(?:/?[a-z]:[\\/]|\\\\)[^\s<>"|:*?]*|(?<![a-z0-9!#$%&'*+/=?^_\x60{|}~.@:"\\-])(?<email>${emailAddress})(?![a-z0-9@_-]|\.[a-z0-9.])|(?<![\w+:(/-])\+?[\d(][\d ()_-]*[\d)](?![\w+()-])`, 'gi');
   for (const match of text.matchAll(pattern)) {
-    if (match.groups?.iso) continue;
+    if (match.groups?.iso || result.some(token => match.index! >= token.start && match.index! < token.end)) continue;
     const markdownImage = match[0].startsWith('![');
     let value = markdownImage ? match[3] ?? match[4] ?? match[5] ?? match[6] : match[7] ?? match[0];
     if (!markdownImage && !match[7] && !match.groups?.email) {
@@ -83,7 +95,7 @@ export function tokenizeTargets(text: string): TargetToken[] {
     result.push({ ...target, start: match.index!, end: match.index! + (markdownImage || match[7] ? match[0].length : value.length),
       image: markdownImage || (target.kind === 'path' && isImagePath(target.value)), label: markdownImage ? match[2] : undefined });
   }
-  return result;
+  return result.sort((a, b) => a.start - b.start);
 }
 
 export function targetFromElement(element: EventTarget | null): EditorTarget | undefined {
@@ -95,12 +107,12 @@ export function targetFromElement(element: EventTarget | null): EditorTarget | u
 }
 
 export const fileDropText = (paths: readonly string[]): string => paths.map(path => {
-  // Reject malformed input rather than silently changing the destination filename.
-  if (/[\x00-\x1f\x7f"<>|?*]/.test(path) || classifyTarget(path)?.kind !== 'path' ||
-    /^\\\\[?.]\\/.test(path) || path.slice(/^[a-z]:/i.test(path) ? 2 : 0).includes(':')) {
+  // Only separator spelling is normalized; invalid filenames remain rejected.
+  const target = classifyTarget(path);
+  if (/[\x00-\x1f\x7f"<>|?*]/.test(path) || target?.kind !== 'path') {
     throw new Error(t('Ungültiger Dateipfad'));
   }
-  return `"${path}"`;
+  return `"${target.value}"`;
 }).join('\n');
 
 // WebView2 can deliver URI strings through the native drop callback as well.

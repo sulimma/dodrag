@@ -370,5 +370,11 @@
   "Minuten": "Minuty",
   "Stunden": "Godziny",
   "Tage": "Dni",
-  "Ungültige Dauer oder Fortschritt": "Nieprawidłowy czas trwania lub postęp"
+  "Ungültige Dauer oder Fortschritt": "Nieprawidłowy czas trwania lub postęp",
+  "Update": "Aktualizuj",
+  "GitHub-Releases öffnen und DoDrag schließen": "Otwórz wydania na GitHub i zamknij DoDrag",
+  "Update konnte nicht gestartet werden": "Nie udało się rozpocząć aktualizacji",
+  "Beschreibung wird gespeichert…": "Zapisywanie opisu…",
+  "Beschreibung gespeichert": "Opis zapisany",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Opis niezapisany – ponawianie próby"
 }

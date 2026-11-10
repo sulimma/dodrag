@@ -1,8 +1,10 @@
 package main
 
 import (
+	"dodrag/internal/eventstore"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"strings"
@@ -76,7 +78,12 @@ func localizedError(language, key string, err error, replacements ...string) err
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("%s: %w", backendText(language, key, replacements...), err)
+	message := backendText(language, key, replacements...)
+	var compatibility *eventstore.CompatibilityError
+	if errors.As(err, &compatibility) {
+		message += ": " + backendText(language, "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).", "version", compatibility.MinimumVersion)
+	}
+	return fmt.Errorf("%s: %w", message, err)
 }
 
 func (a *App) errorLocked(key string, err error, replacements ...string) error {

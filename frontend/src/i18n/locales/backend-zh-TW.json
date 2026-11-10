@@ -73,5 +73,6 @@
   "Visual Studio Code wurde nicht gefunden": "找不到 Visual Studio Code",
   "Visual Studio Code konnte nicht geöffnet werden": "無法開啟 Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "無法套用視窗模式",
-  "Ungültige Standarddauer": "預設時長無效"
+  "Ungültige Standarddauer": "預設時長無效",
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "此資料庫與目前的應用程式版本不相容。請安裝較新版本的 DoDrag（至少為 {version}）。"
 }

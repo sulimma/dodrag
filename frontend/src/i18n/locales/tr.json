@@ -370,5 +370,11 @@
   "Minuten": "Dakika",
   "Stunden": "Saat",
   "Tage": "Gün",
-  "Ungültige Dauer oder Fortschritt": "Geçersiz süre veya ilerleme"
+  "Ungültige Dauer oder Fortschritt": "Geçersiz süre veya ilerleme",
+  "Update": "Güncelle",
+  "GitHub-Releases öffnen und DoDrag schließen": "GitHub sürümlerini açıp DoDrag uygulamasını kapatma",
+  "Update konnte nicht gestartet werden": "Güncelleme başlatılamadı",
+  "Beschreibung wird gespeichert…": "Açıklama kaydediliyor…",
+  "Beschreibung gespeichert": "Açıklama kaydedildi",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Açıklama kaydedilmedi – yeniden deneniyor"
 }

@@ -370,5 +370,11 @@
   "Minuten": "Minutes",
   "Stunden": "Heures",
   "Tage": "Jours",
-  "Ungültige Dauer oder Fortschritt": "Durée ou progression non valide"
+  "Ungültige Dauer oder Fortschritt": "Durée ou progression non valide",
+  "Update": "Mise à jour",
+  "GitHub-Releases öffnen und DoDrag schließen": "Ouvrir les versions sur GitHub et fermer DoDrag",
+  "Update konnte nicht gestartet werden": "Impossible de lancer la mise à jour",
+  "Beschreibung wird gespeichert…": "Enregistrement de la description…",
+  "Beschreibung gespeichert": "Description enregistrée",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Description non enregistrée – nouvelle tentative"
 }

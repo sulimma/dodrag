@@ -370,5 +370,11 @@
   "Minuten": "分钟",
   "Stunden": "小时",
   "Tage": "天",
-  "Ungültige Dauer oder Fortschritt": "时长或进度无效"
+  "Ungültige Dauer oder Fortschritt": "时长或进度无效",
+  "Update": "更新",
+  "GitHub-Releases öffnen und DoDrag schließen": "打开 GitHub 发布页面并关闭 DoDrag",
+  "Update konnte nicht gestartet werden": "无法开始更新",
+  "Beschreibung wird gespeichert…": "正在保存描述…",
+  "Beschreibung gespeichert": "描述已保存",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "描述未保存，正在重试"
 }

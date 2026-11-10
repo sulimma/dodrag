@@ -6,6 +6,13 @@
 - Datei-spezifische Designentscheidungen, Architektur und Konventionen direkt in der jeweiligen Quelldatei dokumentieren. Übergreifende Regeln gehören hierher; die [Code-Karte](docs/CODE_MAP.md) dient nur der Navigation.
 - Nur im Workspace editieren. Pfade auf Google Drive immer quoten. Keine App starten oder Nutzerprozesse beenden, um Builds zu ermöglichen.
 
+## Datenformat und Versionierung
+- Die Mindest-App-Version für das geschriebene Datenformat wird im Code in `internal/eventstore/version.go` (`MinimumAppVersion`) gepflegt. Bei Datenformatänderungen erhöhen; bei allen anderen Änderungen unverändert lassen. Der historische Rückfallwert für Dateien ohne Versionsangabe bleibt `0.5.0`.
+- SemVer `x.y.z`: Bei Änderungen am Datenbankformat `y` erhöhen und `z` auf 0 setzen; bei sonstigen Änderungen `z` erhöhen. `x` wird ausschließlich auf ausdrückliche Entscheidung des Entwicklers geändert. Dies gilt auch für Änderungen am gespeicherten Ereignis-/Payloadformat, nicht nur am SQL-Schema.
+- Der Zusatz `rc` zählt beim Versionsvergleich und bei Datenbank-Mindestversionen nicht mit. Der aktuelle Datenformatstand beginnt mit `0.5.0`; der zugehörige aktuelle Vorab-Build ist `0.5.0rc`.
+- Aus Datenschutzgründen keine automatischen Online-Updateprüfungen. Updatehinweise stammen ausschließlich aus den lokalen Versionsmetadaten bekannter Datenbanken. Erst ein ausdrücklicher Klick öffnet die GitHub-Releases; danach regulär mit Speicherschutz schließen.
+- Datenbanken speichern App-Version, Build-Datum und erforderliche Mindest-App-Version. Mindestversion vor Schema-/Datenänderungen prüfen, niemals herabsetzen und beim erfolgreichen Öffnen die Build-Angaben aktualisieren. Inkompatible Dateien mit klarer Updateaufforderung und Mindestversion ablehnen; ohne Versionsangabe `0.5.0` nennen.
+
 ## Prüfungen und Abschluss
 - Der Nutzer arbeitet als Entwickler interaktiv mit und prüft die App manuell. Nach kleinen Änderungen zuerst kompilieren; bei Bedarf nur gezielte, zur Änderung passende Tests ausführen. Nicht nach jeder Änderung die vollständige Testsuite starten.
 - Test-Ergänzung und Test-Ausführung sind getrennte Entscheidungen: Für jedes neu entdeckte Problem einen Regressionstest ergänzen, der das fehlerhafte Verhalten erfasst und die Korrektur absichert. Das gilt auch für Probleme mit visueller Rückmeldung oder Interaktionen. Ist eine aussagekräftige automatisierte Prüfung mit den vorhandenen Mitteln nicht möglich, die Testlücke benennen und einen konkreten manuellen Regressionsablauf dokumentieren; keine Scheintests auf Implementierungsdetails als Ersatz hinzufügen.

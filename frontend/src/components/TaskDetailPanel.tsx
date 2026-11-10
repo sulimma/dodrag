@@ -31,6 +31,7 @@ interface TaskDetailPanelProps extends TaskMenuActions {
   onToggle?: () => void;
   onSyntaxHelp?: () => void;
   onTimingChange?: (taskId: string, timing: TaskTiming) => Promise<void>;
+  descriptionSaveState?: 'saving' | 'saved' | 'error';
   onDescriptionChange: (taskId: string, markdown: string) => void;
   onDescriptionCommit?: (taskId: string) => void;
   onAddLog: (taskId: string, text: string) => Promise<void>;
@@ -157,6 +158,11 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
           </div></>}
       </header>
       {!task ? <p className="p-6 text-sm text-slate-400">{t('Task auswählen, um Details, Beschreibung und Log anzuzeigen')}</p> : <>
+        <div role="status" aria-live="polite" data-description-save-state={props.descriptionSaveState}
+          className={`px-3 text-xs shrink-0 ${props.descriptionSaveState === 'error' ? 'text-red-700' : 'text-slate-500'}`}>
+          {props.descriptionSaveState === 'error' ? t('Beschreibung nicht gespeichert – erneuter Versuch läuft')
+            : props.descriptionSaveState === 'saving' ? t('Beschreibung wird gespeichert…') : t('Beschreibung gespeichert')}
+        </div>
         <section className="flex flex-col flex-1 min-h-0 overflow-hidden" data-task-selectable-text="true" data-shortcut-region="3">
           <TaskDescriptionEditor ref={editor} taskId={task.id} description={task.description} active={props.active} historyTarget={historyTarget}
             onCreateSourceTask={props.onCreateSourceTask}

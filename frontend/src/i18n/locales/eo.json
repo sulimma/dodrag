@@ -370,5 +370,11 @@
   "Minuten": "Minutoj",
   "Stunden": "Horoj",
   "Tage": "Tagoj",
-  "Ungültige Dauer oder Fortschritt": "Nevalida daŭro aŭ progreso"
+  "Ungültige Dauer oder Fortschritt": "Nevalida daŭro aŭ progreso",
+  "Update": "Ĝisdatigo",
+  "GitHub-Releases öffnen und DoDrag schließen": "Malfermi eldonojn ĉe GitHub kaj fermi DoDrag",
+  "Update konnte nicht gestartet werden": "Ne eblis komenci la ĝisdatigon",
+  "Beschreibung wird gespeichert…": "Konservado de priskribo…",
+  "Beschreibung gespeichert": "Priskribo konservita",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Priskribo ne konservita – reprovo"
 }

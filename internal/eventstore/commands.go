@@ -293,6 +293,10 @@ func (s *Store) AppendEvent(id, kind, payload string) ([]Event, error) {
 	return s.AppendBatch([]Command{{ID: id, Type: kind, Payload: json.RawMessage(payload)}})
 }
 func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
+	return s.appendBatch(commands, nil)
+}
+
+func (s *Store) appendBatch(commands []Command, recoveryBases map[string]string) ([]Event, error) {
 	if err := s.checkOpen(); err != nil {
 		return nil, err
 	}
@@ -338,9 +342,25 @@ func (s *Store) AppendBatch(commands []Command) ([]Event, error) {
 			tasks[id] = cloneTask(tasks[id])
 			touched[id] = true
 		}
+		if base, recovering := recoveryBases[id]; recovering {
+			if tasks[id] == nil || (tasks[id].description != base && tasks[id].description != p["description"]) {
+				return nil, fmt.Errorf("description changed during draft recovery for %s", id)
+			}
+		}
 		effect, err := applyCommand(tasks, command.Type, p)
 		if err != nil {
 			return nil, err
+		}
+		if command.Type == "TASK_DESCRIPTION_SET" {
+			// Keep a newer checkpoint when an older final save completes; advance
+			// its baseline atomically. Matching checkpoints are consumed even for
+			// a no-op (e.g. local undo returned to the original description).
+			if _, err := tx.Exec(`DELETE FROM description_drafts WHERE task_id=? AND description=?`, id, p["description"]); err != nil {
+				return nil, err
+			}
+			if _, err := tx.Exec(`UPDATE description_drafts SET base_description=? WHERE task_id=?`, p["description"], id); err != nil {
+				return nil, err
+			}
 		}
 		if effect {
 			command.Payload = append(json.RawMessage(nil), command.Payload...)

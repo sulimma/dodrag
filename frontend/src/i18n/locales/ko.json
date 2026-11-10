@@ -370,5 +370,11 @@
   "Minuten": "분",
   "Stunden": "시간",
   "Tage": "일",
-  "Ungültige Dauer oder Fortschritt": "소요 시간 또는 진행 값이 잘못되었습니다"
+  "Ungültige Dauer oder Fortschritt": "소요 시간 또는 진행 값이 잘못되었습니다",
+  "Update": "업데이트",
+  "GitHub-Releases öffnen und DoDrag schließen": "GitHub 릴리스 페이지를 열고 DoDrag 종료",
+  "Update konnte nicht gestartet werden": "업데이트를 시작할 수 없습니다",
+  "Beschreibung wird gespeichert…": "설명 저장 중…",
+  "Beschreibung gespeichert": "설명 저장됨",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "설명을 저장하지 못했습니다 – 재시도 중"
 }

@@ -370,5 +370,11 @@
   "Minuten": "Minutos",
   "Stunden": "Horas",
   "Tage": "Días",
-  "Ungültige Dauer oder Fortschritt": "Duración o progreso no válido"
+  "Ungültige Dauer oder Fortschritt": "Duración o progreso no válido",
+  "Update": "Actualizar",
+  "GitHub-Releases öffnen und DoDrag schließen": "Abrir las versiones de GitHub y cerrar DoDrag",
+  "Update konnte nicht gestartet werden": "No se pudo iniciar la actualización",
+  "Beschreibung wird gespeichert…": "Guardando descripción…",
+  "Beschreibung gespeichert": "Descripción guardada",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Descripción no guardada – reintentando"
 }

@@ -11,6 +11,7 @@ export interface DatabaseEntry {
   path: string;
   isDemo: boolean;
   exists: boolean;
+  requiresUpdate?: boolean;
 }
 
 export interface TaskMenuItem {
@@ -41,6 +42,7 @@ export interface AppSettings {
   dockCorner?: string;
   bootMinimized?: boolean;
   databaseReady?: boolean;
+  databaseError?: string;
   version?: string;
   buildTime?: string;
   uiLanguage?: string;
@@ -63,6 +65,7 @@ declare global {
           ReportFrontendError?: (detail: string) => Promise<void>;
           SetEditorReady: (ready: boolean) => Promise<void>;
           FinishClose: (saved: boolean) => Promise<void>;
+          SaveDescriptionDraft?: (database: string, taskId: string, text: string, base: string, session: string, revision: number) => Promise<void>;
           GetEvents: () => Promise<unknown>;
           AppendBatch: (commands: Array<EventCommand & { id: string; groupId?: string }>) => Promise<unknown>;
           AppendEvent: (
@@ -133,6 +136,9 @@ export const eventBridge = {
   async finishClose(saved: boolean): Promise<void> { await nativeMethod('FinishClose')(saved); },
   onBeforeClose(callback: () => void): () => void {
     return window.runtime?.EventsOn?.('app:before-close', callback) ?? (() => {});
+  },
+  async saveDescriptionDraft(database: string, taskId: string, text: string, base: string, session: string, revision: number): Promise<void> {
+    await nativeMethod('SaveDescriptionDraft')(database, taskId, text, base, session, revision);
   },
   async getEvents(): Promise<StoredEvent[]> {
     return normalizeEvents(await nativeMethod('GetEvents')());

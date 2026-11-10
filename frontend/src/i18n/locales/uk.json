@@ -370,5 +370,11 @@
   "Minuten": "Хвилини",
   "Stunden": "Години",
   "Tage": "Дні",
-  "Ungültige Dauer oder Fortschritt": "Некоректна тривалість або прогрес"
+  "Ungültige Dauer oder Fortschritt": "Некоректна тривалість або прогрес",
+  "Update": "Оновити",
+  "GitHub-Releases öffnen und DoDrag schließen": "Відкрити випуски на GitHub і закрити DoDrag",
+  "Update konnte nicht gestartet werden": "Не вдалося розпочати оновлення",
+  "Beschreibung wird gespeichert…": "Збереження опису…",
+  "Beschreibung gespeichert": "Опис збережено",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Опис не збережено — повторна спроба"
 }

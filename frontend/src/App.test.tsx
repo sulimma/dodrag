@@ -365,6 +365,52 @@ it('does not close a draft changed during its own pending save', async () => {
   expect(input('Titel 26-101').textContent).toBe('Newer draft');
 });
 
+it('reopens the configured database after an unavailable startup and permits retry after failure', async () => {
+  activeSettings = { ...settings, databaseReady: false };
+  vi.mocked(api.SwitchDatabase).mockRejectedValueOnce(new Error('Drive unavailable'));
+  await mount();
+  expect(api.GetEvents).not.toHaveBeenCalled();
+  expect(element.querySelector('span[title="Alpha"]')).toBeNull();
+
+  await act(async () => click(textButton('Aktive Datenbank erneut laden')));
+  expect(element.textContent).toContain('Drive unavailable');
+  expect(api.GetEvents).not.toHaveBeenCalled();
+  key('n');
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+
+  // Drive is now mounted; the native store stays closed until explicitly opened.
+  await act(async () => click(textButton('Aktive Datenbank erneut laden')));
+  expect(api.SwitchDatabase).toHaveBeenCalledTimes(2);
+  expect(api.SwitchDatabase).toHaveBeenLastCalledWith(settings.activeDatabasePath);
+  expect(textButton('Fertig').disabled).toBe(false);
+  click(textButton('Fertig'));
+  expect(element.querySelector('span[title="Alpha"]')).not.toBeNull();
+});
+
+it('shows the native upgrade requirement on startup and clears it after recovery', async () => {
+  const databaseError = 'Please update DoDrag to at least 9.0.0';
+  activeSettings = { ...settings, databaseReady: false, databaseError };
+  await mount();
+  expect(element.textContent).toContain(databaseError);
+  expect(api.GetEvents).not.toHaveBeenCalled();
+  await act(async () => click(textButton('Aktive Datenbank erneut laden')));
+  expect(textButton('Fertig').disabled).toBe(false);
+  expect(element.textContent).not.toContain(databaseError);
+  click(textButton('Fertig'));
+  expect(element.querySelector('span[title="Alpha"]')).not.toBeNull();
+});
+
+it('shows a database validation failure when retrying an unavailable startup', async () => {
+  activeSettings = { ...settings, databaseReady: false };
+  vi.mocked(api.SwitchDatabase).mockRejectedValue(new Error('validate event store: event 1141: unexpected payload fields for TASK_CREATED'));
+  await mount();
+  await act(async () => click(textButton('Aktive Datenbank erneut laden')));
+  expect(element.textContent).toContain('event 1141');
+  expect(api.GetEvents).not.toHaveBeenCalled();
+  expect(textButton('Aktive Datenbank erneut laden').disabled).toBe(false);
+  expect(element.querySelector('span[title="Alpha"]')).toBeNull();
+});
+
 it('clears old DB tasks after activation plus snapshot failure and recovers by reload', async () => {
   await mount();
   editTitle('Alpha');

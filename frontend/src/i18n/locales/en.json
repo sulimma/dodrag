@@ -370,5 +370,11 @@
   "Minuten": "Minutes",
   "Stunden": "Hours",
   "Tage": "Days",
-  "Ungültige Dauer oder Fortschritt": "Invalid duration or progress"
+  "Ungültige Dauer oder Fortschritt": "Invalid duration or progress",
+  "Update": "Update",
+  "GitHub-Releases öffnen und DoDrag schließen": "Open GitHub releases and close DoDrag",
+  "Update konnte nicht gestartet werden": "Could not start the update",
+  "Beschreibung wird gespeichert…": "Saving description…",
+  "Beschreibung gespeichert": "Description saved",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Description not saved – retrying"
 }

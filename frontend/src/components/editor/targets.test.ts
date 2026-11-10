@@ -105,3 +105,21 @@ it('distinguishes native URI strings from strict file drops and rejects malforme
   expect(urlDropText(transfer('# title\r\nhttps://example.org'))).toBe('https://example.org');
   expect(urlDropText(transfer('javascript:alert(1)'))).toBeUndefined();
 });
+
+
+it('recognizes copied slash-drive paths including spaces and preserves source ranges', () => {
+  const path = '/G:/Meine Ablage/000_NEU/2_IMMO/23_BAHNHOFSTR_23/1_AKTIV/2026-11-Heizung/2026-11-09_TPB_TPN_Verfahren_Anbietervergleich.pdf';
+  const destination = path.slice(1).replaceAll('/', '\\');
+  for (const source of [path, path.slice(1), `"${path}"`, `"${path.slice(1)}"`]) {
+    expect(classifyTarget(source)).toEqual({ kind: 'path', value: destination });
+    const tokens = tokenizeTargets(source);
+    expect(tokens).toHaveLength(1);
+    expect(tokens[0]).toMatchObject({ kind: 'path', value: destination });
+    expect(source.slice(tokens[0].start, tokens[0].end)).toBe(source);
+  }
+  expect(tokenizeTargets('See "G:/Meine Ablage/file.pdf" here')[0].value).toBe('G:\\Meine Ablage\\file.pdf');
+  expect(tokenizeTargets('See G:/folder/file.pdf here')[0].value).toBe('G:\\folder\\file.pdf');
+  expect(tokenizeTargets('file:///C:/file.pdf')).toEqual([]);
+  expect(fileDropText([path])).toBe(`"${destination}"`);
+  for (const invalid of ['/G:/file:stream', '/G:/bad?.pdf', '//G:/file.pdf']) expect(classifyTarget(invalid)).toBeUndefined();
+});

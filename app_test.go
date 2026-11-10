@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"database/sql"
+	"dodrag/internal/eventstore"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -147,6 +149,109 @@ func TestDatabaseLifecycle(t *testing.T) {
 		t.Fatal("demo not seeded")
 	}
 }
+
+func TestDatabaseVersionBuildAndStartupError(t *testing.T) {
+	previousVersion, previousBuild := buildVersion, buildTime
+	buildVersion, buildTime = "0.6.1rc", "2026-11-06T10:00:00Z"
+	t.Cleanup(func() { buildVersion, buildTime = previousVersion, previousBuild })
+	a := testApp(t)
+	settings, err := a.CreateDatabase("", "versioned", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := settings.ActiveDatabasePath
+	if err := a.store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	a.store = nil
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var version, build, minimum string
+	if err := db.QueryRow(`SELECT app_version,app_build_time,minimum_app_version FROM database_metadata WHERE id=1`).Scan(&version, &build, &minimum); err != nil {
+		t.Fatal(err)
+	}
+	if version != "0.6.1" || build != buildTime || minimum != eventstore.MinimumAppVersion {
+		t.Fatal("app build identity was not passed to the database", version, build, minimum)
+	}
+	if _, err := db.Exec(`UPDATE database_metadata SET minimum_app_version='9.0.0rc'`); err != nil {
+		t.Fatal(err)
+	}
+	a.openActiveDatabaseLocked()
+	for _, language := range uiLanguages {
+		a.settings.UILanguage = language
+		settings, err = a.GetSettings()
+		expected := backendText(language, "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).", "version", "9.0.0")
+		if err != nil || settings.DatabaseReady || !strings.Contains(settings.DatabaseError, expected) || strings.Contains(settings.DatabaseError, "9.0.0rc") {
+			t.Fatal("startup did not expose the localized upgrade instruction", language, settings.DatabaseError, err)
+		}
+		_, err = a.SwitchDatabase(path)
+		var compatibility *eventstore.CompatibilityError
+		if !errors.As(err, &compatibility) || compatibility.MinimumVersion != "9.0.0" || !strings.Contains(err.Error(), expected) {
+			t.Fatal("switch did not expose the localized upgrade instruction", language, err)
+		}
+	}
+	if _, err := db.Exec(`UPDATE database_metadata SET minimum_app_version=?`, eventstore.MinimumAppVersion); err != nil {
+		t.Fatal(err)
+	}
+	settings, err = a.SwitchDatabase(path)
+	if err != nil || !settings.DatabaseReady || settings.DatabaseError != "" {
+		t.Fatal("successful recovery retained startup error", settings, err)
+	}
+}
+
+// Simulates the missing-drive boundary with a temporarily absent file. Native
+// DriveFS mounting remains a manual test; no user drive or process is changed.
+func TestDatabaseRecoveryAfterUnavailableStartup(t *testing.T) {
+	a := testApp(t)
+	settings, err := a.CreateDatabase("", "delayed", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := settings.ActiveDatabasePath
+	for _, event := range []struct{ id, payload string }{
+		{"original", `{"taskId":"a","title":"Original","configuredStart":"2026-11-05T09:00:00Z","createdAt":"2026-11-05T09:00:00Z"}`},
+		{"copy", `{"taskId":"b","title":"Copy","configuredStart":"2026-11-05T09:00:00Z","createdAt":"2026-11-05T09:00:00Z","copiedFromId":"a"}`},
+	} {
+		if _, err := a.AppendEvent(event.id, "TASK_CREATED", event.payload); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := a.store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	a.store = nil
+	parked := path + ".unavailable"
+	if err := os.Rename(path, parked); err != nil {
+		t.Fatal(err)
+	}
+	a.openActiveDatabaseLocked()
+	settings, err = a.GetSettings()
+	if err != nil || settings.DatabaseReady || settings.ActiveDatabasePath != path {
+		t.Fatal("unavailable startup lost the configured database", settings, err)
+	}
+	if _, err := a.SwitchDatabase(path); err == nil {
+		t.Fatal("accepted unavailable database")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("retry created a replacement database", err)
+	}
+	if err := os.Rename(parked, path); err != nil {
+		t.Fatal(err)
+	}
+	settings, err = a.SwitchDatabase(path)
+	if err != nil || !settings.DatabaseReady || settings.ActiveDatabasePath != path {
+		t.Fatal("failed to recover the configured database", settings, err)
+	}
+	events, err := a.GetEvents()
+	if err != nil || len(events) != 2 || events[0].ID != "original" || events[1].ID != "copy" ||
+		!strings.Contains(string(events[1].Payload), `"copiedFromId":"a"`) {
+		t.Fatal("recovered database lost existing tasks or copy provenance", events, err)
+	}
+}
+
 func TestSwitchLegacyDatabaseNormalizesUTCAndResetsCachedTasks(t *testing.T) {
 	a := testApp(t)
 	settings, err := a.CreateDatabase("", "current", false)
@@ -356,7 +461,10 @@ func TestDeleteFailurePreservesCommittedWAL(t *testing.T) {
 	}
 	for name, want := range snapshots {
 		got, err := os.ReadFile(name)
-		if err != nil || string(got) != string(want) {
+		// Read-only compatibility inspection can update SQLite's shared-memory
+		// read marks. SHM must remain available, but its bytes are not durable
+		// user data. Keep exact DB/WAL checks and the recovery assertion below.
+		if err != nil || (name != path+"-shm" && string(got) != string(want)) {
 			t.Fatalf("recoverable file changed: %s, %v", name, err)
 		}
 	}
@@ -459,5 +567,81 @@ func TestDefaultDurationSettings(t *testing.T) {
 	}
 	if a.settings.DefaultDuration != 1 || a.settings.DefaultDurationUnit != "days" {
 		t.Fatal("legacy settings not migrated")
+	}
+}
+
+func TestDatabaseKnownCompatibilityChecksInactive(t *testing.T) {
+	a := testApp(t)
+	active, err := a.CreateDatabase("", "active", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalStore := a.store
+	inactive := filepath.Join(a.appDir, "inactive.db")
+	db, err := sql.Open("sqlite", inactive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE database_metadata (id INTEGER PRIMARY KEY,app_version TEXT,app_build_time TEXT,minimum_app_version TEXT);
+		INSERT INTO database_metadata VALUES(1,'9.0.0','future-build','9.0.0rc')`); err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	a.settings.KnownDatabases = append(a.settings.KnownDatabases,
+		DatabaseEntry{Name: "inactive", Path: inactive},
+		DatabaseEntry{Name: "offline", Path: filepath.Join(a.appDir, "missing.db")})
+	settings, err := a.GetSettings()
+	if err != nil || !settings.DatabaseReady || settings.ActiveDatabasePath != active.ActiveDatabasePath || a.store != originalStore {
+		t.Fatal("inspection changed active database", settings, err)
+	}
+	if len(settings.KnownDatabases) != 3 || settings.KnownDatabases[0].RequiresUpdate || !settings.KnownDatabases[1].RequiresUpdate || settings.KnownDatabases[2].RequiresUpdate {
+		t.Fatal("incorrect compatibility results", settings.KnownDatabases)
+	}
+	var version, build, minimum string
+	if err := db.QueryRow(`SELECT app_version,app_build_time,minimum_app_version FROM database_metadata WHERE id=1`).Scan(&version, &build, &minimum); err != nil {
+		t.Fatal(err)
+	}
+	if version != "9.0.0" || build != "future-build" || minimum != "9.0.0rc" {
+		t.Fatal("settings inspection stamped an inactive database", version, build, minimum)
+	}
+	if a.settings.KnownDatabases[1].RequiresUpdate {
+		t.Fatal("transient compatibility result entered persisted settings")
+	}
+	if _, err := db.Exec(`UPDATE database_metadata SET minimum_app_version=?`, eventstore.MinimumAppVersion); err != nil {
+		t.Fatal(err)
+	}
+	settings, err = a.GetSettings()
+	if err != nil || settings.KnownDatabases[1].RequiresUpdate {
+		t.Fatal("settings refresh retained obsolete update requirement", settings, err)
+	}
+}
+
+func TestDescriptionCheckpointDatabaseIdentityAndWebViewReload(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "draft.db")
+	store, err := eventstore.NewStoreWithOptions(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.AppendEvent("created", "TASK_CREATED", `{"taskId":"a","title":"A","configuredStart":"2026-11-10T09:00:00Z","createdAt":"2026-11-10T09:00:00Z"}`); err != nil {
+		t.Fatal(err)
+	}
+	app := &App{store: store, settings: AppSettings{ActiveDatabasePath: path}}
+	if err := app.SaveDescriptionDraft("old.db", "a", "Wrong database", "", "s", 1); err == nil {
+		t.Fatal("late write crossed database identity")
+	}
+	if err := app.SaveDescriptionDraft(path, "a", "Restored after WebView reload", "", "s", 2); err != nil {
+		t.Fatal(err)
+	}
+	events, err := app.GetEvents()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 || !strings.Contains(string(events[1].Payload), "Restored after WebView reload") {
+		t.Fatal("new frontend did not recover checkpoint")
+	}
+	again, err := app.GetEvents()
+	if err != nil || len(again) != 2 {
+		t.Fatal("reload duplicated recovery")
 	}
 }

@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { eventBridge } from '../bridge/eventBridge';
 import { projectEvents } from '../domain/projector';
 import { appendTaskSources } from '../domain/taskSources';
@@ -7,35 +7,77 @@ import type { EditorTarget } from '../components/editor/types';
 import type { TaskState } from '../domain/types';
 import type { useDatabaseSnapshot } from './useDatabaseSnapshot';
 
-interface Draft { database: string; taskId: string; text: string }
+interface Draft { database: string; taskId: string; text: string; revision: number }
 type Database = Pick<ReturnType<typeof useDatabaseSnapshot>, 'databaseIdentity' | 'confirmedEvents' | 'mutate' | 'waitForMutations'>;
 
 // A description edit is a local session, including formatting, paste and local undo.
-// Only leaving that session persists its final Markdown. Drafts live above the
+// Each change immediately requests a durable SQLite checkpoint; only leaving
+// the session adds undo history. Drafts live above the
 // editor so a failed save survives task switches, collapse and mini mode. They
 // are keyed by database as well as task; never carry a draft into another store.
 export function useDescriptionDrafts(database: Database) {
   const current = useRef(database); current.current = database;
   const drafts = useRef(new Map<string, Draft>());
+  const session = useRef(crypto.randomUUID());
+  const revision = useRef(0);
+  const protectedDrafts = useRef(new WeakSet<Draft>());
+  const checkpointing = useRef(new Map<string, Promise<void>>());
+  const failed = useRef(new Set<string>());
+  const mounted = useRef(true);
   const imports = useRef(new Set<Promise<boolean>>());
   const saving = useRef(new Map<string, { draft: Draft; promise: Promise<boolean> }>());
   const [, redraw] = useReducer((revision: number) => revision + 1, 0);
   const keyFor = (taskId: string) => JSON.stringify([current.current.databaseIdentity.current, taskId]);
+  // At most one checkpoint per task is queued. Continued typing replaces the
+  // waiting value; after acknowledgement the newest value is sent immediately.
+  // Use the mutation FIFO so a final save/database switch cannot overtake it.
+  const checkpoint = useCallback(function checkpoint(key: string) {
+    if (checkpointing.current.has(key) || saving.current.has(key)) return;
+    const draft = drafts.current.get(key);
+    if (!draft || protectedDrafts.current.has(draft)) return;
+    const db = current.current;
+    if (draft.database !== db.databaseIdentity.current) return;
+    let written: Draft | undefined;
+    const operation = (async () => {
+      const result = await db.mutate(async () => {
+        written = drafts.current.get(key);
+        if (!written || protectedDrafts.current.has(written)) return db.confirmedEvents.current;
+        const base = projectEvents(db.confirmedEvents.current).tasks[written.taskId]?.description;
+        if (base === undefined) throw new Error('Unknown description task');
+        await eventBridge.saveDescriptionDraft(written.database, written.taskId, written.text, base, session.current, written.revision);
+        protectedDrafts.current.add(written);
+        return db.confirmedEvents.current;
+      });
+      if (result) failed.current.delete(key); else failed.current.add(key);
+      checkpointing.current.delete(key);
+      if (mounted.current) {
+        redraw();
+        if (result && drafts.current.get(key) !== written) checkpoint(key);
+      }
+    })();
+    checkpointing.current.set(key, operation);
+  }, []);
+  useEffect(() => {
+    mounted.current = true;
+    // Retry failed/busy writes without requiring another keystroke or focus change.
+    const retry = setInterval(() => { for (const key of drafts.current.keys()) checkpoint(key); }, 1000);
+    return () => { mounted.current = false; clearInterval(retry); };
+  }, [checkpoint]);
   const change = useCallback((taskId: string, text: string) => {
     const db = current.current.databaseIdentity.current;
     if (!db) return;
-    drafts.current.set(JSON.stringify([db, taskId]), { database: db, taskId, text });
+    const key = JSON.stringify([db, taskId]);
+    drafts.current.set(key, { database: db, taskId, text, revision: ++revision.current });
     redraw();
-  }, []);
+    checkpoint(key);
+  }, [checkpoint]);
   const persistDrafts = useCallback((entries: [string, Draft][], batch = false): Promise<boolean> => {
     if (!entries.length) return Promise.resolve(true);
     const db = current.current;
     if (entries.some(([, draft]) => draft.database !== db.databaseIdentity.current)) return Promise.resolve(false);
     const operation = (async () => {
       const result = await db.mutate(() => {
-        const tasks = projectEvents(db.confirmedEvents.current).tasks;
-        const commands = entries.filter(([, draft]) => tasks[draft.taskId]?.description !== draft.text)
-          .map(([, draft]) => ({ type: 'TASK_DESCRIPTION_SET' as const, payload: { taskId: draft.taskId, description: draft.text } }));
+        const commands = entries.map(([, draft]) => ({ type: 'TASK_DESCRIPTION_SET' as const, payload: { taskId: draft.taskId, description: draft.text } }));
         if (!commands.length) return Promise.resolve(db.confirmedEvents.current);
         return batch || commands.length > 1 ? eventBridge.appendBatch(commands)
           : eventBridge.appendEvent('TASK_DESCRIPTION_SET', commands[0].payload);
@@ -68,7 +110,7 @@ export function useDescriptionDrafts(database: Database) {
       const tasks = projectEvents(db.confirmedEvents.current).tasks;
       const entries: [string, Draft][] = [...new Set(taskIds)].filter(id => tasks[id]).map(taskId => {
         const key = JSON.stringify([identity, taskId]);
-        return [key, { database: identity, taskId,
+        return [key, { database: identity, taskId, revision: ++revision.current,
           text: appendTaskSources(drafts.current.get(key)?.text ?? tasks[taskId].description, additions) }];
       });
       // Publish sources into the local document BEFORE awaiting native persistence.
@@ -108,5 +150,10 @@ export function useDescriptionDrafts(database: Database) {
     const draft = drafts.current.get(keyFor(task.id));
     return draft ? { ...task, description: draft.text } : task;
   };
-  return { change, flush, flushAll, appendSources, taskWithDraft, hasPending: () => imports.current.size > 0 || saving.current.size > 0, hasDrafts: () => imports.current.size > 0 || drafts.current.size > 0 || saving.current.size > 0 };
+  const protectionState = (taskId: string): 'saved' | 'saving' | 'error' => {
+    const key = keyFor(taskId), draft = drafts.current.get(key);
+    if (!draft || protectedDrafts.current.has(draft)) return 'saved';
+    return failed.current.has(key) ? 'error' : 'saving';
+  };
+  return { protectionState, change, flush, flushAll, appendSources, taskWithDraft, hasPending: () => imports.current.size > 0 || checkpointing.current.size > 0 || saving.current.size > 0, hasDrafts: () => imports.current.size > 0 || drafts.current.size > 0 || saving.current.size > 0 };
 }

@@ -54,7 +54,7 @@ beforeEach(() => {
     type: 'TASK_CREATED', payload: { taskId, title: 'Alpha', configuredStart: date, createdAt: date },
   }];
   api = {
-    SetEditorReady: vi.fn(async () => {}), FinishClose: vi.fn(async () => {}),
+    SaveDescriptionDraft: vi.fn(async () => {}), SetEditorReady: vi.fn(async () => {}), FinishClose: vi.fn(async () => {}),
     GetSettings: vi.fn(async () => settings), GetEvents: vi.fn(async () => history),
     AppendBatch: vi.fn((commands: NativeCommand[]) => new Promise<StoredEvent[]>((resolve, reject) => {
       pending.push({ commands, resolve, reject });
@@ -315,4 +315,19 @@ it('review: refuses native close when an in-flight title save fails', async () =
   await act(async () => nativeEvents.get('app:before-close')!());
   expect(api.FinishClose).toHaveBeenLastCalledWith(true);
   expect(projectEvents(history, new Date(date)).tasks[taskId].title).toBe('Unsaved title');
+});
+
+
+it('shows durable save state only after SQLite acknowledgement and keeps local undo', async () => {
+  let confirm!: () => void;
+  vi.mocked(api.SaveDescriptionDraft!).mockImplementationOnce(() => new Promise<void>(done => { confirm = done; }));
+  const { editor, dom } = await mount();
+  await typeLocally(editor, 'Persistent draft');
+  expect(host.querySelector('[data-description-save-state]')?.getAttribute('data-description-save-state')).toBe('saving');
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+  await act(async () => { confirm(); });
+  expect(host.querySelector('[data-description-save-state]')?.getAttribute('data-description-save-state')).toBe('saved');
+  await key(dom, 'z', true);
+  expect(api.Undo).not.toHaveBeenCalled();
+  expect(api.AppendBatch).not.toHaveBeenCalled();
 });

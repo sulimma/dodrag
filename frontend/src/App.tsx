@@ -565,6 +565,7 @@ export function App() {
             const result = await mutate(() => eventBridge.appendEvent('TASK_TIMING_SET', { taskId, ...timing }));
             if (!result) throw new Error(t('Änderung konnte nicht gespeichert werden'));
           }}
+          descriptionSaveState={mainSelection.selectedTaskId ? descriptions.protectionState(mainSelection.selectedTaskId) : 'saved'}
           onDescriptionChange={descriptions.change}
           onDescriptionCommit={taskId => { void descriptions.flush(taskId); }}
           onAddLog={async (taskId, text) => {
@@ -699,7 +700,14 @@ export function App() {
           }}
           onClose={database.handleCloseSettingsModal}
           onReloadDatabase={async () => {
-            await changeDatabase(() => eventBridge.getSettings());
+            await changeDatabase(async () => {
+              const settings = await eventBridge.getSettings();
+              // A failed startup leaves the native store closed. Reading settings
+              // alone cannot recover when a delayed drive becomes available.
+              if (!settings.databaseReady && settings.activeDatabasePath)
+                return eventBridge.switchDatabase(settings.activeDatabasePath);
+              return settings;
+            });
           }}
           onSelectFolder={() => eventBridge.selectFolderDialog()}
           onCreateDatabase={database.handleCreateDatabase}

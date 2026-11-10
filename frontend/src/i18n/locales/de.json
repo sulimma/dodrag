@@ -370,5 +370,11 @@
   "Minuten": "Minuten",
   "Stunden": "Stunden",
   "Tage": "Tage",
-  "Ungültige Dauer oder Fortschritt": "Ungültige Dauer oder Fortschritt"
+  "Ungültige Dauer oder Fortschritt": "Ungültige Dauer oder Fortschritt",
+  "Update": "Update",
+  "GitHub-Releases öffnen und DoDrag schließen": "GitHub-Releases öffnen und DoDrag schließen",
+  "Update konnte nicht gestartet werden": "Update konnte nicht gestartet werden",
+  "Beschreibung wird gespeichert…": "Beschreibung wird gespeichert…",
+  "Beschreibung gespeichert": "Beschreibung gespeichert",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Beschreibung nicht gespeichert – erneuter Versuch läuft"
 }

@@ -20,6 +20,7 @@ import { t, formatDate, useLanguage, supportedLanguages, languageNames, errorTex
 import { contextMenuAnchor } from '../hooks/keyboardNavigation';
 
 const PROJECT_URL = 'https://github.com/sulimma/dodrag';
+const RELEASES_URL = `${PROJECT_URL}/releases`;
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -116,6 +117,27 @@ export function SettingsModal({
   }, []);
 
   const isDbReady = Boolean(settings.databaseReady);
+  const needsUpdate = settings.knownDatabases.some(database => database.requiresUpdate);
+  // Compatibility is determined from local database metadata. No network request
+  // occurs before this explicit click; normal closing still protects editor drafts.
+  const openUpdate = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setErrorMsg(null);
+    try {
+      await eventBridge.openExternalURL(RELEASES_URL);
+      await eventBridge.requestWindowClose();
+    } catch (error) {
+      if (mounted.current) setErrorMsg(errorText(t('Update konnte nicht gestartet werden'), error));
+    } finally {
+      if (mounted.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
+  };
   const setup = settings.setup;
   const currentDir = setup?.currentDir;
   const setupNeeded = Boolean(setup && (!setup.programInstalled || !setup.desktopShortcut || !setup.startMenuShortcut));
@@ -369,7 +391,7 @@ export function SettingsModal({
               {settings.activeDatabasePath ? (
                 <>
                   <strong>{t('Datenbank nicht verfügbar:')}</strong>{' '}
-                  {t('Die ausgewählte Datenbank ({path}) konnte nicht geöffnet werden (evtl. verschoben oder gelöscht). Bitte wähle eine Datenbank aus oder lege eine neue an.', { path: settings.activeDatabasePath })}
+                  {settings.databaseError || t('Die ausgewählte Datenbank ({path}) konnte nicht geöffnet werden (evtl. verschoben oder gelöscht). Bitte wähle eine Datenbank aus oder lege eine neue an.', { path: settings.activeDatabasePath })}
                 </>
               ) : (
                 <>
@@ -744,6 +766,7 @@ export function SettingsModal({
                 <span className="truncate">{currentDir}</span>
               </PathLabel>
             )}
+            <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={openProjectPage}
@@ -752,6 +775,14 @@ export function SettingsModal({
             >
               {t('DoDrag v{version} · Build {time}', { version: settings.version || 'dev', time: formatBuildTime(settings.buildTime) })}
             </button>
+            {needsUpdate && (
+              <a href={RELEASES_URL} onClick={openUpdate} aria-disabled={busy}
+                title={t('GitHub-Releases öffnen und DoDrag schließen')}
+                className={`shrink-0 text-[11px] text-sky-700 underline ${busy ? 'opacity-40' : 'hover:text-sky-900'}`}>
+                {t('Update')}
+              </a>
+            )}
+            </div>
           </div>
           <button
             type="button"

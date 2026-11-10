@@ -394,3 +394,23 @@ it('reuses the editor across tasks while resetting undo, acknowledgements and im
     for (const image of element.querySelectorAll<HTMLImageElement>('img[src]')) expect(image.src).toContain('taskId=third&');
   } finally { act(() => root.unmount()); element.remove(); }
 });
+
+
+it('recognizes slash-drive paths and refreshes their full target after deleting the leading slash', async () => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const path = '/G:/Meine Ablage/Heizung/Anbietervergleich.pdf';
+  const destination = 'G:\\Meine Ablage\\Heizung\\Anbietervergleich.pdf';
+  try {
+    await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description={path}
+      onChange={vi.fn()} onEscape={vi.fn()} onError={vi.fn()} onContextMenu={vi.fn()} />));
+    const dom = element.querySelector<HTMLElement>('.tiptap')!;
+    const editor = (dom as HTMLElement & { editor: Editor }).editor;
+    expect(element.querySelector('[data-target-kind="path"][data-target-value]')?.getAttribute('data-target-value')).toBe(destination);
+    let slash = -1;
+    editor.state.doc.descendants((node, pos) => { if (node.isText && node.text?.startsWith('/G:/')) slash = pos; });
+    expect(slash).toBeGreaterThanOrEqual(0);
+    await act(async () => editor.view.dispatch(editor.state.tr.delete(slash, slash + 1)));
+    expect(editor.state.doc.textContent).toBe(path.slice(1));
+    expect(element.querySelector('[data-target-kind="path"][data-target-value]')?.getAttribute('data-target-value')).toBe(destination);
+  } finally { act(() => root.unmount()); element.remove(); }
+});

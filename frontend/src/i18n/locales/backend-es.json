@@ -73,5 +73,6 @@
   "Visual Studio Code wurde nicht gefunden": "No se encontró Visual Studio Code",
   "Visual Studio Code konnte nicht geöffnet werden": "No se pudo abrir Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "No se pudo aplicar el modo de ventana",
-  "Ungültige Standarddauer": "Duración predeterminada no válida"
+  "Ungültige Standarddauer": "Duración predeterminada no válida",
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Esta base de datos no es compatible con esta versión de la aplicación. Instala una versión más reciente de DoDrag (como mínimo {version})."
 }

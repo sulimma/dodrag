@@ -370,5 +370,11 @@
   "Minuten": "tenpo lili",
   "Stunden": "tenpo ilo",
   "Tage": "tenpo suno",
-  "Ungültige Dauer oder Fortschritt": "tenpo pali anu pali pini li ike"
+  "Ungültige Dauer oder Fortschritt": "tenpo pali anu pali pini li ike",
+  "Update": "o sin",
+  "GitHub-Releases öffnen und DoDrag schließen": "o open e lipu pi ilo sin lon ilo GitHub. o pini e ilo DoDrag.",
+  "Update konnte nicht gestartet werden": "mi ken ala open e nasin pi ilo sin.",
+  "Beschreibung wird gespeichert…": "ilo li awen e toki sona…",
+  "Beschreibung gespeichert": "toki sona li awen",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "toki sona li awen ala. ilo li pali sin."
 }

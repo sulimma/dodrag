@@ -370,5 +370,11 @@
   "Minuten": "分",
   "Stunden": "時間",
   "Tage": "日",
-  "Ungültige Dauer oder Fortschritt": "所要時間または進捗が無効です"
+  "Ungültige Dauer oder Fortschritt": "所要時間または進捗が無効です",
+  "Update": "更新",
+  "GitHub-Releases öffnen und DoDrag schließen": "GitHub のリリースページを開いて DoDrag を終了",
+  "Update konnte nicht gestartet werden": "更新を開始できませんでした",
+  "Beschreibung wird gespeichert…": "説明を保存中…",
+  "Beschreibung gespeichert": "説明を保存しました",
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "説明を保存できませんでした — 再試行中"
 }

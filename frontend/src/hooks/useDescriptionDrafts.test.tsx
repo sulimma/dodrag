@@ -8,7 +8,7 @@ import { projectEvents } from '../domain/projector';
 import type { StoredEvent } from '../domain/types';
 import type { AppSettings } from '../bridge/eventBridge';
 
-const bridge = vi.hoisted(() => ({ getSettings: vi.fn(), getEvents: vi.fn(), appendEvent: vi.fn(), appendBatch: vi.fn(), readMarkdownFile: vi.fn() }));
+const bridge = vi.hoisted(() => ({ saveDescriptionDraft: vi.fn<(...args: [string, string, string, string, string, number]) => Promise<void>>(async () => {}), getSettings: vi.fn(), getEvents: vi.fn(), appendEvent: vi.fn(), appendBatch: vi.fn(), readMarkdownFile: vi.fn() }));
 vi.mock('../bridge/eventBridge', () => ({ eventBridge: bridge }));
 const date = '2026-10-25T09:00:00Z';
 let root: Root, host: HTMLDivElement, history: StoredEvent[], settings: AppSettings;
@@ -258,4 +258,41 @@ it('refuses final flush when an accepted Markdown read fails and permits a retry
   expect(drafts.hasPending()).toBe(false);
   expect(await drafts.flushAll()).toBe(true);
   expect(bridge.appendBatch).not.toHaveBeenCalled();
+});
+
+
+it('checkpoints typing before blur without adding undo events', async () => {
+  change('Persist while focused');
+  await act(async () => { await database.waitForMutations(); });
+  expect(bridge.saveDescriptionDraft).toHaveBeenCalledWith('A.db', 'A', 'Persist while focused', '', expect.any(String), expect.any(Number));
+  expect(drafts.protectionState('A')).toBe('saved');
+  expect(bridge.appendEvent).not.toHaveBeenCalled();
+  expect(task().description).toBe('');
+});
+
+it('never acknowledges newer typing as saved and bounds pending checkpoint writes', async () => {
+  let release!: () => void;
+  bridge.saveDescriptionDraft.mockImplementationOnce(() => new Promise<void>(done => { release = done; }));
+  change('First'); await act(async () => { await Promise.resolve(); });
+  for (let i = 0; i < 100; i++) change(`New ${i}`);
+  expect(bridge.saveDescriptionDraft).toHaveBeenCalledTimes(1);
+  expect(drafts.protectionState('A')).toBe('saving');
+  await act(async () => { release(); await database.waitForMutations(); });
+  expect(bridge.saveDescriptionDraft).toHaveBeenCalledTimes(2);
+  expect(bridge.saveDescriptionDraft.mock.lastCall?.[2]).toBe('New 99');
+  expect(drafts.protectionState('A')).toBe('saved');
+});
+
+it('shows failed durability and retries without another edit', async () => {
+  try {
+    bridge.saveDescriptionDraft.mockRejectedValueOnce(new Error('disk unavailable'));
+    change('Keep this text');
+    await act(async () => { await database.waitForMutations(); });
+    expect(drafts.protectionState('A')).toBe('error');
+    expect(visible()).toBe('Keep this text');
+    expect(toast).toHaveBeenCalled();
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 1100)); });
+    await act(async () => { await database.waitForMutations(); });
+    expect(drafts.protectionState('A')).toBe('saved');
+  } finally { bridge.saveDescriptionDraft.mockResolvedValue(undefined); }
 });
