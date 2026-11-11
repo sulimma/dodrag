@@ -103,7 +103,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     expect(state.tasks.b.isDeemphasized).toBe(true);
   });
 
-  it('sorts active tasks first, then full timestamps and IDs; completed tasks by completion', () => {
+  it('sorts active tasks first, then visible day and global order; completed tasks by completion', () => {
     const dates = [
       ['26-108', '2026-10-17T18:41:31+02:00'],
       ['26-104', '2026-10-17T14:39:31+02:00'],
@@ -119,18 +119,18 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       type: 'TASK_ACTIVE_SET', payload: { taskId: '26-108', isActive: true } });
     const now = new Date('2026-10-18T12:00:00Z');
     const state = projectEvents(events, now);
-    const expected = ['26-108', '26-101', '26-102', '26-103', '26-104'];
+    const expected = ['26-108', '26-104', '26-103', '26-102', '26-101'];
     expect(state.openTasks.map(t => t.id)).toEqual(expected);
     expect(state.listEntries.flatMap(e => e.kind === 'task' ? [e.task.id] : [])).toEqual(expected);
     expect(computeMiniWindowTasks([...state.openTasks].reverse(), now).map(t => t.id)).toEqual([
-      '26-108', '26-101', '26-102', '26-103', '26-104',
+      '26-108', '26-104', '26-103', '26-102', '26-101',
     ]);
     const multipleActive = projectEvents([...events, {
       seq: 7, id: 'active2', timestamp: todayIso, undone: false,
       type: 'TASK_ACTIVE_SET', payload: { taskId: '26-104', isActive: true },
     }], now);
     expect(computeMiniWindowTasks([...multipleActive.openTasks].reverse(), now).map(t => t.id)).toEqual([
-      '26-108', '26-104', '26-101', '26-102', '26-103',
+      '26-108', '26-104', '26-103', '26-102', '26-101',
     ]);
     const completed = projectEvents([...events, ...expected.map((taskId, i): StoredEvent => ({
       seq: 7 + i, id: `done${i}`, timestamp: todayIso, undone: false,
@@ -139,7 +139,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     expect(completed.completedTasks.map(t => t.id)).toEqual(expected);
   });
 
-  it('orders active tasks by the complete dependency graph across incremental changes and undo', () => {
+  it('keeps the global active order independent of graph changes and undo', () => {
     const events: StoredEvent[] = ['B', 'A', 'C', 'D'].map((taskId, i) => ({
       seq: i + 1, id: `create-${taskId}`, timestamp: todayIso, undone: false, type: 'TASK_CREATED',
       payload: { taskId, title: taskId, configuredStart: todayIso, createdAt: todayIso },
@@ -156,18 +156,18 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       expect(state.listEntries.flatMap(e => e.kind === 'task' && e.task.isActive ? [e.task.id] : [])).toEqual(expected);
       expect(computeMiniWindowTasks([...state.openTasks].reverse(), fixedNow).filter(t => t.isActive).map(t => t.id)).toEqual(expected);
     };
-    check(['C', 'D', 'B']); // A is an inactive intermediate; independent D ties C by creation order.
+    check(['B', 'C', 'D']); // Dependency levels do not reorder active tasks.
     add({ type: 'TASK_ACTIVE_SET', payload: { taskId: 'A', isActive: true } });
-    check(['C', 'D', 'A', 'B']); // C -> A -> B opposes their creation and ID order.
+    check(['B', 'A', 'C', 'D']); // Activation restores A to the global order.
     add({ type: 'TASK_ACTIVE_SET', payload: { taskId: 'A', isActive: false } });
     add({ type: 'TASK_COMPLETED', payload: { taskId: 'A', completedAt: todayIso } });
-    check(['C', 'D', 'B']); // Completed intermediates still contribute to global levels.
+    check(['B', 'C', 'D']); // Completion also leaves global order unchanged.
     add({ type: 'DEPENDENCY_REMOVED', payload: { taskId: 'A', predecessorId: 'C' } });
-    check(['C', 'D', 'B']);
+    check(['B', 'C', 'D']);
     add({ type: 'DEPENDENCY_REMOVED', payload: { taskId: 'B', predecessorId: 'A' } });
     check(['B', 'C', 'D']);
     events[events.length - 1] = { ...events[events.length - 1], undone: true };
-    check(['C', 'D', 'B']);
+    check(['B', 'C', 'D']);
     events[events.length - 1] = { ...events[events.length - 1], undone: false };
     check(['B', 'C', 'D']);
   });
@@ -185,14 +185,14 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     events.push({ seq: 4, id: 'create-d', timestamp: todayIso, undone: false,
       type: 'TASK_CREATED', payload: { taskId: 'd', title: 'd', configuredStart: todayIso, createdAt: todayIso } });
     const beforeCompletion = projectEvents(events, now);
-    expect(beforeCompletion.openTaskCountAtYesterdayEnd).toBe(3);
-    expect(beforeCompletion.openTasks.length - beforeCompletion.openTaskCountAtYesterdayEnd).toBe(1);
+    expect(beforeCompletion.todayBalance.start).toBe(3);
+    expect(beforeCompletion.openTasks.length - beforeCompletion.todayBalance.start).toBe(1);
 
     // Completing today lowers the count against yesterday's end.
     const completedToday = projectEvents([...events, { seq: 5, id: 'done-a', timestamp: todayIso, undone: false,
       type: 'TASK_COMPLETED', payload: { taskId: 'a', completedAt: todayIso } }], now);
-    expect(completedToday.openTaskCountAtYesterdayEnd).toBe(3);
-    expect(completedToday.openTasks.length - completedToday.openTaskCountAtYesterdayEnd).toBe(0);
+    expect(completedToday.todayBalance.start).toBe(3);
+    expect(completedToday.openTasks.length - completedToday.todayBalance.start).toBe(0);
   });
 
   it('counts earlier timestamps after a later timestamp in sequence order', () => {
@@ -204,8 +204,8 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         configuredStart: date.toISOString(), createdAt: date.toISOString() },
     }));
     const state = projectEvents(events, now);
-    expect(state.openTaskCountAtYesterdayEnd).toBe(1);
-    expect(state.openTasks.length - state.openTaskCountAtYesterdayEnd).toBe(1);
+    expect(state.todayBalance.start).toBe(1);
+    expect(state.openTasks.length - state.todayBalance.start).toBe(1);
   });
 
   it('intentionally treats undo as a historical correction but reopening as a new change', () => {
@@ -218,17 +218,17 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
         payload: { taskId: 'a', completedAt: yesterdayIso } },
     ];
     const completed = projectEvents(events, now);
-    expect(completed.openTaskCountAtYesterdayEnd).toBe(0);
+    expect(completed.todayBalance.start).toBe(0);
 
     const undone = projectEvents(events.map(event => event.type === 'TASK_COMPLETED' ? { ...event, undone: true } : event), now);
-    expect(undone.openTaskCountAtYesterdayEnd).toBe(1);
-    expect(undone.openTasks.length - undone.openTaskCountAtYesterdayEnd).toBe(0);
+    expect(undone.todayBalance.start).toBe(1);
+    expect(undone.openTasks.length - undone.todayBalance.start).toBe(0);
 
     const reopened = projectEvents([...events, { seq: 3, id: 'reopen-a', timestamp: now.toISOString(),
       undone: false, type: 'TASK_REOPENED', payload: { taskId: 'a' } }], now);
-    expect(reopened.openTaskCountAtYesterdayEnd).toBe(0);
-    expect(reopened.openTasks.length - reopened.openTaskCountAtYesterdayEnd).toBe(1);
-    expect(projectEvents(events, now).openTaskCountAtYesterdayEnd).toBe(0);
+    expect(reopened.todayBalance.start).toBe(0);
+    expect(reopened.openTasks.length - reopened.todayBalance.start).toBe(1);
+    expect(projectEvents(events, now).todayBalance.start).toBe(0);
   });
 
   it('overrides both dates while active, keeps dependencies, and restores the chain when deactivated', () => {
@@ -336,7 +336,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
     expect(state.tasks['26-10'].isDeemphasized).toBe(false);
   });
 
-  it('breaks timestamp ties by ID regardless of creation order or dependencies', () => {
+  it('keeps overdue tasks in global order within the visible today slot', () => {
     const baseEvents: StoredEvent[] = [
       {
         seq: 1,
@@ -378,7 +378,7 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       .map((e) => (e.kind === 'task' ? e.task.id : ''));
     expect(initialTaskOrder).toEqual(['26-1', '26-2', '26-3', '26-4']);
 
-    // Equal dates remain ID-sorted even when the successor ID precedes its predecessor.
+    // Overdue timestamps and dependencies do not reorder tasks within the visible day.
     const updated = projectEvents(
       [
         ...baseEvents,
@@ -407,12 +407,12 @@ describe('DoDrag Event-Sourcing Projector & Date Sort', () => {
       .map((e) => (e.kind === 'task' ? e.task.id : ''))
       .filter((id) => id !== '26-2');
 
-    expect(unaffectedOrder).toEqual(['26-4', '26-1', '26-3']);
+    expect(unaffectedOrder).toEqual(['26-1', '26-3', '26-4']);
     // 26-2 depends on 26-4, so it moves to the day after 26-4's date.
     const successorDay = new Date(fixedNow.getFullYear(), fixedNow.getMonth(), fixedNow.getDate() + 1, 9);
     expect(updated.tasks['26-2'].effectiveDateKey).toBe(toDateKey(successorDay));
     const firstDay = updated.openTasks.map(t => t.id).filter(id => updated.tasks[id].effectiveDateKey < toDateKey(successorDay));
-    expect(firstDay).toEqual(['26-4', '26-1', '26-3']);
+    expect(firstDay).toEqual(['26-1', '26-3', '26-4']);
   });
 
   it.each([false, true])('highlights only related tasks with completed neighbors: %s', completed => {

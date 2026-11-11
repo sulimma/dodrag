@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "Не вдалося розпочати оновлення",
   "Beschreibung wird gespeichert…": "Збереження опису…",
   "Beschreibung gespeichert": "Опис збережено",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Опис не збережено — повторна спроба"
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Опис не збережено — повторна спроба",
+  "Uhrzeitmarker": "Часова позначка",
+  "Ungültige Uhrzeit": "Неправильний час",
+  "Diese Uhrzeit ist bereits vorhanden": "Цей час уже існує",
+  "Uhrzeitmarker nicht verfügbar": "Часова позначка недоступна",
+  "Uhrzeitmarker dürfen sich nicht überholen": "Часові позначки не можуть мінятися місцями",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "Немає місця для ще однієї часової позначки",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "Час обмежено до {time}: не можна перетинати сусідні позначки.",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "Подвійний клік для редагування; Delete для видалення",
+  "Tägliche Uhrzeitmarker": "Щоденні часові позначки",
+  "Uhrzeitmarker hinzufügen": "Додати часову позначку",
+  "Uhrzeitmarker löschen": "Видалити часову позначку",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "Нові дні використовують ці години. Наявні дні зберігають власні позначки."
 }

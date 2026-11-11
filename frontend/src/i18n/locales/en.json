@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "Could not start the update",
   "Beschreibung wird gespeichert…": "Saving description…",
   "Beschreibung gespeichert": "Description saved",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Description not saved – retrying"
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Description not saved – retrying",
+  "Uhrzeitmarker": "Time marker",
+  "Ungültige Uhrzeit": "Invalid time",
+  "Diese Uhrzeit ist bereits vorhanden": "This time already exists",
+  "Uhrzeitmarker nicht verfügbar": "Time marker unavailable",
+  "Uhrzeitmarker dürfen sich nicht überholen": "Time markers cannot cross",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "No room for another time marker",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "Time limited to {time}: adjacent markers cannot be crossed.",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "Double-click to edit; Delete to remove",
+  "Tägliche Uhrzeitmarker": "Daily time markers",
+  "Uhrzeitmarker hinzufügen": "Add time marker",
+  "Uhrzeitmarker löschen": "Delete time marker",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "New days use these times. Existing days keep their own markers."
 }

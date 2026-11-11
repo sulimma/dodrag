@@ -187,6 +187,9 @@ export function useDatabaseSnapshot(
       'info'
     );
   };
+  const handleSetDefaultTimeMarkers = async (minutes: number[]) => {
+    setAppSettings(await eventBridge.setDefaultTimeMarkers(minutes));
+  };
   const handleSetDefaultDuration = async (value: number, unit: string) => {
     setAppSettings(await eventBridge.setDefaultDuration(value, unit));
   };
@@ -237,6 +240,7 @@ export function useDatabaseSnapshot(
     handleToggleAutostart,
     handleSetUILanguage,
     handleSetDefaultDuration,
+    handleSetDefaultTimeMarkers,
     handleRunSetupAction,
     openSettings,
   };

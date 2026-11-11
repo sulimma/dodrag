@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "Update konnte nicht gestartet werden",
   "Beschreibung wird gespeichert…": "Beschreibung wird gespeichert…",
   "Beschreibung gespeichert": "Beschreibung gespeichert",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Beschreibung nicht gespeichert – erneuter Versuch läuft"
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Beschreibung nicht gespeichert – erneuter Versuch läuft",
+  "Uhrzeitmarker": "Uhrzeitmarker",
+  "Ungültige Uhrzeit": "Ungültige Uhrzeit",
+  "Diese Uhrzeit ist bereits vorhanden": "Diese Uhrzeit ist bereits vorhanden",
+  "Uhrzeitmarker nicht verfügbar": "Uhrzeitmarker nicht verfügbar",
+  "Uhrzeitmarker dürfen sich nicht überholen": "Uhrzeitmarker dürfen sich nicht überholen",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "Kein Platz für einen weiteren Uhrzeitmarker",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "Doppelklick zum Bearbeiten; Entf zum Löschen",
+  "Tägliche Uhrzeitmarker": "Tägliche Uhrzeitmarker",
+  "Uhrzeitmarker hinzufügen": "Uhrzeitmarker hinzufügen",
+  "Uhrzeitmarker löschen": "Uhrzeitmarker löschen",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker."
 }

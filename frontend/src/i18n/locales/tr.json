@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "Güncelleme başlatılamadı",
   "Beschreibung wird gespeichert…": "Açıklama kaydediliyor…",
   "Beschreibung gespeichert": "Açıklama kaydedildi",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Açıklama kaydedilmedi – yeniden deneniyor"
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Açıklama kaydedilmedi – yeniden deneniyor",
+  "Uhrzeitmarker": "Saat işareti",
+  "Ungültige Uhrzeit": "Geçersiz saat",
+  "Diese Uhrzeit ist bereits vorhanden": "Bu saat zaten var",
+  "Uhrzeitmarker nicht verfügbar": "Saat işareti kullanılamıyor",
+  "Uhrzeitmarker dürfen sich nicht überholen": "Saat işaretlerinin sırası değiştirilemez",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "Başka bir saat işareti için yer yok",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "Saat {time} olarak sınırlandı: komşu işaretler aşılamaz.",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "Düzenlemek için çift tıklayın; silmek için Delete",
+  "Tägliche Uhrzeitmarker": "Günlük saat işaretleri",
+  "Uhrzeitmarker hinzufügen": "Saat işareti ekle",
+  "Uhrzeitmarker löschen": "Saat işaretini sil",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "Yeni günler bu saatleri kullanır. Mevcut günlerin işaretleri korunur."
 }

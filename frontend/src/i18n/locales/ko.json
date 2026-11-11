@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "업데이트를 시작할 수 없습니다",
   "Beschreibung wird gespeichert…": "설명 저장 중…",
   "Beschreibung gespeichert": "설명 저장됨",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "설명을 저장하지 못했습니다 – 재시도 중"
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "설명을 저장하지 못했습니다 – 재시도 중",
+  "Uhrzeitmarker": "시간 표시",
+  "Ungültige Uhrzeit": "올바르지 않은 시간",
+  "Diese Uhrzeit ist bereits vorhanden": "이미 존재하는 시간입니다",
+  "Uhrzeitmarker nicht verfügbar": "시간 표시를 사용할 수 없습니다",
+  "Uhrzeitmarker dürfen sich nicht überholen": "시간 표시의 순서를 바꿀 수 없습니다",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "시간 표시를 추가할 공간이 없습니다",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "인접 표시를 넘을 수 없어 시간을 {time}(으)로 조정했습니다.",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "두 번 클릭하여 편집, Delete로 삭제",
+  "Tägliche Uhrzeitmarker": "매일의 시간 표시",
+  "Uhrzeitmarker hinzufügen": "시간 표시 추가",
+  "Uhrzeitmarker löschen": "시간 표시 삭제",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "새 날짜는 이 시간을 사용합니다. 기존 날짜의 표시는 유지됩니다."
 }

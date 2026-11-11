@@ -1,3 +1,4 @@
+import { TaskBalance } from './TaskBalance';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ListEntry, TaskState } from '../domain/types';
 import { dateKeyToIsoStart, toDateKey } from '../domain/projector';
@@ -85,6 +86,8 @@ function ProtocolActionContent({ action, ...props }: Pick<ProtocolViewProps, 'on
 }
 
 export function ProtocolView(props: ProtocolViewProps) {
+  const balances = useMemo(() => new Map(props.days.map(day => [day.dateKey, day.balance])), [props.days]);
+  const balance = (dateKey: string) => { const value = balances.get(dateKey); return value ? <TaskBalance balance={value} opening /> : null; };
   const rows = useMemo(() => protocolRows(props.days), [props.days]);
   const root = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ top: 0, height: 600 });
@@ -176,14 +179,14 @@ export function ProtocolView(props: ProtocolViewProps) {
   return <div ref={root} data-protocol-view className="relative w-full" style={{ height: totalHeight, overflowAnchor: 'none' }}>
     <DateScrollOverlay scrollRef={props.scrollRef} contentRef={root} dates={dateMarkers}
       height={DATE_HEIGHT} contentHeight={totalHeight} refreshKey={viewport.top}
-      renderDate={dateKey => <ListDateRow {...props} entry={protocolDateEntry(dateKey, props.now)} className="py-1" />} />
+      renderDate={dateKey => <ListDateRow {...props} entry={protocolDateEntry(dateKey, props.now)} trailing={balance(dateKey)} className="py-1" />} />
     {[...visible].sort((a, b) => a - b).map(index => {
       const row = rows[index];
       const shared = { ...props, orderedTaskIds: orderedIds };
       let content: React.ReactNode;
       if (row.kind === 'date') {
         const entry = protocolDateEntry(row.dateKey, props.now);
-        content = <ListDateRow {...shared} entry={entry} className="py-1" />;
+        content = <ListDateRow {...shared} entry={entry} trailing={balance(row.dateKey)} className="py-1" />;
       } else if (row.kind === 'task') {
         const editor = (value: InlineEditor): InlineEditor => ({ ...value,
           taskId: activeOccurrence === row.key ? value.taskId : null,

@@ -32,14 +32,16 @@ export function matchingTaskIds(tasks: Record<string, TaskState>, days: readonly
 
 export function filterListEntries(entries: readonly ListEntry[], ids: ReadonlySet<string>): ListEntry[] {
   const result: ListEntry[] = [];
-  let date: ListEntry | undefined;
+  let day: ListEntry[] = [];
+  const flush = () => {
+    if (day.some(entry => entry.kind === 'task' && ids.has(entry.task.id)))
+      result.push(...day.filter(entry => entry.kind !== 'task' || ids.has(entry.task.id)));
+  };
   for (const entry of entries) {
-    if (entry.kind === 'date') date = entry;
-    else if (ids.has(entry.task.id)) {
-      if (date) { result.push(date); date = undefined; }
-      result.push(entry);
-    }
+    if (entry.kind === 'date') { flush(); day = []; }
+    day.push(entry);
   }
+  flush();
   return result;
 }
 export function filterProtocolDays(days: readonly ProtocolDay[], ids: ReadonlySet<string>): ProtocolDay[] {

@@ -44,6 +44,7 @@ type SetupState struct {
 
 // AppSettings stores known databases, the currently active database, autostart flag, and dock monitor/corner in %APPDATA%\DoDrag\settings.json.
 type AppSettings struct {
+	DefaultTimeMarkers  []int           `json:"defaultTimeMarkers"`
 	DefaultDuration     float64         `json:"defaultDuration"`
 	DefaultDurationUnit string          `json:"defaultDurationUnit"`
 	KnownDatabases      []DatabaseEntry `json:"knownDatabases"`
@@ -63,6 +64,7 @@ type AppSettings struct {
 }
 
 type persistedSettings struct {
+	DefaultTimeMarkers  []int           `json:"defaultTimeMarkers"`
 	DefaultDuration     float64         `json:"defaultDuration"`
 	DefaultDurationUnit string          `json:"defaultDurationUnit"`
 	KnownDatabases      []DatabaseEntry `json:"knownDatabases"`
@@ -389,7 +391,12 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 		if !validDefaultDuration(loaded.DefaultDuration, loaded.DefaultDurationUnit) {
 			loaded.DefaultDuration, loaded.DefaultDurationUnit = 1, "days"
 		}
+		markers, markerErr := eventstore.NormalizeMarkerMinutes(loaded.DefaultTimeMarkers)
+		if markerErr != nil {
+			return a.errorLocked("Settings lesen ({path})", markerErr, "path", a.settingsPath)
+		}
 		a.settings = AppSettings{
+			DefaultTimeMarkers:  markers,
 			DefaultDuration:     loaded.DefaultDuration,
 			DefaultDurationUnit: loaded.DefaultDurationUnit,
 			KnownDatabases:      loaded.KnownDatabases,
@@ -438,6 +445,7 @@ func (a *App) saveSettingsLocked() (err error) {
 		return a.settingsLoadErr
 	}
 	toSave := persistedSettings{
+		DefaultTimeMarkers:  append([]int{}, a.settings.DefaultTimeMarkers...),
 		KnownDatabases:      a.settings.KnownDatabases,
 		ActiveDatabasePath:  a.settings.ActiveDatabasePath,
 		Autostart:           a.settings.Autostart,
@@ -515,6 +523,7 @@ func (a *App) openActiveDatabaseLocked() {
 
 func (a *App) snapshotSettingsLocked() AppSettings {
 	out := AppSettings{
+		DefaultTimeMarkers:  append([]int{}, a.settings.DefaultTimeMarkers...),
 		ActiveDatabasePath:  a.settings.ActiveDatabasePath,
 		Autostart:           a.settings.Autostart,
 		DockMonitor:         a.settings.DockMonitor,
@@ -615,6 +624,27 @@ func (a *App) GetSettings() (AppSettings, error) {
 func validDefaultDuration(value float64, unit string) bool {
 	factor := map[string]float64{"minutes": 1, "hours": 60, "days": 1440}[unit]
 	return factor > 0 && !math.IsNaN(value) && !math.IsInf(value, 0) && value > 0 && value*factor <= 52560000
+}
+
+// Defaults are copied into each database day once; editing this list never
+// rewrites existing day instances or the user's individual marker edits.
+func (a *App) SetDefaultTimeMarkers(minutes []int) (AppSettings, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.settingsLoadErr != nil {
+		return a.snapshotSettingsLocked(), a.settingsLoadErr
+	}
+	normalized, err := eventstore.NormalizeMarkerMinutes(minutes)
+	if err != nil {
+		return a.snapshotSettingsLocked(), err
+	}
+	previous := a.settings.DefaultTimeMarkers
+	a.settings.DefaultTimeMarkers = normalized
+	if err := a.saveSettingsLocked(); err != nil {
+		a.settings.DefaultTimeMarkers = previous
+		return a.snapshotSettingsLocked(), err
+	}
+	return a.snapshotSettingsLocked(), nil
 }
 
 func (a *App) SetDefaultDuration(value float64, unit string) (AppSettings, error) {

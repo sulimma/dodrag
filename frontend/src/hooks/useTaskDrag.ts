@@ -4,7 +4,9 @@ import { useDatabaseSnapshot } from './useDatabaseSnapshot';
 import { useTaskSelection } from './useTaskSelection';
 import { taskDragPreview } from './taskDragPreview';
 import { installTaskPointerDrag } from './taskPointerDrag';
+export interface MarkerDrag { dateKey: string; markerId?: string }
 export interface DragIdentity {
+  marker?: MarkerDrag;
   database: string;
   taskId: string;
   taskIds: string[];
@@ -25,6 +27,7 @@ export function useTaskDrag(
   const { mutationBusy, snapshotConfirmed, databaseIdentity } = database;
   const { selectedTaskIds, setSelectedTaskId, clearEdgeSelection } = selection;
   const previewCleanup = React.useRef<(() => void) | null>(null);
+  const [draggedMarker, setDraggedMarker] = useState<MarkerDrag | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [isAltDrag, setIsAltDrag] = useState<boolean>(false);
   const [activeDropTargetKey, setActiveDropTargetKey] = useState<string | null>(
@@ -50,6 +53,17 @@ export function useTaskDrag(
     clearEdgeSelection();
   };
 
+  const onDragStartMarker = (event: React.DragEvent, marker: MarkerDrag) => {
+    if (mutationBusy.current || !snapshotConfirmed.current) { event.preventDefault(); return; }
+    dragIdentity.current = { database: databaseIdentity.current, taskId: '', taskIds: [], marker };
+    setDraggedMarker(marker);
+    event.dataTransfer.setData('application/x-dodrag-marker', marker.markerId ?? marker.dateKey);
+    event.dataTransfer.effectAllowed = 'all';
+    previewCleanup.current?.();
+    const source = event.currentTarget as HTMLElement;
+    previewCleanup.current = taskDragPreview(event.dataTransfer, source, [source.dataset.taskDrag!], {}, event.clientX, event.clientY, true);
+  };
+
   // Setters only read refs when invoked; keeping the installer stable avoids
   // reinstalling window listeners on renders that happen during a gesture.
   const endDrag = useCallback(() => {
@@ -57,12 +71,15 @@ export function useTaskDrag(
     previewCleanup.current = null;
     dragIdentity.current = null;
     setDraggedTaskId(null);
+    setDraggedMarker(null);
     setIsAltDrag(false);
     setActiveDropTargetKey(null);
   }, [dragIdentity]);
 
   useEffect(() => installTaskPointerDrag(endDrag, setIsAltDrag), [endDrag]);
   return {
+    draggedMarker,
+    onDragStartMarker,
     draggedTaskId,
     isAltDrag,
     activeDropTargetKey,

@@ -1,3 +1,4 @@
+import { commandTaskId } from './domain/eventSchema';
 // @vitest-environment jsdom
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -84,7 +85,7 @@ it('focuses task creation without creating immediately, then atomically creates 
   expect(commands).toEqual([
     expect.objectContaining({ type: 'TASK_CREATED', payload: expect.objectContaining({ title: 'Task for source' }) }),
     expect.objectContaining({ type: 'TASK_DESCRIPTION_SET', payload: {
-      taskId: commands[0].payload.taskId, description: '<https://example.com/source>',
+      taskId: commandTaskId(commands[0]), description: '<https://example.com/source>',
     } }),
   ]);
   expect(api.AppendBatch).toHaveBeenCalledOnce(); expect(api.AppendEvent).not.toHaveBeenCalled();

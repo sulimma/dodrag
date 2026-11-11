@@ -1,3 +1,5 @@
+import { projectTimeline, dayMarkers, markerStart, type TimelineState } from './timeMarkers';
+import { commandTaskId } from './eventSchema';
 import {
   ChecklistProgress,
   HighlightRole,
@@ -5,10 +7,12 @@ import {
   ProjectedState,
   StoredEvent,
   TaskState,
+  TaskDayBalance,
 } from './types';
 import { addDuration, remainingDuration } from './duration';
 import { calendarDistance, localDate } from './dates';
 import { replayCommands } from './commands';
+import { projectTaskOrder } from './taskOrder';
 import { configuredSuccessors } from './dependencyPaths';
 import { t, locale, formatDate, formatNumber } from '../i18n';
 
@@ -37,16 +41,13 @@ export function computeChecklistProgress(markdown: string): ChecklistProgress | 
   return total ? { checked, total } : null;
 }
 
-function compareTaskDates(a: TaskState, b: TaskState): number {
-  return Date.parse(a.effectiveStart) - Date.parse(b.effectiveStart) ||
-    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-}
-
-// Active ordering is shared by the list and mini selection; inactive dates retain their existing priority.
+// Activity overrides scheduling. Within a day/time slot, explicit order wins
+// even against dependency topology; dependencies still determine earliest start.
 function compareOpenTasks(a: TaskState, b: TaskState): number {
-  return Number(b.isActive) - Number(a.isActive) || (a.isActive
-    ? a.topologyLevel - b.topologyLevel || a.creationOrder - b.creationOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-    : compareTaskDates(a, b));
+  const order = (a.manualOrder ?? a.creationOrder) - (b.manualOrder ?? b.creationOrder) ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  return Number(b.isActive) - Number(a.isActive) || (a.isActive ? order :
+    a.effectiveDateKey.localeCompare(b.effectiveDateKey) || (a.sortSlot ?? 0) - (b.sortSlot ?? 0) || order);
 }
 
 /**
@@ -224,26 +225,33 @@ export function wouldCreateCycle(
 }
 
 /**
- * Counts open tasks in the current, corrected history before today. Undo/redo
- * intentionally revises this baseline retroactively; its timestamps are not
- * stored, so this is not an exact snapshot of what was displayed yesterday.
- * This ambiguity is accepted for the lightweight daily indicator. A regular
- * TASK_REOPENED event today changes today's count, not yesterday's baseline.
+ * Gross additions/removals, rather than only their net difference. Lifecycle
+ * effects follow sequence order; calendar grouping follows local event dates.
+ * Undo/redo corrects history retroactively (undo timestamps are not persisted).
+ * Reopening is a new addition; duplicate/no-op lifecycle commands do not count.
+ * Extra dates allow a zero-change day to show its actual opening balance.
  */
-export function openTaskCountAtDayStart(events: readonly StoredEvent[], now: Date = new Date()): number {
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const wasCompleted = new Set<string>();
-  let count = 0;
+export function projectTaskBalances(events: readonly StoredEvent[], extraDates: readonly string[] = []): Map<string, TaskDayBalance> {
+  const changes = new Map<string, { added: number; removed: number }>(extraDates.map(date => [date, { added: 0, removed: 0 }]));
+  const known = new Set<string>(), open = new Set<string>();
   for (const event of events) {
-    // Sequence order does not guarantee timestamp order after clock corrections.
-    if (Date.parse(event.timestamp) >= startOfToday) continue;
     if (event.undone) continue;
-    const taskId = event.payload.taskId;
-    if (event.type === 'TASK_CREATED') count++;
-    else if (event.type === 'TASK_COMPLETED' && !wasCompleted.has(taskId)) { wasCompleted.add(taskId); count--; }
-    else if (event.type === 'TASK_REOPENED' && wasCompleted.delete(taskId)) count++;
+    const date = toDateKey(new Date(event.timestamp));
+    let change = changes.get(date);
+    if (!change) { change = { added: 0, removed: 0 }; changes.set(date, change); }
+    const id = commandTaskId(event);
+    if (event.type === 'TASK_CREATED' && !known.has(id)) { known.add(id); open.add(id); change.added++; }
+    else if (event.type === 'TASK_COMPLETED' && open.delete(id)) change.removed++;
+    else if (event.type === 'TASK_REOPENED' && known.has(id) && !open.has(id)) { open.add(id); change.added++; }
   }
-  return count;
+  const balances = new Map<string, TaskDayBalance>();
+  let count = 0;
+  for (const [date, change] of [...changes].sort(([a], [b]) => a.localeCompare(b))) {
+    const start = count;
+    count += change.added - change.removed;
+    balances.set(date, { start, ...change, end: count });
+  }
+  return balances;
 }
 
 /**
@@ -254,6 +262,8 @@ export function projectEvents(
   now: Date = new Date()
 ): ProjectedState {
   const replay = replayCommands(events);
+  const manualOrder = projectTaskOrder(events);
+  const timeline = projectTimeline(events);
   const rawTasks = Object.fromEntries(replay.tasks);
   const canUndo = replay.activeEventCount > 0;
   const canRedo = replay.canRedo;
@@ -303,7 +313,8 @@ export function projectEvents(
   // not the latest start. Overdue remaining work starts now. Checklist completion
   // is presentation only.
   for (const raw of replay.orderedTasks) {
-    let latest: string | null = null;
+    const marker = timeline.markers.get(timeline.bindings.get(raw.id) ?? '');
+    let latest: string | null = marker && !marker.removed ? markerStart(marker) : null;
     // Completed predecessors no longer block the task, just as in the visible graph.
     for (const pred of openPredsMap[raw.id]) {
       const start = Date.parse(effectiveStartCache[pred]) < now.getTime() ? activeStart : effectiveStartCache[pred];
@@ -313,7 +324,14 @@ export function projectEvents(
     const active = raw.isActive && !raw.completed;
     const calculated = active ? activeStart : latest;
     calculatedStartCache[raw.id] = calculated;
-    effectiveStartCache[raw.id] = active ? activeStart : calculated && Date.parse(calculated) > Date.parse(raw.configuredStart) ? calculated : raw.configuredStart;
+    // A marker supplies the clock time while the configured calendar day stays
+    // the lower bound. In particular the legacy 09:00 date-only convention must
+    // not defeat an explicit 06:00 slot. Removing the marker restores the stored
+    // configured instant unchanged; real task predecessors still constrain both.
+    const configuredDay = new Date(raw.configuredStart);
+    configuredDay.setHours(0, 0, 0, 0);
+    const configuredBoundary = marker && !marker.removed ? configuredDay.toISOString() : raw.configuredStart;
+    effectiveStartCache[raw.id] = active ? activeStart : calculated && Date.parse(calculated) > Date.parse(configuredBoundary) ? calculated : configuredBoundary;
   }
 
   function computeDates(taskId: string): { calculated: string | null; effective: string } {
@@ -368,6 +386,11 @@ export function projectEvents(
       duration: raw.duration, durationUnit: raw.durationUnit, progress: raw.progress,
       logEntries: raw.logEntries.map(entry => ({ ...entry })),
       checklistProgress: computeChecklistProgress(raw.description),
+      timeMarkerId: timeline.bindings.get(raw.id),
+      manualOrder: manualOrder.get(raw.id),
+      sortSlot: effectiveIsActive || rawDateKey < todayKey ? 0 : dayMarkers(timeline, effectiveDateKey)
+        .filter(marker => Date.parse(markerStart(marker)) > nowMs && marker.minute <= effectiveDate.getHours() * 60 + effectiveDate.getMinutes())
+        .at(-1)?.minute ?? 0,
       creationOrder: raw.creationOrder,
       topologyLevel: replay.topologyLevels.get(raw.id)!,
       createdAt: raw.createdAt,
@@ -398,10 +421,11 @@ export function projectEvents(
     (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
   );
 
-  const listEntries = buildDateGroupedAndCollapsedList(openTasks, now);
+  const listEntries = buildDateGroupedAndCollapsedList(openTasks, now, timeline);
   const nextTaskId = `${yearPrefix}${maxNumberForYear + 1}`;
 
   return {
+    timeline,
     tasks,
     openTasks,
     completedTasks,
@@ -410,7 +434,7 @@ export function projectEvents(
     canRedo,
     activeEventCount: replay.activeEventCount,
     totalEventCount: events.length,
-    openTaskCountAtYesterdayEnd: openTaskCountAtDayStart(events, now),
+    todayBalance: projectTaskBalances(events, [todayKey]).get(todayKey)!,
     nextTaskId,
   };
 }
@@ -422,7 +446,8 @@ export function projectEvents(
  */
 function buildDateGroupedAndCollapsedList(
   openTasks: TaskState[],
-  now: Date
+  now: Date,
+  timeline: TimelineState
 ): ListEntry[] {
   const todayKey = toDateKey(now);
 
@@ -459,7 +484,7 @@ function buildDateGroupedAndCollapsedList(
     tasksByDate[dk].push(t);
   }
 
-  // Date buckets preserve the timestamp/ID order of openTasks, including overdue tasks.
+  // Date buckets preserve activity, slot and global manual order.
   const rawEntries: ListEntry[] = [];
 
   for (const dk of sortedDateKeys) {
@@ -525,7 +550,23 @@ function buildDateGroupedAndCollapsedList(
     entry.collapsedFromDateKey = entry.collapsedCount ? toDateKey(new Date(addCalendarDays(dateKeyToIsoStart(previousDate),1))) : undefined;
     previousDate = entry.dateKey;
   }
-  return collapsedEntries;
+  // Decide day visibility before adding even empty time slots. Markers therefore
+  // cannot resurrect a collapsed day. Expiration is presentation, never a write.
+  const expanded: ListEntry[] = [];
+  let pending: Extract<ListEntry, { kind: 'time' }>[] = [];
+  for (const entry of collapsedEntries) {
+    if (entry.kind === 'date') {
+      expanded.push(...pending, entry);
+      pending = dayMarkers(timeline, entry.dateKey)
+        .filter(marker => Date.parse(markerStart(marker)) > now.getTime())
+        .map(marker => ({ kind: 'time', key: `time:${marker.id}`, marker, weekdayShort: entry.weekdayShort }));
+    } else if (entry.kind === 'task') {
+      if (!entry.task.isActive) while (pending.length && pending[0].marker.minute <= (entry.task.sortSlot ?? 0)) expanded.push(pending.shift()!);
+      expanded.push(entry);
+    }
+  }
+  expanded.push(...pending);
+  return expanded;
 }
 
 /**
@@ -690,7 +731,7 @@ export function calculateQuickResubmitDate(
  * Returns the tasks to display in the compact corner-docked minimized window:
  * - Active tasks and inactive tasks without open predecessors.
  * - Active tasks regardless of date, plus tasks due today/overdue; if none are due, all eligible tasks.
- * - Active tasks use global dependency levels; inactive tasks retain date/ID order.
+ * - Active tasks and inactive day/slot groups retain the global manual order.
  */
 export function computeMiniWindowTasks(
   openTasks: TaskState[],

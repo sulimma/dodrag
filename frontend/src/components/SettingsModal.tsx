@@ -1,3 +1,4 @@
+import { TimeMarkerDefaults } from './TimeMarkerDefaults';
 import { TaskTimingInput } from './TaskTimingInput';
 import type { DurationUnit } from '../domain/duration';
 import React, { useEffect, useRef, useState } from 'react';
@@ -32,6 +33,7 @@ interface SettingsModalProps {
   onSwitchDatabase: (dbPath: string) => Promise<void>;
   onDeleteDatabase: (dbPath: string, deleteFile: boolean) => Promise<void>;
   onToggleAutostart: (enabled: boolean) => Promise<void>;
+  onSetDefaultTimeMarkers?: (minutes: number[]) => Promise<void>;
   onSetDefaultDuration?: (value: number, unit: DurationUnit) => Promise<void>;
   onSetUILanguage?: (language: string) => Promise<void>;
   onRunSetupAction?: (action: 'install' | 'desktop-shortcut' | 'startmenu-shortcut') => Promise<void>;
@@ -88,6 +90,7 @@ export function SettingsModal({
   onToggleAutostart,
   onSetUILanguage,
   onSetDefaultDuration,
+  onSetDefaultTimeMarkers,
   onRunSetupAction,
   onOpenFolderInExplorer,
   onOpenFolderInVSCode,
@@ -750,6 +753,8 @@ export function SettingsModal({
               <p role="status" className="text-xs text-emerald-700">{t('Vorschau-Cache wurde gelöscht.')}</p>
             )}
           </div>
+          {onSetDefaultTimeMarkers && <TimeMarkerDefaults minutes={settings.defaultTimeMarkers ?? []}
+            onSave={onSetDefaultTimeMarkers} onError={error => setErrorMsg(errorText(t('Aktion fehlgeschlagen'), error))} />}
         </div>
 
         {/* Footer */}

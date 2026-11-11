@@ -1,9 +1,10 @@
+import { dayMarkers, markerStart } from '../domain/timeMarkers';
 import { eventBridge } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';
 import { calculateQuickResubmitDate, dateKeyToIsoStart, formatIso8601Display, projectEvents, toDateKey } from '../domain/projector';
 import type { QuickResubmitTargetId } from '../domain/projector';
 import { applyCommand, copyReplayTasks, replayCommands } from '../domain/commands';
-import { parseCommand, type EventCommand } from '../domain/eventSchema';
+import { parseCommand, commandTaskId, type EventCommand } from '../domain/eventSchema';
 import { dependencyPathEdges } from '../domain/dependencyPaths';
 import type { useDatabaseSnapshot } from './useDatabaseSnapshot';
 import type { useTaskSelection } from './useTaskSelection';
@@ -106,6 +107,50 @@ export function useTaskMutations(
     ]));
   };
 
+  const handleSetTimeMarker = async (taskId: string, markerId: string) => {
+    const ids = taskGroup(taskId, true);
+    if (!ids.length) return;
+    setLastMovedKey(`task:${taskId}`);
+    await commit(current => {
+      const marker = current.timeline.markers.get(markerId);
+      if (!marker || marker.removed) return [];
+      return present(ids, current).flatMap(id => [
+        ...reopen(id, current), ...deactivate(id, current),
+        ...(current.tasks[id].effectiveDateKey !== marker.dateKey || toDateKey(new Date(current.tasks[id].configuredStart)) > marker.dateKey ? [{
+          type: 'TASK_START_DATE_SET' as const, payload: { taskId: id, configuredStart: dateKeyToIsoStart(marker.dateKey) },
+        }] : []),
+        { type: 'TASK_TIME_MARKER_SET' as const, payload: { taskId: id, markerId } },
+      ]);
+    });
+  };
+
+  // Insertion is a distinct target from a task card (which still sets a dependency).
+  // Anchor-relative events retain hidden tasks and work without numeric rank repair.
+  const handleInsertTask = async (taskId: string, relativeTaskId: string, side: 'before' | 'after') => {
+    const ids = taskGroup(taskId, true);
+    if (!ids.length || ids.includes(relativeTaskId)) return;
+    setLastMovedKey(`task:${taskId}`);
+    await commit(current => {
+      const target = current.tasks[relativeTaskId];
+      if (!target || target.completed) return [];
+      const members = present(ids, current).map(id => current.tasks[id])
+        .sort((a, b) => (a.manualOrder ?? a.creationOrder) - (b.manualOrder ?? b.creationOrder));
+      // A sorting gesture does not silently activate work. Dropping on a date
+      // remains the explicit existing way to reschedule/deactivate active work.
+      if (members.some(task => task.isActive !== target.isActive)) return [];
+      const marker = dayMarkers(current.timeline, target.effectiveDateKey).find(item => item.minute === target.sortSlot && Date.parse(markerStart(item)) > now.getTime());
+      if (side === 'after') members.reverse();
+      return members.flatMap(task => [
+        ...reopen(task.id, current),
+        ...(!target.isActive && task.effectiveDateKey !== target.effectiveDateKey ? [{
+          type: 'TASK_START_DATE_SET' as const, payload: { taskId: task.id, configuredStart: dateKeyToIsoStart(target.effectiveDateKey) },
+        }] : []),
+        ...(!target.isActive ? [{ type: 'TASK_TIME_MARKER_SET' as const, payload: { taskId: task.id, markerId: marker?.id ?? null } }] : []),
+        { type: 'TASK_REORDERED' as const, payload: { taskId: task.id, relativeTaskId, side } },
+      ]);
+    });
+  };
+
   const handleAddPredecessor = async (draggedId: string, targetTaskId: string) => {
     const ids = taskGroup(draggedId, true).filter(id => id !== targetTaskId);
     if (!ids.length) return;
@@ -115,7 +160,7 @@ export function useTaskMutations(
       ...deactivate(id, current),
       { type: 'DEPENDENCY_ADDED' as const, payload: { taskId: id, predecessorId: targetTaskId } },
     ]), command => pushToast(t('Zyklus verhindert: {id} ist bereits Vorgänger von {target}', {
-      id: command.payload.taskId, target: targetTaskId,
+      id: commandTaskId(command), target: targetTaskId,
     }), 'warning'));
   };
 
@@ -198,7 +243,7 @@ export function useTaskMutations(
     }, undefined, createdAt);
     if (result) {
       clearEdgeSelection();
-      setSelectedTaskId(result.commands[0].payload.taskId);
+      setSelectedTaskId(commandTaskId(result.commands[0]));
       refreshNow?.(new Date());
     }
   };
@@ -212,7 +257,7 @@ export function useTaskMutations(
       ? eventBridge.redo() : Promise.resolve(confirmedEvents.current));
   };
 
-  return { handleToggleActive, handleSetConfiguredDate, handleResubmitTasks,
+  return { handleToggleActive, handleSetConfiguredDate, handleResubmitTasks, handleInsertTask, handleSetTimeMarker,
     handleAddPredecessor, handleRemovePredecessor, handleRemoveSelectedEdges, handleRemoveDependencyBetween,
     handleCompleteTask, handleReopenTask, handleOpenCopy, handleUndo, handleRedo };
 }

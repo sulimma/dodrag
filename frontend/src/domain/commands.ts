@@ -1,4 +1,5 @@
-import { EventCommand, parseStoredEvent } from './eventSchema';
+import { EventCommand, parseStoredEvent, commandTaskId, isTimelineCommand } from './eventSchema';
+import { projectTimeline } from './timeMarkers';
 import type { StoredEvent, TaskLogEntry } from './types';
 import { legacyTiming, type TaskTiming } from './duration';
 import { t } from '../i18n';
@@ -94,6 +95,7 @@ export function normalizeReplayEvents(input: readonly unknown[]): StoredEvent[] 
       return old;
     }
     const event = parseStoredEvent(raw);
+    if (event.type === 'TIME_DAY_INITIALIZED') Object.freeze(event.payload.minutes);
     Object.freeze(event.payload);
     Object.freeze(event);
     // Go JSON maps and the command schema use different key orders. Remember
@@ -110,7 +112,7 @@ export function normalizeReplayEvents(input: readonly unknown[]): StoredEvent[] 
     previous.tailBefore && oldTail && newTail && !oldTail.undone && !newTail.undone &&
     coalescingTypes.has(newTail.type) && newTail.type === oldTail.type &&
     newTail.seq === oldTail.seq && newTail.id === oldTail.id && newTail.groupId === oldTail.groupId &&
-    newTail.payload.taskId === oldTail.payload.taskId;
+    commandTaskId(newTail) === commandTaskId(oldTail);
   const incremental = append || coalesce;
   const tasks = incremental ? new Map(previous!.state.tasks) as Map<string, MutableTask> : new Map<string, MutableTask>();
   const copied = new Set<string>();
@@ -122,8 +124,8 @@ export function normalizeReplayEvents(input: readonly unknown[]): StoredEvent[] 
   let topologyChanged = !incremental;
   const start = append ? prefix : coalesce ? events.length - 1 : 0;
   if (coalesce) {
-    tasks.set(newTail.payload.taskId, cloneTask(previous!.tailBefore!));
-    copied.add(newTail.payload.taskId);
+    tasks.set(commandTaskId(newTail), cloneTask(previous!.tailBefore!));
+    copied.add(commandTaskId(newTail));
     activeEventCount--;
   }
   for (let index = 0; index < events.length; index++) {
@@ -141,8 +143,8 @@ export function normalizeReplayEvents(input: readonly unknown[]): StoredEvent[] 
     if (index < start) continue;
     canRedo ||= event.undone;
     if (event.undone) continue;
-    activeEventCount++;
-    const taskId = event.payload.taskId;
+    if (event.type !== 'TIME_DAY_INITIALIZED') activeEventCount++;
+    const taskId = commandTaskId(event);
     if (index === events.length - 1 && coalescingTypes.has(event.type)) tailBefore = tasks.get(taskId);
     if (incremental && !copied.has(taskId) && tasks.has(taskId)) {
       tasks.set(taskId, cloneTask(tasks.get(taskId)!));
@@ -183,6 +185,7 @@ export function normalizeReplayEvents(input: readonly unknown[]): StoredEvent[] 
       topologyLevels,
     };
   }
+  projectTimeline(events); // Validate marker identities/bindings before publishing a snapshot.
   const state: ReplayState = { tasks, ...topology, activeEventCount, canRedo };
   Object.freeze(events);
   const entry = { events, state, ids, tailBefore };
@@ -203,12 +206,14 @@ export function copyReplayTasks(state: ReplayState): Map<string, MutableTask> {
 }
 
 export function applyCommand(tasks: Map<string, MutableTask>, command: EventCommand, checkCycle = true): boolean {
+  if (isTimelineCommand(command)) return true;
   const p = command.payload;
-  const task = tasks.get(p.taskId);
+  const taskId = commandTaskId(command);
+  const task = tasks.get(taskId);
   if (command.type === 'TASK_CREATED') {
-    if (task) throw new Error(t('Duplicate task ID: {id}', { id: p.taskId }));
-    tasks.set(p.taskId, {
-      id: p.taskId,
+    if (task) throw new Error(t('Duplicate task ID: {id}', { id: taskId }));
+    tasks.set(taskId, {
+      id: taskId,
       title: command.payload.title,
       description: '',
       ...legacyTiming,
@@ -222,8 +227,11 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
     });
     return true;
   }
-  if (!task) throw new Error(t('Unknown task: {id}', { id: p.taskId }));
+  if (!task) throw new Error(t('Unknown task: {id}', { id: taskId }));
   switch (command.type) {
+    case 'TASK_REORDERED':
+      if (!tasks.has(command.payload.relativeTaskId)) throw new Error(t('Unknown task: {id}', { id: command.payload.relativeTaskId }));
+      return command.payload.taskId !== command.payload.relativeTaskId;
     case 'TASK_TIMING_SET': {
       const { duration, durationUnit, progress } = command.payload;
       if (task.duration === duration && task.durationUnit === durationUnit && task.progress === progress) return false;
@@ -289,7 +297,7 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
       const visited = new Set<string>();
       while (stack.length) {
         const current = stack.pop()!;
-        if (current === p.taskId) throw new Error(t('Dependency cycle'));
+        if (current === taskId) throw new Error(t('Dependency cycle'));
         if (visited.has(current)) continue;
         visited.add(current);
         stack.push(...tasks.get(current)!.predecessors);

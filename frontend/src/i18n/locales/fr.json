@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "Impossible de lancer la mise à jour",
   "Beschreibung wird gespeichert…": "Enregistrement de la description…",
   "Beschreibung gespeichert": "Description enregistrée",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Description non enregistrée – nouvelle tentative"
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Description non enregistrée – nouvelle tentative",
+  "Uhrzeitmarker": "Repère horaire",
+  "Ungültige Uhrzeit": "Heure invalide",
+  "Diese Uhrzeit ist bereits vorhanden": "Cette heure existe déjà",
+  "Uhrzeitmarker nicht verfügbar": "Repère horaire indisponible",
+  "Uhrzeitmarker dürfen sich nicht überholen": "Les repères horaires ne peuvent pas se dépasser",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "Pas de place pour un autre repère horaire",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "Heure limitée à {time} : les repères voisins ne peuvent pas être dépassés.",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "Double-cliquer pour modifier ; Suppr pour supprimer",
+  "Tägliche Uhrzeitmarker": "Repères horaires quotidiens",
+  "Uhrzeitmarker hinzufügen": "Ajouter un repère horaire",
+  "Uhrzeitmarker löschen": "Supprimer le repère horaire",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "Les nouveaux jours utilisent ces heures. Les jours existants conservent leurs propres repères."
 }

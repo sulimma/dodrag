@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "mi ken ala open e nasin pi ilo sin.",
   "Beschreibung wird gespeichert…": "ilo li awen e toki sona…",
   "Beschreibung gespeichert": "toki sona li awen",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "toki sona li awen ala. ilo li pali sin."
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "toki sona li awen ala. ilo li pali sin.",
+  "Uhrzeitmarker": "sitelen tenpo",
+  "Ungültige Uhrzeit": "tenpo ni li ike",
+  "Diese Uhrzeit ist bereits vorhanden": "tenpo ni li lon",
+  "Uhrzeitmarker nicht verfügbar": "sitelen tenpo li lon ala",
+  "Uhrzeitmarker dürfen sich nicht überholen": "sitelen tenpo li ken ala ante e nasin ona",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "sitelen tenpo sin li jo ala e ma",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "tenpo li kama {time}. ona li ken ala tawa poka ante pi sitelen tenpo poka.",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "o luka tu tawa ante. o luka e nena Delete tawa weka.",
+  "Tägliche Uhrzeitmarker": "sitelen tenpo pi tenpo suno ale",
+  "Uhrzeitmarker hinzufügen": "o pana e sitelen tenpo",
+  "Uhrzeitmarker löschen": "o weka e sitelen tenpo",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "tenpo suno sin li kepeken tenpo ni. tenpo suno pi lon tenpo pini li awen jo e sitelen ona."
 }

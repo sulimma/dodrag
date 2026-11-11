@@ -36,7 +36,18 @@ const description = v.pipe(v.string(), v.check(value => {
   }
   return true;
 }));
+const minute = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(1439));
+const dateKey = v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/), v.check(value => {
+  const probe = new Date(`${value}T12:00:00Z`);
+  return Number.isFinite(probe.getTime()) && probe.toISOString().slice(0, 10) === value;
+}));
 export const CommandSchema = v.variant('type', [
+  v.object({ type: v.literal('TIME_DAY_INITIALIZED'), payload: v.strictObject({ dateKey, minutes: v.pipe(v.array(minute), v.maxLength(96), v.check(values => values.every((value, index) => index === 0 || value > values[index - 1]))) }) }),
+  v.object({ type: v.literal('TIME_MARKER_CREATED'), payload: v.strictObject({ markerId: id, dateKey, minute }) }),
+  v.object({ type: v.literal('TIME_MARKER_SET'), payload: v.strictObject({ markerId: id, minute }) }),
+  v.object({ type: v.literal('TIME_MARKER_REMOVED'), payload: v.strictObject({ markerId: id }) }),
+  v.object({ type: v.literal('TASK_TIME_MARKER_SET'), payload: v.strictObject({ taskId: id, markerId: v.nullable(id) }) }),
+  v.object({ type: v.literal('TASK_REORDERED'), payload: v.strictObject({ taskId: id, relativeTaskId: id, side: v.picklist(['before', 'after']) }) }),
   v.object({ type: v.literal('TASK_CREATED'), payload: v.strictObject({ taskId: id, title, configuredStart: timestamp, createdAt: utcTimestamp, copiedFromId: v.optional(id) }) }),
   v.object({ type: v.literal('TASK_TIMING_SET'), payload: v.pipe(v.strictObject({ taskId: id, duration: v.number(), durationUnit: v.picklist(['minutes', 'hours', 'days']), progress: v.nullable(v.number()) }), v.check(value => validTiming(value))) }),
   v.object({ type: v.literal('TASK_RENAMED'), payload: v.strictObject({ taskId: id, title }) }),
@@ -52,6 +63,12 @@ export const CommandSchema = v.variant('type', [
   v.object({ type: v.literal('TASK_REOPENED'), payload: v.strictObject({ taskId: id }) }),
 ]);
 export type EventCommand = v.InferOutput<typeof CommandSchema>;
+export function commandTaskId(command: EventCommand): string {
+  return 'taskId' in command.payload ? command.payload.taskId : '';
+}
+export function isTimelineCommand(command: EventCommand): boolean {
+  return command.type.startsWith('TIME_') || command.type === 'TASK_TIME_MARKER_SET';
+}
 export function parseCommand(input: unknown): EventCommand {
   return v.parse(CommandSchema, input);
 }

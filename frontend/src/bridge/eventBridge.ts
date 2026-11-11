@@ -34,6 +34,7 @@ export interface SetupState {
 }
 
 export interface AppSettings {
+  defaultTimeMarkers?: number[];
   defaultDuration?: number;
   defaultDurationUnit?: import('../domain/duration').DurationUnit;
   knownDatabases: DatabaseEntry[];
@@ -77,6 +78,7 @@ declare global {
           Redo: () => Promise<unknown>;
           GetSettings: () => Promise<AppSettings>;
           SetAutostart: (enabled: boolean) => Promise<AppSettings>;
+          SetDefaultTimeMarkers?: (minutes: number[]) => Promise<AppSettings>;
           SetDefaultDuration?: (value: number, unit: string) => Promise<AppSettings>;
           SetUILanguage?: (language: string) => Promise<AppSettings>;
           SelectFolderDialog: () => Promise<string>;
@@ -172,6 +174,10 @@ export const eventBridge = {
     const settings = await nativeMethod('GetSettings')();
     if (settings.uiLanguage) setLanguage(resolveLanguage(settings.uiLanguage));
     return settings;
+  },
+
+  async setDefaultTimeMarkers(minutes: number[]): Promise<AppSettings> {
+    return nativeMethod('SetDefaultTimeMarkers')(minutes);
   },
 
   async setDefaultDuration(value: number, unit: string): Promise<AppSettings> {

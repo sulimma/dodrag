@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "Nie udało się rozpocząć aktualizacji",
   "Beschreibung wird gespeichert…": "Zapisywanie opisu…",
   "Beschreibung gespeichert": "Opis zapisany",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Opis niezapisany – ponawianie próby"
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Opis niezapisany – ponawianie próby",
+  "Uhrzeitmarker": "Znacznik czasu",
+  "Ungültige Uhrzeit": "Nieprawidłowa godzina",
+  "Diese Uhrzeit ist bereits vorhanden": "Ta godzina już istnieje",
+  "Uhrzeitmarker nicht verfügbar": "Znacznik czasu niedostępny",
+  "Uhrzeitmarker dürfen sich nicht überholen": "Znaczniki czasu nie mogą zmieniać kolejności",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "Brak miejsca na kolejny znacznik czasu",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "Godzina ograniczona do {time}: nie można przekroczyć sąsiednich znaczników.",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "Dwukrotne kliknięcie: edycja; Delete: usunięcie",
+  "Tägliche Uhrzeitmarker": "Codzienne znaczniki czasu",
+  "Uhrzeitmarker hinzufügen": "Dodanie znacznika czasu",
+  "Uhrzeitmarker löschen": "Usunięcie znacznika czasu",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "Nowe dni używają tych godzin. Istniejące dni zachowują własne znaczniki."
 }

@@ -1,3 +1,4 @@
+import { commandTaskId } from '../domain/eventSchema';
 import { expect, it, vi } from 'vitest';
 import { useTaskMutations } from './useTaskMutations';
 import type { DragIdentity } from './useTaskDrag';
@@ -120,7 +121,7 @@ it('uses frozen group members for date drops even after selection changes', asyn
     }, now, { current: { database: 'A.db', taskId: 'A', taskIds: ['A', 'B'] } }, vi.fn(), vi.fn());
     await actions.handleSetConfiguredDate('A', '2026-10-21T09:00:00.000Z', '2026-10-21', true);
     expect(append).toHaveBeenCalledTimes(1);
-    expect(append.mock.calls[0][0].map(command => command.payload.taskId)).toEqual(['A', 'B']);
+    expect(append.mock.calls[0][0].map(command => commandTaskId(command))).toEqual(['A', 'B']);
   } finally { append.mockRestore(); }
 });
 
@@ -187,3 +188,16 @@ it.each(['date', 'same-date', 'plus_1d', 'next_week', 'plus_7d', 'next_month', '
     } finally { append.mockRestore(); }
   }
 );
+it('does not reorder selected members against an anchor inside the dragged group', async () => {
+ const now = new Date('2026-11-11T09:00:00Z');
+ const events: StoredEvent[] = ['A', 'B', 'C'].map((taskId, index) => ({
+   seq: index + 1, id: `create-${taskId}`, timestamp: now.toISOString(), undone: false, type: 'TASK_CREATED',
+   payload: { taskId, title: taskId, configuredStart: now.toISOString(), createdAt: now.toISOString() },
+ }));
+ const mutate = vi.fn(async operation => operation());
+ const actions = useTaskMutations({ databaseIdentity: { current: 'A.db' }, confirmedEvents: { current: events }, mutate },
+   { selectedTaskIds: ['A', 'B', 'C'], setSelectedTaskIds: vi.fn(), setSelectedTaskId: vi.fn(), clearEdgeSelection: vi.fn() },
+   now, { current: { database: 'A.db', taskId: 'A', taskIds: ['A', 'B', 'C'] } }, vi.fn(), vi.fn());
+ await actions.handleInsertTask('A', 'B', 'before');
+ expect(mutate).not.toHaveBeenCalled();
+});

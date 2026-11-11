@@ -187,9 +187,10 @@ export function ListTaskRow(props: SharedListRowProps & {
   );
 }
 
-export function ListDateRow(props: Pick<TaskViewInteractions, 'activeDropTargetKey' | 'setActiveDropTargetKey' | 'draggedTaskId' | 'onSetConfiguredDate'> & {
+export function ListDateRow(props: Pick<TaskViewInteractions, 'activeDropTargetKey' | 'setActiveDropTargetKey' | 'draggedTaskId' | 'onSetConfiguredDate' | 'timeline' | 'draggedMarker' | 'onDragStartMarker'> & {
   entry: Extract<ListEntry, { kind: 'date' }>;
   className?: string;
+  trailing?: React.ReactNode;
 }) {
   const { entry, activeDropTargetKey, setActiveDropTargetKey, draggedTaskId, onSetConfiguredDate } = props;
   const isDropActive = activeDropTargetKey === entry.key;
@@ -198,6 +199,9 @@ export function ListDateRow(props: Pick<TaskViewInteractions, 'activeDropTargetK
       key={entry.key}
       dataFlipKey={entry.key}
       dateKey={entry.dateKey}
+      trailing={props.trailing}
+      draggableKey={props.onDragStartMarker ? `marker:date:${entry.dateKey}` : undefined}
+      onDragStart={event => props.onDragStartMarker?.(event, { dateKey: entry.dateKey })}
       weekdayShort={entry.weekdayShort}
       isWeekend={entry.isWeekend}
       isToday={entry.isToday}
@@ -219,6 +223,7 @@ export function ListDateRow(props: Pick<TaskViewInteractions, 'activeDropTargetK
       onDrop={(e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (props.draggedMarker) { props.timeline?.dropOnDate(entry.dateKey); return; }
         const tId = draggedTaskIdOf(e, draggedTaskId);
         if (tId) {
           onSetConfiguredDate(tId, entry.isoDate, entry.dateKey);

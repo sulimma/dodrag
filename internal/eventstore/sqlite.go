@@ -343,6 +343,9 @@ func (s *Store) readReplay(reader eventReader) ([]Event, map[string]*task, error
 }
 
 func replayEvents(events []Event, initial map[string]*task, after int64) (map[string]*task, error) {
+	if _, err := replayTimeline(events); err != nil {
+		return nil, err
+	}
 	tasks := make(map[string]*task)
 	if initial != nil {
 		tasks = initial
@@ -433,7 +436,7 @@ func (s *Store) setHistoryUndone(undone bool) ([]Event, error) {
 	}
 	var seq int64
 	var group string
-	err = tx.QueryRow(`SELECT seq, group_id FROM events WHERE undone = ? ORDER BY seq `+order+` LIMIT 1`, !undone).Scan(&seq, &group)
+	err = tx.QueryRow(`SELECT seq, group_id FROM events WHERE undone = ? AND type <> 'TIME_DAY_INITIALIZED' ORDER BY seq `+order+` LIMIT 1`, !undone).Scan(&seq, &group)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}

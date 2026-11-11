@@ -1,3 +1,4 @@
+import { useTimeMarkers } from './hooks/useTimeMarkers';
 import { allowWindowPaint, useWindowPresentation } from './hooks/useWindowPresentation';
 import { flushSync } from 'react-dom';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -49,6 +50,7 @@ import type { EditorTarget } from './components/editor/types';
 export function App() {
   const language = useLanguage();
   const [now, setNow] = useState(() => new Date());
+  const markerEditing = useRef(false);
   const [viewMode, updateViewMode] = useState<ViewMode>('list');
   const [lastMovedKey, setLastMovedKey] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -105,6 +107,7 @@ export function App() {
   const editingPending = useRef<() => boolean>(() => false);
   const database = useDatabaseSnapshot(pushToast, dragIdentity, () => {
     editors.cancelEdit();
+    timeMarkers.reset();
     setNewTaskTitle('');
     setFilterEnabled(false);
     pendingSource.current = null;
@@ -145,7 +148,7 @@ export function App() {
   );
   // All destructive boundaries use the same completion contract. A drained
   // queue does not mean a failed inline draft has been saved.
-  finishEditing.current = async () => await descriptions.flushAll() && !editors.hasOpen();
+  finishEditing.current = async () => await descriptions.flushAll() && !editors.hasOpen() && !timeMarkers.hasOpen();
   // Preserve the admission rule: a pending inline write rejects a database
   // switch; description saves/imports may finish before switching.
   editingPending.current = descriptions.hasPending;
@@ -170,6 +173,10 @@ export function App() {
     pushToast,
     setNow
   );
+  const timeMarkers = useTimeMarkers(database, state, now, dragIdentity, () => {
+    selection.setSelectedTaskId(null); selection.clearEdgeSelection();
+  }, pushToast, setLastMovedKey, setNow);
+  markerEditing.current = timeMarkers.hasOpen();
   const {
     selectedTaskId,
     selectedTaskIds,
@@ -263,7 +270,8 @@ export function App() {
     const unsubRequest = eventBridge.onWindowModeRequested((mode, automatic, expectedMode) => requestModeRef.current(mode, automatic ?? false, expectedMode));
 
     const unsubCacheWarning = eventBridge.onPreviewCacheWarning(message => pushToast(message, 'warning'));
-    const interval = setInterval(() => setNow(new Date()), 60_000);
+    // Keep an expiring marker mounted while its editor owns an unsaved draft.
+    const interval = setInterval(() => { if (!markerEditing.current) setNow(new Date()); }, 60_000);
     return () => {
       current = false;
       unsubMode();
@@ -442,12 +450,14 @@ export function App() {
     selectedEdgeKeys,
     highlights,
     deletionPreview,
-    onSelectTask: selection.onSelectTask,
+    timeline: { ...timeMarkers, bindTask: actions.handleSetTimeMarker },
+    onSelectTask: (...args) => { timeMarkers.select(null); selection.onSelectTask(...args); },
     onContextMenuTask: selection.onContextMenuTask,
-    onSelectEdge: selection.onSelectEdge,
+    onSelectEdge: (...args) => { timeMarkers.select(null); selection.onSelectEdge(...args); },
     onClearEdgeSelection: clearEdgeSelection,
     onClearTaskSelection: () => setSelectedTaskId(null),
     ...drag,
+    onInsertTask: actions.handleInsertTask,
     onAddPredecessor: actions.handleAddPredecessor,
     onRemoveDependencyBetween: actions.handleRemoveDependencyBetween,
     onSetConfiguredDate: (id, date, label) => actions.handleSetConfiguredDate(id, date, label, true),
@@ -525,7 +535,7 @@ export function App() {
         setViewMode={setViewMode}
         nextTaskId={state.nextTaskId}
         openTaskCount={state.openTasks.length}
-        openTaskDelta={state.openTasks.length - state.openTaskCountAtYesterdayEnd}
+        todayBalance={state.todayBalance}
         canUndo={state.canUndo}
         canRedo={state.canRedo}
         snapshotReady={snapshotReady}
@@ -538,7 +548,8 @@ export function App() {
           if (!filterEnabled) { void handleCreateTask(event); return; }
           event.preventDefault();
           const id = viewMode === 'protocol' ? visibleProtocol[0]?.entries[0]?.taskId
-            : mainScrollRef.current?.querySelector<HTMLElement>('[data-task-drag]')?.dataset.taskDrag;
+            // Date/time dividers are draggable too; only task cards are search results.
+            : mainScrollRef.current?.querySelector<HTMLElement>('[data-source-task-id]')?.dataset.sourceTaskId;
           if (id) { editors.cancelEdit(); clearEdgeSelection(); setSelectedTaskId(id); setIsDetailPanelOpen(true); }
         }}
         onCreateTask={handleCreateTask}
@@ -717,6 +728,7 @@ export function App() {
           onToggleAutostart={database.handleToggleAutostart}
           onSetUILanguage={database.handleSetUILanguage}
           onSetDefaultDuration={database.handleSetDefaultDuration}
+          onSetDefaultTimeMarkers={database.handleSetDefaultTimeMarkers}
           onRunSetupAction={database.handleRunSetupAction}
           onOpenFolderInExplorer={(path, isFile) => eventBridge.openFolderInExplorer(path, isFile)}
           onOpenFolderInVSCode={(path, isFile) => eventBridge.openFolderInVSCode(path, isFile)}

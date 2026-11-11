@@ -1,3 +1,4 @@
+import { commandTaskId } from './domain/eventSchema';
 // @vitest-environment jsdom
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -487,7 +488,7 @@ it('copies configured duration defaults into new tasks and persists progress thr
   expect(vi.mocked(api.AppendBatch).mock.calls.at(-1)![0]).toEqual([
     expect.objectContaining({ type: 'TASK_TIMING_SET', payload: expect.objectContaining({ duration: 45, durationUnit: 'minutes', progress: 15 }) }),
   ]);
-  const id = creationCommands[0].payload.taskId;
+  const id = commandTaskId(creationCommands[0]);
   expect(Number(list().querySelector(`[data-task-drag="${id}"] [role="progressbar"]`)!.getAttribute('aria-valuenow'))).toBeCloseTo(100 / 3);
   click(list().querySelector(`[data-task-drag="${taskId}"]`)!);
   expect(duration().value).toBe('1'); expect(progress().value).toBe('');

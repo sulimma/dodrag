@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "No se pudo iniciar la actualización",
   "Beschreibung wird gespeichert…": "Guardando descripción…",
   "Beschreibung gespeichert": "Descripción guardada",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Descripción no guardada – reintentando"
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Descripción no guardada – reintentando",
+  "Uhrzeitmarker": "Marcador horario",
+  "Ungültige Uhrzeit": "Hora no válida",
+  "Diese Uhrzeit ist bereits vorhanden": "Esta hora ya existe",
+  "Uhrzeitmarker nicht verfügbar": "Marcador horario no disponible",
+  "Uhrzeitmarker dürfen sich nicht überholen": "Los marcadores horarios no pueden cruzarse",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "No hay espacio para otro marcador horario",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "Hora limitada a {time}: no se pueden cruzar los marcadores vecinos.",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "Doble clic para editar; Supr para eliminar",
+  "Tägliche Uhrzeitmarker": "Marcadores horarios diarios",
+  "Uhrzeitmarker hinzufügen": "Añadir marcador horario",
+  "Uhrzeitmarker löschen": "Eliminar marcador horario",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "Los días nuevos usan estas horas. Los días existentes conservan sus propios marcadores."
 }

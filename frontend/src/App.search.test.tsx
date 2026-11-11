@@ -102,16 +102,16 @@ it('highlights while leaving all tasks visible until filtering, keeps details st
   await mountSearch();
   click(list().querySelector(`[data-task-drag="${taskId}"]`)!); click(toggle());
   act(() => omni().focus()); type(omni(), 'needle');
-  expect(list().querySelectorAll('[data-task-drag]')).toHaveLength(2);
+  expect(list().querySelectorAll('[data-source-task-id]')).toHaveLength(2);
   click(filter());
   expect(document.activeElement).toBe(omni());
-  expect(list().querySelectorAll('[data-task-drag]')).toHaveLength(1);
+  expect(list().querySelectorAll('[data-source-task-id]')).toHaveLength(1);
   expect(list().querySelector('[data-task-drag="26-102"]')).not.toBeNull();
   expect(panel().textContent).toContain('Alpha');
   await key(omni(), 'Escape');
   expect(omni().value).toBe(''); expect(filter().getAttribute('aria-pressed')).toBe('false');
   expect(document.activeElement).not.toBe(omni());
-  expect(list().querySelectorAll('[data-task-drag]')).toHaveLength(2);
+  expect(list().querySelectorAll('[data-source-task-id]')).toHaveLength(2);
   expect(panel().textContent).toContain('Alpha');
 });
 it('Ctrl+F selects existing input from outside and toggles without disturbing the caret inside', async () => {
@@ -123,9 +123,9 @@ it('Ctrl+F selects existing input from outside and toggles without disturbing th
   act(() => omni().setSelectionRange(2, 2)); await ctrlF(omni());
   expect(filter().getAttribute('aria-pressed')).toBe('false'); expect(omni().selectionStart).toBe(2);
   await ctrlF(omni()); expect(filter().getAttribute('aria-pressed')).toBe('true');
-  type(omni(), ''); expect(list().querySelectorAll('[data-task-drag]')).toHaveLength(2);
+  type(omni(), ''); expect(list().querySelectorAll('[data-source-task-id]')).toHaveLength(2);
 });
-it.each(['Liste', 'Netzplan', 'Gantt', 'Protokoll'])('filters %s by deep data and Enter opens its first match without creating', async view => {
+it.each(['Liste', 'Netzplan', 'Gantt', 'Protokoll'])('filters %s by deep data and Enter skips draggable date dividers to open its first task match', async view => {
   await mountSearch();
   click(host.querySelector<HTMLButtonElement>(`button[title^="${view}"]`)!);
   type(omni(), 'needle'); click(filter());

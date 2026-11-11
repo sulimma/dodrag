@@ -1,3 +1,5 @@
+import type { MarkerDrag } from '../hooks/useTaskDrag';
+import type { TimelineInteractions } from './timelineInteractions';
 import React from 'react';
 import type { HighlightRole, TaskState } from '../domain/types';
 
@@ -23,6 +25,10 @@ export interface TaskInteractions extends TaskDragDropActions {
   onContextMenuTask: (event: React.MouseEvent, id: string) => void;
 }
 export interface TaskViewInteractions extends TaskInteractions {
+  timeline?: TimelineInteractions;
+  draggedMarker?: MarkerDrag | null;
+  onDragStartMarker?: (event: React.DragEvent, marker: MarkerDrag) => void;
+  onInsertTask?: (id: string, relativeTaskId: string, side: 'before' | 'after') => void;
   selectedTaskId: string | null;
   selectedEdgeKeys: string[];
   activeDropTargetKey: string | null;
@@ -43,7 +49,7 @@ export function draggedTaskIdOf(
   event: Pick<React.DragEvent, 'dataTransfer'>,
   draggedTaskId: string | null
 ) {
-  if (event.dataTransfer?.types?.includes('Files') || event.dataTransfer?.types?.includes('application/x-dodrag-source')) return null;
+  if (event.dataTransfer?.types?.includes('application/x-dodrag-marker') || event.dataTransfer?.types?.includes('Files') || event.dataTransfer?.types?.includes('application/x-dodrag-source')) return null;
   return draggedTaskId || event.dataTransfer?.getData('text/plain') || null;
 }
 // Pointer drag origins are shared by full rows and the compact completed rows.

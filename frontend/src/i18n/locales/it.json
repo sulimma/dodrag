@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "Impossibile avviare l’aggiornamento",
   "Beschreibung wird gespeichert…": "Salvataggio descrizione…",
   "Beschreibung gespeichert": "Descrizione salvata",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Descrizione non salvata – nuovo tentativo"
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "Descrizione non salvata – nuovo tentativo",
+  "Uhrzeitmarker": "Indicatore orario",
+  "Ungültige Uhrzeit": "Ora non valida",
+  "Diese Uhrzeit ist bereits vorhanden": "Questo orario esiste già",
+  "Uhrzeitmarker nicht verfügbar": "Indicatore orario non disponibile",
+  "Uhrzeitmarker dürfen sich nicht überholen": "Gli indicatori orari non possono incrociarsi",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "Nessuno spazio per un altro indicatore orario",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "Ora limitata a {time}: non è possibile superare gli indicatori vicini.",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "Doppio clic per modificare; Canc per eliminare",
+  "Tägliche Uhrzeitmarker": "Indicatori orari giornalieri",
+  "Uhrzeitmarker hinzufügen": "Aggiungere indicatore orario",
+  "Uhrzeitmarker löschen": "Eliminare indicatore orario",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "I nuovi giorni usano questi orari. I giorni esistenti mantengono i propri indicatori."
 }

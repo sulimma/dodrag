@@ -842,5 +842,74 @@
       "nasin alasa"
     ]
   }
-}
+},
+  {
+    "id": "term.timeMarker",
+    "context": "Zeitliche Untergrenze für Tasks innerhalb eines Tages; eigenständiger bearbeitbarer Marker, kein Task und keine Taskabhängigkeitskante.",
+    "sourceTerms": [
+      "Uhrzeitmarker"
+    ],
+    "translations": {
+      "de": [
+        "Uhrzeitmarker",
+        "Tägliche Uhrzeitmarker"
+      ],
+      "en": [
+        "Time marker",
+        "Daily time markers"
+      ],
+      "fr": [
+        "Repère horaire",
+        "Repères horaires quotidiens"
+      ],
+      "es": [
+        "Marcador horario",
+        "Marcadores horarios diarios"
+      ],
+      "zh-CN": [
+        "时间标记",
+        "每日时间标记"
+      ],
+      "uk": [
+        "Часова позначка",
+        "Щоденні часові позначки"
+      ],
+      "pt-BR": [
+        "Marcador de horário",
+        "Marcadores de horário diários"
+      ],
+      "ja": [
+        "時刻マーカー",
+        "毎日の時刻マーカー"
+      ],
+      "zh-TW": [
+        "時間標記",
+        "每日時間標記"
+      ],
+      "ko": [
+        "시간 표시",
+        "매일의 시간 표시"
+      ],
+      "it": [
+        "Indicatore orario",
+        "Indicatori orari giornalieri"
+      ],
+      "pl": [
+        "Znacznik czasu",
+        "Codzienne znaczniki czasu"
+      ],
+      "tr": [
+        "Saat işareti",
+        "Günlük saat işaretleri"
+      ],
+      "eo": [
+        "Hormarkilo",
+        "Ĉiutagaj hormarkiloj"
+      ],
+      "tok": [
+        "sitelen tenpo",
+        "sitelen tenpo pi tenpo suno ale"
+      ]
+    }
+  }
 ]

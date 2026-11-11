@@ -152,7 +152,7 @@ func TestDatabaseLifecycle(t *testing.T) {
 
 func TestDatabaseVersionBuildAndStartupError(t *testing.T) {
 	previousVersion, previousBuild := buildVersion, buildTime
-	buildVersion, buildTime = "0.6.1rc", "2026-11-06T10:00:00Z"
+	buildVersion, buildTime = "0.7.1rc", "2026-11-06T10:00:00Z"
 	t.Cleanup(func() { buildVersion, buildTime = previousVersion, previousBuild })
 	a := testApp(t)
 	settings, err := a.CreateDatabase("", "versioned", false)
@@ -173,7 +173,7 @@ func TestDatabaseVersionBuildAndStartupError(t *testing.T) {
 	if err := db.QueryRow(`SELECT app_version,app_build_time,minimum_app_version FROM database_metadata WHERE id=1`).Scan(&version, &build, &minimum); err != nil {
 		t.Fatal(err)
 	}
-	if version != "0.6.1" || build != buildTime || minimum != eventstore.MinimumAppVersion {
+	if version != "0.7.1" || build != buildTime || minimum != eventstore.MinimumAppVersion {
 		t.Fatal("app build identity was not passed to the database", version, build, minimum)
 	}
 	if _, err := db.Exec(`UPDATE database_metadata SET minimum_app_version='9.0.0rc'`); err != nil {
@@ -643,5 +643,38 @@ func TestDescriptionCheckpointDatabaseIdentityAndWebViewReload(t *testing.T) {
 	again, err := app.GetEvents()
 	if err != nil || len(again) != 2 {
 		t.Fatal("reload duplicated recovery")
+	}
+}
+
+func TestDefaultTimeMarkersSettings(t *testing.T) {
+	a := testApp(t)
+	values := []int{900, 720}
+	settings, err := a.SetDefaultTimeMarkers(values)
+	if err != nil || len(settings.DefaultTimeMarkers) != 2 || settings.DefaultTimeMarkers[0] != 720 {
+		t.Fatal(settings, err)
+	}
+	values[0] = 1
+	settings.DefaultTimeMarkers[0] = 2
+	if a.settings.DefaultTimeMarkers[0] != 720 {
+		t.Fatal("settings alias")
+	}
+	if _, err := a.SetDefaultTimeMarkers([]int{720, 720}); err == nil {
+		t.Fatal("accepted duplicate times")
+	}
+	if _, err := a.SetDefaultTimeMarkers([]int{1440}); err == nil {
+		t.Fatal("accepted invalid time")
+	}
+	if err := a.loadOrInitSettingsLocked(); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.settings.DefaultTimeMarkers) != 2 || a.settings.DefaultTimeMarkers[0] != 720 {
+		t.Fatal("lost marker defaults on reload")
+	}
+	a.settingsPath = filepath.Join(a.appDir, "missing", "settings.json")
+	if _, err := a.SetDefaultTimeMarkers([]int{600}); err == nil {
+		t.Fatal("ignored save failure")
+	}
+	if a.settings.DefaultTimeMarkers[0] != 720 {
+		t.Fatal("failed save changed defaults")
 	}
 }

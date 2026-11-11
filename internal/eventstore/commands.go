@@ -44,6 +44,9 @@ func checkID(id string) error {
 	return nil
 }
 func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
+	if isTimelineType(kind) {
+		return validateTimelinePayload(kind, raw)
+	}
 	if kind == "TASK_DESCRIPTION_SET" && !utf8.Valid(raw) {
 		return nil, fmt.Errorf("description payload must be valid UTF-8")
 	}
@@ -63,6 +66,8 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 		if _, exists := p["copiedFromId"]; exists {
 			fields = append(fields, "copiedFromId")
 		}
+	case "TASK_REORDERED":
+		fields = append(fields, "relativeTaskId", "side")
 	case "TASK_TIMING_SET":
 		fields = append(fields, "duration", "durationUnit", "progress")
 	case "TASK_RENAMED":
@@ -117,9 +122,13 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 			return nil, fmt.Errorf("%s must be string", field)
 		}
 		switch field {
-		case "taskId", "predecessorId", "entryId", "copiedFromId":
+		case "taskId", "predecessorId", "entryId", "copiedFromId", "relativeTaskId":
 			if err := checkID(value); err != nil {
 				return nil, err
+			}
+		case "side":
+			if value != "before" && value != "after" {
+				return nil, fmt.Errorf("invalid order side")
 			}
 		case "title":
 			if strings.TrimSpace(value) == "" {
@@ -150,6 +159,9 @@ func applyCommand(tasks map[string]*task, kind string, p map[string]interface{})
 }
 
 func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]interface{}, checkCycle bool) (bool, error) {
+	if isTimelineType(kind) {
+		return true, nil
+	}
 	id := p["taskId"].(string)
 	t := tasks[id]
 	if kind == "TASK_CREATED" {
@@ -163,6 +175,14 @@ func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]int
 		return false, fmt.Errorf("unknown task: %s", id)
 	}
 	switch kind {
+	case "TASK_REORDERED":
+		relative := p["relativeTaskId"].(string)
+		if tasks[relative] == nil {
+			return false, fmt.Errorf("unknown order target: %s", relative)
+		}
+		// Ordering is projected from events separately; task/dependency snapshots
+		// deliberately do not encode a second graph or synthetic task dates.
+		return relative != id, nil
 	case "TASK_TIMING_SET":
 		duration := p["duration"].(float64)
 		unit := p["durationUnit"].(string)
@@ -316,6 +336,18 @@ func (s *Store) appendBatch(commands []Command, recoveryBases map[string]string)
 		owner.ready = false
 	}
 	events := s.events
+	var timeline *timelineState
+	systemOnly := len(commands) > 0
+	for _, command := range commands {
+		systemOnly = systemOnly && command.Type == "TIME_DAY_INITIALIZED"
+		if isTimelineType(command.Type) && timeline == nil {
+			var err error
+			timeline, err = replayTimeline(events)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	// Copy the map and only clone task objects touched by this batch.
 	tasks := make(map[string]*task, len(s.tasks))
 	for id, t := range s.tasks {
@@ -337,7 +369,7 @@ func (s *Store) appendBatch(commands []Command, recoveryBases map[string]string)
 		if err != nil {
 			return nil, err
 		}
-		id := p["taskId"].(string)
+		id, _ := p["taskId"].(string)
 		if !touched[id] && tasks[id] != nil {
 			tasks[id] = cloneTask(tasks[id])
 			touched[id] = true
@@ -348,6 +380,13 @@ func (s *Store) appendBatch(commands []Command, recoveryBases map[string]string)
 			}
 		}
 		effect, err := applyCommand(tasks, command.Type, p)
+		if err == nil && timeline != nil {
+			var timelineEffect bool
+			timelineEffect, err = timeline.apply(command.Type, p)
+			if isTimelineType(command.Type) {
+				effect = timelineEffect
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -384,7 +423,7 @@ func (s *Store) appendBatch(commands []Command, recoveryBases map[string]string)
 	var earliest int64
 	workingEvents := make([]Event, 0, len(events)+len(changed))
 	for _, event := range events {
-		if event.Undone {
+		if event.Undone && !systemOnly {
 			if earliest == 0 || event.Seq < earliest {
 				earliest = event.Seq
 			}
@@ -392,8 +431,10 @@ func (s *Store) appendBatch(commands []Command, recoveryBases map[string]string)
 		}
 		workingEvents = append(workingEvents, event)
 	}
-	if _, err := tx.Exec(`DELETE FROM events WHERE undone = 1`); err != nil {
-		return nil, err
+	if !systemOnly {
+		if _, err := tx.Exec(`DELETE FROM events WHERE undone = 1`); err != nil {
+			return nil, err
+		}
 	}
 	ts := time.Now().UTC().Format(time.RFC3339Nano)
 	batchGroup := ""

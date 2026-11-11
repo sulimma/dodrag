@@ -10,6 +10,7 @@ Diese Karte nennt Einstiegspunkte. Verhalten, Architekturentscheidungen und loka
 | Titel-/Datumssitzungen | `frontend/src/hooks/useInlineEditors.ts`, `components/inlineEditor.ts` |
 | Auswahl und Tastatur | `frontend/src/hooks/useTaskSelection.ts`, `useGlobalShortcuts.ts` |
 | Dragablauf und Vorschau | `frontend/src/hooks/taskPointerDrag.ts`, `useTaskDrag.ts`, `taskDragPreview.ts` |
+| Manuelle Reihenfolge und Uhrzeitmarker | `frontend/src/domain/{taskOrder,timeMarkers}.ts`, `frontend/src/hooks/useTimeMarkers.ts`, `frontend/src/components/{ListTimeRow,TimeMarkerDefaults}.tsx`, `internal/eventstore/time_markers.go` |
 | Ereignisschema und Replay | `frontend/src/domain/eventSchema.ts`, `commands.ts` |
 | Termine, Ansichtsprojektion, Abhängigkeiten | `frontend/src/domain/dates.ts`, `projector.ts`, `dependencyPaths.ts` |
 | Wails-Schnittstelle | `frontend/src/bridge/eventBridge.ts` |

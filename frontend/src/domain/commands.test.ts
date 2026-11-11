@@ -1,3 +1,4 @@
+import { commandTaskId } from './eventSchema';
 import { expect, it } from 'vitest';
 import { applyCommand, copyReplayTasks, replayCommands } from './commands';
 import { EventCommand, parseCommand, parseStoredEvent } from './eventSchema';
@@ -61,7 +62,7 @@ it.each([false, true])('replays 10k tasks in forward/reverse dependency order (r
   const events = stored([...commands, ...(reverse ? edges.reverse() : edges)]);
   const normalized = normalizeEvents(events);
   const state = replayCommands(normalized);
-  expect(state.orderedTasks.map(task => task.id)).toEqual(commands.map(command => command.payload.taskId));
+  expect(state.orderedTasks.map(task => task.id)).toEqual(commands.map(command => commandTaskId(command)));
   expect(normalizeEvents(events)).toBe(normalized);
   expect(replayCommands(normalized)).toBe(state);
   const first = projectEvents(normalized, new Date(2026, 9, 26, 12));

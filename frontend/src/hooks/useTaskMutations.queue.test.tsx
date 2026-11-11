@@ -1,3 +1,4 @@
+import { commandTaskId } from '../domain/eventSchema';
 // @vitest-environment jsdom
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -98,7 +99,7 @@ it('keeps frozen drag members after the gesture ends while the operation waits',
     identity.current.taskIds.push('C'); identity.current = null;
   });
   await act(async () => { release(history); await blocker; });
-  expect(writes[0].commands.map(command => command.payload.taskId)).toEqual(['A', 'B']);
+  expect(writes[0].commands.map(command => commandTaskId(command))).toEqual(['A', 'B']);
   await confirm(); await moving;
 });
 

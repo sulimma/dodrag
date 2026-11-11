@@ -1,3 +1,4 @@
+import { commandTaskId } from './domain/eventSchema';
 // @vitest-environment jsdom
 import React, { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
@@ -92,6 +93,7 @@ afterEach(() => {
   delete (document as Partial<Document>).elementFromPoint;
   setLanguage('de');
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 async function mount() { await act(async () => root.render(<App />)); }
@@ -1065,7 +1067,7 @@ it.each(['Delete', 'd', 'context'])('completes selected tasks with one atomic ba
   } else await act(async () => key(route));
   expect(api.AppendBatch).toHaveBeenCalledTimes(1);
   const commands = vi.mocked(api.AppendBatch).mock.calls[0][0];
-  expect(commands.map(command => [command.type, command.payload.taskId])).toEqual([
+  expect(commands.map(command => [command.type, commandTaskId(command)])).toEqual([
     ['TASK_COMPLETED', '26-101'], ['TASK_COMPLETED', '26-102'],
   ]);
   expect(commands[0].payload).toMatchObject({ completedAt: (commands[1].payload as any).completedAt });
@@ -1176,7 +1178,7 @@ it.each(['Liste', 'Protokoll'].flatMap(view => ['date', 'resubmit', 'complete'].
     : element.querySelector('aside .flex-1.min-h-0')!;
   await act(async () => dragEvent(target, 'drop'));
   expect(api.AppendBatch).toHaveBeenCalledTimes(1);
-  expect(vi.mocked(api.AppendBatch).mock.calls[0][0].map(command => command.payload.taskId)).toEqual(['26-101', '26-102']);
+  expect(vi.mocked(api.AppendBatch).mock.calls[0][0].map(command => commandTaskId(command))).toEqual(['26-101', '26-102']);
   expect(selectedIds()).toEqual(['26-104']);
 });
 
@@ -1344,4 +1346,266 @@ it('keeps independent view positions and applies first-visit defaults only once'
   await change('Protokoll'); expect(scroll.scrollTop).toBe(30); expect(scroll.scrollLeft).toBe(0);
   act(() => { scroll.scrollTop = 0; scroll.dispatchEvent(new Event('scroll')); });
   await change('Liste'); await change('Protokoll'); expect(scroll.scrollTop).toBe(0);
+});
+
+// Timeline tests use the actual pointer adapter and mutation queue. The mock
+// backend returns immutable event snapshots, including atomic undo groups.
+function timelineFixture(defaults?: number[]) {
+ const day = new Date(); day.setDate(day.getDate() + 1); day.setHours(9, 0, 0, 0);
+ const dateKey = toDateKey(day);
+ let saved: StoredEvent[] = ['A', 'B', 'C', 'D'].map((title, index) => ({
+   seq: index + 1, id: `timeline-${index}`, timestamp: new Date().toISOString(), undone: false,
+   type: 'TASK_CREATED', payload: { taskId: `26-${101 + index}`, title, configuredStart: day.toISOString(), createdAt: new Date().toISOString() },
+ }));
+ if (defaults) activeSettings.defaultTimeMarkers = defaults;
+ vi.mocked(api.GetEvents).mockImplementation(async () => saved);
+ vi.mocked(api.AppendBatch).mockImplementation(async commands => {
+   const groupId = `group-${saved.length}`;
+   saved = [...saved, ...commands.map((command, index) => ({ ...command, seq: saved.length + index + 1,
+     groupId, timestamp: new Date().toISOString(), undone: false } as StoredEvent))];
+   return saved;
+ });
+ vi.mocked(api.Undo).mockImplementation(async () => {
+   const last = [...saved].reverse().find(event => !event.undone && event.type !== 'TIME_DAY_INITIALIZED');
+   saved = saved.map(event => event.groupId && event.groupId === last?.groupId ? { ...event, undone: true } : event);
+   return saved;
+ });
+ return { dateKey, events: () => saved, state: () => projectEvents(saved, new Date()) };
+}
+it('creates a time marker at the pointer gap, binds its suffix, edits with nonmodal correction and deletes with undo', async () => {
+ const fixture = timelineFixture([1200]); await mount();
+ const date = element.querySelector(`[data-task-drag="marker:date:${fixture.dateKey}"]`)!;
+ dragEvent(date, 'dragstart');
+ const gap = element.querySelector('[data-task-insertion="insert:26-102:before"]')!;
+ await act(async () => dragEvent(gap, 'drop'));
+ let marker = [...fixture.state().timeline.markers.values()].find(item => item.id.startsWith('marker-'))!;
+ expect(marker.minute).toBe(660); // One of four tasks before the gap: 08:00 + 12h / 4.
+ expect(fixture.state().tasks['26-101'].timeMarkerId).toBeUndefined();
+ for (const id of ['26-102', '26-103', '26-104']) {
+   expect(fixture.state().tasks[id].timeMarkerId).toBe(marker.id);
+   expect(new Date(fixture.state().tasks[id].configuredStart).getHours()).toBe(9);
+ }
+ const row = () => element.querySelector<HTMLElement>(`[data-time-marker="time:${marker.id}"]`)!;
+ act(() => row().dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+ const editor = element.querySelector<HTMLInputElement>('input[aria-label="Uhrzeitmarker"]')!;
+ type(editor, '23:00');
+ await act(async () => key('Enter', editor));
+ marker = fixture.state().timeline.markers.get(marker.id)!;
+ expect(marker.minute).toBe(1185);
+ expect(element.querySelector('input[aria-label="Uhrzeitmarker"]')).toBeNull();
+ expect(element.textContent).toContain('19:45');
+ expect(element.textContent).toContain('begrenzt');
+ expect(document.activeElement).toBe(row());
+ await act(async () => key('Delete', document.activeElement!));
+ expect(fixture.state().timeline.markers.get(marker.id)?.removed).toBe(true);
+ expect(new Date(fixture.state().tasks['26-102'].effectiveStart).getHours()).toBe(9);
+ await act(async () => key('z', document.body, { ctrlKey: true }));
+ expect(fixture.state().timeline.markers.get(marker.id)?.removed).not.toBe(true);
+ expect(row()).not.toBeNull();
+});
+it('uses a marker as a copy source, binds task drops and removes it by dropping on its own day', async () => {
+ const fixture = timelineFixture([720, 900]); await mount();
+ const source = element.querySelector(`[data-task-drag="marker:default-${fixture.dateKey}-720"]`)!;
+ expect(source).not.toBeNull();
+ dragEvent(source, 'dragstart');
+ await act(async () => dragEvent(element.querySelector('[data-task-insertion="insert:26-103:before"]')!, 'drop'));
+ expect(fixture.state().timeline.markers.get(`default-${fixture.dateKey}-720`)?.removed).not.toBe(true);
+ const created = [...fixture.state().timeline.markers.values()].find(marker => marker.dateKey === fixture.dateKey && !marker.id.startsWith('default-'))!;
+ expect(created).toBeDefined();
+ dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragstart');
+ await act(async () => dragEvent(element.querySelector(`[data-time-marker="time:${created.id}"]`)!, 'drop'));
+ expect(fixture.state().tasks['26-101'].timeMarkerId).toBe(created.id);
+ dragEvent(element.querySelector(`[data-task-drag="marker:${created.id}"]`)!, 'dragstart');
+ await act(async () => dragEvent(element.querySelector(`[data-task-drag="marker:date:${fixture.dateKey}"]`)!, 'drop'));
+ expect(fixture.state().timeline.markers.get(created.id)?.removed).toBe(true);
+});
+it('reorders by pointer insertion without creating dependencies and preserves the order across date drops', async () => {
+ const fixture = timelineFixture(); await mount();
+ dragEvent(element.querySelector('[data-task-drag="26-104"]')!, 'dragstart');
+ await act(async () => dragEvent(element.querySelector('[data-task-insertion="insert:26-102:before"]')!, 'drop'));
+ expect(fixture.state().openTasks.map(task => task.id)).toEqual(['26-101', '26-104', '26-102', '26-103']);
+ expect(fixture.events().some(event => event.type === 'DEPENDENCY_ADDED')).toBe(false);
+ for (const id of ['26-103', '26-101', '26-104', '26-102']) {
+   dragEvent(element.querySelector(`[data-task-drag="${id}"]`)!, 'dragstart');
+   await act(async () => dragEvent(element.querySelector(`[data-task-drag="marker:date:${toDateKey(new Date())}"]`)!, 'drop'));
+ }
+ expect(fixture.state().openTasks.map(task => task.id)).toEqual(['26-101', '26-104', '26-102', '26-103']);
+});
+it('retains an unsaved time-marker draft after a write failure and retries the same editor', async () => {
+ const fixture = timelineFixture([720]); await mount();
+ const id = `default-${fixture.dateKey}-720`;
+ const row = element.querySelector(`[data-time-marker="time:${id}"]`)!;
+ act(() => row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+ const editor = element.querySelector<HTMLInputElement>('input[aria-label="Uhrzeitmarker"]')!;
+ type(editor, '13:00');
+ vi.mocked(api.AppendBatch).mockRejectedValueOnce(new Error('Marker write failed'));
+ await act(async () => key('Enter', editor));
+ expect(editor.isConnected).toBe(true); expect(editor.value).toBe('13:00');
+ expect(fixture.state().timeline.markers.get(id)?.minute).toBe(720);
+ await act(async () => key('Enter', editor));
+ expect(fixture.state().timeline.markers.get(id)?.minute).toBe(780);
+ expect(element.querySelector('input[aria-label="Uhrzeitmarker"]')).toBeNull();
+});
+
+it('allows marker edits outside 08:00–20:00 and clamps only against actual neighbors', async () => {
+ const fixture = timelineFixture([720]); await mount();
+ const id = `default-${fixture.dateKey}-720`;
+ const row = () => element.querySelector(`[data-time-marker="time:${id}"]`)!;
+ for (const [value, minute] of [['23:00', 1380], ['06:00', 360]] as const) {
+   act(() => row().dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+   const editor = element.querySelector<HTMLInputElement>('input[aria-label="Uhrzeitmarker"]')!;
+   type(editor, value); await act(async () => key('Enter', editor));
+   expect(fixture.state().timeline.markers.get(id)?.minute).toBe(minute);
+ }
+});
+
+it('keeps a time-marker editor mounted across expiration and releases it after saving', async () => {
+ vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+ vi.setSystemTime(new Date(2026, 10, 11, 11, 59));
+ const fixture = timelineFixture();
+ const saved = fixture.events();
+ saved.push({ seq: saved.length + 1, id: 'clock-marker', timestamp: new Date().toISOString(), undone: false,
+   type: 'TIME_MARKER_CREATED', payload: { markerId: 'clock', dateKey: '2026-11-11', minute: 720 } });
+ await mount();
+ const row = () => element.querySelector('[data-time-marker="time:clock"]')!;
+ act(() => row().dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+ let editor = element.querySelector<HTMLInputElement>('input[aria-label="Uhrzeitmarker"]')!;
+ type(editor, '13:00');
+ await act(async () => vi.advanceTimersByTime(120000));
+ expect(editor.isConnected).toBe(true); expect(editor.value).toBe('13:00');
+ await act(async () => key('Enter', editor));
+ expect(fixture.state().timeline.markers.get('clock')?.minute).toBe(780);
+ act(() => row().dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+ editor = element.querySelector<HTMLInputElement>('input[aria-label="Uhrzeitmarker"]')!;
+ type(editor, '11:00'); await act(async () => key('Enter', editor));
+ expect(row()).toBeNull();
+ await act(async () => click(button('Kompaktansicht')));
+ expect(api.SetWindowMode).toHaveBeenCalledWith('mini');
+});
+
+it('moves configured days earlier while adopting the destination marker for insertion and direct marker drops', async () => {
+ const fixture = timelineFixture();
+ const saved = fixture.events(), later = new Date(); later.setDate(later.getDate() + 3); later.setHours(9, 0, 0, 0);
+ const add = (command: import('./domain/eventSchema').EventCommand) => saved.push({ ...command,
+   seq: saved.length + 1, id: `setup-${saved.length}`, timestamp: new Date().toISOString(), undone: false });
+ for (const taskId of ['26-101', '26-103']) add({ type: 'TASK_START_DATE_SET', payload: { taskId, configuredStart: later.toISOString() } });
+ add({ type: 'TIME_MARKER_CREATED', payload: { markerId: 'destination', dateKey: fixture.dateKey, minute: 840 } });
+ add({ type: 'TASK_TIME_MARKER_SET', payload: { taskId: '26-102', markerId: 'destination' } });
+ await mount();
+ dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragstart');
+ await act(async () => dragEvent(element.querySelector('[data-task-insertion="insert:26-102:before"]')!, 'drop'));
+ dragEvent(element.querySelector('[data-task-drag="26-103"]')!, 'dragstart');
+ await act(async () => dragEvent(element.querySelector('[data-time-marker="time:destination"]')!, 'drop'));
+ for (const id of ['26-101', '26-103']) {
+   const task = fixture.state().tasks[id];
+   expect(toDateKey(new Date(task.configuredStart))).toBe(fixture.dateKey);
+   expect(task.timeMarkerId).toBe('destination');
+   expect(new Date(task.effectiveStart).getHours()).toBe(14);
+ }
+});
+
+it('shows gross daily changes in the toolbar and the opening balance on protocol date dividers', async () => {
+ const today = new Date(); today.setHours(9, 0, 0, 0);
+ const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+ let saved: StoredEvent[] = ['A', 'B', 'D'].map((taskId, index) => ({
+   seq: index + 1, id: `balance-${index}`, timestamp: (index < 2 ? yesterday : today).toISOString(), undone: false,
+   type: 'TASK_CREATED', payload: { taskId, title: taskId, configuredStart: today.toISOString(), createdAt: (index < 2 ? yesterday : today).toISOString() },
+ }));
+ saved.push({ seq: 4, id: 'done-balance', timestamp: today.toISOString(), undone: false, type: 'TASK_COMPLETED', payload: { taskId: 'A', completedAt: today.toISOString() } });
+ vi.mocked(api.GetEvents).mockImplementation(async () => saved);
+ vi.mocked(api.Undo).mockImplementation(async () => { saved = saved.map(event => event.id === 'done-balance' ? { ...event, undone: true } : event); return saved; });
+ await mount();
+ const current = () => element.querySelector('[data-task-balance="current"]')!.textContent;
+ expect(current()).toBe('+1 -1 = 2');
+ await chooseView('Protokoll');
+ const opening = () => element.querySelector(`[data-protocol-key="date:${toDateKey(today)}"] [data-task-balance="opening"]`)!.textContent;
+ expect(opening()).toBe('2 +1 -1');
+ await act(async () => key('z', document.body, { ctrlKey: true }));
+ expect(current()).toBe('+1 -0 = 3');
+ expect(opening()).toBe('2 +1 -0');
+});
+
+it('does not bind an insertion in the current unslotted area to an expired midnight marker', async () => {
+ const fixture = timelineFixture([0]);
+ const today = new Date(); today.setHours(9, 0, 0, 0);
+ const saved = fixture.events();
+ saved.push({ seq: saved.length + 1, id: 'move-target-today', timestamp: new Date().toISOString(), undone: false,
+   type: 'TASK_START_DATE_SET', payload: { taskId: '26-102', configuredStart: today.toISOString() } });
+ await mount();
+ dragEvent(element.querySelector('[data-task-drag="26-101"]')!, 'dragstart');
+ await act(async () => dragEvent(element.querySelector('[data-task-insertion="insert:26-102:before"]')!, 'drop'));
+ expect(fixture.state().tasks['26-101'].timeMarkerId).toBeUndefined();
+ expect(fixture.state().tasks['26-101'].effectiveStart).toBe(today.toISOString());
+});
+
+it('creates a future marker today even after the nominal 20:00 boundary', async () => {
+ vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+ vi.setSystemTime(new Date(2026, 10, 11, 20, 30));
+ const fixture = timelineFixture();
+ for (const event of fixture.events()) {
+   if (event.type === 'TASK_CREATED') event.payload.configuredStart = new Date(2026, 10, 11, 9).toISOString();
+ }
+ await mount();
+ dragEvent(element.querySelector('[data-task-drag="marker:date:2026-11-11"]')!, 'dragstart');
+ await act(async () => dragEvent(element.querySelector('[data-task-insertion="insert:26-102:before"]')!, 'drop'));
+ const marker = [...fixture.state().timeline.markers.values()].find(item => item.id.startsWith('marker-'))!;
+ expect(marker.minute).toBe(1260);
+ expect(element.querySelector(`[data-time-marker="time:${marker.id}"]`)).not.toBeNull();
+ expect(new Date(fixture.state().tasks['26-102'].effectiveStart).getHours()).toBe(21);
+});
+
+it('excludes active tasks from marker insertion targets and the proportional time calculation', async () => {
+ vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+ vi.setSystemTime(new Date(2026, 10, 11, 7));
+ const fixture = timelineFixture();
+ const saved = fixture.events();
+ for (const event of saved) if (event.type === 'TASK_CREATED') event.payload.configuredStart = new Date(2026, 10, 11, 9).toISOString();
+ const add = (command: import('./domain/eventSchema').EventCommand) => saved.push({ ...command,
+   seq: saved.length + 1, id: `active-setup-${saved.length}`, timestamp: new Date().toISOString(), undone: false });
+ for (const taskId of ['26-105', '26-106']) {
+   add({ type: 'TASK_CREATED', payload: { taskId, title: taskId, configuredStart: new Date(2026, 10, 11, 9).toISOString(), createdAt: new Date().toISOString() } });
+   add({ type: 'TASK_ACTIVE_SET', payload: { taskId, isActive: true } });
+ }
+ await mount();
+ dragEvent(element.querySelector('[data-task-drag="marker:date:2026-11-11"]')!, 'dragstart');
+ for (const id of ['26-105', '26-106']) {
+   expect(element.querySelector(`[data-task-insertion="insert:${id}:before"]`)!.hasAttribute('data-task-drop-target')).toBe(false);
+ }
+ const gap = element.querySelector('[data-task-insertion="insert:26-102:before"]')!;
+ dragEvent(gap, 'dragover');
+ expect(gap.getAttribute('data-insertion-active')).toBe('true');
+ await act(async () => dragEvent(gap, 'drop'));
+ const marker = [...fixture.state().timeline.markers.values()].find(item => item.id.startsWith('marker-'))!;
+ expect(marker.minute).toBe(660); // One of four inactive tasks before the gap; the two active tasks do not count.
+ expect(fixture.state().tasks['26-105'].timeMarkerId).toBeUndefined();
+ expect(fixture.state().tasks['26-106'].timeMarkerId).toBeUndefined();
+ expect(fixture.state().tasks['26-102'].timeMarkerId).toBe(marker.id);
+});
+
+it('retains usable marker selection after unchanged Enter and Escape without stealing focus on blur', async () => {
+ const fixture = timelineFixture([720]); await mount();
+ const id = `default-${fixture.dateKey}-720`;
+ const row = () => element.querySelector(`[data-time-marker="time:${id}"]`)!;
+ const edit = () => {
+   act(() => row().dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+   return element.querySelector<HTMLInputElement>('input[aria-label="Uhrzeitmarker"]')!;
+ };
+ const unchangedEditor = edit();
+ await act(async () => key('Enter', unchangedEditor));
+ expect(document.activeElement).toBe(row());
+ key('F2', document.activeElement!);
+ const draft = element.querySelector<HTMLInputElement>('input[aria-label="Uhrzeitmarker"]')!;
+ type(draft, '15:00'); key('Escape', draft);
+ expect(document.activeElement).toBe(row());
+ expect(fixture.state().timeline.markers.get(id)?.minute).toBe(720);
+ const editor = edit(); type(editor, '13:00');
+ const other = element.querySelector<HTMLInputElement>('header input')!;
+ await act(async () => other.focus());
+ expect(document.activeElement).toBe(other);
+ expect(fixture.state().timeline.markers.get(id)?.minute).toBe(780);
+ // Regain marker focus through the keyboard, then delete without another click.
+ const finalEditor = edit();
+ await act(async () => key('Enter', finalEditor));
+ await act(async () => key('Delete', document.activeElement!));
+ expect(fixture.state().timeline.markers.get(id)?.removed).toBe(true);
 });

@@ -1,5 +1,6 @@
-import type { StoredEvent, TaskState } from './types';
-import { toDateKey } from './projector';
+import { commandTaskId } from './eventSchema';
+import type { StoredEvent, TaskState, TaskDayBalance } from './types';
+import { toDateKey, projectTaskBalances } from './projector';
 import { tokenizeTargets } from '../components/editor/targets';
 import { t } from '../i18n';
 import type { EditorTarget } from '../components/editor/types';
@@ -16,7 +17,7 @@ export interface ProtocolTaskEntry {
   dateKey: string;
   actions: ProtocolAction[];
 }
-export interface ProtocolDay { dateKey: string; entries: ProtocolTaskEntry[] }
+export interface ProtocolDay { dateKey: string; entries: ProtocolTaskEntry[]; balance?: TaskDayBalance }
 
 function sources(text: string): Map<string, EditorTarget> {
   return new Map(tokenizeTargets(text).map(({ kind, value }) => [
@@ -45,7 +46,7 @@ export function projectProtocol(events: readonly StoredEvent[], tasks: Record<st
   const hidden = new Set<ProtocolAction>();
   for (const event of [...events].sort((a, b) => a.seq - b.seq)) {
     if (event.undone || event.type === 'TASK_ACTIVE_SET') continue;
-    const taskId = event.payload.taskId;
+    const taskId = commandTaskId(event);
     if (!tasks[taskId]) continue;
     const dateKey = toDateKey(new Date(event.timestamp));
     let day = days.get(dateKey);
@@ -115,8 +116,10 @@ export function projectProtocol(events: readonly StoredEvent[], tasks: Record<st
       }
     }
   }
+  const balances = projectTaskBalances(events);
   return [...days].sort(([a], [b]) => a.localeCompare(b)).map(([dateKey, day]) => ({
     dateKey,
+    balance: balances.get(dateKey),
     entries: [...day.values()].map(entry => ({ ...entry, actions: entry.actions.filter(action => !hidden.has(action)) })).filter(entry => entry.actions.length > 0).sort((a, b) => {
       const x = tasks[a.taskId], y = tasks[b.taskId];
       return x.topologyLevel - y.topologyLevel || x.creationOrder - y.creationOrder || x.id.localeCompare(y.id);

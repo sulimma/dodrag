@@ -376,5 +376,17 @@
   "Update konnte nicht gestartet werden": "無法開始更新",
   "Beschreibung wird gespeichert…": "正在儲存描述…",
   "Beschreibung gespeichert": "描述已儲存",
-  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "描述未儲存，正在重試"
+  "Beschreibung nicht gespeichert – erneuter Versuch läuft": "描述未儲存，正在重試",
+  "Uhrzeitmarker": "時間標記",
+  "Ungültige Uhrzeit": "時間無效",
+  "Diese Uhrzeit ist bereits vorhanden": "此時間已存在",
+  "Uhrzeitmarker nicht verfügbar": "時間標記無法使用",
+  "Uhrzeitmarker dürfen sich nicht überholen": "時間標記不能交叉",
+  "Kein Platz für einen weiteren Uhrzeitmarker": "沒有空間新增其他時間標記",
+  "Uhrzeit auf {time} begrenzt: benachbarte Marker dürfen nicht überschritten werden.": "時間已限制為 {time}：不能越過相鄰標記。",
+  "Doppelklick zum Bearbeiten; Entf zum Löschen": "按兩下編輯；按 Delete 刪除",
+  "Tägliche Uhrzeitmarker": "每日時間標記",
+  "Uhrzeitmarker hinzufügen": "新增時間標記",
+  "Uhrzeitmarker löschen": "刪除時間標記",
+  "Neue Tage übernehmen diese Zeiten. Bereits angelegte Tage behalten ihre eigenen Marker.": "新日期使用這些時間。已有日期保留自己的標記。"
 }

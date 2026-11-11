@@ -1,3 +1,4 @@
+import type { TimelineState, TimeMarker } from './timeMarkers';
 import type { TaskTiming } from './duration';
 import type { EventCommand } from './eventSchema';
 export type EventType = EventCommand['type'];
@@ -29,6 +30,9 @@ export interface TaskState extends TaskTiming {
   description: string;
   logEntries: TaskLogEntry[];
   checklistProgress: ChecklistProgress | null;
+  timeMarkerId?: string; // Explicit marker constraint, independent of configuredStart
+  manualOrder?: number; // Database-wide user order; dates and activity never rewrite it
+  sortSlot?: number; // Visible time-slot lower bound, local minutes; active tasks use 0
   creationOrder: number; // Immutable sequence index for stable topological sorting
   topologyLevel: number; // Level in the complete configured dependency graph
   createdAt: string;
@@ -46,6 +50,7 @@ export interface TaskState extends TaskTiming {
 }
 
 export type ListEntry =
+  | { kind: 'time'; key: string; marker: TimeMarker; weekdayShort: string }
   | {
       kind: 'date';
       key: string; // e.g. "date:2026-10-16"
@@ -65,7 +70,10 @@ export type ListEntry =
       task: TaskState;
     };
 
+export interface TaskDayBalance { start: number; added: number; removed: number; end: number }
+
 export interface ProjectedState {
+  timeline: TimelineState;
   tasks: Record<string, TaskState>;
   openTasks: TaskState[];
   completedTasks: TaskState[];
@@ -74,7 +82,7 @@ export interface ProjectedState {
   canRedo: boolean;
   activeEventCount: number;
   totalEventCount: number;
-  openTaskCountAtYesterdayEnd: number;
+  todayBalance: TaskDayBalance;
   nextTaskId: string;
 }
 
