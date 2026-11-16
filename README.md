@@ -115,7 +115,7 @@ Choose the interface language in **Settings**. On first launch, DoDrag uses the 
 | Polish | `pl` | Not verified |
 | Turkish | `tr` | Not verified |
 | Esperanto | `eo` | Not verified |
-| Toki Pona | `tok` | Not verified |
+| Toki Pona | `tok` | verified |
 
 The translations are **AI-generated**; only **English and German have been verified**. The other languages may contain linguistic or contextual mistakes. Automated tests check catalog completeness, interpolation parameters, and untranslated app-owned UI text; they do not establish linguistic correctness. Technical error details from Windows or third-party libraries may remain in their original language. Some Mermaid diagram types generate English standard labels independently of the selected app language.
 
