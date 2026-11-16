@@ -85,7 +85,7 @@ it('reactively localizes every syntax helper in all languages while retaining sy
     act(() => setLanguage(language));
     expect(copyButton().textContent).toBe(t('Markdown-Hinweise für KI kopieren'));
     const headings = [...host.querySelectorAll('h4')].map(node => node.textContent);
-    const keys = ['Überschrift', 'Absatz', 'Fett', 'Kursiv', 'Durchgestrichen', 'Code', 'Listen', 'Zitat', 'Codeblock', 'GitHub Alerts', 'Mermaid-Diagramm', 'Formel', 'Formelblock', 'Link', 'Bild', 'Emotion-Shortcuts', 'Sonderzeichen', 'Mermaid'];
+    const keys = ['Überschrift', 'Absatz', 'Fett', 'Kursiv', 'Durchgestrichen', 'Code', 'Listen', 'Zitat', 'Codeblock', 'GitHub Alerts', 'SMILES-Strukturformeln', 'Mermaid-Diagramm', 'Formel', 'Formelblock', 'Link', 'Bild', 'Emotion-Shortcuts', 'Sonderzeichen', 'Mermaid'];
     expect(headings).toEqual(keys.map(key => t(key)));
     expect(host.querySelector('h3')!.textContent).toBe(t('Markdown-Syntax'));
     expect(host.querySelector('p')!.textContent).toBe(t('Markdown für Beschreibung und Log. Syntaxzeichen bleiben in jeder Sprache gleich.'));
@@ -97,6 +97,7 @@ it('reactively localizes every syntax helper in all languages while retaining sy
       `- ${text}\n- ${text}\n\n1. ${text}\n2. ${text}\n\n- [ ] ${text}\n- [x] ${text}`,
       `> ${text}`, `\`\`\`text\n${text}\n\`\`\``,
       ALERT_TYPES.map(({ type, labelKey }) => `> [!${type}]\n> ${t(labelKey)}`).join('\n\n'),
+      '```smiles\nCC(=O)O\n```',
       `\`\`\`mermaid\ngraph LR\n  A[${t('Start')}] --> B[${t('Ende')}]\n\`\`\``,
       '$E = mc^2$', '$$\n\\frac{a}{b} = c\n$$', `[${text}](https://example.com)`,
       `![${t('Bildbeschreibung')}](https://example.com/image.png)`,

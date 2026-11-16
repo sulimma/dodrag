@@ -1,43 +1,47 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { TextSelection } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
 import { t, useLanguage } from '../../i18n';
+import { isDiagramLanguage, renderDiagram } from './diagramRendering';
 
-let mermaidModule: Promise<typeof import('mermaid')['default']> | undefined;
-let diagramSequence = 0;
-const diagramTitle = 'Mermaid:'; // Technical format name, identical in every language.
-async function renderMermaid(source: string): Promise<string> {
-  mermaidModule ??= import('mermaid').then(({ default: mermaid }) => {
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', suppressErrorRendering: true });
-    return mermaid;
-  });
-  const mermaid = await mermaidModule;
-  const host = document.createElement('div');
-  host.style.position = 'absolute'; host.style.left = '-100000px';
-  document.body.append(host);
-  try {
-    const { svg } = await mermaid.render(`dodrag-mermaid-${++diagramSequence}`, source, host);
-    return svg;
-  } finally { host.remove(); }
+// Opening newly inserted source is UI state only, never a persisted node attribute.
+export const diagramsToEdit = new WeakSet<object>();
+
+export function placeDiagramCaret(view: EditorView, boundary: number, before: boolean) {
+  const $boundary = view.state.doc.resolve(boundary);
+  const adjacent = before ? $boundary.nodeBefore : $boundary.nodeAfter;
+  const paragraph = view.state.schema.nodes.paragraph;
+  const tr = view.state.tr;
+  let cursor = boundary + 1;
+  if (adjacent?.type === paragraph) cursor = before ? boundary - 1 : boundary + 1;
+  else if ($boundary.parent.canReplaceWith($boundary.index(), $boundary.index(), paragraph)) tr.insert(boundary, paragraph.create());
+  else return false;
+  tr.setSelection(TextSelection.create(tr.doc, cursor));
+  view.dispatch(tr.scrollIntoView());
+  view.focus();
+  return true;
 }
 
-export function MermaidBlockView({ node, editor, getPos, deleteNode, selected }: NodeViewProps) {
+export function DiagramBlockView({ node, editor, getPos, selected }: NodeViewProps) {
   useLanguage();
-  const isMermaid = node.attrs.language === 'mermaid';
-  const [editing, setEditing] = useState(false);
-  const [svg, setSVG] = useState('');
+  const language: unknown = node.attrs.language;
+  const isMermaid = language === 'mermaid';
+  const [editing, setEditing] = useState(() => diagramsToEdit.has(node));
+  const [svg, setSVG] = useState<string | SVGSVGElement>('');
   const [failure, setFailure] = useState('');
   const wrapper = useRef<HTMLDivElement>(null);
-  const focusSource = useRef(false);
+  const focusSource = useRef(diagramsToEdit.has(node));
   useLayoutEffect(() => {
     if (!editing || !focusSource.current) return;
     focusSource.current = false;
+    diagramsToEdit.delete(node);
     const pos = getPos();
     if (typeof pos !== 'number' || editor.isDestroyed) return;
     // Focus only after React has exposed the actual ProseMirror content DOM.
     editor.commands.setTextSelection(pos + 1);
     editor.view.focus();
-  }, [editing, editor, getPos]);
+  }, [editing, editor, getPos, node]);
   useEffect(() => {
     if (!editing) return;
     const selectionChanged = () => {
@@ -64,19 +68,25 @@ export function MermaidBlockView({ node, editor, getPos, deleteNode, selected }:
       editor.off('selectionUpdate', selectionChanged); editor.off('blur', blurred);
       editor.view.dom.removeEventListener('keydown', escape, true);
     };
-  }, [editing, editor, getPos]);
+  }, [editing, editor, getPos, node]);
   useEffect(() => {
-    if (!isMermaid || editing) return;
+    if (!isDiagramLanguage(language) || editing) return;
     let active = true;
     setSVG(''); setFailure('');
-    void renderMermaid(node.textContent).then(value => {
+    void renderDiagram(language, node.textContent).then(value => {
       if (active) setSVG(value);
     }).catch(error => {
       if (active) { setFailure(error instanceof Error ? error.message : String(error)); setEditing(true); }
     });
     return () => { active = false; };
-  }, [isMermaid, node.textContent, editing]);
-  if (!isMermaid) return <NodeViewWrapper as="pre"><NodeViewContent<'code'> as="code" /></NodeViewWrapper>;
+  }, [language, node.textContent, editing]);
+  useEffect(() => {
+    const element = wrapper.current;
+    const startEditing = () => { focusSource.current = true; setEditing(true); };
+    element?.addEventListener('diagram:edit', startEditing);
+    return () => element?.removeEventListener('diagram:edit', startEditing);
+  });
+  if (!isDiagramLanguage(language)) return <NodeViewWrapper as="pre"><NodeViewContent<'code'> as="code" /></NodeViewWrapper>;
   const edit = () => {
     focusSource.current = true;
     if (editing) {
@@ -96,17 +106,16 @@ export function MermaidBlockView({ node, editor, getPos, deleteNode, selected }:
   const insertParagraph = (before: boolean) => {
     const pos = getPos();
     if (typeof pos !== 'number' || editor.isDestroyed) return;
-    const boundary = before ? pos : pos + node.nodeSize;
-    const adjacent = before ? editor.state.doc.resolve(boundary).nodeBefore : editor.state.doc.resolve(boundary).nodeAfter;
-    const transaction = editor.state.tr;
-    let cursor = boundary + 1;
-    if (adjacent?.type === editor.schema.nodes.paragraph) cursor = before ? boundary - 1 : boundary + 1;
-    else transaction.insert(boundary, editor.schema.nodes.paragraph.create());
-    transaction.setSelection(TextSelection.create(transaction.doc, cursor));
-    editor.view.dispatch(transaction.scrollIntoView()); editor.view.focus();
+    placeDiagramCaret(editor.view, before ? pos : pos + node.nodeSize, before);
   };
-  return <NodeViewWrapper ref={wrapper} data-mermaid-editing={editing || undefined} data-mermaid-block="true" data-mermaid-selected={selected || undefined}
-    className="mermaid-block"
+  return <NodeViewWrapper ref={wrapper} data-diagram-editing={editing || undefined} data-diagram-block="true" data-diagram-selected={selected || undefined}
+    className="diagram-block"
+    onMouseDown={(event: React.MouseEvent<HTMLDivElement>) => {
+      // The width beside a compact preview belongs to the surrounding editor text.
+      if (event.target !== event.currentTarget || event.button !== 0 || editing || !editor.isEditable) return;
+      event.preventDefault();
+      insertParagraph(false);
+    }}
     onBlur={(event: React.FocusEvent) => {
       // The editable code inherits the shared root; focusing it blurs the button.
       if (event.relatedTarget === editor.view.dom) return;
@@ -114,10 +123,10 @@ export function MermaidBlockView({ node, editor, getPos, deleteNode, selected }:
     }} onKeyDown={(event: React.KeyboardEvent) => {
       if (event.key === 'Escape') { event.stopPropagation(); event.preventDefault(); setEditing(false); select(); }
     }}>
-    <button type="button" contentEditable={false} className="mermaid-insert" data-mermaid-insert="before"
-      aria-label={t('Absatz vor Mermaid-Diagramm einfügen')} title={t('Absatz vor Mermaid-Diagramm einfügen')}
+    <button type="button" contentEditable={false} className="diagram-insert" data-diagram-insert="before"
+      aria-label={(isMermaid ? t('Absatz vor Mermaid-Diagramm einfügen') : t('Absatz vor Diagramm einfügen'))} title={(isMermaid ? t('Absatz vor Mermaid-Diagramm einfügen') : t('Absatz vor Diagramm einfügen'))}
       onMouseDown={event => event.preventDefault()} onClick={() => insertParagraph(true)} />
-    <div className="mermaid-body rounded-lg border border-slate-200 bg-slate-50 p-2"
+    <div className={`diagram-body rounded-lg border border-slate-200 bg-slate-50 p-2${isMermaid ? '' : ' w-fit max-w-full'}`}
       onMouseDown={event => {
         if ((event.target as Element).closest('pre,button')) return;
         event.preventDefault(); select();
@@ -130,29 +139,24 @@ export function MermaidBlockView({ node, editor, getPos, deleteNode, selected }:
         if (!(event.target as Element).closest('pre,button')) select();
       }}>
       <div contentEditable={false}>
-        <div className="flex items-center gap-1 text-xs text-slate-500" data-mermaid-title="true">
-          <span>{diagramTitle}</span>
-          <button type="button" title={t('Mermaid-Diagramm bearbeiten')} aria-label={t('Mermaid-Diagramm bearbeiten')}
-            className="hover:text-sky-700" onClick={edit}>{t('bearbeiten')}</button>
-          <span aria-hidden="true">|</span>
-          <button type="button" title={t('Mermaid-Diagramm löschen')} aria-label={t('Mermaid-Diagramm löschen')}
-            className="hover:text-red-700" onClick={() => {
-            deleteNode(); if (!editor.isDestroyed) editor.view.focus();
-          }}>{t('löschen')}</button>
-        </div>
-        {svg && <div role="img" aria-label={t('Mermaid-Vorschau')} className="overflow-auto [&_svg]:max-w-full"
-          style={{ zoom: 0.75 }}
-          onClick={select} onDoubleClick={edit} dangerouslySetInnerHTML={{ __html: svg }} />}
+        {svg && <div role="img" aria-label={isMermaid ? t('Mermaid-Vorschau') : t('SMILES-Strukturformeln')}
+          className={isMermaid ? 'overflow-auto [&_svg]:max-w-full' : 'overflow-x-auto'}
+          style={isMermaid ? { zoom: 0.75 } : undefined}
+          onClick={select} onDoubleClick={edit}>
+          {typeof svg === 'string'
+            ? <div dangerouslySetInnerHTML={{ __html: svg }} />
+            : <div ref={host => { host?.replaceChildren(svg); }} />}
+        </div>}
         {failure && <div role="alert" className="text-xs text-red-700 whitespace-pre-wrap">
-          {t('Mermaid-Diagramm konnte nicht gerendert werden')}{': '}{failure}
+          {(isMermaid ? t('Mermaid-Diagramm konnte nicht gerendert werden') : t('Diagramm konnte nicht gerendert werden'))}{': '}{failure}
         </div>}
       </div>
       <pre className={editing ? 'mt-2 whitespace-pre-wrap text-xs' : 'hidden'}>
-        <NodeViewContent<'code'> as="code" aria-label={t('Mermaid-Quelltext')} />
+        <NodeViewContent<'code'> as="code" aria-label={(isMermaid ? t('Mermaid-Quelltext') : t('Diagrammquelltext'))} />
       </pre>
     </div>
-    <button type="button" contentEditable={false} className="mermaid-insert" data-mermaid-insert="after"
-      aria-label={t('Absatz nach Mermaid-Diagramm einfügen')} title={t('Absatz nach Mermaid-Diagramm einfügen')}
+    <button type="button" contentEditable={false} className="diagram-insert" data-diagram-insert="after"
+      aria-label={(isMermaid ? t('Absatz nach Mermaid-Diagramm einfügen') : t('Absatz nach Diagramm einfügen'))} title={(isMermaid ? t('Absatz nach Mermaid-Diagramm einfügen') : t('Absatz nach Diagramm einfügen'))}
       onMouseDown={event => event.preventDefault()} onClick={() => insertParagraph(false)} />
   </NodeViewWrapper>;
 }

@@ -94,7 +94,7 @@ async function expectPersistedDiagram(editor: Editor, onChange: ReturnType<typeo
   expect(saved).toBe(markdownStorage(editor).getMarkdown());
   expect(saved.split('```mermaid')).toHaveLength(count + 1);
   const reloaded = await mount(saved);
-  expect(reloaded.element.querySelectorAll('[data-mermaid-block]')).toHaveLength(count);
+  expect(reloaded.element.querySelectorAll('[data-diagram-block]')).toHaveLength(count);
   expect(reloaded.element.querySelectorAll('[role=img] svg')).toHaveLength(count);
   expect(reloaded.editor.getJSON()).toEqual(editor.getJSON());
   expect(reloaded.onError).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ it.each([
   const data = new ClipboardData();
   await clipboardEvent(editor, action, data);
   expectSource(data);
-  expect(element.querySelectorAll('[data-mermaid-block]')).toHaveLength(action === 'copy' ? 1 : 0);
+  expect(element.querySelectorAll('[data-diagram-block]')).toHaveLength(action === 'copy' ? 1 : 0);
   if (format === 'plain') data.clearData('text/html');
   act(() => { editor.commands.setTextSelection(editor.state.doc.content.size - 1); editor.view.focus(); });
   expect(editor.state.selection.$from.parent.type.name).toBe('paragraph');
@@ -120,7 +120,7 @@ it.each([
 it.each(['copy', 'cut'] as const)('serializes the selected model when %s originates from Mermaid controls rather than the editor root', async action => {
   const { element, editor, onChange, onError } = await mount();
   await selectDiagram(element, editor);
-  const control = element.querySelector<HTMLButtonElement>('[data-mermaid-title] button')!;
+  const control = element.querySelector<HTMLButtonElement>('[data-diagram-insert=after]')!;
   // A native focused control can own the DOM clipboard event while PM retains
   // the selected block. The browser default would copy the preview's UI text.
   act(() => control.focus());
@@ -146,7 +146,7 @@ it.each(['keyboard', 'menu'] as const)('keeps fenced clipboard text raw in an ex
   expect(editor.state.doc.childCount).toBe(1);
   expect(editor.state.doc.firstChild!.attrs.language).toBe('js');
   expect(editor.state.doc.firstChild!.textContent).toBe(`${fenced}existing`);
-  expect(element.querySelector('[data-mermaid-block]')).toBeNull();
+  expect(element.querySelector('[data-diagram-block]')).toBeNull();
 });
 
 it('preserves ordinary plaintext and prefers recognized Markdown over HTML', async () => {
@@ -161,7 +161,7 @@ it('preserves ordinary plaintext and prefers recognized Markdown over HTML', asy
   await clipboardEvent(editor, 'paste', data);
   expect(element.querySelector('.tiptap strong')).toBeNull();
   expect(element.querySelector('.tiptap script')).toBeNull();
-  expect(element.querySelector('[data-mermaid-block]')).not.toBeNull();
+  expect(element.querySelector('[data-diagram-block]')).not.toBeNull();
   expect(editor.state.doc.textContent).not.toContain('untrusted()');
 });
 
@@ -277,7 +277,7 @@ it.each([
   expect(data.getData('text/plain')).toBe(fenced);
   if (rich) { expectSource(data); expect(clipboard.write).toHaveBeenCalledOnce(); }
   else expect(clipboard.writeText).toHaveBeenCalledWith(fenced);
-  expect(element.querySelectorAll('[data-mermaid-block]')).toHaveLength(action === 'copy' ? 1 : 0);
+  expect(element.querySelectorAll('[data-diagram-block]')).toHaveLength(action === 'copy' ? 1 : 0);
   act(() => { editor.commands.setTextSelection(editor.state.doc.content.size - 1); editor.view.focus(); });
   await act(async () => element.querySelector('.tiptap p')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
   const pasteMenu = onContextMenu.mock.lastCall![1] as EditorContextMenu;

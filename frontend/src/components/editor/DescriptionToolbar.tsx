@@ -7,6 +7,9 @@ import { t, useLanguage } from '../../i18n';
 import { ALERT_TYPES, EMOTICONS, EMOTICON_GROUPS } from './MarkdownFeatures';
 import { SYMBOL_GROUPS } from './SymbolReplacements';
 import { MERMAID_TEMPLATES } from './MermaidTemplates';
+import { TextSelection, type Transaction } from '@tiptap/pm/state';
+import { diagramsToEdit } from './DiagramBlockView';
+import { isDiagramLanguage, SMILES_EXAMPLE } from './diagramRendering';
 
 export function DescriptionToolbar({ editor, onError, historyTarget }: { editor: Editor | null; onError(error: unknown): void; historyTarget?: HTMLElement | null }) {
   useLanguage();
@@ -47,11 +50,22 @@ export function DescriptionToolbar({ editor, onError, historyTarget }: { editor:
     paragraph: current.isActive('paragraph'), bulletList: current.isActive('bulletList'),
     orderedList: current.isActive('orderedList'), taskList: current.isActive('taskList'),
     blockquote: current.isActive('blockquote'), code: current.isActive('code'),
-    codeBlock: current.isActive('codeBlock') && !current.isActive('codeBlock', { language: 'mermaid' }),
+    codeBlock: current.isActive('codeBlock') && !isDiagramLanguage(current.getAttributes('codeBlock').language),
     alert: current.getAttributes('alert').type,
     undo: current.can().undo(), redo: current.can().redo(),
   } : null });
   if (!editor || !state) return null;
+  const editInsertedDiagram = ({ tr }: { tr: Transaction }) => {
+    const previous = new Set<object>();
+    editor.state.doc.descendants(node => { previous.add(node); });
+    tr.doc.descendants((node, pos) => {
+      if (node.type.name === 'codeBlock' && isDiagramLanguage(node.attrs.language) && !previous.has(node)) {
+        diagramsToEdit.add(node);
+        tr.setSelection(TextSelection.create(tr.doc, pos + 1));
+      }
+    });
+    return true;
+  };
   const text = t('Text');
   const groups = [
     { key: 'Überschriften', label: state.h1 ? t('Überschrift 1') : state.h2 ? t('Überschrift 2') : state.h3 ? t('Überschrift 3') : t('Absatz'), icon: Heading, items: [
@@ -86,10 +100,14 @@ export function DescriptionToolbar({ editor, onError, historyTarget }: { editor:
     ] },
     { key: 'Sonderzeichen', label: t('Sonderzeichen'), icon: Sigma, items: [] },
     { key: 'Symbole', label: t('Symbole'), icon: ListTodo, items: [] },
-    { key: 'Mermaid', label: t('Mermaid'), icon: Workflow, items: MERMAID_TEMPLATES.map(item => ({
-      label: t(item.labelKey), syntax: `\`\`\`mermaid\n${item.source}\n\`\`\``,
-      run: () => editor.chain().focus().insertContent({ type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: item.source }] }).run(),
-    })) },
+    { key: 'Diagramme', label: t('Diagramme'), icon: Workflow, items: [
+      { label: t('SMILES-Strukturformeln'), syntax: `\`\`\`smiles\n${SMILES_EXAMPLE}\n\`\`\``,
+        run: () => editor.chain().focus().insertContent({ type: 'codeBlock', attrs: { language: 'smiles' }, content: [{ type: 'text', text: SMILES_EXAMPLE }] }).command(editInsertedDiagram).run() },
+      ...MERMAID_TEMPLATES.map(item => ({
+        label: t(item.labelKey), syntax: `\`\`\`mermaid\n${item.source}\n\`\`\``,
+        run: () => editor.chain().focus().insertContent({ type: 'codeBlock', attrs: { language: 'mermaid' }, content: [{ type: 'text', text: item.source }] }).command(editInsertedDiagram).run(),
+      })),
+    ] },
   ];
   type Action = { label: string; syntax: string; shortcut?: string; icon?: typeof Bold; emoji?: string; color?: string; active?: boolean; run(): unknown };
   const run = (action: Action) => { try { action.run(); setOpen(null); } catch (error) { onError(error); } };

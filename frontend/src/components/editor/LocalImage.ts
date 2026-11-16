@@ -18,6 +18,7 @@ export const LocalImage = Image.extend<{ getTaskId: () => string } & ImageOption
     return ({ node }) => {
       const container = document.createElement('span');
       container.contentEditable = 'false';
+      container.dataset.sourceImage = 'true';
       const image = document.createElement('img');
       container.append(image);
       const update = (next: typeof node) => {
@@ -33,7 +34,7 @@ export const LocalImage = Image.extend<{ getTaskId: () => string } & ImageOption
         return true;
       };
       image.loading = 'lazy';
-      image.className = 'max-h-64 max-w-full rounded-lg border border-slate-200 my-1.5 object-contain cursor-pointer';
+      image.className = 'max-h-64 max-w-full rounded-lg border border-slate-200 my-1.5 object-contain';
       update(node);
       const refresh = () => {
         if (image.dataset.targetKind === 'path') image.src = mediaSource(getTaskId(), image.dataset.targetValue!);

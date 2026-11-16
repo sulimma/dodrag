@@ -1,4 +1,7 @@
 {
+  "SVG speichern": "Збереження SVG",
+  "SVG konnte nicht gespeichert werden": "Не вдалося зберегти SVG",
+  "Dateiendung .svg erforderlich": "Потрібне розширення .svg",
   "Ungueltige externe URL": "Некоректна зовнішня URL-адреса",
   "Externe Anwendung konnte nicht geoeffnet werden": "Не вдалося відкрити зовнішню програму",
   "Ungueltiger absoluter Pfad": "Некоректний абсолютний шлях",

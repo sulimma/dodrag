@@ -1,4 +1,7 @@
 {
+  "SVG speichern": "SVG 저장",
+  "SVG konnte nicht gespeichert werden": "SVG를 저장하지 못했습니다",
+  "Dateiendung .svg erforderlich": ".svg 확장자가 필요합니다",
   "Ungueltige externe URL": "잘못된 외부 URL",
   "Externe Anwendung konnte nicht geoeffnet werden": "외부 애플리케이션을 열지 못했습니다",
   "Ungueltiger absoluter Pfad": "잘못된 절대 경로",

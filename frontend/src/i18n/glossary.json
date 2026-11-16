@@ -303,7 +303,7 @@
     "id": "term.filePath",
     "context": "Dateisystem-Pfad zu Datei, Programm oder Ordner. Exakte Schluessel trennen path/Pfad vom Graphpfad bei Alt-Drag. Ganze Komposita und sprachlich sinnvolle Kurzform Pfad/path sind erlaubt.",
     "sourceTerms": ["Dateipfad", "Dateipfaden", "Pfad", "file path", "path", "Programm-Pfad", "Pfadtyp"],
-    "keys": ["Ungültiger Dateipfad", "Quelle ziehen (Pfadtyp nicht verfügbar)", "Ungueltiger absoluter Pfad", "Pfad konnte nicht geoeffnet werden", "Programm-Pfad konnte nicht ermittelt werden", "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben."],
+    "keys": ["Pfad bearbeiten", "Pfad als Linktext", "Ungültiger Dateipfad", "Quelle ziehen (Pfadtyp nicht verfügbar)", "Ungueltiger absoluter Pfad", "Pfad konnte nicht geoeffnet werden", "Programm-Pfad konnte nicht ermittelt werden", "Keine Ersetzung in Code, Mermaid, Formeln, Links, URLs, Dateipfaden oder verketteten Datumsangaben."],
     "translations": {
       "de": ["Dateipfad", "Dateipfade", "Dateipfaden", "Pfad", "Pfads", "Pfadtyp", "Programm-Pfad"],
       "en": ["file path", "file paths", "path"], "fr": ["chemin", "chemins"], "es": ["ruta", "rutas"],

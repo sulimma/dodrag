@@ -63,6 +63,7 @@ declare global {
     go?: {
       main?: {
         App?: {
+          SaveDiagramSVG?: (svg: string) => Promise<void>;
           ReportFrontendError?: (detail: string) => Promise<void>;
           SetEditorReady: (ready: boolean) => Promise<void>;
           FinishClose: (saved: boolean) => Promise<void>;
@@ -217,6 +218,10 @@ export const eventBridge = {
 
   async openPathInVSCode(path: string): Promise<void> {
     await nativeMethod('OpenPathInVSCode')(path);
+  },
+
+  async saveDiagramSVG(svg: string): Promise<void> {
+    await nativeMethod('SaveDiagramSVG')(svg);
   },
 
   async openExternalURL(url: string): Promise<void> {

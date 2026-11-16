@@ -1,4 +1,7 @@
 {
+  "SVG speichern": "Save SVG",
+  "SVG konnte nicht gespeichert werden": "Could not save SVG",
+  "Dateiendung .svg erforderlich": "The .svg extension is required",
   "Ungueltige externe URL": "Invalid external URL",
   "Externe Anwendung konnte nicht geoeffnet werden": "Could not open the external application",
   "Ungueltiger absoluter Pfad": "Invalid absolute path",

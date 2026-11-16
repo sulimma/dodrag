@@ -56,7 +56,7 @@ function button(element: HTMLElement, label: string) {
     : ['Fett', 'Kursiv', 'Durchgestrichen', 'Inline-Code', 'Formel'].includes(label) ? 'Format'
     : ['Aufzählung', 'Nummerierte Liste', 'Checkliste ein-/ausschalten'].includes(label) ? 'Listen'
     : ['Zitat', 'Codeblock', 'Formelblock', 'Note', 'Warning', 'Important', 'Tip', 'Caution'].includes(label) ? 'Block'
-    : MERMAID_TEMPLATES.some(item => item.labelKey === label) ? 'Mermaid' : null;
+    : MERMAID_TEMPLATES.some(item => item.labelKey === label) ? 'Diagramme' : null;
   if (group && !element.querySelector(`button[aria-label="${t(label)}"]`)) {
     act(() => element.querySelector<HTMLButtonElement>(`button[aria-label="${t(group)}"]`)!.click());
   }
@@ -410,7 +410,7 @@ it('groups formatting and insertion entries with syntax tooltips and keyboard di
   const { element } = await mount('text');
   expect(button(element, 'Sonderzeichen').textContent).toBe('Zeichen');
   expect(button(element, 'Listen').textContent).toBe('Liste');
-  for (const label of ['Überschriften', 'Format', 'Listen', 'Block', 'Sonderzeichen', 'Symbole', 'Mermaid']) {
+  for (const label of ['Überschriften', 'Format', 'Listen', 'Block', 'Sonderzeichen', 'Symbole', 'Diagramme']) {
     expect(button(element, label).getAttribute('aria-expanded')).toBe('false');
     expect(button(element, label).hasAttribute('title')).toBe(false);
   }
@@ -520,12 +520,10 @@ it.each([['Formel', 'inlineMath'], ['Formelblock', 'blockMath']])('inserts %s wi
   expect(onError).not.toHaveBeenCalled();
 });
 
-it.each(MERMAID_TEMPLATES)('inserts the tiny $labelKey template from the separate Mermaid menu', async item => {
+it.each(MERMAID_TEMPLATES)('inserts the tiny $labelKey template from the diagrams menu', async item => {
   const { editor, element, onError } = await mount();
-  await click(element, 'Mermaid');
+  await click(element, 'Diagramme');
   expect(element.querySelector('[data-symbol-group]')).toBeNull();
-  const entries = element.querySelectorAll('[data-editor-dropdown] button');
-  expect(entries).toHaveLength(MERMAID_TEMPLATES.length);
   const entry = button(element, item.labelKey);
   expect(entry.querySelector('code')).toBeNull();
   expect(entry.textContent).toBe(t(item.labelKey));
@@ -578,19 +576,22 @@ it.each(['06917320 2564', '+49 (30) 1234_5678', 'mailto:kolja@solimma.de', 'kolj
   expect(editor.state.doc.firstChild!.firstChild!.type.name).toBe('targetLiteral');
 });
 
-it.each([false, true].flatMap(loaded => ['06917320 2564', 'person+tag@example.org', '"mail # ? % /"@example.org'].map(value => ({ loaded, value }))))('first Backspace removes source formatting, then one character (loaded=$loaded, $value)', async ({ loaded, value }) => {
+it.each([false, true])('recognizes a number again after Backspace temporarily invalidates it (loaded=%s)', async loaded => {
+  const value = '12345678';
   const { editor, element } = await mount(loaded ? value : '');
+  const target = () => element.querySelector('[data-source-drag]')?.getAttribute('data-target-value');
   act(() => { if (!loaded) type(editor, value); editor.commands.setTextSelection(editor.state.doc.content.size - 1); });
-  act(() => editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true })));
-  expect(editor.state.doc.textContent).toBe(value);
-  expect(element.querySelector('[data-source-drag]')).toBeNull();
+  expect(target()).toBe('tel:12345678');
   act(() => {
     editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }));
     // jsdom has no native contenteditable delete default action.
     if (editor.state.doc.textContent === value) editor.view.dispatch(editor.state.tr.delete(editor.state.selection.from - 1, editor.state.selection.from));
   });
-  expect(editor.state.doc.textContent).toBe(value.slice(0, -1));
-  expect(element.querySelector('[data-source-drag]')).toBeNull();
+  expect(editor.state.doc.textContent).toBe('1234567');
+  expect(target()).toBeUndefined();
+  act(() => type(editor, '9'));
+  expect(editor.state.doc.textContent).toBe('12345679');
+  expect(target()).toBe('tel:12345679');
 });
 
 it('retains resolved source widgets when typing shifts paths and repeated URLs', async () => {
@@ -757,4 +758,40 @@ it('parses VS Code clipboard lines as Markdown while preserving line breaks and 
   expect(element.querySelector('h1')?.textContent).toBe('Heading');
   expect(element.querySelector('[data-alert=TIP]')?.textContent).toContain('Keep this');
   expect(editor.state.doc.lastChild?.textContent).toBe('graph LR\n    A --> B');
+});
+
+
+it('keeps the destination when typing over a complete Markdown link label', async () => {
+  const { editor, element } = await mount('[Handbuch](https://example.org/guide)');
+  act(() => {
+    editor.commands.setTextSelection({ from: 1, to: 9 });
+    type(editor, 'Dokumentation');
+  });
+  const anchor = element.querySelector('a[href]')!;
+  expect(anchor.textContent).toBe('Dokumentation');
+  expect(anchor.getAttribute('href')).toBe('https://example.org/guide');
+  expect(editor.state.doc.textContent).toBe('Dokumentation');
+});
+
+
+it.each([1, 6])('keeps typing at link boundary %s inside the label and exits with double space', async pos => {
+  const { editor } = await mount('[Label](https://example.org)');
+  await act(async () => { editor.commands.setTextSelection(pos); type(editor, 'X'); });
+  expect(editor.state.doc.firstChild!.firstChild!.marks.some(mark => mark.type.name === 'link')).toBe(true);
+  expect(editor.state.doc.firstChild!.firstChild!.text).toBe(pos === 1 ? 'XLabel' : 'LabelX');
+  await act(async () => type(editor, '  prose'));
+  expect(editor.state.doc.textContent).toBe(pos === 1 ? 'X proseLabel' : 'LabelX prose');
+  const textNodes: { text: string; linked: boolean }[] = [];
+  editor.state.doc.descendants(node => { if (node.isText) textNodes.push({ text: node.text!, linked: node.marks.some(mark => mark.type.name === 'link') }); });
+  expect(textNodes.some(node => node.text === ' prose' && !node.linked)).toBe(true);
+});
+
+it.each([[1, 'ArrowLeft'], [6, 'ArrowRight']] as const)('leaves the label at %s using %s', async (pos, key) => {
+  const { editor } = await mount('[Label](https://example.org)');
+  await act(async () => {
+    editor.commands.setTextSelection(pos);
+    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+    type(editor, 'outside');
+  });
+  expect(editor.getMarkdown()).toBe(pos === 1 ? 'outside[Label](https://example.org)' : '[Label](https://example.org)outside');
 });

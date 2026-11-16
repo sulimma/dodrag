@@ -15,10 +15,13 @@ import { InputRule } from '@tiptap/core';
 import { DOMParser, DOMSerializer, Slice, type Fragment, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { EditorState, NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { closeHistory } from '@tiptap/pm/history';
+import { eventBridge } from '../../bridge/eventBridge';
 import { t, useLanguage } from '../../i18n';
-import { MermaidBlockView } from './MermaidBlockView';
+import { DiagramBlockView, placeDiagramCaret } from './DiagramBlockView';
+import { isDiagramLanguage, renderDiagram } from './diagramRendering';
 import { DescriptionToolbar } from './DescriptionToolbar';
-import { PathAndUrlExtension } from './PathAndUrlExtension';
+import { PathAndUrlExtension, sourceAtElement } from './PathAndUrlExtension';
+import { editTarget, insertLinkLabel, TargetEditing, targetEditLabel, targetAsLabel, useTargetAsLabel } from './TargetEditing';
 import { LocalImage } from './LocalImage';
 import { EMOTICON_SHAPE_VARIANTS, MarkdownFeatures, markdownFeaturesCSS } from './MarkdownFeatures';
 import { hasMarkdownFormatting, isMarkdownPath, readMarkdownSources } from './markdownImport';
@@ -51,7 +54,12 @@ export function markdownStorage(editor: Editor): {
 } } }; }
 
 const editorCSS = `.dodrag-description p{margin:.4em 0}.dodrag-description h1{font-size:1.5em;font-weight:700}.dodrag-description h2{font-size:1.25em;font-weight:700}.dodrag-description h3{font-weight:700}.dodrag-description ul{list-style:disc;padding-left:1.4em}.dodrag-description ol{list-style:decimal;padding-left:1.4em}.dodrag-description ul[data-type=taskList]{list-style:none;padding-left:0}.dodrag-description li[data-type=taskItem]{display:flex;gap:.5em;align-items:baseline}.dodrag-description li[data-type=taskItem]>label{display:inline-flex;align-items:center;flex:0 0 auto;margin:0;padding:0}.dodrag-description li[data-type=taskItem]>label>span{display:inline-block}.dodrag-description li[data-type=taskItem]>div{flex:1;min-width:0}.dodrag-description li[data-type=taskItem]>div>p{margin:0}.dodrag-description blockquote{border-left:3px solid #cbd5e1;padding-left:.75em}.dodrag-description pre{padding:.5em;background:#f1f5f9;border-radius:.4em;white-space:pre-wrap}.dodrag-description code{font-family:monospace}.dodrag-description table{border-collapse:collapse;width:100%}.dodrag-description td,.dodrag-description th{border:1px solid #cbd5e1;padding:.35em}.dodrag-description th{background:#f1f5f9}
-.dodrag-description .mermaid-block{margin:0}.dodrag-description .mermaid-insert{display:block;width:100%;height:8px;padding:0;cursor:text;border:0;background:transparent;position:relative}.dodrag-description .mermaid-insert:hover:after,.dodrag-description .mermaid-insert:focus-visible:after{content:"";position:absolute;left:0;right:0;top:3px;border-top:2px solid #0284c7}.dodrag-description [data-mermaid-selected]>.mermaid-body{outline:2px solid #0284c7}.dodrag-description .ProseMirror-gapcursor{display:none;pointer-events:none;position:absolute}.dodrag-description .ProseMirror-gapcursor:after{content:"";display:block;position:absolute;top:-2px;width:20px;border-top:2px solid #0284c7;animation:dodrag-gapcursor 1s steps(2,start) infinite}.dodrag-description.ProseMirror-focused .ProseMirror-gapcursor{display:block}@keyframes dodrag-gapcursor{to{visibility:hidden}}`;
+.dodrag-description a[href]{color:#0369a1;text-decoration:underline;cursor:text}.dodrag-description .dodrag-target-hidden{display:none}.dodrag-description .dodrag-target-input{max-width:100%;color:#6d28d9;background:#f5f3ff;border-radius:3px;outline:1px solid #8b5cf6;padding:0 3px;cursor:text}.dodrag-description .dodrag-target-input[aria-invalid=true]{outline-color:#b91c1c}
+.dodrag-description .diagram-block{margin:0}.dodrag-description .diagram-insert{display:block;width:100%;height:8px;padding:0;cursor:text;border:0;background:transparent;position:relative}.dodrag-description .diagram-insert:hover:after,.dodrag-description .diagram-insert:focus-visible:after{content:"";position:absolute;left:0;right:0;top:3px;border-top:2px solid #0284c7}.dodrag-description [data-diagram-selected]>.diagram-body{outline:2px solid #0284c7}.dodrag-description .ProseMirror-gapcursor{display:none;pointer-events:none;position:absolute}.dodrag-description .ProseMirror-gapcursor:after{content:"";display:block;position:absolute;top:-2px;width:20px;border-top:2px solid #0284c7;animation:dodrag-gapcursor 1s steps(2,start) infinite}.dodrag-description.ProseMirror-focused .ProseMirror-gapcursor{display:block}@keyframes dodrag-gapcursor{to{visibility:hidden}}`;
+
+function isDiagram(node: ProseMirrorNode | null | undefined): node is ProseMirrorNode {
+  return node?.type.name === 'codeBlock' && isDiagramLanguage(node.attrs.language);
+}
 
 const MarkdownTaskItem = TaskItem.extend({
   addInputRules() {
@@ -87,11 +95,11 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
       // The Markdown parser emits both marks; Code's default excludes all other
       // marks and makes these valid documents fail schema validation on import.
       Code.extend({ excludes: '' }),
-      CodeBlock.extend({ addNodeView() { return ReactNodeViewRenderer(MermaidBlockView); } }),
+      CodeBlock.extend({ addNodeView() { return ReactNodeViewRenderer(DiagramBlockView); } }),
       TaskList, MarkdownTaskItem.configure({ nested: true, HTMLAttributes: { 'data-type': 'taskItem' }, a11y: { checkboxLabel: () => t('Checkliste ein-/ausschalten') } }),
       MarkdownLink.configure({ openOnClick: false, autolink: false, linkOnPaste: false, protocols: ['http', 'https', 'mailto', 'sip', 'tel'] }),
       LocalImage.configure({ getTaskId: () => callbacks.current.taskId }), Table, TableRow, TableHeader, TableCell,
-      PathAndUrlExtension.configure({ getTaskId: () => callbacks.current.taskId }),
+      PathAndUrlExtension.configure({ getTaskId: () => callbacks.current.taskId }), TargetEditing,
       ...MarkdownFeatures,
       Markdown, SymbolReplacements],
     content: props.description,
@@ -188,9 +196,39 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
           event.preventDefault(); return true;
         },
       },
+      handleClick: (view, pos, event) => {
+        if (!view.editable || event.button !== 0 || event.target !== view.dom) return false;
+        const $pos = view.state.doc.resolve(pos);
+        let diagram: ProseMirrorNode, start: number;
+        if (isDiagram($pos.parent)) { diagram = $pos.parent; start = $pos.before(); }
+        else if (isDiagram($pos.nodeBefore)) { diagram = $pos.nodeBefore; start = $pos.pos - diagram.nodeSize; }
+        else if (isDiagram($pos.nodeAfter)) { diagram = $pos.nodeAfter; start = $pos.pos; }
+        else return false;
+        const dom = view.nodeDOM(start);
+        const block = dom instanceof Element ? dom.querySelector('[data-diagram-block]') : null;
+        if (!block || block.hasAttribute('data-diagram-editing')) return false;
+        // A click in the editor's trailing whitespace can resolve into hidden code.
+        const before = event.clientY < block.getBoundingClientRect().top;
+        return placeDiagramCaret(view, before ? start : start + diagram.nodeSize, before);
+      },
       handleKeyDown: (view, event) => {
+        const { selection, doc } = view.state;
+        if (selection instanceof NodeSelection && isDiagram(selection.node) &&
+            !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
+          const direction = ['ArrowUp', 'ArrowLeft'].includes(event.key) ? -1
+            : ['ArrowDown', 'ArrowRight'].includes(event.key) ? 1 : 0;
+          if (direction) {
+            const $boundary = doc.resolve(direction < 0 ? selection.from : selection.to);
+            const adjacent = direction < 0 ? $boundary.nodeBefore : $boundary.nodeAfter;
+            if (adjacent?.isTextblock && !isDiagram(adjacent)) {
+              view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, $boundary.pos + direction)).scrollIntoView());
+              return true;
+            }
+            return placeDiagramCaret(view, $boundary.pos, direction < 0);
+          }
+        }
         if (event.key !== 'Escape') return false;
-        if (event.target instanceof Element && event.target.closest('[data-mermaid-editing]')) return false;
+        if (event.target instanceof Element && event.target.closest('[data-diagram-editing]')) return false;
         event.preventDefault(); callbacks.current.onCommit?.(); view.dom.blur(); callbacks.current.onEscape(); return true;
       },
     },
@@ -253,12 +291,23 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
   }), [editor]);
   const contextMenu = (event: React.MouseEvent<HTMLDivElement>, captureOnly = false) => {
     if (!editor) return;
+    if (event.target instanceof Element && event.target.closest('.dodrag-target-input')) {
+      if (!captureOnly) event.stopPropagation();
+      return;
+    }
     const target = targetFromElement(event.target);
+    const range = !captureOnly && target ? sourceAtElement(editor.view, event.target, target) : undefined;
     const session = taskSession.current;
     const taskId = props.taskId;
     const revision = documentRevision.current;
     const doc = editor.state.doc;
     const selection = editor.state.selection;
+    const diagramCode = event.target instanceof Element
+      ? event.target.closest('[data-diagram-block]')?.querySelector('code') : null;
+    const diagram = diagramCode
+      ? doc.resolve(editor.view.posAtDOM(diagramCode, 0)).parent
+      : event.target === editor.view.dom && selection instanceof NodeSelection ? selection.node : null;
+    const diagramLanguage: unknown = diagram?.type.name === 'codeBlock' ? diagram.attrs.language : null;
     const emoticon = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-emoticon]') : null;
     const shapes: { pos: number; node: ProseMirrorNode; variants: typeof EMOTICON_SHAPE_VARIANTS.star }[] = [];
     const addShape = (node: ProseMirrorNode | null, pos: number) => {
@@ -302,6 +351,29 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
         }
         return;
       }
+      if (diagram && ['diagram:edit', 'diagram:delete'].includes(action)) {
+        if (revision !== documentRevision.current || editor.state.doc !== doc || callbacks.current.active === false) return;
+        const pos = diagramCode ? doc.resolve(editor.view.posAtDOM(diagramCode, 0)).before() : selection.from;
+        const host = diagramCode?.closest('[data-diagram-block]') ??
+          (editor.view.nodeDOM(pos) as Element | null)?.querySelector('[data-diagram-block]');
+        if (action === 'diagram:edit') host?.dispatchEvent(new Event('diagram:edit'));
+        else editor.chain().focus().deleteRange({ from: pos, to: pos + diagram.nodeSize }).run();
+        return;
+      }
+      if (action === 'diagram:save-svg' && diagram && isDiagramLanguage(diagramLanguage)) {
+        if (revision !== documentRevision.current || editor.state.doc !== doc) return;
+        const svg = await renderDiagram(diagramLanguage, diagram.textContent);
+        if (!editor.isDestroyed && callbacks.current.active !== false && session === taskSession.current &&
+            revision === documentRevision.current) await eventBridge.saveDiagramSVG(typeof svg === 'string' ? svg : new XMLSerializer().serializeToString(svg));
+        return;
+      }
+      if (range && ['source:edit', 'source:insert-label', 'source:use-as-label'].includes(action)) {
+        if (revision !== documentRevision.current || editor.state.doc !== doc || callbacks.current.active === false) return;
+        if (action === 'source:edit') editTarget(editor.view, range);
+        else if (action === 'source:insert-label') insertLinkLabel(editor.view, range);
+        else useTargetAsLabel(editor.view, range);
+        return;
+      }
       if (target && action === 'source:create') { await callbacks.current.onCreateSourceTask?.(target); return; }
       if (target && ['url:open', 'path:explorer', 'path:vscode'].includes(action)) { await openTarget(target, action); return; }
       const { from, to } = editor.state.selection;
@@ -343,6 +415,19 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
       : target ? targetMenuItems(target, !!props.onCreateSourceTask) : [{ id: 'editor:cut', label: t('Ausschneiden'), shortcut: 'Ctrl+X', disabled: editor.state.selection.empty },
       { id: 'editor:copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: editor.state.selection.empty },
       { id: 'editor:paste', label: t('Einfügen'), shortcut: 'Ctrl+V', disabled: false }];
+    if (target && !shapes.length) {
+      items.unshift({ id: 'source:destination', label: target.value, disabled: true });
+      if (range && props.active !== false) {
+        if (range.mark || range.image) items.push({ id: 'source:edit', label: targetEditLabel(target), disabled: false });
+        if (!range.image) items.push(range.mark
+          ? { id: 'source:use-as-label', label: targetAsLabel(range), disabled: false }
+          : { id: 'source:insert-label', label: t('Linktext einfügen'), disabled: false });
+      }
+    }
+    if (isDiagramLanguage(diagramLanguage)) items.push(
+      { id: 'diagram:edit', label: t('bearbeiten'), disabled: props.active === false },
+      { id: 'diagram:delete', label: t('löschen'), disabled: props.active === false },
+      { id: 'diagram:save-svg', label: t('SVG speichern'), disabled: false });
     props.onContextMenu(event, { target, items, execute: async action => {
       if (editor.isDestroyed || session !== taskSession.current || taskId !== callbacks.current.taskId || !items.some(item => item.id === action && !item.disabled)) return;
       try { await clipboardAction(action); } catch (error) { callbacks.current.onError(error); }
@@ -351,7 +436,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
   const copySelectedDiagram = (event: React.ClipboardEvent<HTMLDivElement>) => {
     if (!editor || event.target instanceof Element && event.target.closest('input,textarea')) return;
     const selection = editor.state.selection;
-    if (!(selection instanceof NodeSelection) || selection.node.type.name !== 'codeBlock' || selection.node.attrs.language !== 'mermaid') return;
+    if (!(selection instanceof NodeSelection) || selection.node.type.name !== 'codeBlock' || !isDiagramLanguage(selection.node.attrs.language)) return;
     // Native copy may target a NodeView button and bypass ProseMirror's handler.
     // Serialize the model selection, never the preview DOM or its controls.
     try {
@@ -371,11 +456,9 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
       const next = event.relatedTarget as Node | null;
       if (next && !event.currentTarget.contains(next) && !props.historyTarget?.contains(next)) props.onCommit?.();
     }}
-    onContextMenuCapture={event => contextMenu(event, true)} onContextMenu={event => contextMenu(event)} onClick={event => {
-      if (event.target instanceof Element && event.target.closest('a[href]')) event.preventDefault();
-      const target = targetFromElement(event.target);
-      if (target) { event.preventDefault(); event.stopPropagation(); void openTarget(target).catch(props.onError); }
-    }}>
+    onContextMenuCapture={event => contextMenu(event, true)} onContextMenu={event => contextMenu(event)}
+    onClick={event => { if (event.target instanceof Element && event.target.closest('a[href]')) event.preventDefault(); }}
+    onAuxClick={event => { if (event.target instanceof Element && event.target.closest('a[href]')) event.preventDefault(); }}>
     <style>{editorCSS + markdownFeaturesCSS}</style>
     <DescriptionToolbar editor={editor} onError={props.onError} historyTarget={props.historyTarget} />
     <EditorContent editor={editor} className="flex-1 min-h-0 overflow-y-auto p-3" />

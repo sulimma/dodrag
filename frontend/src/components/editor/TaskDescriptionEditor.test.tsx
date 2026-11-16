@@ -8,6 +8,7 @@ import { getLanguage, setLanguage, supportedLanguages, t } from '../../i18n';
 import { EMOTICON_GROUPS, EMOTICON_SHAPE_VARIANTS } from './MarkdownFeatures';
 import type { Editor } from '@tiptap/react';
 import { SOURCE_MIME } from './targets';
+import { eventBridge } from '../../bridge/eventBridge';
 import { appendTaskSources } from '../../domain/taskSources';
 
 vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -46,7 +47,7 @@ it('roundtrips checklists, raw Windows paths, local markdown images and exposes 
   const menu = onContextMenu.mock.lastCall?.[1] as EditorContextMenu;
   expect(menu.target).toEqual({ kind: 'path', value: 'G:\\Meine Ablage\\picture.svg' });
   expect(menu.items.map(item => item.id)).toContain('path:vscode');
-  expect(menu.items.map(item => item.id)).toEqual(['path:explorer', 'path:vscode']);
+  expect(menu.items.map(item => item.id)).toEqual(['source:destination', 'path:explorer', 'path:vscode', 'source:insert-label']);
   await menu.execute('editor:insertMermaid');
   expect(element.querySelector('pre')).toBeNull();
   act(() => element.querySelector('.tiptap')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
@@ -107,7 +108,7 @@ it('offers only URL actions on URLs and only editor actions on ordinary content'
     await act(async () => root.render(<TaskDescriptionEditor taskId="t1" description="[website](https://example.com)"
       onChange={vi.fn()} onEscape={vi.fn()} onError={vi.fn()} onContextMenu={onContextMenu} />));
     act(() => element.querySelector('a')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
-    expect((onContextMenu.mock.lastCall![1] as EditorContextMenu).items.map(item => item.id)).toEqual(['url:open']);
+    expect((onContextMenu.mock.lastCall![1] as EditorContextMenu).items.map(item => item.id)).toEqual(['source:destination', 'url:open', 'source:edit', 'source:use-as-label']);
     act(() => element.querySelector('.tiptap')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
     expect((onContextMenu.mock.lastCall![1] as EditorContextMenu).items.map(item => item.id)).toEqual([
       'editor:cut', 'editor:copy', 'editor:paste',
@@ -315,8 +316,8 @@ it('roundtrips communication sources, decorates Markdown links and exposes the o
     for (const value of ['mailto:person@example.org', 'sip:person@example.org', 'tel:+493012345678']) expect(dom.editor.getMarkdown()).toContain(value);
     act(() => element.querySelector('a')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
     const menu = onContextMenu.mock.lastCall![1] as EditorContextMenu;
-    expect(menu.items.map(item => item.id)).toEqual(['url:open', 'source:create']);
-    expect(menu.items[0].label).toContain('📧');
+    expect(menu.items.map(item => item.id)).toEqual(['source:destination', 'url:open', 'source:create', 'source:edit', 'source:use-as-label']);
+    expect(menu.items.find(item => item.id === 'url:open')?.label).toContain('📧');
     await act(async () => menu.execute('source:create'));
     expect(onCreateSourceTask).toHaveBeenCalledOnce();
     expect(onCreateSourceTask).toHaveBeenCalledWith({ kind: 'url', value: 'mailto:person@example.org' });
@@ -396,7 +397,7 @@ it('reuses the editor across tasks while resetting undo, acknowledgements and im
 });
 
 
-it('recognizes slash-drive paths and refreshes their full target after deleting the leading slash', async () => {
+it('updates automatically detected slash-drive paths when the text is edited', async () => {
   const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
   const path = '/G:/Meine Ablage/Heizung/Anbietervergleich.pdf';
   const destination = 'G:\\Meine Ablage\\Heizung\\Anbietervergleich.pdf';
@@ -412,5 +413,145 @@ it('recognizes slash-drive paths and refreshes their full target after deleting 
     await act(async () => editor.view.dispatch(editor.state.tr.delete(slash, slash + 1)));
     expect(editor.state.doc.textContent).toBe(path.slice(1));
     expect(element.querySelector('[data-target-kind="path"][data-target-value]')?.getAttribute('data-target-value')).toBe(destination);
+  } finally { act(() => root.unmount()); element.remove(); }
+});
+
+
+const showMenu = (element: Element, menu: ReturnType<typeof vi.fn>) => {
+  act(() => element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  return menu.mock.lastCall![1] as EditorContextMenu;
+};
+
+it('opens a URL only from its menu and edits the destination independently of the label', async () => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onChange = vi.fn(), onError = vi.fn();
+  const open = vi.spyOn(eventBridge, 'openExternalURL').mockResolvedValue(undefined);
+  const original = 'https://example.org/alt?q=1&b=2';
+  const next = 'https://example.org/neu(a)';
+  const render = (taskId: string, description: string) => <TaskDescriptionEditor taskId={taskId} description={description}
+    onChange={onChange} onEscape={vi.fn()} onError={onError} onContextMenu={onContextMenu} />;
+  try {
+    await act(async () => root.render(render('task', 'Vor [**Handbuch**](' + original + ' "PDF") danach.')));
+    const anchor = () => element.querySelector('a[href]')!;
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    act(() => anchor().querySelector('strong')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+    expect(open).not.toHaveBeenCalled();
+    const menu = showMenu(anchor().querySelector('strong')!, onContextMenu);
+    expect(menu.items).toContainEqual({ id: 'source:destination', label: original, disabled: true });
+    await act(async () => menu.execute('url:open'));
+    expect(open).toHaveBeenLastCalledWith(original);
+    await act(async () => menu.execute('source:edit'));
+    const input = document.activeElement as HTMLInputElement;
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    expect(input.value).toBe(original);
+    input.value = next;
+    act(() => input.dispatchEvent(new Event('input', { bubbles: true })));
+    expect(onChange).not.toHaveBeenCalled();
+    act(() => dom.focus());
+    expect(input.isConnected).toBe(false);
+    expect(anchor().textContent).toBe('Handbuch');
+    expect(anchor().getAttribute('href')).toBe(next);
+    expect(anchor().getAttribute('title')).toBe('PDF');
+    expect(anchor().querySelector('strong')).not.toBeNull();
+    expect(onChange).toHaveBeenCalledOnce();
+    act(() => dom.editor.commands.undo());
+    expect(anchor().getAttribute('href')).toBe(original);
+    act(() => dom.editor.commands.redo());
+    expect(anchor().getAttribute('href')).toBe(next);
+    await act(async () => showMenu(anchor(), onContextMenu).execute('source:use-as-label'));
+    const bare = () => element.querySelector<HTMLElement>('.dodrag-editor-target')!;
+    expect(anchor()).toBeNull();
+    expect(bare().textContent).toBe(next);
+    const saved = dom.editor.getMarkdown();
+    await act(async () => root.render(render('reopened', saved)));
+    expect(bare().textContent).toBe(next);
+    const bareMenu = showMenu(bare(), onContextMenu);
+    expect(bareMenu.target?.value).toBe(next);
+    expect(bareMenu.items.some(item => item.id === 'source:insert-label')).toBe(true);
+    expect(bareMenu.items.some(item => item.id === 'source:use-as-label')).toBe(false);
+    expect(onError).not.toHaveBeenCalled();
+  } finally { open.mockRestore(); act(() => root.unmount()); element.remove(); }
+});
+
+it.each([
+  ['"G:\\Ablage\\alt.txt"', 'G:\\Neue Ablage\\neu (1).txt', 'Verzeichnis alt.txt', 'Pfad bearbeiten', 'path:explorer'],
+  ['+49 (30) 1234_5678', 'tel:+493087654321', 'Telefon ...678', 'Telefonnummer bearbeiten', 'url:open'],
+  ['mail@example.org', 'mailto:neu@example.org', 'mail@example.org', 'E-Mail-Adresse bearbeiten', 'url:open'],
+  ['https://www.demo.co.uk/alt', 'https://www.demo.co.uk/neu.', 'demo', 'URL bearbeiten', 'url:open'],
+])('inserts a suggested label, keeps it when editing the target and returns to the bare target: %s', async (source, next, label, action, openAction) => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onChange = vi.fn(), onError = vi.fn();
+  const open = vi.spyOn(eventBridge, openAction === 'url:open' ? 'openExternalURL' : 'openPathInExplorer').mockResolvedValue(undefined);
+  const render = (taskId: string, description: string) => <TaskDescriptionEditor taskId={taskId} description={description}
+    onChange={onChange} onEscape={vi.fn()} onError={onError} onContextMenu={onContextMenu} />;
+  try {
+    await act(async () => root.render(render('first', source)));
+    const bareMenu = showMenu(element.querySelector('[data-source-drag]')!, onContextMenu);
+    expect(bareMenu.items).toContainEqual({ id: 'source:insert-label', label: t('Linktext einfügen'), disabled: false });
+    expect(bareMenu.items.some(item => item.id === 'source:use-as-label')).toBe(false);
+    await act(async () => bareMenu.execute('source:insert-label'));
+    expect(element.querySelector('a')?.textContent).toBe(label);
+    const dom = element.querySelector('.tiptap') as HTMLElement & { editor: Editor };
+    expect(dom.editor.state.doc.textBetween(dom.editor.state.selection.from, dom.editor.state.selection.to)).toBe(label);
+    const menu = showMenu(element.querySelector('a')!, onContextMenu);
+    expect(menu.target).toEqual(bareMenu.target);
+    expect(menu.items.some(item => item.id === 'source:insert-label')).toBe(false);
+    expect(menu.items.some(item => item.id === 'source:use-as-label')).toBe(true);
+    expect(menu.items).toContainEqual({ id: 'source:edit', label: t(action), disabled: false });
+    await act(async () => menu.execute('source:edit'));
+    const input = document.activeElement as HTMLInputElement;
+    act(() => {
+      input.value = next;
+      input.setSelectionRange(next.length, next.length);
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    });
+    expect(input.isConnected).toBe(false);
+    const anchor = () => element.querySelector('a[href]')!;
+    expect(anchor().textContent).toBe(label);
+    expect(anchor().getAttribute('href')).toBe(next);
+    const saved = onChange.mock.lastCall![0];
+    await act(async () => root.render(render('second', saved)));
+    expect(anchor().textContent).toBe(label);
+    expect(anchor().getAttribute('href')).toBe(next);
+    await act(async () => showMenu(anchor(), onContextMenu).execute(openAction));
+    expect(open).toHaveBeenCalledWith(next);
+    await act(async () => showMenu(anchor(), onContextMenu).execute('source:use-as-label'));
+    expect(anchor()).toBeNull();
+    const restored = dom.editor.getMarkdown();
+    await act(async () => root.render(render('third', restored)));
+    const bare = element.querySelector('.dodrag-editor-target')!;
+    expect(showMenu(bare, onContextMenu).target?.value).toBe(next);
+    expect(onError).not.toHaveBeenCalled();
+  } finally { open.mockRestore(); act(() => root.unmount()); element.remove(); }
+});
+
+it('leaves a source unchanged when its edit is cancelled or the draft destination is invalid', async () => {
+  const element = document.createElement('div'); document.body.append(element); const root = createRoot(element);
+  const onContextMenu = vi.fn(), onChange = vi.fn();
+  const href = 'https://example.org';
+  try {
+    await act(async () => root.render(<TaskDescriptionEditor taskId="task" description={'[Link](' + href + ')'}
+      onChange={onChange} onEscape={vi.fn()} onError={vi.fn()} onContextMenu={onContextMenu} />));
+    const open = async () => {
+      const menu = showMenu(element.querySelector('a')!, onContextMenu);
+      await act(async () => menu.execute('source:edit'));
+      return document.activeElement as HTMLInputElement;
+    };
+    const first = await open();
+    act(() => {
+      first.value = 'https://example.org/other';
+      first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(first.isConnected).toBe(false);
+    const second = await open();
+    act(() => {
+      second.value = 'https:/';
+      second.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(second.getAttribute('aria-invalid')).toBe('true');
+    act(() => element.querySelector<HTMLElement>('.tiptap')!.focus());
+    expect(second.isConnected).toBe(false);
+    expect(element.querySelector('a')!.getAttribute('href')).toBe(href);
+    expect(onChange).not.toHaveBeenCalled();
   } finally { act(() => root.unmount()); element.remove(); }
 });
