@@ -1,3 +1,9 @@
+import { selectionActionIds } from './domain/selection';
+import { openTarget } from './components/editor/contextMenu';
+import { contextMenuAnchor } from './hooks/keyboardNavigation';
+import { useProjects } from './hooks/useProjects';
+import { newTaskMemberships, projectProgress } from './domain/projects';
+import { DeleteProjectDialog, ProjectContext, ProjectList, ProjectDetails } from './components/Projects';
 import { useTimeMarkers } from './hooks/useTimeMarkers';
 import { allowWindowPaint, useWindowPresentation } from './hooks/useWindowPresentation';
 import { flushSync } from 'react-dom';
@@ -15,7 +21,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { AppTitleBar } from './components/AppTitleBar';
 import { AppToolbar, type ViewMode } from './components/AppToolbar';
 import { TaskSidebar } from './components/TaskSidebar';
-import { TaskContextMenu } from './components/TaskContextMenu';
+import { projectMenuSources, TaskContextMenu } from './components/TaskContextMenu';
 import { TaskDetailPanel } from './components/TaskDetailPanel';
 import type { InlineEditor } from './components/inlineEditor';
 import { ShortcutHelp, type HelpPage } from './components/ShortcutHelp';
@@ -54,7 +60,11 @@ export function App() {
   const [viewMode, updateViewMode] = useState<ViewMode>('list');
   const [lastMovedKey, setLastMovedKey] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [retainedTaskId, retainTask] = useState<string | null>(null);
+  const [projectDetailId, setProjectDetailId] = useState<string | null>(null);
   const [filterEnabled, setFilterEnabled] = useState(false);
+  const [successorOf, setSuccessorOf] = useState<string | null>(null);
   const pendingSource = useRef<EditorTarget | null>(null);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [helpPage, setHelpPage] = useState<HelpPage>('shortcuts');
@@ -97,6 +107,7 @@ export function App() {
   const listScrollRef = isMiniMode ? miniScrollRef : mainScrollRef;
   const newTaskInputRef = isMiniMode ? miniInputRef : mainInputRef;
   // Frozen drag members/database remain available until drop callbacks consume them.
+  const projectDrag = useRef<{ database: string; origin: string; ids: string[] } | null>(null);
   const dragIdentity = useRef<DragIdentity | null>(null);
   const { toasts, pushToast } = useToasts();
   // Compact actions have their own selection; minimizing must preserve main details.
@@ -108,6 +119,10 @@ export function App() {
   const database = useDatabaseSnapshot(pushToast, dragIdentity, () => {
     editors.cancelEdit();
     timeMarkers.reset();
+    projects.reset();
+    setSuccessorOf(null);
+    setDeleteId(null); retainTask(null);
+    setProjectDetailId(null);
     setNewTaskTitle('');
     setFilterEnabled(false);
     pendingSource.current = null;
@@ -126,12 +141,32 @@ export function App() {
     loadSnapshot,
     changeDatabase,
   } = database;
+  const projects = useProjects(database);
   const descriptions = useDescriptionDrafts(database);
   const state = useMemo(() => projectEvents(events, now), [events, now, language]);
   const needsProtocol = viewMode === 'protocol' || newTaskTitle.length > 0;
   const protocolDays = useMemo(() => needsProtocol ? projectProtocol(events, state.tasks) : [], [needsProtocol, events, state.tasks]);
-  const matchingIds = useMemo(() => matchingTaskIds(state.tasks, protocolDays, newTaskTitle), [state.tasks, protocolDays, newTaskTitle, language]);
-  const filtering = filterEnabled && newTaskTitle.length > 0;
+  const projectIds = projects.selectedIds;
+  const textFilter = filterEnabled && newTaskTitle.length > 0;
+  const filtering = textFilter || projectIds.length > 0;
+  const matchingIds = useMemo(() => {
+    const ids = matchingTaskIds(state.tasks, protocolDays, textFilter ? newTaskTitle : '');
+    if (projectIds.length) for (const id of ids) {
+      if (!projectIds.some(projectId => projects.members.get(id)?.has(projectId))) ids.delete(id);
+    }
+    return ids;
+  }, [state.tasks, protocolDays, textFilter, newTaskTitle, projects.members, projectIds, language]);
+  useEffect(() => {
+    if (!projectIds.length) return;
+    const isMember = (id: string) => projectIds.some(projectId => projects.members.get(id)?.has(projectId));
+    for (const current of [mainSelection, miniSelection]) {
+      const remaining = current.selectedTaskIds.filter(isMember);
+      if (remaining.length !== current.selectedTaskIds.length) current.setSelectedTaskIds(remaining);
+      if (current.contextMenu && !current.contextMenu.relation && !isMember(current.contextMenu.taskId)) current.setContextMenu(null);
+      if (current.selectedEdgeKeys.some(key => key.split('->').some(id => !isMember(id)))) current.clearEdgeSelection();
+    }
+  }, [projects.members, projectIds, mainSelection.selectedTaskIds, miniSelection.selectedTaskIds,
+    mainSelection.contextMenu, miniSelection.contextMenu, mainSelection.selectedEdgeKeys, miniSelection.selectedEdgeKeys]);
   // Keep the complete task map for actions/details; only view collections shrink.
   const visibleState = useMemo(() => filtering ? { ...state,
     openTasks: state.openTasks.filter(task => matchingIds.has(task.id)),
@@ -148,10 +183,10 @@ export function App() {
   );
   // All destructive boundaries use the same completion contract. A drained
   // queue does not mean a failed inline draft has been saved.
-  finishEditing.current = async () => await descriptions.flushAll() && !editors.hasOpen() && !timeMarkers.hasOpen();
+  finishEditing.current = async () => await projects.flush() && await descriptions.flushAll() && !editors.hasOpen() && !timeMarkers.hasOpen();
   // Preserve the admission rule: a pending inline write rejects a database
   // switch; description saves/imports may finish before switching.
-  editingPending.current = descriptions.hasPending;
+  editingPending.current = () => projects.hasPending() || descriptions.hasPending();
   const scopedEditor = (editor: InlineEditor, owner: 'view' | 'detail'): InlineEditor => ({
     ...editor,
     taskId: editOwner === owner ? editor.taskId : null,
@@ -171,7 +206,7 @@ export function App() {
     dragIdentity,
     setLastMovedKey,
     pushToast,
-    setNow
+    setNow, projectIds
   );
   const timeMarkers = useTimeMarkers(database, state, now, dragIdentity, () => {
     selection.setSelectedTaskId(null); selection.clearEdgeSelection();
@@ -188,29 +223,31 @@ export function App() {
   } = selection;
   const { draggedTaskId, activeDropTargetKey, isAltDrag, setActiveDropTargetKey } = drag;
   useSourceDrop(async (taskId, sources) => {
-    const ids = selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
+    const ids = selectionActionIds(taskId, selectedTaskIds);
     await descriptions.appendSources(ids, sources);
   }, error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning'));
   const historyActions = {
     ...actions,
-    handleUndo: async () => { if (await descriptions.flushAll()) await actions.handleUndo(); },
-    handleRedo: async () => { if (await descriptions.flushAll()) await actions.handleRedo(); },
+    handleUndo: async () => { if (await projects.flush() && await descriptions.flushAll()) await actions.handleUndo(); },
+    handleRedo: async () => { if (await projects.flush() && await descriptions.flushAll()) await actions.handleRedo(); },
   };
   const miniTasks = useMemo(
-    () => computeMiniWindowTasks(state.openTasks, now),
-    [state.openTasks, now]
+    () => computeMiniWindowTasks(projectIds.length ? state.openTasks.filter(task =>
+      projectIds.some(id => projects.members.get(task.id)?.has(id))) : state.openTasks, now),
+    [projectIds, projects.members, state.openTasks, now]
   );
   useGlobalShortcuts({
     selection,
     actions: historyActions,
     state: visibleState,
     onSearch: () => {
+      setSuccessorOf(null);
       if (document.activeElement === mainInputRef.current) setFilterEnabled(value => !value);
       else { setFilterEnabled(true); mainInputRef.current?.focus(); mainInputRef.current?.select(); }
     },
     onResetSearch: () => {
       if (!newTaskTitle && !filterEnabled && document.activeElement !== mainInputRef.current) return false;
-      setNewTaskTitle(''); setFilterEnabled(false); pendingSource.current = null; mainInputRef.current?.blur(); return true;
+      setSuccessorOf(null); setNewTaskTitle(''); setFilterEnabled(false); pendingSource.current = null; mainInputRef.current?.blur(); return true;
     },
     showSettingsModal,
     showShortcutsModal,
@@ -332,18 +369,13 @@ export function App() {
     activeDropTargetKey,
     isAltDrag
   );
-  const handleCreateTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const submittedTitle = newTaskTitle;
-    const trimmed = normalizeTitleInput(submittedTitle).trim();
-    if (!trimmed) return;
-
-    if (mutationBusy.current) return;
+  const createTask = async (title: string, projectIds: string[], source?: EditorTarget | null, predecessorId?: string | null) => {
+    const trimmed = normalizeTitleInput(title).trim();
+    if (!trimmed || mutationBusy.current) return false;
     const taskId = projectEvents(
       confirmedEvents.current,
       new Date()
     ).nextTaskId;
-    const source = pendingSource.current;
     setLastMovedKey(`task:${taskId}`);
     const updated = await mutate(() =>
       eventBridge.appendBatch([
@@ -352,16 +384,29 @@ export function App() {
         } },
         ...((appSettings?.defaultDuration ?? 1) !== 1 || (appSettings?.defaultDurationUnit ?? 'days') !== 'days'
           ? [{ type: 'TASK_TIMING_SET' as const, payload: { taskId, duration: appSettings?.defaultDuration ?? 1, durationUnit: appSettings?.defaultDurationUnit ?? 'days', progress: null } }] : []),
+        ...newTaskMemberships(taskId, projectIds),
+        ...(predecessorId ? [{ type: 'DEPENDENCY_ADDED' as const, payload: { predecessorId, taskId } }] : []),
         ...(source ? [{ type: 'TASK_DESCRIPTION_SET' as const,
           payload: { taskId, description: appendTaskSources('', [source]) } }] : []),
       ])
     );
-    if (!updated) return;
+    if (!updated) return false;
+    setProjectDetailId(null);
+    setSelectedTaskId(taskId);
+    return true;
+  };
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const submittedTitle = newTaskTitle;
+    const source = pendingSource.current;
+    const memberships = successorOf ? [...(projects.members.get(successorOf) ?? [])] : projectIds;
+    if (!await createTask(submittedTitle, memberships, source, successorOf)) return;
+    setSuccessorOf(null);
     if (pendingSource.current === source) pendingSource.current = null;
     setNewTaskTitle((current) => (current === submittedTitle ? '' : current));
-    setSelectedTaskId(taskId);
   };
   const handleCreateSourceTask = (source: EditorTarget) => {
+    setSuccessorOf(null);
     pendingSource.current = source;
     newTaskInputRef.current?.focus();
   };
@@ -370,8 +415,9 @@ export function App() {
   transitionState.current = { showSettingsModal, showShortcutsModal, contextMenu, mainSelection, isDetailPanelOpen };
   const automaticBlocked = () => {
     const current = transitionState.current;
-    return current.showSettingsModal || current.showShortcutsModal || current.contextMenu || nativeDetailMenus.current > 0 ||
-      activeInlineEditor.current || Boolean(document.activeElement?.closest('[data-description-editor],[data-task-log]')) || descriptions.hasDrafts();
+    return document.querySelector('dialog[open]') !== null || current.showSettingsModal || current.showShortcutsModal || current.contextMenu || nativeDetailMenus.current > 0 ||
+      activeInlineEditor.current || Boolean(document.activeElement?.closest('[data-description-editor],[data-task-log]')) || descriptions.hasDrafts() || projects.hasPending() ||
+      Boolean(document.activeElement?.closest('[data-project-details] input, [data-project-list] input'));
   };
   // Queue requests and commit the destination layout before native geometry changes.
   // Failed transitions roll back to the last confirmed mode without blanking the root.
@@ -446,7 +492,7 @@ export function App() {
   const interactions: TaskViewInteractions = {
     selectedTaskId,
     selectedTaskIds,
-    orderedTaskIds: state.listEntries.flatMap(entry => entry.kind === 'task' ? [entry.task.id] : []),
+    orderedTaskIds: visibleState.listEntries.flatMap(entry => entry.kind === 'task' ? [entry.task.id] : []),
     selectedEdgeKeys,
     highlights,
     deletionPreview,
@@ -463,10 +509,17 @@ export function App() {
     onSetConfiguredDate: (id, date, label) => actions.handleSetConfiguredDate(id, date, label, true),
     onToggleActive: actions.handleToggleActive,
   };
+  const projectSources = (taskId: string) => [...(projects.members.get(taskId) ?? [])].flatMap(id =>
+    [projects.projects.get(id)?.description ?? '', ...(projects.logs.get(id) ?? []).map(entry => entry.text)]);
+  const startSuccessor = (id: string) => {
+    setSuccessorOf(id); pendingSource.current = null; setFilterEnabled(false);
+    newTaskInputRef.current?.focus(); newTaskInputRef.current?.select();
+  };
   const taskContextMenu = contextMenu && state.tasks[contextMenu.taskId] && (
     <TaskContextMenu
       contextMenu={contextMenu}
       task={state.tasks[contextMenu.taskId]}
+      projectDescriptions={projectSources(contextMenu.taskId)}
       databaseKey={appSettings?.activeDatabasePath ?? ''}
       onClose={() => setContextMenu(null)}
       onToggleActive={actions.handleToggleActive}
@@ -475,6 +528,7 @@ export function App() {
       onCompleteTask={actions.handleCompleteTask}
       onReopenTask={actions.handleReopenTask}
       onOpenCopy={actions.handleOpenCopy}
+      onCreateSuccessor={startSuccessor}
       onError={(error) => pushToast(errorText(t('Kontextmenü konnte nicht geöffnet werden'), error), 'warning')}
     />
   );
@@ -511,12 +565,114 @@ export function App() {
         <Toasts toasts={toasts} />
       </>
     ) : null;
+  const shownTaskId = mainSelection.selectedTaskId ?? retainedTaskId;
+  const selectProject = (id: string, event?: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }, taskId?: string) => {
+    if (taskId) {
+      projects.selectLabel(taskId, id, !!(event?.ctrlKey || event?.metaKey || event?.shiftKey));
+      return;
+    }
+    if (mainSelection.selectedTaskId && isDetailPanelOpen) retainTask(mainSelection.selectedTaskId);
+    projects.selectProject(id, event);
+  };
+  const showProject = async (id: string) => {
+    const db = database.databaseIdentity.current;
+    if (isMiniMode && !await requestWindowMode('window')) return;
+    if (db !== database.databaseIdentity.current) return;
+    retainTask(null); mainSelection.reset(); setProjectDetailId(id);
+  };
+  const menuProject = async (id: string, event: React.MouseEvent) => {
+    const anchor = contextMenuAnchor(event);
+    const db = database.databaseIdentity.current;
+    const project = projects.drafts.current.get(id) ?? projects.projects.get(id);
+    if (!project) return;
+    nativeDetailMenus.current++;
+    try {
+      const sources = await projectMenuSources([project.description, ...(projects.logs.get(id) ?? []).map(note => note.text)]);
+      if (database.databaseIdentity.current !== db) return;
+      const action = await eventBridge.showTaskContextMenu([
+        { id: 'details', label: t('Details anzeigen'), disabled: false },
+        { id: 'filter', label: t('Nur dieses Projekt anzeigen'), disabled: false },
+        ...sources.items,
+        { id: 'delete', label: t('Projekt löschen'), disabled: false },
+      ], anchor);
+      if (database.databaseIdentity.current !== db) return;
+      if (action === 'details') await showProject(id);
+      else if (action === 'filter') selectProject(id);
+      else if (action === 'delete') {
+        if (isMiniMode && !await requestWindowMode('window')) return;
+        if (database.databaseIdentity.current === db) setDeleteId(id);
+      } else {
+        const target = sources.target(action);
+        if (target) await openTarget(target);
+      }
+    } catch (error) { pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning'); }
+    finally { nativeDetailMenus.current--; }
+  };
+  const projectList = <ProjectList clear={projects.clearProjects} enabled={snapshotReady} reorder={projects.reorder}
+    projects={projects.orderedIds.map(id => projects.projects.get(id)!)}
+    create={async code => { const id = await projects.create(code); if (id) { retainTask(null); mainSelection.reset(); setProjectDetailId(id); } return !!id; }}
+    onTaskDrop={id => {
+      const origin = dragIdentity.current;
+      if (origin && origin.database === database.databaseIdentity.current) projects.assign(origin.taskIds, selectionActionIds(id, projects.selectedIds));
+    }}/>;
+  const detailId = !mainSelection.selectedTaskId ? projectDetailId : null;
+  const detailProject = detailId && (projects.drafts.current.get(detailId) ?? projects.projects.get(detailId));
   const listBackgroundKey = 'list-background';
   const todayKey = toDateKey(now);
   return (
-    <>
+    <ProjectContext.Provider value={{ ...projects, select: selectProject, details: showProject, menu: menuProject }}>
+    {deleteId && projects.projects.has(deleteId) && <DeleteProjectDialog code={projects.projects.get(deleteId)!.code} cancel={() => setDeleteId(null)}
+      confirm={async () => {
+        const db = database.databaseIdentity.current;
+        if (!await projects.flush() || db !== database.databaseIdentity.current) return;
+        if (await mutate(() => eventBridge.deleteProject(db, deleteId))) {
+          if (projectDetailId === deleteId) setProjectDetailId(null);
+          setDeleteId(null);
+        }
+      }}/>}
     {miniSurface}
     <div hidden={isMiniMode} {...{ inert: isMiniMode ? '' : undefined }} style={isMiniMode ? { display: 'none' } : undefined} className="flex flex-col h-screen w-screen bg-slate-100/80 text-slate-800 overflow-hidden"
+      onClickCapture={event => {
+        const hit = event.target as Element;
+        if (hit.closest('main') && !hit.closest('[data-project-task]')) retainTask(null);
+        if (hit.closest('[data-source-task-id]') && !hit.closest('[data-project-task]')) setProjectDetailId(null);
+        if (projects.selectedLabels.length && !(event.target as Element).closest('[data-project-task]')) projects.setSelectedLabels([]);
+      }}
+      onDragStartCapture={event => {
+        const chip = (event.target as Element).closest<HTMLElement>('[data-project-drag]');
+        const id = chip?.dataset.projectDrag;
+        if (!id) return;
+        const taskId = chip.dataset.projectTask;
+        const labels = projects.selectedLabels;
+        const ids = taskId
+          ? labels.some(label => label.taskId === taskId && label.projectId === id)
+            ? [...new Set(labels.map(label => label.projectId))] : [id]
+          : selectionActionIds(id, projects.selectedIds);
+        projectDrag.current = { database: database.databaseIdentity.current, origin: id, ids };
+      }}
+      onDragEndCapture={() => { projectDrag.current = null; }}
+      onDragOverCapture={event => {
+        if ((event.target as Element).closest('[data-project-list]') && !event.dataTransfer?.types?.includes('application/x-dodrag-member')) return;
+        if (event.dataTransfer?.types?.includes('application/x-dodrag-project')) { event.preventDefault(); event.stopPropagation(); }
+      }}
+      onDropCapture={event => {
+        const projectId = event.dataTransfer?.getData?.('application/x-dodrag-project');
+        if (!projectId) return;
+        if ((event.target as Element).closest('[data-project-list]') && !event.dataTransfer.getData('application/x-dodrag-member')) return;
+        event.preventDefault(); event.stopPropagation();
+        const target = event.target as Element;
+        const source = event.dataTransfer.getData('application/x-dodrag-member');
+        if (target.closest('[data-project-list]')) {
+          if (source) projects.remove(source, projectId);
+        } else {
+          const taskId = target.closest<HTMLElement>('[data-source-task-id]')?.dataset.sourceTaskId ??
+            (target.closest('[data-task-detail-panel]') ? shownTaskId : null);
+          const drag = projectDrag.current;
+          if (taskId && drag?.origin === projectId && drag.database === database.databaseIdentity.current) {
+            projects.assign(selectionActionIds(taskId, selectedTaskIds), drag.ids);
+          }
+        }
+      }}
       onDoubleClickCapture={event => {
         if (!(event.target instanceof Element) ||
           event.target.closest('input,textarea,button,a,select,[contenteditable="true"]')) return;
@@ -531,6 +687,7 @@ export function App() {
       <AppTitleBar onWindowMode={mode => { void requestWindowMode(mode); }}
         onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')} />
       <AppToolbar
+        successorOf={successorOf}
         viewMode={viewMode}
         setViewMode={setViewMode}
         nextTaskId={state.nextTaskId}
@@ -543,7 +700,7 @@ export function App() {
         setNewTaskTitle={setNewTaskTitle}
         newTaskInputRef={mainInputRef}
         filterEnabled={filterEnabled}
-        onToggleFilter={() => { setFilterEnabled(value => !value); mainInputRef.current?.focus(); }}
+        onToggleFilter={() => { setSuccessorOf(null); setFilterEnabled(value => !value); mainInputRef.current?.focus(); }}
         onSubmit={event => {
           if (!filterEnabled) { void handleCreateTask(event); return; }
           event.preventDefault();
@@ -558,15 +715,30 @@ export function App() {
         onSettings={database.openSettings}
         onHelp={() => { setHelpPage('shortcuts'); setShowShortcutsModal(true); }}
       />
+      {projectList}
       <div className="flex-1 flex overflow-hidden">
-        <TaskDetailPanel
+        {detailProject ? <ProjectDetails key={detailProject.projectId} project={detailProject}
+          deleteProject={() => setDeleteId(detailProject.projectId)}
+          createTask={title => createTask(title, [...new Set([...projectIds, detailProject.projectId])])}
+          entries={projects.logs.get(detailProject.projectId) ?? []}
+          saveNote={async (entryId, text) => {
+            const result = await mutate(() => eventBridge.appendEvent('PROJECT_NOTE_SET', { projectId: detailProject.projectId, entryId, text }));
+            if (!result) throw new Error(t('Änderung konnte nicht gespeichert werden'));
+          }}
+          progress={projectProgress(Object.values(state.tasks).filter(task => projects.members.get(task.id)?.has(detailProject.projectId)))}
+          active={!isMiniMode} onNativeMenuChange={open => { nativeDetailMenus.current += open ? 1 : -1; }}
+          change={projects.change} flush={() => void projects.flush()} onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')}/>
+          : <TaskDetailPanel
+          tasks={state.tasks}
+          onCreateSuccessor={startSuccessor}
+          projectDescriptions={projectSources(shownTaskId ?? '')}
           active={!isMiniMode}
           onNativeMenuChange={open => { nativeDetailMenus.current += open ? 1 : -1; }}
           open={isDetailPanelOpen}
           onToggle={() => setIsDetailPanelOpen(open => !open)}
           onSyntaxHelp={() => { setHelpPage('syntax'); setShowShortcutsModal(true); }}
           key={appSettings?.activeDatabasePath ?? ''}
-          task={descriptions.taskWithDraft(mainSelection.selectedTaskId ? state.tasks[mainSelection.selectedTaskId] ?? null : null)}
+          task={descriptions.taskWithDraft(shownTaskId ? state.tasks[shownTaskId] ?? null : null)}
           interactions={interactions} titleEditor={scopedEditor(editors.titleEditor, 'detail')} dateEditor={scopedEditor(editors.dateEditor, 'detail')}
           onClose={() => setIsDetailPanelOpen(false)}
           onToggleActive={actions.handleToggleActive}
@@ -576,7 +748,7 @@ export function App() {
             const result = await mutate(() => eventBridge.appendEvent('TASK_TIMING_SET', { taskId, ...timing }));
             if (!result) throw new Error(t('Änderung konnte nicht gespeichert werden'));
           }}
-          descriptionSaveState={mainSelection.selectedTaskId ? descriptions.protectionState(mainSelection.selectedTaskId) : 'saved'}
+          descriptionSaveState={shownTaskId ? descriptions.protectionState(shownTaskId) : 'saved'}
           onDescriptionChange={descriptions.change}
           onDescriptionCommit={taskId => { void descriptions.flush(taskId); }}
           onAddLog={async (taskId, text) => {
@@ -595,7 +767,7 @@ export function App() {
           }}
           onCreateSourceTask={handleCreateSourceTask}
           onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')}
-        />
+        />}
         <div className="relative flex flex-1 min-w-0 overflow-hidden">
           <main
             ref={mainScrollRef}
@@ -633,7 +805,13 @@ export function App() {
               clearEdgeSelection();
             }}
           >
-            {viewMode === 'list' ? (
+            {filtering && (viewMode === 'protocol' ? !visibleProtocol.length : !visibleState.openTasks.length) ? (
+              <div className="mx-auto mt-10 max-w-sm px-4 text-center text-sm text-slate-600">
+                <p role="status">{textFilter ? t('Keine Tasks gefunden.') : t('Keine Tasks für diese Projekte verfügbar.')}</p>
+                {projectIds.length > 0 && <button type="button" className="mt-3 rounded border border-slate-300 bg-white px-3 py-1.5 text-sky-800"
+                  onClick={projects.clearProjects}>{t('Projektfilter aufheben')}</button>}
+              </div>
+            ) : viewMode === 'list' ? (
               <ListView
                 scrollRef={mainScrollRef}
                 {...interactions}
@@ -644,6 +822,7 @@ export function App() {
               />
             ) : viewMode === 'network' ? (
               <NetworkPlanView
+                projectFilterActive={projectIds.length > 0}
                 hideEmptyDates={filtering}
                 scrollRef={mainScrollRef}
                 {...interactions}
@@ -667,6 +846,7 @@ export function App() {
               />
             ) : (
               <GanttView
+                projectFilterActive={projectIds.length > 0}
                 {...interactions}
                 openTasks={visibleState.openTasks}
                 listEntries={visibleState.listEntries}
@@ -736,6 +916,6 @@ export function App() {
       )}
       <Toasts toasts={toasts} />
     </div>
-    </>
+    </ProjectContext.Provider>
   );
 }

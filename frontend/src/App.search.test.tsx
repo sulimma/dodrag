@@ -149,6 +149,7 @@ it('Enter creates outside filter mode and the explicit plus creates inside filte
 it('filters completed tasks and counts matches against the complete completed collection', async () => {
   history.push({ seq: 2, id: 'closed', timestamp: date, undone: false, type: 'TASK_COMPLETED', payload: { taskId, completedAt: date } });
   await mountSearch(); click(filter()); type(omni(), 'missing');
+  expect(list().querySelector('[role="status"]')?.textContent).toBe(t('Keine Tasks gefunden.'));
   const completed = host.querySelector('[data-task-drop-target="completed-list-dropzone"]')!;
   expect(completed.textContent).toContain('0 / 1'); expect(completed.querySelector('[data-completed-task]')).toBeNull();
   type(omni(), 'Alpha'); expect(completed.textContent).toContain('1 / 1');

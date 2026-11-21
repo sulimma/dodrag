@@ -1,3 +1,4 @@
+import { ProjectLabels } from './Projects';
 import { TaskProgressLine } from './TaskProgressLine';
 import React, { useLayoutEffect, useRef } from 'react';
 import { Calendar, CalendarClock, CheckCircle2 } from 'lucide-react';
@@ -232,16 +233,17 @@ export function TaskSidebar({
                   }`}
                 >
                   <TaskProgressLine task={task} />
-                  <div className="truncate min-w-0">
+                  <div className="flex flex-wrap items-center gap-1 min-w-0">
                     <span className="font-mono text-[11px] text-slate-400 mr-1.5">
                       {task.id}
                     </span>
                     <span
                       data-task-selectable-text
-                      className="line-through text-slate-500 cursor-text select-text"
+                      className="min-w-0 max-w-full truncate line-through text-slate-500 cursor-text select-text"
                     >
                       {task.title}
                     </span>
+                    <ProjectLabels taskId={task.id}/>
                   </div>
                 </div>
               </React.Fragment>;

@@ -911,5 +911,62 @@
         "sitelen tenpo pi tenpo suno ale"
       ]
     }
+  },
+  {
+    "id": "term.project",
+    "context": "Gruppe von Tasks mit farbigem Kürzel und gemeinsamer Beschreibung.",
+    "sourceTerms": [
+      "Projekte"
+    ],
+    "keys": [
+      "Projekte"
+    ],
+    "translations": {
+      "de": [
+        "Projekte"
+      ],
+      "en": [
+        "Projects"
+      ],
+      "fr": [
+        "Projets"
+      ],
+      "es": [
+        "Proyectos"
+      ],
+      "it": [
+        "Progetti"
+      ],
+      "pt-BR": [
+        "Projetos"
+      ],
+      "ja": [
+        "プロジェクト"
+      ],
+      "zh-CN": [
+        "项目"
+      ],
+      "zh-TW": [
+        "專案"
+      ],
+      "ko": [
+        "프로젝트"
+      ],
+      "uk": [
+        "Проєкти"
+      ],
+      "pl": [
+        "Projekty"
+      ],
+      "tr": [
+        "Projeler"
+      ],
+      "eo": [
+        "Projektoj"
+      ],
+      "tok": [
+        "kulupu pali"
+      ]
+    }
   }
 ]

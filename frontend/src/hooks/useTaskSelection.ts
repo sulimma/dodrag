@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { ModifierKeys } from '../components/taskInteractions';
 import { contextMenuAnchor } from './keyboardNavigation';
+export interface MenuRelation { id: string; direction: 'predecessor' | 'successor' }
 export interface ContextMenuState {
+  relation?: MenuRelation;
   x: number;
   y: number;
   taskId: string;
@@ -101,12 +103,14 @@ export function useTaskSelection(active = true) {
       : previous.length === 1 && previous[0] === id ? [] : [id]);
     setLastClickedTaskId(id);
   };
-  const onContextMenuTask = (event: React.MouseEvent, id: string) => {
+  const onContextMenuTask = (event: React.MouseEvent, id: string, relation?: MenuRelation) => {
     event.preventDefault();
     event.stopPropagation();
-    clearEdgeSelection();
-    if (!selectedTaskIds.includes(id)) setSelectedTaskId(id);
-    setContextMenu({ x: event.clientX, y: event.clientY, taskId: id, anchor: contextMenuAnchor(event) });
+    if (!relation) {
+      clearEdgeSelection();
+      if (!selectedTaskIds.includes(id)) setSelectedTaskId(id);
+    }
+    setContextMenu({ relation, x: event.clientX, y: event.clientY, taskId: id, anchor: contextMenuAnchor(event) });
   };
   const reset = () => {
     setSelectedTaskId(null);

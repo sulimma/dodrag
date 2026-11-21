@@ -1,4 +1,5 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import { ProjectLabels, ProjectContext } from './Projects';
+import React, { useContext, useLayoutEffect, useRef } from 'react';
 import type { TaskState } from '../domain/types';
 import { inlineTextHandlers, type InlineEditor } from './inlineEditor';
 import { t } from '../i18n';
@@ -6,12 +7,13 @@ import { t } from '../i18n';
 export function TaskTitle({
   task,
   editor,
-  className = '',
+  className = '', showLabels = true,
 }: {
   task: TaskState;
   editor: InlineEditor;
-  className?: string;
+  className?: string; showLabels?: boolean;
 }) {
+  const hasProjects = !!useContext(ProjectContext)?.members.get(task.id)?.size;
   const text = useRef<HTMLSpanElement>(null);
   const editing = editor.taskId === task.id;
   // Synchronize restored drafts before paint so no stale/empty title frame appears.
@@ -31,7 +33,7 @@ export function TaskTitle({
       selection?.addRange(range);
     }
   }, [editing, editor.value, task.title]);
-  return (
+  const title = (
     <span
       ref={text}
       data-task-title
@@ -67,4 +69,5 @@ export function TaskTitle({
       {task.title}
     </span>
   );
+  return showLabels && hasProjects ? <span className="flex min-w-0 items-center gap-1">{title}<ProjectLabels taskId={task.id}/></span> : title;
 }

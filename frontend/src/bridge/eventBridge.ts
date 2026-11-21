@@ -69,6 +69,7 @@ declare global {
           FinishClose: (saved: boolean) => Promise<void>;
           SaveDescriptionDraft?: (database: string, taskId: string, text: string, base: string, session: string, revision: number) => Promise<void>;
           GetEvents: () => Promise<unknown>;
+          DeleteProject?: (database: string, projectId: string) => Promise<unknown>;
           AppendBatch: (commands: Array<EventCommand & { id: string; groupId?: string }>) => Promise<unknown>;
           AppendEvent: (
             id: string,
@@ -161,6 +162,10 @@ export const eventBridge = {
       ...command, groupId, id: `ev-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
     }));
     return normalizeEvents(await nativeMethod('AppendBatch')(identified));
+  },
+
+  async deleteProject(database: string, projectId: string): Promise<StoredEvent[]> {
+    return normalizeEvents(await nativeMethod('DeleteProject')(database, projectId));
   },
 
   async undo(): Promise<StoredEvent[]> {

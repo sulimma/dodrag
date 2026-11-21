@@ -1,3 +1,5 @@
+import { selectionActionIds } from '../domain/selection';
+import { newTaskMemberships } from '../domain/projects';
 import { dayMarkers, markerStart } from '../domain/timeMarkers';
 import { eventBridge } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';
@@ -25,14 +27,15 @@ export function useTaskMutations(
   dragIdentity: React.MutableRefObject<DragIdentity | null>,
   setLastMovedKey: (key: string) => void,
   pushToast: PushToast,
-  refreshNow?: (now: Date) => void
+  refreshNow?: (now: Date) => void,
+  projectIds: readonly string[] = []
 ) {
   const { mutate, databaseIdentity, confirmedEvents } = database;
   const { selectedTaskIds, setSelectedTaskIds, setSelectedTaskId, clearEdgeSelection } = selection;
   const taskGroup = (taskId: string, fromDrag: boolean, includeCompleted = true) => {
     const identity = dragIdentity.current;
     if (fromDrag && (!identity || identity.database !== databaseIdentity.current || identity.taskId !== taskId)) return [];
-    const ids = fromDrag ? identity!.taskIds : selectedTaskIds.includes(taskId) ? selectedTaskIds : [taskId];
+    const ids = fromDrag ? identity!.taskIds : selectionActionIds(taskId, selectedTaskIds);
     return present([...new Set(ids)], projectEvents(confirmedEvents.current, now), includeCompleted);
   };
   const present = (ids: readonly string[], current: CurrentState, includeCompleted = true) =>
@@ -236,6 +239,7 @@ export function useTaskMutations(
           taskId, title, configuredStart: dateKeyToIsoStart(toDateKey(createdAt)),
           createdAt: createdAt.toISOString(), copiedFromId: sourceId,
         } },
+        ...newTaskMemberships(taskId, projectIds),
         { type: 'TASK_DESCRIPTION_SET', payload: { taskId, description: source.description } },
         { type: 'TASK_TIMING_SET', payload: { taskId, duration: source.duration, durationUnit: source.durationUnit, progress: null } },
         { type: 'DEPENDENCY_ADDED', payload: { taskId, predecessorId: sourceId } },

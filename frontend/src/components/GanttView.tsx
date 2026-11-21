@@ -1,3 +1,4 @@
+import { FilteredEdgeStubs } from './FilteredEdgeStubs';
 import { TaskProgressLine } from './TaskProgressLine';
 import React, { useMemo } from 'react';
 import { addDuration, durationDays } from '../domain/duration';
@@ -22,6 +23,7 @@ import { arrowBase, ArrowMarkers } from './arrowGeometry';
 import { t, formatDate, useLanguage } from '../i18n';
 
 interface GanttViewProps extends TaskViewInteractions {
+  projectFilterActive?: boolean;
   titleEditor: InlineEditor;
   listEntries: ListEntry[];
   openTasks: TaskState[];
@@ -594,6 +596,7 @@ export function GanttView(props: GanttViewProps) {
         className="absolute inset-0 pointer-events-none z-10"
       >
         <ArrowMarkers prefix="gantt-arrow" />
+        {props.projectFilterActive && <FilteredEdgeStubs nodes={layout.barList} visible={new Set(props.openTasks.map(task => task.id))} marker="gantt-arrow"/>}
 
         {layout.routedEdges.map(({ from, to, edgeKey, pathD }) => {
           const fromRole = highlights[from];

@@ -205,7 +205,7 @@ it('shares native mini context actions and task creation', async () => {
   await act(async () => click(button('Kompaktansicht')));
   await act(async () => openContext(button('Alpha')));
   expect(menuActions()).toEqual(fullActions);
-  expect(fullActions.map(item => item.id)).toEqual(['toggle', 'today', 'complete', 'open-copy']);
+  expect(fullActions.map(item => item.id)).toEqual(['toggle', 'today', 'complete', 'open-copy', 'create-successor']);
   expect(fullActions.flatMap(item => item.shortcut ? [item.shortcut] : [])).toEqual(['Space / A', 'T', 'Del / D']);
   expect(element.querySelector('.fixed.z-50.w-64')).toBeNull();
   const creation = input('Task hinzufügen (Enter)');
@@ -237,6 +237,7 @@ it('selects the reopened task and preserves its configured date', async () => {
   expect(vi.mocked(api.ShowTaskContextMenu).mock.calls[0][0]).toEqual([
     { id: 'reopen', label: t('Erneut öffnen'), shortcut: 'O', disabled: false },
     { id: 'open-copy', label: t('Kopie Öffnen'), disabled: false },
+    { id: 'create-successor', label: t('Nachfolger anlegen'), disabled: false },
   ]);
   expect(vi.mocked(api.AppendBatch).mock.calls[0][0]).toEqual([
     expect.objectContaining({ type: 'TASK_REOPENED', payload: { taskId: '26-101' } }),

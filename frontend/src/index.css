@@ -46,3 +46,32 @@ html[style*="-resize"] *::after {
   background-color: #fde047;
   color: #0f172a;
 }
+
+/* Keep the start of every title aligned. The flexible trailing column places
+   dependencies against the date while projects follow the visible title. */
+.task-item-row {
+  display: grid;
+  container-type: inline-size;
+  grid-template-columns: max-content minmax(0,max-content) max-content minmax(max-content,1fr) max-content;
+  grid-template-areas: "controls title projects dependencies date";
+  column-gap: 6px;
+}
+.task-item-controls { grid-area: controls; }
+.task-item-title { grid-area: title; }
+.task-item-projects { grid-area: projects; }
+.task-item-dependencies { grid-area: dependencies; text-align: right; }
+.task-item-date { grid-area: date; white-space: nowrap; }
+.task-item-projects, .task-item-dependencies { min-width: 0; overflow-x: auto; scrollbar-width: none; line-height: 1; }
+.task-item-projects > span, .task-item-dependencies > span { display: inline-flex; width: max-content; }
+.task-item-row:not([data-stacked]) .task-item-dependencies { min-width: max-content; }
+.task-item-row[data-stacked] {
+  padding-block: 3px;
+  row-gap: 2px;
+  grid-template-columns: max-content minmax(0,1fr) max-content;
+  grid-template-areas: "controls title date" "projects projects dependencies";
+}
+.task-item-row[data-stacked] .task-item-dependencies { max-width: 42cqi; }
+.task-item-row[data-stacked] .task-item-date, .task-item-row[data-stacked] .task-item-dependencies { justify-self: end; }
+
+[data-project-insert="before"] { box-shadow: -3px 0 #0284c7; }
+[data-project-insert="after"] { box-shadow: 3px 0 #0284c7; }

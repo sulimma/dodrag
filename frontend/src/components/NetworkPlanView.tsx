@@ -1,3 +1,4 @@
+import { FilteredEdgeStubs } from './FilteredEdgeStubs';
 import { TaskProgressLine } from './TaskProgressLine';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Flame, GripVertical } from 'lucide-react';
@@ -24,6 +25,7 @@ import { arrowBase, ArrowMarkers } from './arrowGeometry';
 import { t, useLanguage } from '../i18n';
 
 interface NetworkPlanViewProps extends TaskViewInteractions {
+  projectFilterActive?: boolean;
   scrollRef?: React.RefObject<HTMLElement>;
   titleEditor: InlineEditor;
   dateEditor: InlineEditor;
@@ -517,6 +519,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
         className="absolute inset-0 pointer-events-none z-10"
       >
         <ArrowMarkers prefix="arrow" />
+        {props.projectFilterActive && <FilteredEdgeStubs nodes={Object.values(layout.nodes)} visible={new Set(props.openTasks.map(task => task.id))} vertical marker="arrow"/>}
 
         {layout.routedEdges.map(({ from, to, pathD }) => {
           const edgeKey = `${from}->${to}`;

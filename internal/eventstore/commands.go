@@ -35,6 +35,8 @@ type taskLogEntry struct {
 
 const maxDescriptionBytes = 256 * 1024
 
+var projectCode = regexp.MustCompile(`^[A-Z0-9]{2,8}$`)
+var projectColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 var validID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
 
 func checkID(id string) error {
@@ -47,7 +49,7 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 	if isTimelineType(kind) {
 		return validateTimelinePayload(kind, raw)
 	}
-	if kind == "TASK_DESCRIPTION_SET" && !utf8.Valid(raw) {
+	if (kind == "TASK_DESCRIPTION_SET" || strings.HasPrefix(kind, "PROJECT_")) && !utf8.Valid(raw) {
 		return nil, fmt.Errorf("description payload must be valid UTF-8")
 	}
 	var p map[string]interface{}
@@ -61,6 +63,12 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 	}
 	fields := []string{"taskId"}
 	switch kind {
+	case "PROJECT_SAVED":
+		fields = []string{"projectId", "code", "color", "summary", "description"}
+	case "PROJECT_NOTE_SET":
+		fields = []string{"projectId", "entryId", "text"}
+	case "PROJECT_MEMBER_SET":
+		fields = append(fields, "projectId", "assigned")
 	case "TASK_CREATED":
 		fields = append(fields, "title", "configuredStart", "createdAt")
 		if _, exists := p["copiedFromId"]; exists {
@@ -111,9 +119,9 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 		if field == "duration" || field == "durationUnit" || field == "progress" {
 			continue
 		}
-		if field == "isActive" {
+		if field == "isActive" || field == "assigned" {
 			if _, ok := p[field].(bool); !ok {
-				return nil, fmt.Errorf("isActive must be boolean")
+				return nil, fmt.Errorf("%s must be boolean", field)
 			}
 			continue
 		}
@@ -122,7 +130,15 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 			return nil, fmt.Errorf("%s must be string", field)
 		}
 		switch field {
-		case "taskId", "predecessorId", "entryId", "copiedFromId", "relativeTaskId":
+		case "code":
+			if !projectCode.MatchString(value) {
+				return nil, fmt.Errorf("invalid project code")
+			}
+		case "color":
+			if !projectColor.MatchString(value) {
+				return nil, fmt.Errorf("invalid project color")
+			}
+		case "projectId", "taskId", "predecessorId", "entryId", "copiedFromId", "relativeTaskId":
 			if err := checkID(value); err != nil {
 				return nil, err
 			}
@@ -134,12 +150,15 @@ func validatePayload(kind string, raw []byte) (map[string]interface{}, error) {
 			if strings.TrimSpace(value) == "" {
 				return nil, fmt.Errorf("empty title")
 			}
-		case "description":
+		case "description", "summary":
 			if !utf8.ValidString(value) || len(value) > maxDescriptionBytes {
 				return nil, fmt.Errorf("description must be valid UTF-8 and at most %d bytes", maxDescriptionBytes)
 			}
 		case "text":
-			if strings.TrimSpace(value) == "" {
+			if kind == "PROJECT_NOTE_SET" && len(value) > maxDescriptionBytes {
+				return nil, fmt.Errorf("project note too long")
+			}
+			if kind != "PROJECT_NOTE_SET" && strings.TrimSpace(value) == "" {
 				return nil, fmt.Errorf("empty log text")
 			}
 		case "createdAt", "completedAt":
@@ -159,7 +178,7 @@ func applyCommand(tasks map[string]*task, kind string, p map[string]interface{})
 }
 
 func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]interface{}, checkCycle bool) (bool, error) {
-	if isTimelineType(kind) {
+	if kind == "PROJECT_SAVED" || kind == "PROJECT_NOTE_SET" || isTimelineType(kind) {
 		return true, nil
 	}
 	id := p["taskId"].(string)
@@ -175,6 +194,8 @@ func applyValidatedCommand(tasks map[string]*task, kind string, p map[string]int
 		return false, fmt.Errorf("unknown task: %s", id)
 	}
 	switch kind {
+	case "PROJECT_MEMBER_SET":
+		return true, nil
 	case "TASK_REORDERED":
 		relative := p["relativeTaskId"].(string)
 		if tasks[relative] == nil {
@@ -337,9 +358,16 @@ func (s *Store) appendBatch(commands []Command, recoveryBases map[string]string)
 	}
 	events := s.events
 	var timeline *timelineState
+	var projects *projectState
 	systemOnly := len(commands) > 0
 	for _, command := range commands {
 		systemOnly = systemOnly && command.Type == "TIME_DAY_INITIALIZED"
+		if strings.HasPrefix(command.Type, "PROJECT_") && projects == nil {
+			projects, err = replayProjects(events)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if isTimelineType(command.Type) && timeline == nil {
 			var err error
 			timeline, err = replayTimeline(events)
@@ -380,6 +408,9 @@ func (s *Store) appendBatch(commands []Command, recoveryBases map[string]string)
 			}
 		}
 		effect, err := applyCommand(tasks, command.Type, p)
+		if err == nil && strings.HasPrefix(command.Type, "PROJECT_") {
+			effect, err = projects.apply(command.Type, p)
+		}
 		if err == nil && timeline != nil {
 			var timelineEffect bool
 			timelineEffect, err = timeline.apply(command.Type, p)

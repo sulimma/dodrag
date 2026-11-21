@@ -22,6 +22,7 @@ export function classifyTarget(raw: string): EditorTarget | undefined {
     } catch { return; }
   }
   let value = raw.trim().replace(/^"(.*)"$/, '$1');
+  if (/^www\.(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?=[:/?#]|$)/i.test(value)) value = 'https://' + value;
   if (/^tel:\+?[\d ()_-]+$/i.test(value) && /\d/.test(value.slice(4))) value = `tel:${value.slice(4).replace(/[ ()_-]/g, '')}`;
   if (/^(?:https?:|mailto:|sip:|tel:)/i.test(value)) {
     if (/[\s<>"\\\x00-\x1f\x7f]/.test(value) || /%(?![\da-f]{2})/i.test(value)) return;
@@ -81,7 +82,7 @@ export function tokenizeTargets(text: string): TargetToken[] {
     }
   }
   // Consume ISO dates/timestamps before the phone branch can take a date plus hour or timezone.
-  const pattern = new RegExp(String.raw`(?<iso>(?<![\w])\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)|!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|"([^"\r\n]+)"|((?:/?[a-z]:[\\/]|\\\\)[^\r\n]*?)|([^\s)]+))\s*\)|"((?:/?[a-z]:[\\/]|\\\\)[^"\r\n]*)"|tel:\+?[\d(][\d ()_-]*[\d)]|(?:https?:\/\/|mailto:|sip:|tel:)[^\s<>"]+|(?<![\w/:\\])(?:/?[a-z]:[\\/]|\\\\)[^\s<>"|:*?]*|(?<![a-z0-9!#$%&'*+/=?^_\x60{|}~.@:"\\-])(?<email>${emailAddress})(?![a-z0-9@_-]|\.[a-z0-9.])|(?<![\w+:(/-])\+?[\d(][\d ()_-]*[\d)](?![\w+()-])`, 'gi');
+  const pattern = new RegExp(String.raw`(?<iso>(?<![\w])\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)|!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|"([^"\r\n]+)"|((?:/?[a-z]:[\\/]|\\\\)[^\r\n]*?)|([^\s)]+))\s*\)|"((?:/?[a-z]:[\\/]|\\\\)[^"\r\n]*)"|tel:\+?[\d(][\d ()_-]*[\d)]|(?:https?:\/\/|mailto:|sip:|tel:)[^\s<>"]+|(?<![\w/:\\])(?:/?[a-z]:[\\/]|\\\\)[^\s<>"|:*?]*|(?<![a-z0-9!#$%&'*+/=?^_\x60{|}~.@:"\\-])(?<email>${emailAddress})(?![a-z0-9@_-]|\.[a-z0-9.])|(?<![\w.@/\\-])www\.[^\s<>"]+|(?<![\w+:(/-])\+?[\d(][\d ()_-]*[\d)](?![\w+()-])`, 'gi');
   for (const match of text.matchAll(pattern)) {
     if (match.groups?.iso || result.some(token => match.index! >= token.start && match.index! < token.end)) continue;
     const markdownImage = match[0].startsWith('![');

@@ -1,5 +1,6 @@
 import { TaskProgressLine } from './TaskProgressLine';
-import React from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
+import { ProjectLabels } from './Projects';
 import { Flame, CornerDownRight } from 'lucide-react';
 import type { HighlightRole, ListEntry } from '../domain/types';
 import { DateLayerLine } from './DateLayerLine';
@@ -33,6 +34,26 @@ export function ListTaskRow(props: SharedListRowProps & {
   const isEditing = titleEditor.taskId === task.id;
   const isEditingDate = dateEditor.taskId === task.id;
 
+  const row = useRef<HTMLDivElement>(null);
+  // Compare intrinsic badge widths with the actual space left for the title.
+  // Badge strips stay measurable when the second line becomes scrollable.
+  useLayoutEffect(() => {
+    const node = row.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    const parts = [...node.querySelectorAll<HTMLElement>('[data-row-measure]')];
+    const fit = () => {
+      const occupied = parts.reduce((sum, part) => sum + part.offsetWidth, 0);
+      const content = node.clientWidth - parseFloat(getComputedStyle(node).paddingLeft) - parseFloat(getComputedStyle(node).paddingRight);
+      const title = node.querySelector<HTMLElement>('[data-task-title]');
+      const hasLabels = !!node.querySelector('[data-project-task],[data-edge-key]');
+      node.toggleAttribute('data-stacked', hasLabels && content - occupied - 24 < Math.min(100, title?.scrollWidth || 100));
+    };
+    const observer = new ResizeObserver(fit);
+    for (const part of [node, ...parts]) observer.observe(part);
+    fit();
+    return () => observer.disconnect();
+  }, [task.title]);
+
   const appearance = taskAppearanceRole(
     task,
     role,
@@ -64,7 +85,7 @@ export function ListTaskRow(props: SharedListRowProps & {
 
   return (
     <div
-      key={entry.key}
+      key={entry.key} ref={row}
       data-flip-key={entry.key}
       data-dependency-highlight={
         role?.startsWith('predecessor-')
@@ -75,13 +96,13 @@ export function ListTaskRow(props: SharedListRowProps & {
       }
       {...taskInteractions(task.id, entry.key, props)}
       data-task-drag-disabled={isEditing || isEditingDate || undefined}
-      className={`group relative flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border transition-colors cursor-pointer ${containerClasses} ${
+      className={`task-item-row group relative items-center px-3.5 py-2 rounded-xl border transition-colors cursor-pointer ${containerClasses} ${
         isBeingDragged ? 'opacity-35' : ''
       }`}
     >
       <TaskProgressLine task={task} />
       {/* Left section: Drag Handle + Active Toggle + Task ID + In-place Editable Title */}
-      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+      <div data-row-measure className="task-item-controls flex items-center gap-2.5">
         <div
           title={t('Ziehen auf Task (= Vorgänger setzen), Alt-Ziehen (= Kante löschen), auf Datum oder Wiedervorlage rechts')}
           className="text-slate-400 group-hover:text-slate-600 cursor-grab active:cursor-grabbing"
@@ -122,18 +143,18 @@ export function ListTaskRow(props: SharedListRowProps & {
           {task.id}
         </span>
 
-        <div className="min-w-0 flex-1" data-task-title-area>
+      </div>
+        <div className="min-w-0 task-item-title" data-task-title-area>
           <TaskTitle
             task={task}
-            editor={titleEditor}
+            editor={titleEditor} showLabels={false}
             className="inline-block max-w-full align-middle text-sm truncate"
           />
         </div>
-      </div>
+      <div className="task-item-projects"><span data-row-measure><ProjectLabels taskId={task.id}/></span></div>
 
       {/* Right section: Selectable Predecessor chips (Ctrl/Shift multi-select, Del/Backspace) & In-Place Editable Configured Date */}
-      <div className="flex items-center gap-2 shrink-0">
-        <TaskChecklistBadge progress={task.checklistProgress} />
+      <div className="task-item-dependencies"><span data-row-measure className="inline-flex items-center gap-1">
         {task.predecessorIds.length > 0 && (
           <div className="flex items-center gap-1">
             {task.allPredecessorIds
@@ -151,6 +172,7 @@ export function ListTaskRow(props: SharedListRowProps & {
                   <button
                     key={predId}
                     data-edge-key={edgeKey}
+                    onContextMenu={e => props.onContextMenuTask(e, task.id, { id: predId, direction: 'predecessor' })}
                     data-deletion-preview={
                       deletionPreview.includes(edgeKey) || undefined
                     }
@@ -181,6 +203,9 @@ export function ListTaskRow(props: SharedListRowProps & {
           </div>
         )}
 
+      </span></div>
+      <div data-row-measure className="task-item-date flex items-center gap-1">
+        <TaskChecklistBadge progress={task.checklistProgress} />
         {task.completed ? <span className="text-xs text-slate-500">{formatDate(task.configuredStart)}</span> : <TaskDate task={task} editor={dateEditor} />}
       </div>
     </div>

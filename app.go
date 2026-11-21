@@ -1098,6 +1098,17 @@ func (a *App) SaveDescriptionDraft(database, taskID, description, base, session 
 	return a.errorLocked("Änderung konnte nicht gespeichert werden", a.store.SaveDescriptionDraft(taskID, description, base, session, revision))
 }
 
+// DeleteProject accepts the database identity captured by the confirmation dialog.
+func (a *App) DeleteProject(database, projectID string) ([]eventstore.Event, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.store == nil || database != a.settings.ActiveDatabasePath {
+		return nil, errors.New(a.textLocked("keine Datenbank geöffnet"))
+	}
+	events, err := a.store.DeleteProject(projectID)
+	return events, a.errorLocked("Änderungen konnten nicht gespeichert werden", err)
+}
+
 // AppendEvent appends a new domain event to the SQLite event store and returns the updated list.
 func (a *App) AppendEvent(id string, eventType string, payloadJSON string) ([]eventstore.Event, error) {
 	a.mu.Lock()

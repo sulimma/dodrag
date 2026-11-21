@@ -206,6 +206,7 @@ export function copyReplayTasks(state: ReplayState): Map<string, MutableTask> {
 }
 
 export function applyCommand(tasks: Map<string, MutableTask>, command: EventCommand, checkCycle = true): boolean {
+  if (command.type === 'PROJECT_SAVED' || command.type === 'PROJECT_NOTE_SET') return true;
   if (isTimelineCommand(command)) return true;
   const p = command.payload;
   const taskId = commandTaskId(command);
@@ -229,6 +230,7 @@ export function applyCommand(tasks: Map<string, MutableTask>, command: EventComm
   }
   if (!task) throw new Error(t('Unknown task: {id}', { id: taskId }));
   switch (command.type) {
+    case 'PROJECT_MEMBER_SET': return true;
     case 'TASK_REORDERED':
       if (!tasks.has(command.payload.relativeTaskId)) throw new Error(t('Unknown task: {id}', { id: command.payload.relativeTaskId }));
       return command.payload.taskId !== command.payload.relativeTaskId;

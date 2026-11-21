@@ -42,6 +42,12 @@ const dateKey = v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/), v.check(value
   return Number.isFinite(probe.getTime()) && probe.toISOString().slice(0, 10) === value;
 }));
 export const CommandSchema = v.variant('type', [
+  v.object({ type: v.literal('PROJECT_SAVED'), payload: v.strictObject({
+    projectId: id, code: v.pipe(v.string(), v.regex(/^[A-Z0-9]{2,8}$/)), color: v.pipe(v.string(), v.regex(/^#[0-9a-fA-F]{6}$/)),
+    summary: description, description,
+  }) }),
+  v.object({ type: v.literal('PROJECT_NOTE_SET'), payload: v.strictObject({ projectId: id, entryId: id, text: description }) }),
+  v.object({ type: v.literal('PROJECT_MEMBER_SET'), payload: v.strictObject({ projectId: id, taskId: id, assigned: v.boolean() }) }),
   v.object({ type: v.literal('TIME_DAY_INITIALIZED'), payload: v.strictObject({ dateKey, minutes: v.pipe(v.array(minute), v.maxLength(96), v.check(values => values.every((value, index) => index === 0 || value > values[index - 1]))) }) }),
   v.object({ type: v.literal('TIME_MARKER_CREATED'), payload: v.strictObject({ markerId: id, dateKey, minute }) }),
   v.object({ type: v.literal('TIME_MARKER_SET'), payload: v.strictObject({ markerId: id, minute }) }),

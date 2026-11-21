@@ -7,12 +7,73 @@ const server = await createServer({ server: { host: '127.0.0.1', port: 5196, str
 await server.listen();
 let browser;
 try {
- browser = await chromium.launch({ headless: true });
+ browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL });
  const page = await browser.newPage({ viewport: { width: 1800, height: 1200 } });
  page.setDefaultTimeout(8000);
  const errors = []; page.on('pageerror', error => errors.push(String(error)));
  const html = await server.transformIndexHtml('/__timeline_test', '<div id="fixture"></div><script type="module" src="/tests/timeline-drag.fixture.tsx"></script>');
  await page.route('**/__timeline_test*', route => route.fulfill({ contentType: 'text/html', body: html }));
+ // Use the real app's pointer adapter and bar. This fixture has no native store.
+ await page.addInitScript(() => {
+   if (!['?project-order', '?detail-relations'].includes(location.search)) return;
+   const date = '2026-11-21T10:00:00Z';
+   const events = ['AA', 'BB', 'CC'].map((code, i) => ({
+     type: 'PROJECT_SAVED', id: 'event-' + code, seq: i + 1, timestamp: date, undone: false,
+     payload: { projectId: code, code, color: '#228877', summary: '', description: '' },
+   }));
+   if (location.search === '?detail-relations') {
+     for (const taskId of ['A','B']) events.push({ type: 'TASK_CREATED', id: taskId, seq: events.length + 1, timestamp: date, undone: false,
+       payload: { taskId, title: 'Task ' + taskId, configuredStart: date, createdAt: date } });
+     events.push({ type: 'DEPENDENCY_ADDED', id: 'edge', seq: events.length + 1, timestamp: date, undone: false, payload: { taskId: 'B', predecessorId: 'A' } });
+   }
+   window.go = { main: { App: new Proxy({
+     GetSettings: async () => ({ activeDatabasePath: 'fixture.db', databaseReady: true, knownDatabases: [] }),
+     GetEvents: async () => events, GetWindowMode: async () => 'window', AppendBatch: async commands => {
+       for (const command of commands) events.push({ ...command, seq: events.length + 1, timestamp: date, undone: false });
+       return events;
+     },
+   }, { get: (obj, prop) => obj[prop] ?? (async () => undefined) }) } };
+ });
+ await page.goto('http://127.0.0.1:5196/?project-order');
+ const bar = page.locator('[data-project-list]');
+ const barChip = id => bar.locator('[data-project-drag="' + id + '"]');
+ await barChip('CC').waitFor();
+ const origin = await barChip('CC').boundingBox(), first = await barChip('AA').boundingBox();
+ await page.mouse.move(origin.x + origin.width / 2, origin.y + origin.height / 2);
+ await page.mouse.down(); await page.mouse.move(first.x + 2, first.y + first.height / 2, { steps: 8 }); await page.mouse.up();
+ const codes = () => bar.locator('[data-project-drag]').allTextContents();
+ assert.deepEqual(await codes(), ['CC', 'AA', 'BB']);
+ await page.reload(); await barChip('CC').waitFor();
+ assert.deepEqual(await codes(), ['CC', 'AA', 'BB']);
+ await barChip('CC').click(); await barChip('AA').click({ modifiers: ['Shift'] });
+ assert.deepEqual(await bar.locator('[aria-pressed="true"]').allTextContents(), ['CC', 'AA']);
+ console.log('PASS: project pointer reorder persists and defines Shift selection');
+ await page.goto('http://127.0.0.1:5196/?detail-relations');
+ const parent = page.locator('main [data-task-drag="A"]');
+ await parent.dblclick({ position: { x: 4, y: 4 } });
+ const successor = page.locator('[data-detail-relation][data-task-drag="B"]');
+ await successor.waitFor();
+ const start = await successor.boundingBox(), target = await barChip('BB').boundingBox();
+ await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2); await page.mouse.down();
+ await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 10 });
+ await page.mouse.up();
+ await page.locator('main [data-task-drag="B"] [data-project-drag="BB"]').waitFor();
+ assert.ok(await successor.isVisible(), 'drag keeps the original task details open');
+ assert.equal(await parent.locator('[data-project-drag="BB"]').count(), 0);
+ console.log('PASS: dragging a successor assigns the referenced task to a project');
+ await page.goto('http://127.0.0.1:5196/__timeline_test?projectLabels');
+ const row = page.locator('[data-task-drag="B"]');
+ const title = row.locator('[data-task-title]'), badge = row.locator('[data-project-task]'), edge = row.locator('[data-edge-key]');
+ await badge.waitFor();
+ const wide = await title.boundingBox(), project = await badge.boundingBox();
+ assert.ok(wide.x + wide.width <= project.x + 1 && Math.abs(wide.y - project.y) < 10, 'wide row places labels after the title');
+ await page.locator('main').evaluate(el => { el.style.width = '400px'; });
+ await page.waitForFunction(() => {
+   const row = document.querySelector('[data-task-drag="B"]');
+   return row.querySelector('[data-project-task]').getBoundingClientRect().top >= row.querySelector('[data-task-title]').getBoundingClientRect().bottom;
+ });
+ const lower = await badge.boundingBox(), dependency = await edge.boundingBox();
+ assert.ok(lower.x + lower.width <= dependency.x && Math.abs(lower.y - dependency.y) < 10, 'second line separates project and dependency labels');
  for (const zoom of [1, 1.5, 2]) {
   await page.goto(`http://127.0.0.1:5196/__timeline_test?zoom=${zoom}`);
   await page.locator('[data-task-drag="B"]').waitFor();

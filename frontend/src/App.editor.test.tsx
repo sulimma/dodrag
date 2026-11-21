@@ -289,6 +289,41 @@ it('waits for final persistence before acknowledging native close and retries fa
   expect(storedDescription()).toBe('Before close');
 });
 
+it('keeps the window open when a submitted log note fails during close', async () => {
+  await mount();
+  const input = detailPanel().querySelector<HTMLTextAreaElement>('form textarea')!;
+  act(() => {
+    input.focus();
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(input, 'Keep this note');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await key(input, 'Enter');
+  expect(pending[0]?.commands[0]).toMatchObject({ type: 'TASK_LOG_ADDED', payload: { text: 'Keep this note' } });
+  await act(async () => nativeEvents.get('app:before-close')!());
+  expect(api.FinishClose).not.toHaveBeenCalled();
+  await act(async () => pending.shift()!.reject(new Error('Disk unavailable')));
+  expect(api.FinishClose).toHaveBeenLastCalledWith(false);
+  expect(input.value).toBe('Keep this note');
+});
+
+it('waits for Markdown dropped into the description editor before approving close', async () => {
+  const { dom } = await mount();
+  let finishRead!: (value: string) => void;
+  api.ReadMarkdownFile = vi.fn(() => new Promise<string>(resolve => { finishRead = resolve; }));
+  vi.spyOn(detailPanel(), 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 480, 800));
+  const logArea = detailPanel().querySelector('[data-task-log]')!.parentElement!;
+  vi.spyOn(logArea, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 600, 480, 200));
+  Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => dom });
+  await act(async () => nativeDrop!(100, 250, ['C:\\Files\\notes.md']));
+  expect(api.ReadMarkdownFile).toHaveBeenCalledOnce();
+  await act(async () => nativeEvents.get('app:before-close')!());
+  expect(api.FinishClose).not.toHaveBeenCalledWith(true);
+  await act(async () => finishRead('Imported note'));
+  await acknowledge();
+  expect(storedDescription()).toContain('Imported note');
+  expect(api.FinishClose).toHaveBeenLastCalledWith(true);
+});
+
 // Regression: a failed title save must not be acknowledged as safe to close.
 it('review: refuses native close when an in-flight title save fails', async () => {
   await mount();

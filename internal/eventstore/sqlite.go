@@ -343,6 +343,9 @@ func (s *Store) readReplay(reader eventReader) ([]Event, map[string]*task, error
 }
 
 func replayEvents(events []Event, initial map[string]*task, after int64) (map[string]*task, error) {
+	if _, err := replayProjects(events); err != nil {
+		return nil, err
+	}
 	if _, err := replayTimeline(events); err != nil {
 		return nil, err
 	}

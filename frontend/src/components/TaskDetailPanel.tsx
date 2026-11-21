@@ -1,8 +1,9 @@
+import { openTarget } from './editor/contextMenu';
 import { TaskTimingInput } from './TaskTimingInput';
 import type { TaskTiming } from '../domain/duration';
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Flame, RotateCcw, PanelLeftClose, PanelLeftOpen, CircleHelp } from 'lucide-react';
-import { eventBridge } from '../bridge/eventBridge';
+import { ListEnd, X, ArrowRight, Check, Flame, RotateCcw, PanelLeftClose, PanelLeftOpen, CircleHelp } from 'lucide-react';
+import { eventBridge, type TaskMenuItem } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';
 import { t, formatDate } from '../i18n';
 import { TaskTitle } from './TaskTitle';
@@ -12,7 +13,7 @@ import { TaskChecklistBadge } from './TaskChecklistBadge';
 import type { InlineEditor } from './inlineEditor';
 import { taskDragSourceInteractions, taskDropTargetInteractions, type TaskViewInteractions } from './taskInteractions';
 import { taskAppearanceRole } from './taskAppearance';
-import { executeTaskMenuAction, taskMenuItems, type TaskMenuActions } from './TaskContextMenu';
+import { executeTaskMenuAction, taskMenuItems, projectMenuSources, type TaskMenuActions } from './TaskContextMenu';
 import { TaskDescriptionEditor, type TaskDescriptionEditorHandle } from './editor/TaskDescriptionEditor';
 import type { EditorContextMenu, EditorTarget } from './editor/types';
 import { TaskLogSection, type TaskLogSectionHandle } from './TaskLogSection';
@@ -21,6 +22,8 @@ import { contextMenuAnchor, shortcutLabel } from '../hooks/keyboardNavigation';
 
 interface TaskDetailPanelProps extends TaskMenuActions {
   task: TaskState | null;
+  tasks?: Record<string, TaskState>;
+  projectDescriptions?: string[];
   active?: boolean;
   onNativeMenuChange?: (open: boolean) => void;
   interactions: TaskViewInteractions;
@@ -83,14 +86,17 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
     event.stopPropagation();
     if (!task) return;
     const original = task.id;
-    const items = context ? context.items : taskMenuItems(task);
-    if (!items.length) return;
+    const anchor = contextMenuAnchor(event);
     props.onNativeMenuChange?.(true);
     try {
-      const id = await eventBridge.showTaskContextMenu(items, contextMenuAnchor(event));
+      const sources = await projectMenuSources(context ? [] : props.projectDescriptions);
+      const items: TaskMenuItem[] = context ? context.items : [...taskMenuItems(task), ...sources.items];
+      if (!items.length || latest.current.task?.id !== original || latest.current.active === false) return;
+      const id = await eventBridge.showTaskContextMenu(items, anchor);
       const current = latest.current;
       if (current.active === false || current.task?.id !== original || !items.some(item => item.id === id && !item.disabled && !item.separator)) return;
       if (context) await context.execute(id);
+      else if (sources.target(id)) await openTarget(sources.target(id)!);
       else executeTaskMenuAction(id, current.task, current);
     } catch (error) { latest.current.onError(error); }
     finally { props.onNativeMenuChange?.(false); }
@@ -139,6 +145,8 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
         <div className="flex items-center gap-2 pr-14">
           {task && <><TaskDragHandle /><span className="font-mono text-xs px-2 py-1 bg-slate-100 rounded">{task.id}</span>
             <TaskChecklistBadge progress={task.checklistProgress} />
+            <button type="button" title={t('Nachfolger anlegen')} aria-label={t('Nachfolger anlegen')}
+              className="rounded p-1 text-slate-600 hover:bg-sky-100" onClick={() => props.onCreateSuccessor(task.id)}><ListEnd size={16}/></button>
             {!task.completed && <button type="button" title={task.isActive ? t('Deaktivieren (Space)') : t('Aktivieren (Space)')}
               className={`p-1 rounded ${task.isActive ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-emerald-600'}`}
               onClick={() => props.onToggleActive(task)}><Flame size={16} /></button>}
@@ -170,6 +178,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
             onCommit={() => props.onDescriptionCommit?.(task.id)}
             onEscape={() => panel.current?.focus()} onContextMenu={(event, context) => void contextMenu(event, context)} onError={props.onError} />
         </section>
+        {props.tasks && <DetailRelations key={task.id} task={task} tasks={props.tasks} interactions={interactions} remove={props.onRemovePredecessor}/>}
         <ResizeHandle orientation="horizontal" label={t('Höhe des Logs ändern')} direction={-1}
           value={logArea.current?.getBoundingClientRect().height || logHeight} limits={heightLimits} onChange={setLogHeight} />
         <div ref={logArea} className="min-h-0 shrink-0 overflow-hidden" style={{ height: `min(${logHeight}px, max(100px, calc(100% - 290px)))` }} data-task-selectable-text="true" data-shortcut-region="4">
@@ -183,4 +192,46 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
       </div>}
     </aside>
   );
+}
+
+function DetailRelations({ task, tasks, interactions, remove }: {
+  task: TaskState; tasks: Record<string, TaskState>; interactions: TaskViewInteractions;
+  remove(taskId: string, predecessorId: string): void;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  // Include completed neighbors too. The graph views project only open edges.
+  const groups = React.useMemo(() => [
+    { label: 'Vorgänger', incoming: true, neighbors: task.allPredecessorIds.map(id => tasks[id]).filter(Boolean) },
+    { label: 'Nachfolger', incoming: false, neighbors: Object.values(tasks).filter(other => other.allPredecessorIds.includes(task.id)) },
+  ], [task.id, task.allPredecessorIds, tasks]);
+  if (groups.every(group => !group.neighbors.length)) return null;
+  return <div className="max-h-[25%] overflow-y-auto shrink-0 border-t px-3 py-1">
+    {groups.map(({ label, incoming, neighbors }) => neighbors.length > 0 && <section key={label} aria-label={t(label)} className="flex items-baseline gap-2 py-0.5">
+      <h3 className="w-20 shrink-0 text-xs text-slate-500">{t(label)}</h3>
+      <div className="flex flex-wrap gap-1 min-w-0">{neighbors.map(other => {
+        const [from, to] = incoming ? [other.id, task.id] : [task.id, other.id];
+        const edge = from + '->' + to;
+        return <span key={edge} onContextMenu={e => interactions.onContextMenuTask(e, task.id, {
+          id: other.id, direction: incoming ? 'predecessor' : 'successor',
+        })} className={'inline-flex min-w-0 max-w-full rounded border text-xs ' +
+          (incoming
+            ? selected === edge ? 'bg-amber-100 text-amber-950 border-amber-500 ring-1 ring-amber-400' : 'bg-amber-50 text-amber-800 border-amber-200'
+            : selected === edge ? 'bg-purple-100 text-purple-950 border-purple-500 ring-1 ring-purple-400' : 'bg-purple-50 text-purple-800 border-purple-200')}>
+          <button type="button" {...taskDragSourceInteractions(other.id, interactions)} data-detail-relation={edge}
+            {...taskDropTargetInteractions(other.id, 'detail-relation:' + edge, interactions)}
+            aria-pressed={selected === edge} title={other.title}
+            className="min-w-0 truncate px-1.5 py-0.5 cursor-grab"
+            onDragStart={e => interactions.onDragStartTask(e, other.id, true)}
+            onClick={() => setSelected(edge)}
+            onKeyDown={e => {
+              if (e.key === 'Delete' || e.key === 'Backspace') {
+                e.preventDefault(); e.stopPropagation(); if (selected === edge) remove(to, from);
+              }
+            }}><span className="font-mono">{other.id}</span> {other.title}</button>
+          <button type="button" title={t('Abhängigkeit entfernen')} aria-label={t('Abhängigkeit entfernen')}
+            className="px-1 text-slate-500 hover:text-red-700" onClick={() => remove(to, from)}><X size={12}/></button>
+        </span>;
+      })}</div>
+    </section>)}
+  </div>;
 }

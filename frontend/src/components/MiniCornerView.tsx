@@ -1,3 +1,4 @@
+import { ProjectLabels } from './Projects';
 import { TaskProgressLine } from './TaskProgressLine';
 import React from 'react';
 import { Flame, Check } from 'lucide-react';
@@ -131,11 +132,12 @@ export function MiniCornerView({
               <TaskProgressLine task={task} />
               {/* Mini opens the task in the main window instead of starting inline title editing. */}
               <button type="button" title={task.title} onClick={(event) => { event.stopPropagation(); onSelectAndRestore(task.id); }}
-                className="flex-1 min-w-0 truncate text-left text-xs cursor-pointer">
+                className="min-w-0 truncate text-left text-xs cursor-pointer">
                 {task.title}
               </button>
+              <ProjectLabels taskId={task.id}/>
               <TaskChecklistBadge progress={task.checklistProgress} compact />
-              <div className="flex items-center gap-0.5 shrink-0 invisible group-hover:visible group-focus-within:visible">
+              <div className="ml-auto flex items-center gap-0.5 shrink-0 invisible group-hover:visible group-focus-within:visible">
                 <button
                   type="button"
                   onClick={() => onToggleActive(task)}

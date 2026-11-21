@@ -4,7 +4,7 @@ import { t } from '../../i18n';
 import { SOURCE_MIME } from './targets';
 import type { EditorTarget } from './types';
 
-function icon(target: EditorTarget, pathKind?: string): string {
+export function sourceSymbol(target: EditorTarget, pathKind?: string): string {
   if (target.kind === 'path') return pathKind === 'directory' ? '📂' : '🖹';
   return /^mailto:/i.test(target.value) ? '📧' : /^(?:sip|tel):/i.test(target.value) ? '🖁' : '🌐';
 }
@@ -28,7 +28,7 @@ export function createSourceIcon(target: EditorTarget): HTMLElement {
   element.draggable = true; element.contentEditable = 'false';
   element.className = 'dodrag-source-icon inline-block mx-1 cursor-grab select-none no-underline text-xs';
   const update = (kind?: string) => {
-    element.textContent = icon(target, kind);
+    element.textContent = sourceSymbol(target, kind);
     element.title = label(target, kind); element.setAttribute('aria-label', element.title);
   };
   update();
@@ -51,5 +51,5 @@ export function SourceIcon({ target }: { target: EditorTarget }) {
     draggable contentEditable={false} title={label(target, pathKind)} aria-label={label(target, pathKind)}
     className="dodrag-source-icon inline-block mx-1 cursor-grab select-none no-underline text-xs"
     onDragStart={event => startSourceDrag(event, target)} onMouseDown={event => event.stopPropagation()}
-    onClick={event => { event.preventDefault(); event.stopPropagation(); }}>{icon(target, pathKind)}</span>;
+    onClick={event => { event.preventDefault(); event.stopPropagation(); }}>{sourceSymbol(target, pathKind)}</span>;
 }

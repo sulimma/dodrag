@@ -331,6 +331,9 @@ func ensureSnapshotSchema(tx *sql.Tx) error {
 // Replay authoritative events once, checking exact snapshot prefixes along the way.
 // Undone payloads are validated too; only the final graph must be acyclic.
 func verifySnapshots(tx *sql.Tx, events []Event) (map[string]*task, map[int64]snapshotState, error) {
+	if _, err := replayProjects(events); err != nil {
+		return nil, nil, err
+	}
 	if _, err := replayTimeline(events); err != nil {
 		return nil, nil, err
 	}

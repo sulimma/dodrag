@@ -25,6 +25,7 @@ interface AppToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   snapshotReady: boolean;
+  successorOf?: string | null;
   newTaskTitle: string;
   setNewTaskTitle: (title: string) => void;
   newTaskInputRef: React.RefObject<HTMLInputElement>;
@@ -47,7 +48,7 @@ export function AppToolbar({
   canUndo,
   canRedo,
   snapshotReady,
-  newTaskTitle,
+  newTaskTitle, successorOf,
   setNewTaskTitle,
   newTaskInputRef,
   onCreateTask,
@@ -125,7 +126,8 @@ export function AppToolbar({
             disabled={!snapshotReady}
             value={newTaskTitle}
             onChange={(e) => setNewTaskTitle(e.target.value)}
-            placeholder={t('Neues kleines TODO eingeben... (Taste N)')}
+            title={successorOf ? t('Nachfolger von {id} anlegen', { id: successorOf }) : undefined}
+            placeholder={successorOf ? t('Nachfolger von {id} anlegen', { id: successorOf }) : t('Neues kleines TODO eingeben... (Taste N)')}
             className="w-full pl-20 pr-[4.5rem] py-1.5 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
           />
           <button

@@ -437,7 +437,7 @@ it('opens a URL only from its menu and edits the destination independently of th
     act(() => anchor().querySelector('strong')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
     expect(open).not.toHaveBeenCalled();
     const menu = showMenu(anchor().querySelector('strong')!, onContextMenu);
-    expect(menu.items).toContainEqual({ id: 'source:destination', label: original, disabled: true });
+    expect(menu.items).toContainEqual({ id: 'source:destination', label: '🌐 ' + original, disabled: true });
     await act(async () => menu.execute('url:open'));
     expect(open).toHaveBeenLastCalledWith(original);
     await act(async () => menu.execute('source:edit'));

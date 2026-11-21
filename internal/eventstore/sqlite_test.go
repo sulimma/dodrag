@@ -143,6 +143,31 @@ func TestRejectIncompatibleSchemaBeforeMigration(t *testing.T) {
 	}
 }
 
+func TestOpeningForeignSQLitePreservesItsTables(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "foreign.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE event_snapshots (memo TEXT);
+		INSERT INTO event_snapshots VALUES ('original record')`); err != nil {
+		t.Fatal(err)
+	}
+
+	store, openErr := NewStoreWithOptions(path, false)
+	if store != nil {
+		defer store.Close()
+	}
+	if openErr == nil {
+		t.Error("accepted an existing database without a DoDrag event log")
+	}
+	var memo string
+	if err := db.QueryRow(`SELECT memo FROM event_snapshots`).Scan(&memo); err != nil || memo != "original record" {
+		t.Errorf("foreign table changed while opening database: memo=%q, err=%v", memo, err)
+	}
+}
+
 func TestValidLegacySchemaMigration(t *testing.T) {
 	for _, autoIncrement := range []string{"", " AUTOINCREMENT"} {
 		t.Run(autoIncrement, func(t *testing.T) {

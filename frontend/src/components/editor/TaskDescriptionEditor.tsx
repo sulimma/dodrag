@@ -1,3 +1,4 @@
+import { sourceSymbol } from './SourceIcon';
 import React, { forwardRef, useEffect, useLayoutEffect, useImperativeHandle, useRef } from 'react';
 import { EditorContent, ReactNodeViewRenderer, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -416,7 +417,10 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
       { id: 'editor:copy', label: t('Kopieren'), shortcut: 'Ctrl+C', disabled: editor.state.selection.empty },
       { id: 'editor:paste', label: t('Einfügen'), shortcut: 'Ctrl+V', disabled: false }];
     if (target && !shapes.length) {
-      items.unshift({ id: 'source:destination', label: target.value, disabled: true });
+      const widget = [...editor.view.dom.querySelectorAll<HTMLElement>('[data-source-drag]')].find(node =>
+        node.dataset.targetValue === target.value && node.dataset.targetKind === target.kind);
+      const symbol = widget?.textContent || sourceSymbol(target);
+      items.unshift({ id: 'source:destination', label: symbol + ' ' + target.value, disabled: true });
       if (range && props.active !== false) {
         if (range.mark || range.image) items.push({ id: 'source:edit', label: targetEditLabel(target), disabled: false });
         if (!range.image) items.push(range.mark

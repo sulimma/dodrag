@@ -71,7 +71,7 @@ const makeProps = () => {
     onDescriptionChange: vi.fn(async () => {}), onAddLog: vi.fn(async () => {}), onError: vi.fn(),
     onRemoveLog: vi.fn(async () => {}),
     onToggleActive: vi.fn(), onSetConfiguredDate: vi.fn(), onRemovePredecessor: vi.fn(),
-    onCompleteTask: vi.fn(), onReopenTask: vi.fn(), onOpenCopy: vi.fn(),
+    onCompleteTask: vi.fn(), onReopenTask: vi.fn(), onOpenCopy: vi.fn(), onCreateSuccessor: vi.fn(),
     interactions: {
       draggedTaskId: null, selectedTaskId: null, selectedEdgeKeys: [], highlights: {},
       deletionPreview: [], activeDropTargetKey: null, isAltDrag: false,
@@ -285,7 +285,7 @@ it('offers reopening and opening a copy for completed tasks', async () => {
   render({ ...props, task: completed }); mocks.showMenu.mockResolvedValueOnce('reopen');
   await openMenu(host.querySelector('header')!);
   expect(mocks.showMenu).toHaveBeenLastCalledWith(taskMenuItems(completed), undefined);
-  expect(taskMenuItems(completed).map(item => item.id)).toEqual(['reopen', 'open-copy']);
+  expect(taskMenuItems(completed).map(item => item.id)).toEqual(['reopen', 'open-copy', 'create-successor']);
   expect(props.onReopenTask).toHaveBeenCalledWith(task.id);
 });
 

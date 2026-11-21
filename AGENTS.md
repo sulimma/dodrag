@@ -1,6 +1,7 @@
 # Arbeiten an DoDrag
 
 ## Produkt und Zusammenarbeit
+- Release-Notes und Kommentare im Code auf Englisch verfassen.
 - Native Windows-App für schnelles Zurückstellen und Wiederaufnehmen kleiner Aufgaben; exakte Terminplanung ist nachrangig.
 - Bestehende Bedienregeln erhalten. Ansichten verwenden gemeinsame Taskaktionen und Editoren. Produktentscheidungen nicht als Fehler behandeln.
 - Datei-spezifische Designentscheidungen, Architektur und Konventionen direkt in der jeweiligen Quelldatei dokumentieren. Übergreifende Regeln gehören hierher; die [Code-Karte](docs/CODE_MAP.md) dient nur der Navigation.
@@ -8,7 +9,8 @@
 
 ## Datenformat und Versionierung
 - Die Mindest-App-Version für das geschriebene Datenformat wird im Code in `internal/eventstore/version.go` (`MinimumAppVersion`) gepflegt. Bei Datenformatänderungen erhöhen; bei allen anderen Änderungen unverändert lassen. Der historische Rückfallwert für Dateien ohne Versionsangabe bleibt `0.5.0`.
-- SemVer `x.y.z`: Bei Änderungen am Datenbankformat `y` erhöhen und `z` auf 0 setzen; bei sonstigen Änderungen `z` erhöhen. `x` wird ausschließlich auf ausdrückliche Entscheidung des Entwicklers geändert. Dies gilt auch für Änderungen am gespeicherten Ereignis-/Payloadformat, nicht nur am SQL-Schema.
+- Die App-Version wird ausschließlich beim Push auf dem Server erhöht. Lokale Builds verwenden bis dahin dieselbe Version (aktuell `0.8.2`).
+- Beim Versionssprung gilt SemVer `x.y.z`: Bei Änderungen am Datenbankformat `y` erhöhen und `z` auf 0 setzen; bei sonstigen Änderungen `z` erhöhen. `x` wird ausschließlich auf ausdrückliche Entscheidung des Entwicklers geändert. Dies gilt auch für Änderungen am gespeicherten Ereignis-/Payloadformat, nicht nur am SQL-Schema.
 - Der Zusatz `rc` zählt beim Versionsvergleich und bei Datenbank-Mindestversionen nicht mit. Der aktuelle Datenformatstand beginnt mit `0.5.0`; der zugehörige aktuelle Vorab-Build ist `0.5.0rc`.
 - Aus Datenschutzgründen keine automatischen Online-Updateprüfungen. Updatehinweise stammen ausschließlich aus den lokalen Versionsmetadaten bekannter Datenbanken. Erst ein ausdrücklicher Klick öffnet die GitHub-Releases; danach regulär mit Speicherschutz schließen.
 - Datenbanken speichern App-Version, Build-Datum und erforderliche Mindest-App-Version. Mindestversion vor Schema-/Datenänderungen prüfen, niemals herabsetzen und beim erfolgreichen Öffnen die Build-Angaben aktualisieren. Inkompatible Dateien mit klarer Updateaufforderung und Mindestversion ablehnen; ohne Versionsangabe `0.5.0` nennen.

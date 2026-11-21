@@ -1,3 +1,4 @@
+import type { MenuRelation } from '../hooks/useTaskSelection';
 import type { MarkerDrag } from '../hooks/useTaskDrag';
 import type { TimelineInteractions } from './timelineInteractions';
 import React from 'react';
@@ -10,7 +11,7 @@ export interface ModifierKeys {
 }
 
 export interface TaskDragDropActions {
-  onDragStartTask: (event: React.DragEvent, id: string) => void;
+  onDragStartTask: (event: React.DragEvent, id: string, keepDetailTask?: boolean) => void;
   draggedTaskId: string | null;
   setActiveDropTargetKey: (key: string | null) => void;
   onAddPredecessor: (source: string, target: string) => void;
@@ -22,7 +23,7 @@ export interface TaskInteractions extends TaskDragDropActions {
   selectedTaskIds?: string[];
   orderedTaskIds?: string[];
   isAltDrag: boolean;
-  onContextMenuTask: (event: React.MouseEvent, id: string) => void;
+  onContextMenuTask: (event: React.MouseEvent, id: string, relation?: MenuRelation) => void;
 }
 export interface TaskViewInteractions extends TaskInteractions {
   timeline?: TimelineInteractions;

@@ -123,3 +123,10 @@ it('recognizes copied slash-drive paths including spaces and preserves source ra
   expect(fileDropText([path])).toBe(`"${destination}"`);
   for (const invalid of ['/G:/file:stream', '/G:/bad?.pdf', '//G:/file.pdf']) expect(classifyTarget(invalid)).toBeUndefined();
 });
+
+it('recognizes bare www hosts with nested or unfamiliar domains and preserves their text range', () => {
+  const raw = 'www.news.example.future/path?q=1';
+  const text = '(' + raw + ').';
+  expect(tokenizeTargets(text)).toMatchObject([{ kind: 'url', value: 'https://' + raw, start: 1, end: raw.length + 1 }]);
+  expect(tokenizeTargets('www.example www.-bad.test')).toEqual([]);
+});

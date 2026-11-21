@@ -13,6 +13,7 @@ export function installTaskPointerDrag(onEnd: () => void, onAltChange: (held: bo
   let finishing = false;
   let target: Element | null = null;
   let image: HTMLElement | null = null;
+  let projectPreview: HTMLElement | null = null;
   let offsetX = 0;
   let offsetY = 0;
   let suppressClick = false;
@@ -41,7 +42,9 @@ export function installTaskPointerDrag(onEnd: () => void, onAltChange: (held: bo
     // Commit modifier-dependent layout before hit-testing, and target state before
     // a possible drop. React DOM handlers then consume the current render's data.
     flushSync(() => onAltChange(alt));
-    const next = document.elementFromPoint(x, y)?.closest('[data-task-drop-target]') ?? null;
+    const selector = pending?.source.hasAttribute('data-project-drag')
+      ? '[data-project-list],[data-source-task-id],[data-task-detail-panel]' : '[data-task-drop-target]';
+    const next = document.elementFromPoint(x, y)?.closest(selector) ?? null;
     flushSync(() => {
       if (next !== target) {
         if (target) dispatch(target, 'dragleave');
@@ -69,12 +72,15 @@ export function installTaskPointerDrag(onEnd: () => void, onAltChange: (held: bo
           resolveTarget();
           if (target) dispatch(target, 'drop');
         }
+        if (source.hasAttribute('data-project-drag')) dispatch(source, 'dragend');
       }
     } finally {
       active = false;
       cancelAnimationFrame(frame);
       pending = null;
       target = null;
+      projectPreview?.remove();
+      projectPreview = null;
       image = null;
       values.clear();
       // Clear application state even if the source was detached. Drop callbacks
@@ -89,9 +95,9 @@ export function installTaskPointerDrag(onEnd: () => void, onAltChange: (held: bo
     suppressClick = false;
     if (event.button !== 0 || !event.isPrimary) return;
     const origin = event.target as Element;
-    const source = origin.closest<HTMLElement>('[data-task-drag]');
+    const source = origin.closest<HTMLElement>('[data-project-drag],[data-task-drag]');
     if (!source || source.hasAttribute('data-task-drag-disabled')) return;
-    if (origin.closest('input,textarea,button,a,select,[contenteditable="true"],[data-task-selectable-text]')) return;
+    if (!source.matches('[data-project-drag],[data-detail-relation]') && origin.closest('input,textarea,button,a,select,[contenteditable="true"],[data-task-selectable-text]')) return;
     // Bare card whitespace, IDs and the handle all start the same pointer gesture.
     finish(false);
     suppressClick = false;
@@ -115,6 +121,17 @@ export function installTaskPointerDrag(onEnd: () => void, onAltChange: (held: bo
       if (start.defaultPrevented) {
         finish(false);
         return;
+      }
+      if (pending.source.hasAttribute('data-project-drag')) {
+        const source = pending.source;
+        const rect = source.getBoundingClientRect();
+        projectPreview = document.createElement('span');
+        projectPreview.textContent = source.textContent;
+        projectPreview.className = source.className;
+        projectPreview.setAttribute('aria-hidden', 'true');
+        Object.assign(projectPreview.style, { position: 'fixed', pointerEvents: 'none', backgroundColor: source.style.backgroundColor, borderColor: source.style.borderColor, color: source.style.color });
+        document.body.append(projectPreview);
+        transfer.setDragImage(projectPreview, pending.x - rect.left, pending.y - rect.top);
       }
       active = true;
       frame = requestAnimationFrame(tick);

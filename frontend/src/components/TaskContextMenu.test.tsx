@@ -39,11 +39,31 @@ it('opens the full folder from the shared menu and reports failures after the me
   await act(async () => root.render(<TaskContextMenu task={task} databaseKey="db"
     contextMenu={{ taskId: 't1', x: 0, y: 0 }} onClose={() => root.unmount()} onError={onError}
     onToggleActive={vi.fn()} onSetConfiguredDate={vi.fn()} onRemovePredecessor={vi.fn()}
-    onCompleteTask={vi.fn()} onReopenTask={vi.fn()} onOpenCopy={vi.fn()} />));
+    onCompleteTask={vi.fn()} onReopenTask={vi.fn()} onOpenCopy={vi.fn()} onCreateSuccessor={vi.fn()} />));
   expect(show.mock.calls[0][0].map(item => [item.id, item.disabled, !!item.separator])).toEqual([
-    ['reopen', false, false], ['open-copy', false, false], ['directories:separator', false, true],
+    ['reopen', false, false], ['open-copy', false, false], ['create-successor', false, false], ['directories:separator', false, true],
     ['directories:heading', true, false], ['directory:0', false, false],
   ]);
   expect(open).toHaveBeenCalledWith('C:\\My project\\', false);
   expect(onError).toHaveBeenCalledWith(failure);
+});
+
+it('opens a shared project link and lists a source only once across project descriptions', async () => {
+  const url = 'https://example.com/shared';
+  const path = 'C:\\Planning\\notes.txt';
+  const open = vi.spyOn(eventBridge, 'openExternalURL').mockResolvedValue();
+  const show = vi.spyOn(eventBridge, 'showTaskContextMenu').mockImplementation(async items =>
+    items.find(item => item.label === '🌐 ' + url)?.id ?? '');
+  const root = createRoot(document.createElement('div'));
+  const task = { id: 't1', completed: true, description: '', logEntries: [] } as unknown as TaskState;
+  try {
+    await act(async () => root.render(<TaskContextMenu task={task} databaseKey="db" projectDescriptions={[url, url + ' "' + path + '"']}
+      contextMenu={{ taskId: 't1', x: 0, y: 0 }} onClose={vi.fn()} onError={vi.fn()}
+      onToggleActive={vi.fn()} onSetConfiguredDate={vi.fn()} onRemovePredecessor={vi.fn()}
+      onCompleteTask={vi.fn()} onReopenTask={vi.fn()} onOpenCopy={vi.fn()} onCreateSuccessor={vi.fn()}/>));
+    const labels = show.mock.calls[0][0].map(item => item.label);
+    expect(labels.filter(label => label === '🌐 ' + url)).toHaveLength(1);
+    expect(labels).toContain('🖹 ' + path);
+    expect(open).toHaveBeenCalledWith(url);
+  } finally { act(() => root.unmount()); }
 });

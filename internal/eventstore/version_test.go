@@ -27,7 +27,7 @@ func versionFixture(t *testing.T, minimum string) string {
 
 func TestDatabaseVersionStampAndPatchReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "tasks.db")
-	s, err := NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.7.0rc", BuildTime: "2026-11-06T09:00:00Z"})
+	s, err := NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.8.0rc", BuildTime: "2026-11-06T09:00:00Z"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,20 +48,20 @@ func TestDatabaseVersionStampAndPatchReopen(t *testing.T) {
 			t.Fatal("incorrect persisted app identity/format floor", gotVersion, gotBuild, gotMinimum)
 		}
 	}
-	assertStamp(s, "0.7.0", "2026-11-06T09:00:00Z")
+	assertStamp(s, "0.8.0", "2026-11-06T09:00:00Z")
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
-	s, err = NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.7.1rc", BuildTime: "2026-11-07T10:00:00Z"})
+	s, err = NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.8.1rc", BuildTime: "2026-11-07T10:00:00Z"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertStamp(s, "0.7.1", "2026-11-07T10:00:00Z")
+	assertStamp(s, "0.8.1", "2026-11-07T10:00:00Z")
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
 	// A patch release did not make this file unreadable for the first app of the current format.
-	s, err = NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.7.0", BuildTime: "2026-11-06T09:00:00Z"})
+	s, err = NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.8.0", BuildTime: "2026-11-06T09:00:00Z"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestDatabaseVersionStampAndPatchReopen(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("opening changed events", after, err)
 	}
-	assertStamp(s, "0.7.0", "2026-11-06T09:00:00Z")
+	assertStamp(s, "0.8.0", "2026-11-06T09:00:00Z")
 }
 
 func TestDatabaseVersionComparisonAndNoDowngrade(t *testing.T) {
@@ -78,8 +78,8 @@ func TestDatabaseVersionComparisonAndNoDowngrade(t *testing.T) {
 		app, minimum string
 		allowed      bool
 	}{
-		{"0.7.0rc", "0.7.0", true}, {"0.7.0", "0.7.0rc", true},
-		{"0.7.2rc", "0.7.1rc", true}, {"0.7.1", "0.7.2", false},
+		{"0.8.0rc", "0.8.0", true}, {"0.8.0", "0.8.0rc", true},
+		{"0.8.2rc", "0.8.1rc", true}, {"0.8.1", "0.8.2", false},
 		{"0.9.0", "0.10.0", false}, {"0.10.0rc", "0.9.0", true},
 		{"1.0.0", "0.99.0", true}, {"0.99.0", "1.0.0rc", false},
 	} {
@@ -121,6 +121,33 @@ func TestDatabaseVersionComparisonAndNoDowngrade(t *testing.T) {
 	}
 }
 
+func TestOpenStoreStopsWritingAfterExternalFormatUpgrade(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "upgraded.db")
+	store, err := NewStoreWithBuildInfo(path, false, BuildInfo{Version: MinimumAppVersion})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	other, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	if _, err := other.Exec(`UPDATE database_metadata SET minimum_app_version='99.0.0' WHERE id=1`); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = store.AppendEvent("create", "TASK_CREATED", `{"taskId":"a","title":"Task","createdAt":"2026-11-01T09:00:00Z","configuredStart":"2026-11-01T09:00:00Z"}`)
+	var incompatibility *CompatibilityError
+	if !errors.As(err, &incompatibility) || incompatibility.MinimumVersion != "99.0.0" {
+		t.Errorf("expected the new minimum version to block the write, got %v", err)
+	}
+	var count int
+	if err := other.QueryRow(`SELECT count(*) FROM events`).Scan(&count); err != nil || count != 0 {
+		t.Errorf("incompatible write reached the database: count=%d, err=%v", count, err)
+	}
+}
+
 func TestDatabaseVersionLegacyAndMissingMetadata(t *testing.T) {
 	for _, mode := range []string{"no table", "no row", "empty version"} {
 		t.Run(mode, func(t *testing.T) {
@@ -139,7 +166,7 @@ func TestDatabaseVersionLegacyAndMissingMetadata(t *testing.T) {
 				t.Fatal(err)
 			}
 			db.Close()
-			s, err := NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.7.0rc", BuildTime: "2026-11-06T09:00:00Z"})
+			s, err := NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.8.0rc", BuildTime: "2026-11-06T09:00:00Z"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -170,7 +197,7 @@ func TestDatabaseVersionIncompatibleLegacyReportsFallback(t *testing.T) {
 			t.Fatal(err)
 		}
 		db.Close()
-		s, err := NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.7.0rc"})
+		s, err := NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.8.0rc"})
 		if s != nil {
 			s.Close()
 			t.Fatal("accepted incompatible legacy data")
@@ -197,7 +224,7 @@ func TestDatabaseVersionIncompatibleLegacyReportsFallback(t *testing.T) {
 func TestDatabaseVersionRejectsMalformedMetadata(t *testing.T) {
 	for _, minimum := range []string{"newest", "0.5", "-1.0.0", "0.99999999999999999999999999.0"} {
 		path := versionFixture(t, minimum)
-		s, err := NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.7.0"})
+		s, err := NewStoreWithBuildInfo(path, false, BuildInfo{Version: "0.8.0"})
 		if s != nil {
 			s.Close()
 			t.Fatal("ignored malformed minimum", minimum)
@@ -210,7 +237,7 @@ func TestDatabaseVersionRejectsMalformedMetadata(t *testing.T) {
 }
 
 func TestDatabaseVersionInspectionIsReadOnly(t *testing.T) {
-	for _, minimum := range []string{"0.7.0rc", "0.8.0"} {
+	for _, minimum := range []string{"0.8.0rc", "0.9.0"} {
 		t.Run(minimum, func(t *testing.T) {
 			original := versionFixture(t, minimum)
 			path := filepath.Join(filepath.Dir(original), "database #1 ä.db")
@@ -221,11 +248,11 @@ func TestDatabaseVersionInspectionIsReadOnly(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = CheckCompatibility(path, BuildInfo{Version: "0.7.0rc"})
-			if minimum == "0.7.0rc" && err != nil {
+			err = CheckCompatibility(path, BuildInfo{Version: "0.8.0rc"})
+			if minimum == "0.8.0rc" && err != nil {
 				t.Fatal("rejected compatible version", err)
 			}
-			if minimum == "0.8.0" {
+			if minimum == "0.9.0" {
 				var compatibility *CompatibilityError
 				if !errors.As(err, &compatibility) || compatibility.MinimumVersion != minimum {
 					t.Fatal("missed required update", err)
@@ -238,7 +265,7 @@ func TestDatabaseVersionInspectionIsReadOnly(t *testing.T) {
 		})
 	}
 	path := filepath.Join(t.TempDir(), "missing.db")
-	if err := CheckCompatibility(path, BuildInfo{Version: "0.7.0"}); err == nil {
+	if err := CheckCompatibility(path, BuildInfo{Version: "0.8.0"}); err == nil {
 		t.Fatal("accepted missing file")
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
