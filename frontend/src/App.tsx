@@ -2,6 +2,7 @@ import { selectionActionIds } from './domain/selection';
 import { openTarget } from './components/editor/contextMenu';
 import { contextMenuAnchor } from './hooks/keyboardNavigation';
 import { useProjects } from './hooks/useProjects';
+import { SaveCompletionContext } from './hooks/saveCompletion';
 import { newTaskMemberships, projectProgress } from './domain/projects';
 import { DeleteProjectDialog, ProjectContext, ProjectList, ProjectDetails } from './components/Projects';
 import { useTimeMarkers } from './hooks/useTimeMarkers';
@@ -149,23 +150,23 @@ export function App() {
   const projectIds = projects.selectedIds;
   const textFilter = filterEnabled && newTaskTitle.length > 0;
   const filtering = textFilter || projectIds.length > 0;
+  const matchesProjectFilter = useCallback((taskId: string) =>
+    !projectIds.length || projectIds.some(id => projects.members.get(taskId)?.has(id)),
+  [projectIds, projects.members]);
   const matchingIds = useMemo(() => {
     const ids = matchingTaskIds(state.tasks, protocolDays, textFilter ? newTaskTitle : '');
-    if (projectIds.length) for (const id of ids) {
-      if (!projectIds.some(projectId => projects.members.get(id)?.has(projectId))) ids.delete(id);
-    }
+    for (const id of ids) if (!matchesProjectFilter(id)) ids.delete(id);
     return ids;
-  }, [state.tasks, protocolDays, textFilter, newTaskTitle, projects.members, projectIds, language]);
+  }, [state.tasks, protocolDays, textFilter, newTaskTitle, matchesProjectFilter, language]);
   useEffect(() => {
     if (!projectIds.length) return;
-    const isMember = (id: string) => projectIds.some(projectId => projects.members.get(id)?.has(projectId));
     for (const current of [mainSelection, miniSelection]) {
-      const remaining = current.selectedTaskIds.filter(isMember);
+      const remaining = current.selectedTaskIds.filter(matchesProjectFilter);
       if (remaining.length !== current.selectedTaskIds.length) current.setSelectedTaskIds(remaining);
-      if (current.contextMenu && !current.contextMenu.relation && !isMember(current.contextMenu.taskId)) current.setContextMenu(null);
-      if (current.selectedEdgeKeys.some(key => key.split('->').some(id => !isMember(id)))) current.clearEdgeSelection();
+      if (current.contextMenu && !current.contextMenu.relation && !matchesProjectFilter(current.contextMenu.taskId)) current.setContextMenu(null);
+      if (current.selectedEdgeKeys.some(key => key.split('->').some(id => !matchesProjectFilter(id)))) current.clearEdgeSelection();
     }
-  }, [projects.members, projectIds, mainSelection.selectedTaskIds, miniSelection.selectedTaskIds,
+  }, [matchesProjectFilter, projectIds, mainSelection.selectedTaskIds, miniSelection.selectedTaskIds,
     mainSelection.contextMenu, miniSelection.contextMenu, mainSelection.selectedEdgeKeys, miniSelection.selectedEdgeKeys]);
   // Keep the complete task map for actions/details; only view collections shrink.
   const visibleState = useMemo(() => filtering ? { ...state,
@@ -181,9 +182,15 @@ export function App() {
     setLastMovedKey,
     () => selection.setContextMenu(null)
   );
-  // All destructive boundaries use the same completion contract. A drained
-  // queue does not mean a failed inline draft has been saved.
-  finishEditing.current = async () => await projects.flush() && await descriptions.flushAll() && !editors.hasOpen() && !timeMarkers.hasOpen();
+  const finishSaves = async () => {
+    const identity = database.databaseIdentity.current;
+    const saved = await database.saves.finish(
+      async () => await projects.flush() && await descriptions.flushDrafts(),
+      () => projects.hasPending() || descriptions.hasDrafts()
+    );
+    return saved && identity === database.databaseIdentity.current;
+  };
+  finishEditing.current = async () => await finishSaves() && !editors.hasOpen() && !timeMarkers.hasOpen();
   // Preserve the admission rule: a pending inline write rejects a database
   // switch; description saves/imports may finish before switching.
   editingPending.current = () => projects.hasPending() || descriptions.hasPending();
@@ -228,13 +235,12 @@ export function App() {
   }, error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning'));
   const historyActions = {
     ...actions,
-    handleUndo: async () => { if (await projects.flush() && await descriptions.flushAll()) await actions.handleUndo(); },
-    handleRedo: async () => { if (await projects.flush() && await descriptions.flushAll()) await actions.handleRedo(); },
+    handleUndo: async () => { if (await finishSaves()) await actions.handleUndo(); },
+    handleRedo: async () => { if (await finishSaves()) await actions.handleRedo(); },
   };
   const miniTasks = useMemo(
-    () => computeMiniWindowTasks(projectIds.length ? state.openTasks.filter(task =>
-      projectIds.some(id => projects.members.get(task.id)?.has(id))) : state.openTasks, now),
-    [projectIds, projects.members, state.openTasks, now]
+    () => computeMiniWindowTasks(state.openTasks.filter(task => matchesProjectFilter(task.id)), now),
+    [matchesProjectFilter, state.openTasks, now]
   );
   useGlobalShortcuts({
     selection,
@@ -416,7 +422,7 @@ export function App() {
   const automaticBlocked = () => {
     const current = transitionState.current;
     return document.querySelector('dialog[open]') !== null || current.showSettingsModal || current.showShortcutsModal || current.contextMenu || nativeDetailMenus.current > 0 ||
-      activeInlineEditor.current || Boolean(document.activeElement?.closest('[data-description-editor],[data-task-log]')) || descriptions.hasDrafts() || projects.hasPending() ||
+      activeInlineEditor.current || Boolean(document.activeElement?.closest('[data-description-editor],[data-task-log]')) || database.saves.hasImports() || descriptions.hasDrafts() || projects.hasPending() ||
       Boolean(document.activeElement?.closest('[data-project-details] input, [data-project-list] input'));
   };
   // Queue requests and commit the destination layout before native geometry changes.
@@ -620,6 +626,7 @@ export function App() {
   const listBackgroundKey = 'list-background';
   const todayKey = toDateKey(now);
   return (
+    <SaveCompletionContext.Provider value={database.saves}>
     <ProjectContext.Provider value={{ ...projects, select: selectProject, details: showProject, menu: menuProject }}>
     {deleteId && projects.projects.has(deleteId) && <DeleteProjectDialog code={projects.projects.get(deleteId)!.code} cancel={() => setDeleteId(null)}
       confirm={async () => {
@@ -917,5 +924,6 @@ export function App() {
       <Toasts toasts={toasts} />
     </div>
     </ProjectContext.Provider>
+    </SaveCompletionContext.Provider>
   );
 }

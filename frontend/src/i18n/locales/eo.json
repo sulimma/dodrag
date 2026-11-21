@@ -421,10 +421,10 @@
   "Nur dieses Projekt anzeigen": "Montri nur ĉi tiun projekton",
   "Projekt löschen": "Forigi projekton",
   "Projekt {code} und seine Labels an allen Tasks endgültig löschen?": "Ĉu definitive forigi la projekton {code} kaj ĝiajn etikedojn de ĉiuj taskoj?",
-  "Nachfolger anlegen": "Krei sekvanton",
-  "Nachfolger von {id} anlegen": "Krei sekvanton de {id}",
-  "Vorgänger": "Antaŭantoj",
-  "Nachfolger": "Sekvantoj",
+  "Nachfolger anlegen": "Krei posteulon",
+  "Nachfolger von {id} anlegen": "Krei posteulon de {id}",
+  "Vorgänger": "Antaŭuloj",
+  "Nachfolger": "Posteuloj",
   "Abhängigkeit entfernen": "Forigi dependecon",
-  "Nachfolger {id} lösen": "Malligi sekvanton {id}"
+  "Nachfolger {id} lösen": "Malkonekti posteulon {id}"
 }

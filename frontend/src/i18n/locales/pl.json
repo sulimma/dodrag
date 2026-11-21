@@ -418,13 +418,13 @@
   "Keine Tasks für diese Projekte verfügbar.": "Brak zadań dla tych projektów.",
   "Keine Tasks gefunden.": "Nie znaleziono zadań.",
   "Neuen Task anlegen": "Utworzenie zadania",
-  "Nur dieses Projekt anzeigen": "Pokaż tylko ten projekt",
-  "Projekt löschen": "Usuń projekt",
+  "Nur dieses Projekt anzeigen": "Wyświetlenie tylko tego projektu",
+  "Projekt löschen": "Usunięcie projektu",
   "Projekt {code} und seine Labels an allen Tasks endgültig löschen?": "Trwale usunąć projekt {code} i jego etykiety ze wszystkich zadań?",
-  "Nachfolger anlegen": "Utworzenie następnika",
-  "Nachfolger von {id} anlegen": "Utworzenie następnika dla {id}",
-  "Vorgänger": "Poprzedniki",
-  "Nachfolger": "Następniki",
+  "Nachfolger anlegen": "Utworzenie zadania następującego",
+  "Nachfolger von {id} anlegen": "Utworzenie zadania następującego po {id}",
+  "Vorgänger": "Zadania poprzedzające",
+  "Nachfolger": "Zadania następujące",
   "Abhängigkeit entfernen": "Usunięcie zależności",
-  "Nachfolger {id} lösen": "Odłączenie następnika {id}"
+  "Nachfolger {id} lösen": "Odłączenie zadania następującego {id}"
 }

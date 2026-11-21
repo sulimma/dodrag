@@ -17,7 +17,7 @@
       "ko": ["작업"],
       "it": ["attività"],
       "pl": ["zadanie", "zadania", "zadań", "zadaniu", "zadaniem"],
-      "tr": ["görev", "görevi", "görevin", "göreve", "görevler", "görevleri", "görevlerin"],
+      "tr": ["görev", "görevi", "görevin", "göreve", "görevler", "görevleri", "görevlerin", "görevlerdeki"],
       "eo": ["tasko", "taskon", "taskoj", "taskojn", "taskaj"],
       "tok": ["pali"]
     }
@@ -62,8 +62,8 @@
       "zh-TW": ["後續任務"],
       "ko": ["후속 작업"],
       "it": ["successore", "successori"],
-      "pl": ["zadanie następujące", "zadania następujące", "zadań następujących"],
-      "tr": ["ardıl", "ardılı", "ardılın", "ardıllar", "ardılları"],
+      "pl": ["zadanie następujące", "zadania następujące", "zadań następujących", "zadania następującego"],
+      "tr": ["ardıl", "ardılı", "ardılın", "ardıllar", "ardılları", "ardılının"],
       "eo": ["posteulo", "posteulon", "posteuloj", "posteulojn"],
       "tok": ["pali sinpin"]
     }

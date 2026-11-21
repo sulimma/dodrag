@@ -38,7 +38,7 @@ function Chip({ project, taskId, insertion }: {
   let scale = 1;
   while (luminance(scale) > .18) scale *= .95;
   const ink = 'rgb(' + rgb.map(channel => Math.floor(channel * scale)).join(' ') + ')';
-  return <button type="button" data-project-drag={projectId} data-project-task={taskId} data-task-drop-target={taskId ? undefined : projectId}
+  return <button type="button" data-context-menu-target data-project-drag={projectId} data-project-task={taskId} data-task-drop-target={taskId ? undefined : projectId}
     title={summary || code} aria-pressed={selected} onDragStart={e => {
       e.stopPropagation();
       e.dataTransfer.setData('application/x-dodrag-project', projectId);

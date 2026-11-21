@@ -425,6 +425,6 @@
   "Nachfolger von {id} anlegen": "為 {id} 建立後續任務",
   "Vorgänger": "前置任務",
   "Nachfolger": "後續任務",
-  "Abhängigkeit entfernen": "移除相依關係",
+  "Abhängigkeit entfernen": "移除依賴關係",
   "Nachfolger {id} lösen": "解除與後續任務 {id} 的關聯"
 }

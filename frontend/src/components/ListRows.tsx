@@ -155,6 +155,7 @@ export function ListTaskRow(props: SharedListRowProps & {
 
       {/* Right section: Selectable Predecessor chips (Ctrl/Shift multi-select, Del/Backspace) & In-Place Editable Configured Date */}
       <div className="task-item-dependencies"><span data-row-measure className="inline-flex items-center gap-1">
+        <TaskChecklistBadge progress={task.checklistProgress} />
         {task.predecessorIds.length > 0 && (
           <div className="flex items-center gap-1">
             {task.allPredecessorIds
@@ -205,7 +206,6 @@ export function ListTaskRow(props: SharedListRowProps & {
 
       </span></div>
       <div data-row-measure className="task-item-date flex items-center gap-1">
-        <TaskChecklistBadge progress={task.checklistProgress} />
         {task.completed ? <span className="text-xs text-slate-500">{formatDate(task.configuredStart)}</span> : <TaskDate task={task} editor={dateEditor} />}
       </div>
     </div>

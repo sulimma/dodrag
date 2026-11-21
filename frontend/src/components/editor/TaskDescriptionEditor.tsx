@@ -1,4 +1,5 @@
 import { sourceSymbol } from './SourceIcon';
+import { SaveCompletionContext } from '../../hooks/saveCompletion';
 import React, { forwardRef, useEffect, useLayoutEffect, useImperativeHandle, useRef } from 'react';
 import { EditorContent, ReactNodeViewRenderer, useEditor, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -79,6 +80,7 @@ const MarkdownTaskItem = TaskItem.extend({
 
 export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, TaskDescriptionEditorProps>(function TaskDescriptionEditor(props, ref) {
   const language = useLanguage();
+  const saves = React.useContext(SaveCompletionContext);
   const callbacks = useRef(props); callbacks.current = props;
   const loadedTask = useRef(props.taskId);
   const taskSession = useRef(0);
@@ -269,7 +271,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
       const text = nativeDropText(paths); // Validate mixed drops before any asynchronous read.
       if (paths.some(value => classifyTarget(value)?.kind === 'path' && isMarkdownPath(value))) {
         const session = taskSession.current;
-        return readMarkdownSources(paths.map(value => classifyTarget(value)!)).then(additions => {
+        const imported = readMarkdownSources(paths.map(value => classifyTarget(value)!)).then(additions => {
           if (editor.isDestroyed || session !== taskSession.current || callbacks.current.active === false) return;
           // Append to the live document after reading; typing during I/O survives.
           const nodes = additions.flatMap(item => editor.markdown!.parse(item.kind === 'markdown' ? item.value : nativeDropText([item.value])).content ?? []);
@@ -277,7 +279,8 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
           editor.view.dispatch(closeHistory(editor.state.tr));
           editor.chain().insertContentAt(editor.state.doc.content.size, nodes).setMeta('description:boundary', true).run();
           editor.view.focus();
-        }).catch(error => callbacks.current.onError(error));
+        });
+        return (saves ? saves.track(imported, 'import') : imported).catch(error => callbacks.current.onError(error));
       }
       const pos = x === undefined || y === undefined ? undefined : editor.view.posAtCoords({ left: x, top: y })?.pos;
       const start = pos ?? editor.state.selection.from;
@@ -289,7 +292,7 @@ export const TaskDescriptionEditor = forwardRef<TaskDescriptionEditorHandle, Tas
       // commands.focus() defers focus to RAF and lets immediate Ctrl+Z escape.
       editor.view.focus();
     },
-  }), [editor]);
+  }), [editor, saves]);
   const contextMenu = (event: React.MouseEvent<HTMLDivElement>, captureOnly = false) => {
     if (!editor) return;
     if (event.target instanceof Element && event.target.closest('.dodrag-target-input')) {

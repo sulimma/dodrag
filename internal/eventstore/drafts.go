@@ -1,6 +1,7 @@
 package eventstore
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -9,8 +10,8 @@ import (
 // Durable editing checkpoints are separate from undo history. The host serializes
 // calls; revision guards also reject late checkpoints within a frontend session.
 // FULL sync makes acknowledgement mean a committed WAL write, not just RAM.
-func (s *Store) initDescriptionDrafts() error {
-	_, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS description_drafts (
+func initDescriptionDrafts(tx *sql.Tx) error {
+	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS description_drafts (
  task_id TEXT PRIMARY KEY, description TEXT NOT NULL, base_description TEXT NOT NULL,
  session TEXT NOT NULL, revision INTEGER NOT NULL)`)
 	return err

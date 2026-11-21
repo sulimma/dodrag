@@ -28,15 +28,16 @@ type Event struct {
 // Concurrency ceiling (ponytail): App's mutex must serialize all Store calls,
 // including Close. The pinned SQLite connection is not a Store-level mutex.
 type Store struct {
-	db        *sql.DB
-	groupID   string
-	events    []Event
-	tasks     map[string]*task
-	ids       map[string]bool
-	snapshots map[int64]snapshotState
-	stamp     changeStamp
-	ready     bool
-	closed    bool
+	db         *sql.DB
+	appVersion string
+	groupID    string
+	events     []Event
+	tasks      map[string]*task
+	ids        map[string]bool
+	snapshots  map[int64]snapshotState
+	stamp      changeStamp
+	ready      bool
+	closed     bool
 	// Benchmarks only; production stores always retain snapshot writes.
 	skipSnapshots bool
 }
@@ -55,78 +56,103 @@ func NewStoreWithOptions(dbPath string, seedDemo bool, translateTitle ...func(st
 // NewStoreWithBuildInfo checks compatibility before touching the schema and
 // records the invoking app build only after the existing data validates.
 func NewStoreWithBuildInfo(dbPath string, seedDemo bool, build BuildInfo, translateTitle ...func(string) string) (*Store, error) {
-	build, appVersion, err := normalizeBuildInfo(build)
-	if err != nil {
-		return nil, err
-	}
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
-	}
-	// total_changes() is connection-local; keep the change detector on one connection.
-	db.SetMaxOpenConns(1)
-	required, err := checkDatabaseVersion(db, appVersion)
-	if err != nil {
-		_ = db.Close()
-		return nil, err
-	}
+	return openStore(dbPath, true, seedDemo, build, translateTitle...)
+}
 
-	schema := `
-	CREATE TABLE IF NOT EXISTS events (
+// OpenExistingStore never creates a missing file or initializes an empty file.
+func OpenExistingStore(dbPath string, build BuildInfo) (*Store, error) {
+	dsn, err := databaseURI(dbPath, "rw")
+	if err != nil {
+		return nil, err
+	}
+	return openStore(dsn, false, false, build)
+}
+
+const eventsSchema = `CREATE TABLE events (
 		seq INTEGER PRIMARY KEY AUTOINCREMENT,
 		id TEXT NOT NULL UNIQUE,
 		timestamp TEXT NOT NULL,
 		type TEXT NOT NULL,
 		payload TEXT NOT NULL,
 		undone INTEGER NOT NULL DEFAULT 0
-	);
-	`
-	if _, err := db.Exec(schema); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("init schema: %w", err)
-	}
+	);`
 
-	if err := validateSchema(db); err != nil {
+func openStore(dsn string, allowCreate, seedDemo bool, build BuildInfo, translateTitle ...func(string) string) (*Store, error) {
+	build, appVersion, err := normalizeBuildInfo(build)
+	if err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite: %w", err)
+	}
+	// Keep the change detector and durability settings on the same connection.
+	db.SetMaxOpenConns(1)
+	s := &Store{db: db, appVersion: appVersion}
+	if err := s.initialize(allowCreate, seedDemo, translateTitle...); err != nil {
 		_ = db.Close()
-		return nil, &CompatibilityError{MinimumVersion: required, Err: fmt.Errorf("incompatible events schema: %w", err)}
+		return nil, err
 	}
 	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("enable WAL: %w", err)
 	}
-	if _, err := db.Exec(`PRAGMA synchronous=FULL`); err != nil {
-		_ = db.Close()
-		return nil, err
-	}
-	s := &Store{db: db}
-	if err := s.initDescriptionDrafts(); err != nil {
-		_ = db.Close()
-		return nil, err
-	}
-	if err := s.normalizeLegacyTimes(); err != nil {
-		_ = db.Close()
-		return nil, &CompatibilityError{MinimumVersion: required, Err: fmt.Errorf("validate event store: %w", err)}
-	}
-	if seedDemo {
-		if err := s.seedIfEmpty(translateTitle...); err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("seed initial data: %w", err)
-		}
-	}
-	if _, err := s.GetEvents(); err != nil {
-		_ = db.Close()
-		return nil, &CompatibilityError{MinimumVersion: required, Err: fmt.Errorf("validate event store: %w", err)}
-	}
-
-	if err := writeDatabaseVersion(db, build, required); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("write database version: %w", err)
-	}
 	if err := s.RecoverDescriptionDrafts(); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
+	if err := s.writeDatabaseVersion(build); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("write database version: %w", err)
+	}
 	return s, nil
+}
+
+func (s *Store) initialize(allowCreate, seedDemo bool, translateTitle ...func(string) string) error {
+	if _, err := s.db.Exec(`PRAGMA synchronous=FULL`); err != nil {
+		return err
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	required, err := checkDatabaseVersion(tx, s.appVersion)
+	if err != nil {
+		return err
+	}
+	// Identify the file before changing any tables. Legacy files have an events
+	// table even when they have no version metadata. Creation requires an empty schema.
+	var objects, events int
+	if err := tx.QueryRow(`SELECT count(*), count(CASE WHEN type='table' AND name='events' COLLATE NOCASE THEN 1 END) FROM sqlite_schema`).Scan(&objects, &events); err != nil {
+		return err
+	}
+	if events == 0 {
+		if !allowCreate || objects != 0 {
+			return fmt.Errorf("missing DoDrag event log")
+		}
+		if _, err := tx.Exec(eventsSchema); err != nil {
+			return err
+		}
+	}
+	if err := validateSchema(tx); err != nil {
+		return &CompatibilityError{MinimumVersion: required, Err: fmt.Errorf("incompatible events schema: %w", err)}
+	}
+	if err := initDescriptionDrafts(tx); err != nil {
+		return err
+	}
+	if seedDemo {
+		if err := seedIfEmpty(tx, translateTitle...); err != nil {
+			return fmt.Errorf("seed initial data: %w", err)
+		}
+	}
+	if err := s.normalizeLegacyTimes(tx); err != nil {
+		return &CompatibilityError{MinimumVersion: required, Err: fmt.Errorf("validate event store: %w", err)}
+	}
+	if s.stamp, err = readChangeStamp(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 type schemaReader interface {
@@ -480,9 +506,9 @@ func (s *Store) setHistoryUndone(undone bool) ([]Event, error) {
 	return copyEvents(events), nil
 }
 
-func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
+func seedIfEmpty(tx *sql.Tx, translateTitle ...func(string) string) error {
 	var count int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM events`).Scan(&count); err != nil {
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM events`).Scan(&count); err != nil {
 		return err
 	}
 	if count > 0 {
@@ -595,11 +621,6 @@ func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
 		},
 	}
 
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
 	for i, sEv := range seeds {
 		if title, ok := sEv.payload["title"].(string); ok && len(translateTitle) > 0 && translateTitle[0] != nil {
 			sEv.payload["title"] = translateTitle[0](title)
@@ -616,5 +637,5 @@ func (s *Store) seedIfEmpty(translateTitle ...func(string) string) error {
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
 }

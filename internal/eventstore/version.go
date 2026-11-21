@@ -93,7 +93,7 @@ func normalizeBuildInfo(build BuildInfo) (BuildInfo, string, error) {
 // This read must precede ALL schema, WAL, migration and metadata writes. A newer
 // database must stay untouched when an older app rejects it. Absent/empty version
 // metadata uses the historical baseline; valid legacy events remain loadable.
-func checkDatabaseVersion(db *sql.DB, appVersion string) (string, error) {
+func checkDatabaseVersion(db schemaReader, appVersion string) (string, error) {
 	required := UnversionedMinimumAppVersion
 	var exists int
 	if err := db.QueryRow(`SELECT count(*) FROM sqlite_schema WHERE name='database_metadata'`).Scan(&exists); err != nil {
@@ -127,15 +127,10 @@ func CheckCompatibility(dbPath string, build BuildInfo) error {
 	if err != nil {
 		return err
 	}
-	absolute, err := filepath.Abs(dbPath)
+	dsn, err := databaseURI(dbPath, "ro")
 	if err != nil {
 		return err
 	}
-	path := filepath.ToSlash(absolute)
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	dsn := (&url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro"}).String()
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return err
@@ -145,17 +140,36 @@ func CheckCompatibility(dbPath string, build BuildInfo) error {
 	return err
 }
 
+func databaseURI(dbPath, mode string) (string, error) {
+	absolute, err := filepath.Abs(dbPath)
+	if err != nil {
+		return "", err
+	}
+	path := filepath.ToSlash(absolute)
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return (&url.URL{Scheme: "file", Path: path, RawQuery: "mode=" + mode}).String(), nil
+}
+
 // Publish the build stamp only after successful validation. The format floor is
 // independent of patch releases and must never be lowered when reopening a file.
-func writeDatabaseVersion(db *sql.DB, build BuildInfo, required string) error {
-	if versionLess(required, MinimumAppVersion) {
-		required = MinimumAppVersion
-	}
-	tx, err := db.Begin()
+func (s *Store) writeDatabaseVersion(build BuildInfo) error {
+	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	required, err := checkDatabaseVersion(tx, s.appVersion)
+	if err != nil {
+		return err
+	}
+	if err := s.ensureCache(tx); err != nil {
+		return err
+	}
+	if versionLess(required, MinimumAppVersion) {
+		required = MinimumAppVersion
+	}
 	if _, err := tx.Exec(`CREATE TABLE IF NOT EXISTS database_metadata (
 		id INTEGER PRIMARY KEY CHECK (id=1),
 		app_version TEXT NOT NULL,
@@ -170,5 +184,12 @@ func writeDatabaseVersion(db *sql.DB, build BuildInfo, required string) error {
 		build.Version, build.BuildTime, required); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if s.stamp, err = readChangeStamp(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.ready = true
+	return nil
 }

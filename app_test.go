@@ -152,7 +152,8 @@ func TestDatabaseLifecycle(t *testing.T) {
 
 func TestDatabaseVersionBuildAndStartupError(t *testing.T) {
 	previousVersion, previousBuild := buildVersion, buildTime
-	buildVersion, buildTime = "0.7.1rc", "2026-11-06T10:00:00Z"
+	const testVersion = "1.2.3"
+	buildVersion, buildTime = testVersion+"rc", "2026-11-06T10:00:00Z"
 	t.Cleanup(func() { buildVersion, buildTime = previousVersion, previousBuild })
 	a := testApp(t)
 	settings, err := a.CreateDatabase("", "versioned", false)
@@ -173,7 +174,7 @@ func TestDatabaseVersionBuildAndStartupError(t *testing.T) {
 	if err := db.QueryRow(`SELECT app_version,app_build_time,minimum_app_version FROM database_metadata WHERE id=1`).Scan(&version, &build, &minimum); err != nil {
 		t.Fatal(err)
 	}
-	if version != "0.7.1" || build != buildTime || minimum != eventstore.MinimumAppVersion {
+	if version != testVersion || build != buildTime || minimum != eventstore.MinimumAppVersion {
 		t.Fatal("app build identity was not passed to the database", version, build, minimum)
 	}
 	if _, err := db.Exec(`UPDATE database_metadata SET minimum_app_version='9.0.0rc'`); err != nil {

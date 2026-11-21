@@ -3,6 +3,7 @@ package eventstore
 import (
 	"database/sql"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -166,6 +167,39 @@ func TestOpeningForeignSQLitePreservesItsTables(t *testing.T) {
 	if err := db.QueryRow(`SELECT memo FROM event_snapshots`).Scan(&memo); err != nil || memo != "original record" {
 		t.Errorf("foreign table changed while opening database: memo=%q, err=%v", memo, err)
 	}
+}
+
+func TestOpenExistingStoreRequiresExistingEventLog(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "open #1.db")
+	if store, err := OpenExistingStore(path, BuildInfo{}); err == nil {
+		store.Close()
+		t.Fatal("opened a missing file")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("open created a missing file", err)
+	}
+	if err := os.WriteFile(path, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if store, err := OpenExistingStore(path, BuildInfo{}); err == nil {
+		store.Close()
+		t.Fatal("initialized a selected empty file")
+	}
+	if data, err := os.ReadFile(path); err != nil || len(data) != 0 {
+		t.Fatal("open changed the empty file", err)
+	}
+	created, err := NewStoreWithOptions(path, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := created.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenExistingStore(path, BuildInfo{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
 }
 
 func TestValidLegacySchemaMigration(t *testing.T) {

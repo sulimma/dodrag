@@ -17,6 +17,9 @@ func versionFixture(t *testing.T, minimum string) string {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	if _, err := db.Exec(eventsSchema); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.Exec(`CREATE TABLE database_metadata (
 		id INTEGER PRIMARY KEY, app_version TEXT NOT NULL, app_build_time TEXT NOT NULL, minimum_app_version TEXT NOT NULL
 	); INSERT INTO database_metadata VALUES(1,'future-app','future-build',?)`, minimum); err != nil {
@@ -218,6 +221,33 @@ func TestDatabaseVersionIncompatibleLegacyReportsFallback(t *testing.T) {
 		if count != 0 {
 			t.Fatal("rejected database stamped as successfully opened")
 		}
+	}
+}
+
+func TestFailedDraftRecoveryPreservesLastBuild(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "draft-conflict.db")
+	store, err := NewStoreWithBuildInfo(path, false, BuildInfo{Version: MinimumAppVersion, BuildTime: "original"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.Exec(`INSERT INTO description_drafts VALUES ('missing','keep this draft','','s',1)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if candidate, err := OpenExistingStore(path, BuildInfo{Version: MinimumAppVersion, BuildTime: "new"}); err == nil {
+		candidate.Close()
+		t.Fatal("opened a file with a conflicting draft")
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var buildTime string
+	if err := db.QueryRow(`SELECT app_build_time FROM database_metadata WHERE id=1`).Scan(&buildTime); err != nil || buildTime != "original" {
+		t.Fatal("failed open replaced the last successful build", buildTime, err)
 	}
 }
 

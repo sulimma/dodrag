@@ -421,10 +421,10 @@
   "Nur dieses Projekt anzeigen": "o pana lukin e kulupu pali ni taso",
   "Projekt löschen": "o weka e kulupu pali",
   "Projekt {code} und seine Labels an allen Tasks endgültig löschen?": "sina wile ala wile weka ale e kulupu pali {code} e nimi ona tan pali ale?",
-  "Nachfolger anlegen": "o pali e pali kama",
-  "Nachfolger von {id} anlegen": "o pali e pali kama pi pali {id}",
-  "Vorgänger": "pali pini",
-  "Nachfolger": "pali kama",
+  "Nachfolger anlegen": "o pali e pali sinpin",
+  "Nachfolger von {id} anlegen": "o pali e pali sinpin pi pali {id}",
+  "Vorgänger": "pali monsi",
+  "Nachfolger": "pali sinpin",
   "Abhängigkeit entfernen": "o weka e linja pali",
-  "Nachfolger {id} lösen": "o weka e linja pi pali kama {id}"
+  "Nachfolger {id} lösen": "o weka e linja pi pali sinpin {id}"
 }

@@ -1,4 +1,5 @@
 import { reportError } from '../diagnostics';
+import { createSaveCompletion } from './saveCompletion';
 import { useRef, useState } from 'react';
 import { eventBridge } from '../bridge/eventBridge';
 import type { AppSettings } from '../bridge/eventBridge';
@@ -18,6 +19,7 @@ export function useDatabaseSnapshot(
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [snapshotReady, setSnapshotReady] = useState(false);
+  const [saves] = useState(createSaveCompletion);
   const mutationBusy = useRef(false);
   const snapshotConfirmed = useRef(false);
   const confirmedEvents = useRef<StoredEvent[]>([]);
@@ -30,7 +32,7 @@ export function useDatabaseSnapshot(
     do { observed = mutationQueue.current; await observed; } while (observed !== mutationQueue.current);
   };
   // Refs gate asynchronous writes immediately; render state only controls the UI.
-  const mutate = async (
+  const runMutation = async (
     operation: () => Promise<StoredEvent[]>
   ): Promise<StoredEvent[] | null> => {
     if (!snapshotConfirmed.current || (mutationBusy.current && !queuedMutations.current)) return null;
@@ -60,6 +62,7 @@ export function useDatabaseSnapshot(
       release();
     }
   };
+  const mutate = (operation: () => Promise<StoredEvent[]>) => saves.track(runMutation(operation), 'write');
   const invalidateSnapshot = () => {
     snapshotConfirmed.current = false;
     setSnapshotReady(false);
@@ -229,6 +232,7 @@ export function useDatabaseSnapshot(
     confirmedEvents,
     databaseIdentity,
     mutate,
+    saves,
     waitForMutations,
     loadSnapshot,
     changeDatabase,

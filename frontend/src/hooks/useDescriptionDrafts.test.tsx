@@ -17,6 +17,7 @@ let writes: { text: string; taskId: string; resolve: (events: StoredEvent[]) => 
 let toast: ReturnType<typeof vi.fn>;
 const task = (id = 'A') => projectEvents(database.confirmedEvents.current).tasks[id];
 const visible = (id = 'A') => drafts.taskWithDraft(task(id))!.description;
+const finishSaves = () => database.saves.finish(drafts.flushDrafts, drafts.hasDrafts);
 const change = (text: string, id = 'A') => act(() => drafts.change(id, text));
 async function confirm() {
   const write = writes.shift()!;
@@ -38,7 +39,7 @@ beforeEach(async () => {
     writes.push({ text: payload.description, taskId: payload.taskId, resolve, reject });
   }));
   function Harness() {
-    database = useDatabaseSnapshot(toast, { current: null }, vi.fn(), () => drafts.flushAll(), () => drafts.hasPending());
+    database = useDatabaseSnapshot(toast, { current: null }, vi.fn(), finishSaves, () => drafts.hasPending());
     drafts = useDescriptionDrafts(database); return null;
   }
   host = document.createElement('div'); document.body.append(host); root = createRoot(host);
@@ -125,7 +126,7 @@ it('flushes a draft entered while the final queue drain was pending', async () =
   let queued!: Promise<StoredEvent[] | null>, final!: Promise<boolean>;
   await act(async () => {
     queued = database.mutate(() => new Promise<StoredEvent[]>(resolve => { release = resolve; }));
-    final = drafts.flushAll();
+    final = finishSaves();
   });
   change('Typed during drain');
   await act(async () => { release(history); await queued; });
@@ -209,7 +210,7 @@ it('review: waits for an accepted Markdown import before approving the final flu
   let approved = false;
   await act(async () => {
     importing = drafts.appendSources(['A'], [{ kind: 'path', value: 'C:\\notes.md' }]);
-    final = drafts.flushAll().then(saved => { approved = saved; return saved; });
+    final = finishSaves().then(saved => { approved = saved; return saved; });
   });
   const approvedBeforeRead = approved;
   await act(async () => { resolveRead('# Accepted import'); await importing; await final; });
@@ -251,12 +252,12 @@ it('refuses final flush when an accepted Markdown read fails and permits a retry
   let importing!: Promise<unknown>, closing!: Promise<boolean>;
   await act(async () => {
     importing = drafts.appendSources(['A'], [{ kind: 'path', value: 'C:\\notes.md' }]).catch(error => error);
-    closing = drafts.flushAll();
+    closing = finishSaves();
   });
   await act(async () => { rejectRead(new Error('read failed')); await importing; });
   expect(await closing).toBe(false);
   expect(drafts.hasPending()).toBe(false);
-  expect(await drafts.flushAll()).toBe(true);
+  expect(await finishSaves()).toBe(true);
   expect(bridge.appendBatch).not.toHaveBeenCalled();
 });
 

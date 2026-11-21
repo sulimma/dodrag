@@ -421,10 +421,10 @@
   "Nur dieses Projekt anzeigen": "Mostrar solo este proyecto",
   "Projekt löschen": "Eliminar proyecto",
   "Projekt {code} und seine Labels an allen Tasks endgültig löschen?": "¿Eliminar definitivamente el proyecto {code} y sus etiquetas de todas las tareas?",
-  "Nachfolger anlegen": "Crear sucesor",
-  "Nachfolger von {id} anlegen": "Crear sucesor de {id}",
-  "Vorgänger": "Predecesores",
-  "Nachfolger": "Sucesores",
+  "Nachfolger anlegen": "Crear tarea sucesora",
+  "Nachfolger von {id} anlegen": "Crear tarea sucesora de {id}",
+  "Vorgänger": "Tareas predecesoras",
+  "Nachfolger": "Tareas sucesoras",
   "Abhängigkeit entfernen": "Quitar dependencia",
-  "Nachfolger {id} lösen": "Desvincular el sucesor {id}"
+  "Nachfolger {id} lösen": "Desvincular la sucesora {id}"
 }

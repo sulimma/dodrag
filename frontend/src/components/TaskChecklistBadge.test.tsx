@@ -84,8 +84,12 @@ it('uses the same non-interactive progress badge in all four task views', () => 
     expect(badge.closest('button')).toBeNull();
     expect(badge.getAttribute('tabindex')).toBeNull();
     if (index === 0) {
-      expect(badge.parentElement?.querySelector('[data-edge-key]')).not.toBeNull();
-      expect(badge.compareDocumentPosition(element.querySelector('[data-edge-key]')!) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+      const row = element.querySelector('[data-task-drag="A"]')!;
+      const title = row.querySelector('[data-task-title]')!;
+      const predecessor = row.querySelector('button[data-edge-key="P->A"]')!;
+      expect(row.contains(badge)).toBe(true);
+      expect(title.compareDocumentPosition(badge) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(badge.compareDocumentPosition(predecessor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
     if (index === 1) expect(badge.parentElement?.querySelector('button[aria-label]')).not.toBeNull();
     if (index === 2) expect(badge.closest('[data-gantt-list]')).not.toBeNull();

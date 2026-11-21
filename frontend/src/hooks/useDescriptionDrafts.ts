@@ -8,7 +8,7 @@ import type { TaskState } from '../domain/types';
 import type { useDatabaseSnapshot } from './useDatabaseSnapshot';
 
 interface Draft { database: string; taskId: string; text: string; revision: number }
-type Database = Pick<ReturnType<typeof useDatabaseSnapshot>, 'databaseIdentity' | 'confirmedEvents' | 'mutate' | 'waitForMutations'>;
+type Database = Pick<ReturnType<typeof useDatabaseSnapshot>, 'databaseIdentity' | 'confirmedEvents' | 'mutate' | 'saves'>;
 
 // A description edit is a local session, including formatting, paste and local undo.
 // Each change immediately requests a durable SQLite checkpoint; only leaving
@@ -24,7 +24,6 @@ export function useDescriptionDrafts(database: Database) {
   const checkpointing = useRef(new Map<string, Promise<void>>());
   const failed = useRef(new Set<string>());
   const mounted = useRef(true);
-  const imports = useRef(new Set<Promise<boolean>>());
   const saving = useRef(new Map<string, { draft: Draft; promise: Promise<boolean> }>());
   const [, redraw] = useReducer((revision: number) => revision + 1, 0);
   const keyFor = (taskId: string) => JSON.stringify([current.current.databaseIdentity.current, taskId]);
@@ -121,29 +120,15 @@ export function useDescriptionDrafts(database: Database) {
     };
     if (!sources.some(source => source.kind === 'path' && isMarkdownPath(source.value))) return append(sources);
     // Admission starts at the file read, before a draft or queued write exists.
-    const operation = readMarkdownSources(sources).then(append);
-    imports.current.add(operation);
-    const finished = () => { imports.current.delete(operation); };
-    void operation.then(finished, finished);
-    return operation;
+    return db.saves.track(readMarkdownSources(sources).then(append), 'import');
   }, [persistDrafts]);
   const flush = useCallback((taskId: string) => flushKey(keyFor(taskId)), [flushKey]);
-  const flushAll = useCallback(async () => {
-    const db = current.current;
-    const identity = db.databaseIdentity.current;
-    // A second boundary while a save is pending must also cover newer typing.
-    for (;;) {
-      try {
-        if ((await Promise.all([...imports.current])).some(saved => !saved)) return false;
-      } catch { return false; } // The drop caller reports the original read error.
-      const keys = [...drafts.current].filter(([, draft]) => draft.database === identity).map(([key]) => key);
-      for (const key of keys) if (!await flushKey(key)) return false;
-      await db.waitForMutations();
-      if (identity !== db.databaseIdentity.current) return false;
-      // Draining other mutations yields to React/input too. Recheck drafts
-      // afterwards; a pre-drain empty map is not a completed final flush.
-      if (!imports.current.size && ![...drafts.current.values()].some(draft => draft.database === identity)) return true;
+  const flushDrafts = useCallback(async () => {
+    const identity = current.current.databaseIdentity.current;
+    for (const [key, draft] of [...drafts.current]) {
+      if (draft.database === identity && !await flushKey(key)) return false;
     }
+    return identity === current.current.databaseIdentity.current;
   }, [flushKey]);
   const taskWithDraft = (task: TaskState | null): TaskState | null => {
     if (!task) return null;
@@ -155,5 +140,7 @@ export function useDescriptionDrafts(database: Database) {
     if (!draft || protectedDrafts.current.has(draft)) return 'saved';
     return failed.current.has(key) ? 'error' : 'saving';
   };
-  return { protectionState, change, flush, flushAll, appendSources, taskWithDraft, hasPending: () => imports.current.size > 0 || checkpointing.current.size > 0 || saving.current.size > 0, hasDrafts: () => imports.current.size > 0 || drafts.current.size > 0 || saving.current.size > 0 };
+  return { protectionState, change, flush, flushDrafts, appendSources, taskWithDraft,
+    hasPending: () => current.current.saves.hasImports() || checkpointing.current.size > 0 || saving.current.size > 0,
+    hasDrafts: () => drafts.current.size > 0 };
 }

@@ -1,5 +1,6 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
+import { SaveCompletionContext } from '../hooks/saveCompletion';
 import { formatDate, t, useLanguage } from '../i18n';
 import { TargetText } from './editor/TargetText';
 import { nativeDropText, targetFromElement } from './editor/targets';
@@ -37,17 +38,22 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
   const session = taskSession.current;
   const currentEntries = useRef(props.entries); currentEntries.current = props.entries;
   const submitting = useRef(false);
+  const saves = React.useContext(SaveCompletionContext);
+  const failed = useRef({ add: false, edit: false });
   useEffect(() => {
     setDraft(''); setPending(false); submitting.current = false;
     setEditing(null); setEditPending(false); editSubmitting.current = null;
-  }, [props.taskId]);
+    failed.current = { add: false, edit: false };
+    return saves?.watchFailedDraft(() => (failed.current.add && !!input.current?.value.trim()) || failed.current.edit);
+  }, [props.taskId, saves]);
   const dateLine = (entry: TaskLogEntry) => `${entry.lifecycle ? (entry.lifecycle === 'completed' ? '🟥 ' : '🟩 ') : '⬛ '}${formatDate(entry.createdAt)}${entry.lifecycle ? ` ${taskLifecycleText(entry)}` : ''}`;
   const startEdit = (entry: TaskLogEntry) => {
     if (!props.onUpdate || entry.lifecycle || editSubmitting.current) return;
+    failed.current.edit = false;
     const next = { id: entry.id, text: entry.text, token: {} };
     currentEdit.current = next; setEditing(next); setEditPending(false);
   };
-  const cancelEdit = () => { currentEdit.current = null; setEditing(null); setEditPending(false); editSubmitting.current = null; };
+  const cancelEdit = () => { failed.current.edit = false; currentEdit.current = null; setEditing(null); setEditPending(false); editSubmitting.current = null; };
   const saveEdit = async () => {
     if (!editing || taskSession.current !== session || currentEdit.current?.token !== editing.token
       || !props.onUpdate || !editing.text.trim() || editSubmitting.current) return;
@@ -57,10 +63,13 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
     try {
       await props.onUpdate(id, text.trim());
       if (taskSession.current === session && currentEdit.current?.token === token) {
+        failed.current.edit = false;
         setEditing(current => current?.token === token && current.text === text ? null : current);
       }
-    } catch (error) { props.onError(error); }
-    finally {
+    } catch (error) {
+      if (taskSession.current === session && currentEdit.current?.token === token) failed.current.edit = true;
+      props.onError(error);
+    } finally {
       if (taskSession.current === session && editSubmitting.current === token) {
         editSubmitting.current = null; setEditPending(false);
       }
@@ -86,8 +95,14 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
     submitting.current = true; setPending(true);
     try {
       await props.onAdd(text);
-      if (taskSession.current === session) setDraft(value => value === draft ? '' : value);
-    } catch (error) { props.onError(error); }
+      if (taskSession.current === session) {
+        failed.current.add = false;
+        setDraft(value => value === draft ? '' : value);
+      }
+    } catch (error) {
+      if (taskSession.current === session && input.current?.value.trim()) failed.current.add = true;
+      props.onError(error);
+    }
     finally { if (taskSession.current === session) { submitting.current = false; setPending(false); } }
   };
   const logContext = (element: EventTarget, clipboardOnly = false): EditorContextMenu => {
@@ -188,7 +203,7 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
     <form className="flex gap-2 border-t border-slate-100 p-2" onSubmit={event => { event.preventDefault(); void add(); }}>
       <textarea ref={input} value={draft} rows={2} aria-label={t('Notiz hinzufügen')} placeholder={t('Notiz hinzufügen')}
         className="flex-1 resize-none rounded border border-slate-200 px-2 py-1 text-sm outline-none focus:border-sky-400"
-        onChange={event => setDraft(event.target.value)} onKeyDown={event => {
+        onChange={event => { if (!event.target.value.trim()) failed.current.add = false; setDraft(event.target.value); }} onKeyDown={event => {
           if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault(); event.stopPropagation(); void add();
           }

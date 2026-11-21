@@ -90,6 +90,9 @@ func (s *Store) ensureCache(tx *sql.Tx) error {
 		return nil
 	}
 	s.ready = false
+	if _, err := checkDatabaseVersion(tx, s.appVersion); err != nil {
+		return err
+	}
 	if err := validateSchema(tx); err != nil {
 		return err
 	}
@@ -115,12 +118,7 @@ func (s *Store) ensureCache(tx *sql.Tx) error {
 	return nil
 }
 
-func (s *Store) normalizeLegacyTimes() error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+func (s *Store) normalizeLegacyTimes(tx *sql.Tx) error {
 	events, err := s.readEventsWithUTC(tx, false)
 	if err != nil {
 		return err
@@ -159,18 +157,11 @@ func (s *Store) normalizeLegacyTimes() error {
 	if err != nil {
 		return err
 	}
-	stamp, err := readChangeStamp(tx)
-	if err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
 	ids := make(map[string]bool, len(events))
 	for _, event := range events {
 		ids[event.ID] = true
 	}
-	s.events, s.tasks, s.snapshots, s.ids, s.stamp, s.ready = events, tasks, snapshots, ids, stamp, true
+	s.events, s.tasks, s.snapshots, s.ids, s.ready = events, tasks, snapshots, ids, true
 	return nil
 }
 

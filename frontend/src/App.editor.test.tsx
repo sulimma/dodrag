@@ -304,6 +304,18 @@ it('keeps the window open when a submitted log note fails during close', async (
   await act(async () => pending.shift()!.reject(new Error('Disk unavailable')));
   expect(api.FinishClose).toHaveBeenLastCalledWith(false);
   expect(input.value).toBe('Keep this note');
+  await act(async () => nativeEvents.get('app:before-close')!());
+  expect(api.FinishClose).toHaveBeenLastCalledWith(false);
+  await key(input, 'Enter');
+  const retry = pending.shift()!;
+  expect(retry.commands).toMatchObject([{ type: 'TASK_LOG_ADDED', payload: { text: 'Keep this note' } }]);
+  await act(async () => nativeEvents.get('app:before-close')!());
+  await act(async () => {
+    history = [...history, ...retry.commands.map(command => ({ ...command, seq: history.length + 1, timestamp: date, undone: false }))];
+    retry.resolve(history);
+  });
+  expect(api.FinishClose).toHaveBeenLastCalledWith(true);
+  expect(input.value).toBe('');
 });
 
 it('waits for Markdown dropped into the description editor before approving close', async () => {

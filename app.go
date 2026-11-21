@@ -508,7 +508,7 @@ func (a *App) openActiveDatabaseLocked() {
 	}
 
 	_ = isDemo // Demo seeding is exclusively an explicit creation option.
-	store, err := eventstore.NewStoreWithBuildInfo(targetPath, false, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
+	store, err := eventstore.OpenExistingStore(targetPath, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
 	if err != nil {
 		a.databaseOpenErr = err
 		return
@@ -889,7 +889,7 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 	if err != nil || info.IsDir() {
 		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank nicht vorhanden: {path}", "path", fullPath))
 	}
-	newStore, err := eventstore.NewStoreWithBuildInfo(fullPath, false, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
+	newStore, err := eventstore.OpenExistingStore(fullPath, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
 	if err != nil {
 		return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht geöffnet werden", err)
 	}
@@ -961,7 +961,7 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 		}
 	}
 
-	newStore, err := eventstore.NewStoreWithBuildInfo(cleanTarget, false, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
+	newStore, err := eventstore.OpenExistingStore(cleanTarget, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
 	if err != nil {
 		return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht geladen werden", err)
 	}

@@ -421,10 +421,10 @@
   "Nur dieses Projekt anzeigen": "仅显示此项目",
   "Projekt löschen": "删除项目",
   "Projekt {code} und seine Labels an allen Tasks endgültig löschen?": "永久删除项目 {code} 及其在所有任务上的标签？",
-  "Nachfolger anlegen": "创建后继任务",
-  "Nachfolger von {id} anlegen": "为 {id} 创建后继任务",
+  "Nachfolger anlegen": "创建后续任务",
+  "Nachfolger von {id} anlegen": "为 {id} 创建后续任务",
   "Vorgänger": "前置任务",
-  "Nachfolger": "后继任务",
+  "Nachfolger": "后续任务",
   "Abhängigkeit entfernen": "移除依赖关系",
-  "Nachfolger {id} lösen": "解除与后继任务 {id} 的关联"
+  "Nachfolger {id} lösen": "解除与后续任务 {id} 的关联"
 }
