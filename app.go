@@ -34,12 +34,13 @@ type DatabaseEntry struct {
 
 // SetupState describes whether the executable and its shortcuts are installed.
 type SetupState struct {
-	CurrentExe        string `json:"currentExe"`
-	CurrentDir        string `json:"currentDir"`
-	InstallPath       string `json:"installPath"`
-	ProgramInstalled  bool   `json:"programInstalled"`
-	DesktopShortcut   bool   `json:"desktopShortcut"`
-	StartMenuShortcut bool   `json:"startMenuShortcut"`
+	CurrentExe            string `json:"currentExe"`
+	CurrentDir            string `json:"currentDir"`
+	InstallPath           string `json:"installPath"`
+	ProgramInstalled      bool   `json:"programInstalled"`
+	InstalledVersionOlder bool   `json:"installedVersionOlder,omitempty"`
+	DesktopShortcut       bool   `json:"desktopShortcut"`
+	StartMenuShortcut     bool   `json:"startMenuShortcut"`
 }
 
 // AppSettings stores known databases, the currently active database, autostart flag, and dock monitor/corner in %APPDATA%\DoDrag\settings.json.

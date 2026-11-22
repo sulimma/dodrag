@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -60,9 +61,7 @@ func computeSetupState() SetupState {
 	}
 	if target, err := installTargetPath(); err == nil {
 		state.InstallPath = target
-		if info, statErr := os.Stat(target); statErr == nil && !info.IsDir() {
-			state.ProgramInstalled = strings.EqualFold(state.CurrentExe, target) || filesIdentical(state.CurrentExe, target)
-		}
+		state.ProgramInstalled, state.InstalledVersionOlder = programSetupState(state.CurrentExe, target, readExecutableVersion)
 	}
 	if path, err := desktopShortcutPath(); err == nil {
 		_, err := os.Stat(path)
@@ -73,6 +72,45 @@ func computeSetupState() SetupState {
 		state.StartMenuShortcut = err == nil
 	}
 	return state
+}
+
+type executableVersion [3]uint16
+
+func programSetupState(current, target string, readVersion func(string) (executableVersion, bool)) (installed, older bool) {
+	if info, err := os.Stat(target); err != nil || info.IsDir() {
+		return false, false
+	}
+	if strings.EqualFold(current, target) {
+		return true, false
+	}
+	currentVersion, currentOK := readVersion(current)
+	targetVersion, targetOK := readVersion(target)
+	if currentOK && targetOK && slices.Compare(targetVersion[:], currentVersion[:]) < 0 {
+		return false, true
+	}
+	// Other builds can still be copied manually, even when the version matches.
+	return filesIdentical(current, target), false
+}
+
+func readExecutableVersion(path string) (executableVersion, bool) {
+	var unused windows.Handle
+	size, err := windows.GetFileVersionInfoSize(path, &unused)
+	if err != nil || size == 0 {
+		return executableVersion{}, false
+	}
+	buffer := make([]byte, size)
+	if err := windows.GetFileVersionInfo(path, 0, size, unsafe.Pointer(&buffer[0])); err != nil {
+		return executableVersion{}, false
+	}
+	var info *windows.VS_FIXEDFILEINFO
+	var infoSize uint32
+	const fixedVersionSignature = 0xFEEF04BD
+	err = windows.VerQueryValue(unsafe.Pointer(&buffer[0]), `\`, unsafe.Pointer(&info), &infoSize)
+	if err != nil || info == nil || uintptr(infoSize) < unsafe.Sizeof(*info) || info.Signature != fixedVersionSignature {
+		return executableVersion{}, false
+	}
+	// Packaging stores the three numeric version components, without the rc suffix.
+	return executableVersion{uint16(info.FileVersionMS >> 16), uint16(info.FileVersionMS), uint16(info.FileVersionLS >> 16)}, true
 }
 
 // filesIdentical reports whether both paths contain the same bytes. Sizes are

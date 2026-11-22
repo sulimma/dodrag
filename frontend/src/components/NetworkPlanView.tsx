@@ -19,13 +19,18 @@ import { TaskChecklistBadge } from './TaskChecklistBadge';
 import { taskInteractions, draggedTaskIdOf } from './taskInteractions';
 import type { TaskViewInteractions } from './taskInteractions';
 import { edgesWithPreview } from '../domain/dependencyPaths';
-import { stableTopology } from '../domain/topology';
+import { formatMarkerTime } from '../domain/timeMarkers';
+import { layoutNetworkLanes } from './networkLanes';
+import { refineNetworkPositions } from './networkRefinement';
 import { TaskDragHandle } from './TaskDragHandle';
 import { arrowBase, ArrowMarkers } from './arrowGeometry';
+import { type Cubic, pathData, pointOnCurve } from './networkCrossings';
 import { t, useLanguage } from '../i18n';
 
 interface NetworkPlanViewProps extends TaskViewInteractions {
   projectFilterActive?: boolean;
+  projectOrder?: readonly string[];
+  projectMembers?: ReadonlyMap<string, ReadonlySet<string>>;
   scrollRef?: React.RefObject<HTMLElement>;
   titleEditor: InlineEditor;
   dateEditor: InlineEditor;
@@ -42,7 +47,6 @@ interface PositionedNode {
   cy: number; // Center Y
   width: number;
   height: number;
-  dateRank: number;
 }
 
 interface DateBandLayout {
@@ -76,19 +80,19 @@ const CANVAS_PAD_Y = 18;
  * One cubic Bézier with a direction-dependent target tangent and a small bow for aligned
  * endpoints. Obstacles may adjust its curvature, but never add waypoints.
  */
-export function buildCleanEdgePath(
+function buildEdgeCurve(
   startPt: { x: number; y: number },
   endPt: { x: number; y: number },
-  intermediateObstacles: PositionedNode[],
+  hitsObstacle: ((x: number, y: number) => boolean) | undefined,
   direction = { x: 0, y: 1 }
-): string {
+): Cubic {
   endPt = arrowBase(endPt, direction);
   const dx = endPt.x - startPt.x;
   const deltaY = endPt.y - startPt.y;
   // A 36-unit control offset bows a vertical edge by at most 16 SVG units.
   const bowX = direction.x === 0 ? (dx < 0 ? -1 : 1) * Math.max(0, 36 - Math.abs(dx)) : 0;
   const bowY = direction.y === 0 ? (deltaY < 0 ? -1 : 1) * Math.max(0, 36 - Math.abs(deltaY)) : 0;
-  let bestPath = '';
+  let bestCurve: Cubic = [startPt, startPt, endPt, endPt];
   let bestScore = Infinity;
   for (const factor of [0.42, 0.28, 0.56]) {
     const distance = Math.max(8, Math.abs(direction.x === 0 ? deltaY : dx) * factor);
@@ -96,31 +100,38 @@ export function buildCleanEdgePath(
     const startControlY = startPt.y + direction.y * distance + bowY;
     const endControlX = endPt.x - direction.x * distance;
     const endControlY = endPt.y - direction.y * distance;
+    const curve: Cubic = [startPt, { x: startControlX, y: startControlY }, { x: endControlX, y: endControlY }, endPt];
     let score = factor === 0.42 ? 0 : 0.25;
-    // ponytail: 24 samples are a soft collision heuristic, not clearance proof.
-    // Crossings are allowed; use curve/rectangle intersection if that changes.
-    for (let i = 1; intermediateObstacles.length > 0 && i < 24; i++) {
-      const t = i / 24;
-      const u = 1 - t;
-      const x = u ** 3 * startPt.x + 3 * u * u * t * startControlX
-        + 3 * u * t * t * endControlX + t ** 3 * endPt.x;
-      const y = u ** 3 * startPt.y + 3 * u * u * t * startControlY
-        + 3 * u * t * t * endControlY + t ** 3 * endPt.y;
-      if (intermediateObstacles.some((obs) =>
-        x >= obs.x - 8 && x <= obs.x + obs.width + 8
-        && y >= obs.y - 5 && y <= obs.y + obs.height + 5
-      )) score++;
+    // Choose the curvature with the fewest samples near intervening cards.
+    for (let i = 1; hitsObstacle && i < 24; i++) {
+      const { x, y } = pointOnCurve(curve, i / 24);
+      if (hitsObstacle(x, y)) score++;
     }
     if (score < bestScore) {
       bestScore = score;
-      bestPath = `M ${startPt.x} ${startPt.y} C ${startControlX} ${startControlY}, ${endControlX} ${endControlY}, ${endPt.x} ${endPt.y}`;
+      bestCurve = curve;
     }
     if (bestScore === 0) break;
   }
-  return bestPath;
+  return bestCurve;
 }
 
-// Renders tasks by dependency topology and routes their drag interactions.
+type Obstacle = Pick<PositionedNode, 'x' | 'y' | 'width' | 'height'>;
+
+function nearCard(x: number, y: number, card: Obstacle) {
+  return x >= card.x - 8 && x <= card.x + card.width + 8 &&
+    y >= card.y - 5 && y <= card.y + card.height + 5;
+}
+
+export function buildCleanEdgePath(
+  start: { x: number; y: number }, end: { x: number; y: number },
+  obstacles: Obstacle[], direction = { x: 0, y: 1 },
+) {
+  const hit = obstacles.length ? (x: number, y: number) => obstacles.some(card => nearCard(x, y, card)) : undefined;
+  return pathData(buildEdgeCurve(start, end, hit, direction));
+}
+
+// The time bands and lane placement belong only to the network view.
 export function NetworkPlanView(props: NetworkPlanViewProps) {
   const language = useLanguage();
   const {
@@ -162,238 +173,105 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
   const layout = useMemo(() => {
     const todayKey = toDateKey(now);
 
-    // 1. Collect all relevant date layers (Today + each open task's effectiveDateKey)
-    const dateKeysSet = new Set<string>(props.hideEmptyDates ? [] : [todayKey]);
-    for (const t of openTasks) {
-      const dk = t.isActive || t.effectiveDateKey < todayKey ? todayKey : t.effectiveDateKey;
-      dateKeysSet.add(dk);
+    // A physical row belongs to one date and one time slot. Active cards share
+    // a separate slot before today's first marker, independent of manual order.
+    const days = new Map<string, Map<number, TaskState[]>>();
+    if (!props.hideEmptyDates) days.set(todayKey, new Map());
+    for (const task of openTasks) {
+      const date = task.isActive || task.effectiveDateKey < todayKey ? todayKey : task.effectiveDateKey;
+      const slot = task.isActive ? -1 : task.sortSlot ?? 0;
+      let day = days.get(date);
+      if (!day) days.set(date, day = new Map());
+      const area = day.get(slot);
+      if (area) area.push(task);
+      else day.set(slot, [task]);
     }
-    const sortedDateKeys = Array.from(dateKeysSet).sort();
-    const dateKeyToRank = new Map<string, number>();
-    sortedDateKeys.forEach((dk, idx) => dateKeyToRank.set(dk, idx));
-
-    // 2. Transitive reduction of dependency edges (omits A->C if A->B and B->C exist)
-    const reducedEdges = computeTransitiveReductionEdges(openTasks);
-
-    // Reduced-edge neighbors guide horizontal alignment, not task ordering.
-    const predsOf: Record<string, string[]> = {};
-    const succsOf: Record<string, string[]> = {};
-    for (const t of openTasks) {
-      predsOf[t.id] = [];
-      succsOf[t.id] = [];
-    }
-    for (const e of reducedEdges) {
-      if (predsOf[e.to]) predsOf[e.to].push(e.from);
-      if (succsOf[e.from]) succsOf[e.from].push(e.to);
-    }
-
-    // 3. Group tasks by their exact date rank
-    const rows: TaskState[][] = sortedDateKeys.map(() => []);
-    for (const t of openTasks) {
-      const dk = t.isActive || t.effectiveDateKey < todayKey ? todayKey : t.effectiveDateKey;
-      const r = dateKeyToRank.get(dk) ?? 0;
-      rows[r].push(t);
-    }
-
-    // Determine how many columns fit side-by-side within the available container width
-    const stepX = NODE_WIDTH + NODE_SEP_X;
-    const usableWidth = Math.max(
-      NODE_WIDTH,
-      containerWidth - LEFT_DATE_GUTTER - CANVAS_PAD_X
+    const sortedDates = [...days.keys()].sort();
+    const areas = sortedDates.flatMap(date =>
+      [...days.get(date)!].sort(([a], [b]) => a - b).map(([slot, tasks]) => ({ date, slot, tasks }))
     );
-    const maxCols = Math.max(
-      1,
-      Math.floor((usableWidth + NODE_SEP_X) / stepX)
-    );
-    const maxAllowedX = Math.max(0, usableWidth - NODE_WIDTH);
 
-    // A level is 1 + the maximum level of ALL same-band predecessors (roots: 0).
-    // Compute levels topologically, then preserve openTasks priority within levels.
-    // Wrap each entire level before starting the next, including unrelated nodes.
-    const daySlices = rows.map((row) => {
-      const active = row.filter(task => task.isActive);
-      const inactive = row.filter(task => !task.isActive);
-      const levelOf = new Map<string, number>();
-      for (const task of stableTopology(inactive)) {
-        let level = 0;
-        for (const id of task.predecessorIds) {
-          const predecessorLevel = levelOf.get(id);
-          if (predecessorLevel !== undefined) level = Math.max(level, predecessorLevel + 1);
-        }
-        levelOf.set(task.id, level);
+    const usableWidth = Math.max(NODE_WIDTH, containerWidth - LEFT_DATE_GUTTER - CANVAS_PAD_X);
+    const pitch = NODE_WIDTH + NODE_SEP_X;
+    const laneCount = Math.max(1, Math.floor((usableWidth + NODE_SEP_X) / pitch));
+    const laneWidth = (usableWidth + NODE_SEP_X) / laneCount;
+    const projectRank = new Map(props.projectOrder?.map((id, index) => [id, index]));
+    const firstProject = (task: TaskState) => {
+      let first = Infinity;
+      for (const id of props.projectMembers?.get(task.id) ?? []) {
+        first = Math.min(first, projectRank.get(id) ?? Infinity);
       }
-      const levels: TaskState[][] = [];
-      for (const task of inactive) {
-        const level = levelOf.get(task.id)!;
-        (levels[level] ??= []).push(task);
-      }
-      // Active priority is already global; each task occupies its own reachable row.
-      const slices: TaskState[][] = active.map(task => [task]);
-      for (const level of levels) {
-        for (let start = 0; start < level.length; start += maxCols) {
-          slices.push(level.slice(start, start + maxCols));
-        }
-      }
-      return slices;
-    });
-    const layoutRows = daySlices.flat();
-
-    // 4. Clamped horizontal neighbor alignment, preserving priority within each slice.
-    const xPos: Record<string, number> = {};
-
-    // Assign initial X positions within each wrapped level.
-    for (const row of layoutRows) {
-      row.forEach((t, idx) => {
-        xPos[t.id] = (idx % maxCols) * stepX;
-      });
-    }
-
-    // Helper: place a single horizontal slice of <= maxCols nodes as close as possible to their desired target X
-    // while maintaining `stepX` spacing and never exceeding `[0, maxAllowedX]`.
-    const resolveSlicePositions = (
-      slice: TaskState[],
-      desiredX: Record<string, number>
-    ) => {
-      if (slice.length === 0) return;
-      const xs = slice.map((t) =>
-        Math.max(0, Math.min(maxAllowedX, desiredX[t.id] ?? 0))
-      );
-
-      // Left-to-right pass to enforce minimum gap
-      for (let i = 1; i < xs.length; i++) {
-        if (xs[i] < xs[i - 1] + stepX) {
-          xs[i] = xs[i - 1] + stepX;
-        }
-      }
-      // Clamp right boundary and sweep right-to-left so nodes never overflow right edge
-      if (xs[xs.length - 1] > maxAllowedX) {
-        xs[xs.length - 1] = maxAllowedX;
-      }
-      for (let i = xs.length - 2; i >= 0; i--) {
-        if (xs[i] > xs[i + 1] - stepX) {
-          xs[i] = xs[i + 1] - stepX;
-        }
-      }
-      // Clamp left boundary and sweep left-to-right
-      if (xs[0] < 0) {
-        xs[0] = 0;
-      }
-      for (let i = 1; i < xs.length; i++) {
-        if (xs[i] < xs[i - 1] + stepX) {
-          xs[i] = xs[i - 1] + stepX;
-        }
-      }
-
-      slice.forEach((t, i) => {
-        xPos[t.id] = xs[i];
-      });
+      return first;
     };
 
-    // Six neighbor-average sweeps improve alignment; crossings remain allowed.
-    for (let iter = 0; iter < 6; iter++) {
-      // Top-Down: align children directly under the average X of their predecessors
-      for (let r = 1; r < layoutRows.length; r++) {
-        const row = layoutRows[r];
-        if (row.length === 0) continue;
-        const desired: Record<string, number> = {};
-        for (const t of row) {
-          const ps = predsOf[t.id] || [];
-          if (ps.length > 0) {
-            const sum = ps.reduce((acc, pId) => acc + (xPos[pId] ?? 0), 0);
-            desired[t.id] = sum / ps.length;
-          } else {
-            desired[t.id] = xPos[t.id];
-          }
-        }
-        resolveSlicePositions(row, desired);
-      }
-
-      // Bottom-Up: approach the average X of predecessors and successors.
-      for (let r = layoutRows.length - 2; r >= 0; r--) {
-        const row = layoutRows[r];
-        if (row.length === 0) continue;
-        const desired: Record<string, number> = {};
-        for (const t of row) {
-          const ss = succsOf[t.id] || [];
-          const ps = predsOf[t.id] || [];
-          const neighbors = [...ps, ...ss];
-          if (neighbors.length > 0) {
-            const sum = neighbors.reduce(
-              (acc, nId) => acc + (xPos[nId] ?? 0),
-              0
-            );
-            desired[t.id] = sum / neighbors.length;
-          } else {
-            desired[t.id] = xPos[t.id];
-          }
-        }
-        resolveSlicePositions(row, desired);
-      }
-    }
-
-    // 5. Build positioned nodes & date bands (supporting multiple sub-rows within a day)
+    // Stable accumulation order also keeps floating-point relaxation independent of list edits.
+    const reducedEdges = computeTransitiveReductionEdges(openTasks)
+      .sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to));
+    const areaRows = layoutNetworkLanes(areas.map(area => area.tasks), laneCount, reducedEdges, firstProject);
     const nodes: Record<string, PositionedNode> = {};
     const dateBands: DateBandLayout[] = [];
+    const timeLabels: { y: number; minute: number }[] = [];
     let currentY = CANVAS_PAD_Y;
-
-    for (let r = 0; r < sortedDateKeys.length; r++) {
-      const dk = sortedDateKeys[r];
-      const { label, subLabel, isToday, isWeekend, weekdayShort } =
-        formatDateHeading(dk, now);
-
-      const slices = daySlices[r];
-      const isRowEmpty = slices.length === 0;
-      const numSubRows = slices.length;
-
+    let areaIndex = 0;
+    for (const dateKey of sortedDates) {
       const bandTopY = currentY;
-      const bandHeight = isRowEmpty
-        ? 38
-        : 24 +
-          numSubRows * NODE_HEIGHT +
-          Math.max(0, numSubRows - 1) * SUBROW_SEP_Y +
-          RANK_SEP_Y;
-      const nodeTopY = bandTopY + 24;
-      currentY += bandHeight;
-
+      let nextRowY = bandTopY + 24;
+      while (areaIndex < areas.length && areas[areaIndex].date === dateKey) {
+        const { slot } = areas[areaIndex];
+        if (slot > 0) timeLabels.push({ y: nextRowY, minute: slot });
+        for (const row of areaRows[areaIndex]) {
+          for (const { task, lane } of row) {
+            const x = LEFT_DATE_GUTTER + lane * laneWidth + (laneWidth - pitch) / 2;
+            nodes[task.id] = {
+              task, x, y: nextRowY, cx: x + NODE_WIDTH / 2, cy: nextRowY + NODE_HEIGHT / 2,
+              width: NODE_WIDTH, height: NODE_HEIGHT,
+            };
+          }
+          nextRowY += NODE_HEIGHT + SUBROW_SEP_Y;
+        }
+        areaIndex++;
+      }
+      currentY = days.get(dateKey)!.size
+        ? nextRowY - SUBROW_SEP_Y + RANK_SEP_Y
+        : bandTopY + 38;
       dateBands.push({
-        dateKey: dk,
-        isoDate: dateKeyToIsoStart(dk),
-        label,
-        subLabel,
-        weekdayShort,
-        isToday,
-        isWeekend,
-        bandTopY,
-        bandHeight,
+        ...formatDateHeading(dateKey, now), dateKey, isoDate: dateKeyToIsoStart(dateKey),
+        bandTopY, bandHeight: currentY - bandTopY,
       });
-
-      slices.forEach((slice, subRow) => slice.forEach((t) => {
-        const x = LEFT_DATE_GUTTER + (xPos[t.id] ?? 0);
-        const y = nodeTopY + subRow * (NODE_HEIGHT + SUBROW_SEP_Y);
-        nodes[t.id] = {
-          task: t,
-          x,
-          y,
-          cx: x + NODE_WIDTH / 2,
-          cy: y + NODE_HEIGHT / 2,
-          width: NODE_WIDTH,
-          height: NODE_HEIGHT,
-          dateRank: r,
-        };
-      }));
     }
 
-    // 6. Facing ports keep forward, backward and same-row curves outside their cards. Intermediate
-    // obstacles only influence the existing soft curvature heuristic.
     const allNodes = Object.values(nodes);
-    const routedEdges: RoutedEdge[] = [];
-
-    for (const edge of edgesWithPreview(reducedEdges,openTasks,deletionPreview)) {
-      const fromNode = nodes[edge.from];
-      const toNode = nodes[edge.to];
-      if (!fromNode || !toNode) continue;
-
+    const physicalRows = areaRows.flat().map(row => row.map(item => item.task));
+    const rowIndex = new Map<string, number>(), columnIndex = new Map<string, number>();
+    physicalRows.forEach((row, r) => row.forEach(({ id }, c) => {
+      rowIndex.set(id, r);
+      columnIndex.set(id, c);
+    }));
+    const rowTops = physicalRows.map(row => nodes[row[0].id].y);
+    // Only one physical row can reach a sampled Y. X coordinates can change on each trial.
+    const hitsBetween = (first: number, last: number) => (x: number, y: number) => {
+      let lo = first, hi = last + 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (rowTops[mid] + NODE_HEIGHT + 5 < y) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo <= last && rowTops[lo] - 5 <= y &&
+        physicalRows[lo].some(task => nearCard(x, y, nodes[task.id]));
+    };
+    const route = (edge: { from: string; to: string }) => {
+      const fromNode = nodes[edge.from], toNode = nodes[edge.to];
       const sameRow = fromNode.y === toNode.y;
+      // A side-to-side route cannot clear a card between its endpoints in this
+      // row. Use the open strip above the row and meet both top borders normally.
+      if (sameRow && Math.abs(columnIndex.get(edge.from)! - columnIndex.get(edge.to)!) > 1) {
+        const y = fromNode.y;
+        const top = y - SUBROW_SEP_Y;
+        return [
+          { x: fromNode.cx, y }, { x: fromNode.cx, y: top },
+          { x: toNode.cx, y: top }, arrowBase({ x: toNode.cx, y }, { x: 0, y: 1 }),
+        ] satisfies Cubic;
+      }
       const direction = sameRow
         ? { x: toNode.cx > fromNode.cx ? 1 : -1, y: 0 }
         : { x: 0, y: toNode.cy > fromNode.cy ? 1 : -1 };
@@ -406,23 +284,15 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
         y: toNode.cy - direction.y * toNode.height / 2,
       };
 
-      // Any node vertically between fromNode and toNode (including other sub-rows in the same day) is a potential obstacle
-      const minCy = Math.min(fromNode.cy, toNode.cy);
-      const maxCy = Math.max(fromNode.cy, toNode.cy);
-      const intermediateObstacles = allNodes.filter(
-        (n) =>
-          n.task.id !== edge.from &&
-          n.task.id !== edge.to &&
-          n.cy > minCy + 4 &&
-          n.cy < maxCy - 4
-      );
-
-      routedEdges.push({
-        from: edge.from,
-        to: edge.to,
-        pathD: buildCleanEdgePath(startPt, endPt, intermediateObstacles, direction),
-      });
-    }
+      const a = rowIndex.get(edge.from)!, b = rowIndex.get(edge.to)!;
+      const hit = Math.abs(a - b) > 1 ? hitsBetween(Math.min(a, b) + 1, Math.max(a, b) - 1) : undefined;
+      return buildEdgeCurve(startPt, endPt, hit, direction);
+    };
+    const visible = (edge: { from: string; to: string }) => !!nodes[edge.from] && !!nodes[edge.to];
+    refineNetworkPositions(physicalRows, nodes, reducedEdges, route,
+      LEFT_DATE_GUTTER, LEFT_DATE_GUTTER + usableWidth, NODE_SEP_X);
+    const routedEdges: RoutedEdge[] = edgesWithPreview(reducedEdges, openTasks, deletionPreview)
+      .filter(visible).map(edge => ({ ...edge, pathD: pathData(route(edge)) }));
 
     // Sort routedEdges top-to-bottom, left-to-right for deterministic Shift+Click range selection
     routedEdges.sort((a, b) => {
@@ -448,13 +318,16 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
     return {
       nodes,
       dateBands,
+      timeLabels,
       routedEdges,
       orderedEdgeKeys,
+      orderedTaskIds: physicalRows.flatMap(row => row.map(task => task.id)),
       canvasWidth,
       canvasHeight,
     };
-  }, [openTasks, now, props.hideEmptyDates, containerWidth, deletionPreview.join('|'), language]);
+  }, [openTasks, now, props.hideEmptyDates, props.projectOrder, props.projectMembers, containerWidth, deletionPreview.join('|'), language]);
 
+  const interactions = { ...props, orderedTaskIds: layout.orderedTaskIds };
   const dateMarkers = useMemo(() => layout.dateBands.map(band => ({ dateKey: band.dateKey, offset: band.bandTopY })), [layout.dateBands]);
   const renderDateBand = (band: DateBandLayout, overlay = false) => {
         const dropKey = `net-date:${band.dateKey}`;
@@ -511,6 +384,10 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
         height={28} contentHeight={layout.canvasHeight}
         renderDate={dateKey => renderDateBand(layout.dateBands.find(band => band.dateKey === dateKey)!, true)} />
       {layout.dateBands.map(band => renderDateBand(band))}
+      {layout.timeLabels.map(({ y, minute }) => (
+        <span key={y} className="absolute left-2 pointer-events-none font-mono text-xs text-slate-500"
+          style={{ top: y }}>{formatMarkerTime(minute)}</span>
+      ))}
 
       {/* SVG Layer for Clean, Direct Directed Edges (Multi-Selectable with Ctrl/Shift & Deletable via Del/Backspace) */}
       <svg
@@ -643,7 +520,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
               width,
               height,
             }}
-            {...taskInteractions(task.id, dropKey, props)}
+            {...taskInteractions(task.id, dropKey, interactions)}
             data-task-drag-disabled={titleEditor.taskId === task.id || dateEditor.taskId === task.id || undefined}
             className={`absolute z-20 rounded-xl border px-2.5 py-2 flex flex-col justify-between cursor-pointer transition-colors ${containerClasses} ${
               isBeingDragged ? 'opacity-35' : ''

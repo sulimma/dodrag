@@ -29,6 +29,7 @@ export interface SetupState {
   currentDir?: string;
   installPath: string;
   programInstalled: boolean;
+  installedVersionOlder?: boolean;
   desktopShortcut: boolean;
   startMenuShortcut: boolean;
 }

@@ -120,6 +120,31 @@ it('displays the native mini mode returned on startup', async () => {
   expect(button('Fenster')).not.toBeNull();
 });
 
+it('opens installation settings on startup with an older installed executable', async () => {
+  activeSettings.bootMinimized = true;
+  const setup = {
+    currentExe: 'C:\\Downloads\\DoDrag.exe',
+    installPath: 'C:\\Users\\me\\AppData\\Local\\Programs\\DoDrag\\DoDrag.exe',
+    programInstalled: false, installedVersionOlder: true, desktopShortcut: true, startMenuShortcut: true,
+  };
+  activeSettings.setup = setup;
+  api.RunSetupAction = vi.fn(async () => ({
+    ...activeSettings, setup: { ...setup, programInstalled: true, installedVersionOlder: false },
+  }));
+
+  await mount();
+  expect(api.SetWindowMode).not.toHaveBeenCalledWith('mini');
+  const installButton = textButton(t('Programm in den Benutzerordner installieren'));
+  expect(installButton?.disabled).toBe(false);
+  expect(api.RunSetupAction).not.toHaveBeenCalled();
+
+  await act(async () => click(installButton));
+  expect(api.RunSetupAction).toHaveBeenCalledWith('install');
+  expect(textButton(t('Programm in den Benutzerordner installieren'))).toBeUndefined();
+  await act(async () => key('Escape'));
+  expect(element.querySelector('[data-task-drag="26-101"]')).not.toBeNull();
+});
+
 it('uses confirmed startup and event modes, including a late startup response', async () => {
   const startup = deferred<'window'>();
   vi.mocked(api.GetWindowMode).mockReturnValue(startup.promise);
@@ -1030,20 +1055,28 @@ it.each(['Liste', 'Netzplan', 'Gantt', 'Protokoll'])('supports ranges, additive 
   vi.mocked(api.GetEvents).mockResolvedValue(groupHistory);
   await mount();
   await chooseView(view);
-  selectTask('26-101');
-  selectTask('26-103', { shiftKey: true });
-  expect(selectedIds()).toEqual(['26-101', '26-102', '26-103']);
-  selectTask('26-102', { ctrlKey: true });
-  expect(selectedIds()).toEqual(['26-101', '26-103']);
-  selectTask('26-104', { metaKey: true, shiftKey: true });
-  expect(selectedIds()).toEqual(['26-101', '26-102', '26-103', '26-104']);
-  selectTask('26-104', { metaKey: true });
-  expect(selectedIds()).toEqual(['26-101', '26-102', '26-103']);
-  act(() => element.querySelector('[data-task-drag="26-102"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
-  expect(selectedIds()).toEqual(['26-101', '26-102', '26-103']);
+  const ids = ['26-101', '26-102', '26-103', '26-104'];
+  if (view === 'Netzplan') {
+    // Lane packing can change the visible range when the network wraps.
+    const card = (id: string) => element.querySelector<HTMLElement>(`[data-task-drag="${id}"]`)!.style;
+    ids.sort((a, b) => parseFloat(card(a).top) - parseFloat(card(b).top)
+      || parseFloat(card(a).left) - parseFloat(card(b).left));
+  }
+  const [first, second, third, fourth] = ids;
+  selectTask(first);
+  selectTask(third, { shiftKey: true });
+  expect(selectedIds()).toEqual([first, second, third].sort());
+  selectTask(second, { ctrlKey: true });
+  expect(selectedIds()).toEqual([first, third].sort());
+  selectTask(fourth, { metaKey: true, shiftKey: true });
+  expect(selectedIds()).toEqual([...ids].sort());
+  selectTask(fourth, { metaKey: true });
+  expect(selectedIds()).toEqual([first, second, third].sort());
+  act(() => element.querySelector(`[data-task-drag="${second}"]`)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+  expect(selectedIds()).toEqual([first, second, third].sort());
   key('Escape');
-  act(() => element.querySelector('[data-task-drag="26-104"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
-  expect(selectedIds()).toEqual(['26-104']);
+  act(() => element.querySelector(`[data-task-drag="${fourth}"]`)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+  expect(selectedIds()).toEqual([fourth]);
   key('Escape'); key('Escape');
   expect(selectedIds()).toEqual([]);
 });

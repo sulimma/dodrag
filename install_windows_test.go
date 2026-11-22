@@ -5,10 +5,12 @@ package main
 import (
 	"context"
 	"errors"
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"os"
 	"path/filepath"
 	"testing"
+
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/sys/windows"
 )
 
 func TestCopyFilePreservesExecutableContent(t *testing.T) {
@@ -53,6 +55,64 @@ func TestFilesIdenticalComparesContent(t *testing.T) {
 	}
 	if filesIdentical(left, right) {
 		t.Fatal("different content reported as identical")
+	}
+}
+
+func TestProgramSetupOnlyFlagsAnOlderInstalledVersion(t *testing.T) {
+	dir := t.TempDir()
+	current := filepath.Join(dir, "current.exe")
+	target := filepath.Join(dir, "installed.exe")
+	for path, content := range map[string]string{current: "running", target: "installed"} {
+		if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		name          string
+		targetPath    string
+		targetVersion executableVersion
+		versionKnown  bool
+		wantInstalled bool
+		wantOlder     bool
+	}{
+		{name: "older patch", targetPath: target, targetVersion: executableVersion{0, 10, 1}, versionKnown: true, wantOlder: true},
+		{name: "older minor", targetPath: target, targetVersion: executableVersion{0, 9, 20}, versionKnown: true, wantOlder: true},
+		{name: "equal version different build", targetPath: target, targetVersion: executableVersion{0, 10, 2}, versionKnown: true},
+		{name: "newer version", targetPath: target, targetVersion: executableVersion{0, 10, 3}, versionKnown: true},
+		{name: "unknown version", targetPath: target},
+		{name: "missing copy", targetPath: filepath.Join(dir, "missing.exe")},
+		{name: "running installed executable", targetPath: current, wantInstalled: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			readVersion := func(path string) (executableVersion, bool) {
+				if path == current {
+					return executableVersion{0, 10, 2}, true
+				}
+				return tc.targetVersion, tc.versionKnown
+			}
+			installed, older := programSetupState(current, tc.targetPath, readVersion)
+			if installed != tc.wantInstalled || older != tc.wantOlder {
+				t.Fatalf("setup installed=%v, older=%v; want installed=%v, older=%v", installed, older, tc.wantInstalled, tc.wantOlder)
+			}
+		})
+	}
+}
+
+func TestReadExecutableVersionUsesWindowsFileMetadata(t *testing.T) {
+	systemDir, err := windows.GetSystemDirectory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, ok := readExecutableVersion(filepath.Join(systemDir, "kernel32.dll"))
+	if !ok || version[0] == 0 {
+		t.Fatalf("could not read the Windows file version: %v, %v", version, ok)
+	}
+	unversioned := filepath.Join(t.TempDir(), "unversioned.exe")
+	if err := os.WriteFile(unversioned, []byte("no version resource"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if version, ok := readExecutableVersion(unversioned); ok {
+		t.Fatalf("unexpected file version %v for an unversioned file", version)
 	}
 }
 

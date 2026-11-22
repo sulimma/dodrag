@@ -292,7 +292,13 @@ export function App() {
         if (!current) return;
         // Register the final task count before applying compact geometry.
         await eventBridge.updateMiniModeHeight(computeMiniWindowTasks(projectEvents(confirmedEvents.current, new Date()).openTasks, new Date()).length);
-        if (current && settings.databaseReady && settings.bootMinimized) await requestWindowMode('mini', true);
+        if (!current) return;
+        if (settings.setup?.installedVersionOlder) {
+          await requestWindowMode('window');
+          if (current) setShowSettingsModal(true);
+        } else if (settings.databaseReady && settings.bootMinimized) {
+          await requestWindowMode('mini', true);
+        }
       })
       .catch((error) => {
         if (!current) return;
@@ -829,6 +835,8 @@ export function App() {
               />
             ) : viewMode === 'network' ? (
               <NetworkPlanView
+                projectMembers={projects.members}
+                projectOrder={projects.orderedIds}
                 projectFilterActive={projectIds.length > 0}
                 hideEmptyDates={filtering}
                 scrollRef={mainScrollRef}
