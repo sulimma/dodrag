@@ -1,154 +1,138 @@
-# DoDrag
+<p align="center">
+  <img src="frontend/src/assets/app-icon.png" alt="DoDrag logo" width="120">
+</p>
 
-<p align="center"><img src="frontend/src/assets/app-icon.png" alt="DoDrag logo" width="220"></p>
+<h1 align="center">DoDrag</h1>
 
-**A small-task manager built around one question: what can I work on now?**
+<p align="center">
+  <strong>A focus-first task manager for Windows — designed for ADHD brains and anyone tired of overwhelming TODO lists.</strong>
+</p>
 
-DoDrag keeps everyday TODO management lightweight. Its compact working view shows only tasks you can actually start; use the full list, network, and Gantt views when you need to plan ahead. In the focused view, work with open prerequisites stays out of the way until those prerequisites are done. When something cannot be done yet, drag it to a quick resubmission target and get back to the task at hand.
+<p align="center">
+  Stop staring at 50 tasks you can't even start yet.<br>
+  DoDrag shows only what you can act on <em>right now</em>, and lets you snooze anything else in one drag.
+</p>
 
-> **The idea:** managing small TODOs should take as little time as possible. Show the user only tasks they can work on right now, and let them defer a task with one drag.
+<p align="center">
+  <a href="https://github.com/sulimma/dodrag/releases/latest"><strong>Download for Windows</strong></a> ·
+  <a href="#see-it-in-action">See it in action</a> ·
+  <a href="#getting-started">Getting started</a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/task-list.png" alt="DoDrag task list with active tasks, time markers, dependency highlighting, and one-drag snooze targets" width="920">
+</p>
+
+---
+
+## Why DoDrag?
+
+Most task apps turn into a guilt-inducing backlog full of blocked tasks, complex dates, and endless forms. DoDrag is built to eliminate that friction:
+
+| The problem | How DoDrag solves it |
+| --- | --- |
+| **Overwhelm & choice paralysis** | Tasks waiting on unfinished prerequisites stay out of your compact working view until they are actually ready to start. |
+| **Date-picker fatigue** | Can't do it today? Drag it onto **+1 day**, **Next week**, **+7 days**, or **Next month** — done in half a second. |
+| **Out of sight, out of mind** | Dock the always-on-top **mini view** in any screen corner so your next 3–4 doable tasks stay gently visible while you work. |
+| **Stray thoughts derailing focus** | Hit **`N`** (or type in the mini bar) to capture a thought in 2 seconds and immediately return to what you were doing. |
+| **Forgetting what blocks what** | Drag any task onto its prerequisite to link them. Select a task to see its full upstream and downstream chain light up. |
+
+---
 
 ## See it in action
 
-### A focused task list
+### Stay on track with the always-on-top mini view
 
-The date-layered list keeps actionable work easy to scan. Active tasks appear first in dependency order, including dependencies through inactive or completed tasks. Dates are displayed as YYYY-MM-DD without a time. Select a task to trace its upstream prerequisites and downstream effects.
+Press **`Ctrl+M`** to shrink DoDrag into a quiet corner widget. It shows **only unblocked tasks you can start right now**, puts your active tasks first, and hides everything else until it's actually ready.
 
-<p align="center"><img src="docs/screenshots/task-list.png" alt="DoDrag task list with actionable tasks and dependency highlighting" width="900"></p>
+<p align="center">
+  <img src="docs/screenshots/mini-view.png" alt="DoDrag compact corner mini-view showing only actionable tasks" width="400">
+</p>
 
-### Reschedule without planning a new date
+### Notes, checklists & diagrams right next to your list
 
-Drag a task onto a quick-resubmission target: **+1 day**, **next week**, **+7 days**, or **next month**. A task with open prerequisites still becomes actionable only when those prerequisites are complete.
+Open any task's detail panel for Markdown notes, interactive checklists, callout boxes, KaTeX math, Mermaid & SMILES diagrams, progress tracking, and a chronological log — all auto-saved locally.
 
-<p align="center"><img src="docs/screenshots/quick-resubmit.png" alt="DoDrag quick-resubmission targets in the sidebar" width="760"></p>
+<p align="center">
+  <img src="docs/screenshots/task-details.png" alt="DoDrag task detail panel with Markdown checklist, tip callout, progress tracking, and task log" width="920">
+</p>
 
-### See dependencies as a network
+### See the big picture when you need to plan
 
-Switch from the list to a dependency network or a Gantt timeline. Add a prerequisite by dragging the dependent task onto its prerequisite; drag with **Alt** to remove the relevant dependency edges.
+Switch between **List**, **Dependency graph**, **Gantt**, and **History** at any time. Drag a task onto its prerequisite to connect them, or **Alt-drag** to remove a link.
 
-<p align="center"><img src="docs/screenshots/network-plan.png" alt="DoDrag dependency network view" width="900"></p>
+<p align="center">
+  <img src="docs/screenshots/network-plan.png" alt="DoDrag dependency graph view showing upstream and downstream task chains" width="920">
+</p>
 
-### Keep the next tasks in a corner
+<p align="center">
+  <img src="docs/screenshots/gantt-view.png" alt="DoDrag Gantt timeline view with duration bars, progress, and dependency arrows" width="920">
+</p>
 
-The compact, corner-docked view stays out of the way and shows only work that can be started, prioritizing tasks you marked active. Click a task title to open it with its details in the normal window. With a task selected, Enter, F2, and E do the same.
+---
 
-<p align="center"><img src="docs/screenshots/mini-view.png" alt="DoDrag compact corner view with currently actionable tasks" width="420"></p>
+## Highlights
 
-## Features
+- **Built for momentum:** active-task highlighting, optional daily time markers (`11:00`, `14:30`), subtle progress bars, and a daily task balance (`+added -done = open`).
+- **Projects & instant search:** organize with color-coded project badges and search/filter live across titles, IDs, Markdown, checklists, and logs.
+- **Full undo & redo:** every drag, edit, and reschedule is stored in an event history so you can experiment fearlessly.
+- **100% local & private:** single portable Windows `.exe`, plain SQLite database files (easy to back up or sync via Google Drive/OneDrive), no account, no cloud lock-in, and no automatic online update checks.
+- **Rich Markdown editor:** checklists, tables, GitHub-style alerts, KaTeX formulas, 30 Mermaid diagram templates, SMILES chemistry formulas, Unicode shortcuts, and `.md` file drag-and-drop. Press **`?`** inside the app for built-in syntax & keyboard shortcut help.
+- **15 interface languages:** auto-detected from Windows and switchable on the fly in Settings.
 
-- **Actionable work first:** the compact view filters out tasks blocked by unfinished prerequisites. It prefers tasks due today and falls back to other unblocked tasks when there is no work due today; the full views remain available for planning ahead.
-- **One-drag rescheduling:** defer a task by dragging it to a relative date target instead of opening a date picker.
-- **Dependencies at a glance:** list, network-plan, and Gantt views share task interactions and highlight upstream and downstream tasks.
-- **Drag-and-drop planning:** move tasks between dates, connect prerequisites, or remove selected dependency edges with Alt-drag.
-- **Small, traceable edits:** edit titles and dates in place, mark a task active, complete or reopen tasks, and undo or redo changes.
-- **Rich task descriptions:** a TipTap 3 editor with Markdown, checklists, GitHub-style note boxes, Mermaid diagrams, KaTeX mathematics, and Unicode shortcuts. The task log remains plain text.
-- **Native Windows desktop app:** the app stores task history in SQLite and can manage multiple database files. The frontend requires its native Wails host; there is no browser storage mode.
-- **Window modes:** choose compact or normal window from the title controls. Ctrl+M switches between them. Taskbar clicks bring a background window forward and then cycle through compact view, taskbar minimization, and the normal window. The compact window stays on top and docks to a screen corner. The main window uses a custom title bar with native window resizing and shadow; manual Windows verification is still pending.
+<details>
+<summary>Supported languages (15)</summary>
 
-## Task descriptions and Markdown
+Translations are AI-generated; **English** and **German** are human-verified (plus **Toki Pona**). Other languages may contain linguistic imperfections.
 
-Select a task and expand its detail panel to edit the description. Description edits stay local while you type, format, paste, and use editor undo. Leaving the editor, changing tasks, collapsing details, entering the compact view, switching databases, or closing the app saves the finished session. Failed saves keep the draft available for retry; a failed flush prevents database switching and app closing. The editor menus cover paragraph styles, formatting, lists, blocks, characters, and Mermaid diagrams. Menu tooltips show the corresponding syntax. Undo and redo buttons sit beside the dates above the editor; **Ctrl+Z**, **Ctrl+Y**, and **Ctrl+Shift+Z** also work while editing.
-
-The main window starts at **1440 × 820 logical outer-window pixels**, limited to the current monitor's available work area. The detail panel starts at 560 pixels wide and can be resized independently of the task log. On sufficiently large screens, this leaves room for a single row of editor menus and a readable task list. Smaller screens, high display scaling, and additional dependency chips can reduce the available title space.
-
-### Supported syntax
-
-- Headings (`#` through `######`), paragraphs, **bold** (`**text**`), *italic* (`*text*`), strikethrough (`~~text~~`), and inline code (`` `code` ``).
-- Bullet lists (`- text`), numbered lists (`1. text`), and checklists (`- [ ] text` / `- [x] text`).
-- Quotes (`> text`), fenced code blocks, links, images, and tables.
-- GitHub-style **Note**, **Important**, **Warning**, **Tip**, and **Caution** boxes with Unicode icons:
-
-  ```markdown
-  > [!TIP]
-  > Keep the next action small.
-  ```
-
-- Inline mathematics (`$E = mc^2$`) and display mathematics (`$$` delimiters on separate lines), rendered with KaTeX. Click a formula or focus it with the keyboard to edit its LaTeX source.
-- Mermaid fenced blocks, rendered as diagrams:
-
-  ````markdown
-  ```mermaid
-  flowchart LR
-    A --> B
-  ```
-  ````
-
-The **Mermaid** menu inserts small templates for 30 bundled diagram families. Diagram previews are displayed at 75% scale. Selecting and copying a whole diagram copies its source, not its preview controls; pasting it into the description creates another diagram block.
-
-The **Copy Markdown instructions for AI** text button in syntax help copies Markdown instructions for AI agents, including a recommendation to structure content with Unicode symbols. It briefly highlights after copying and then returns to its neutral state. Dropping a `.md` file onto a description or task appends its Markdown content to the current description; other dropped files remain references.
-
-The question-mark button beside the expanded detail panel's collapse button opens **syntax help**. Syntax help and keyboard-shortcut help link to each other. The syntax page includes expandable rendered Mermaid examples and a link to the [official Mermaid syntax documentation](https://mermaid.js.org/intro/syntax-reference.html), opened in your default browser. The external documentation may describe features newer than the bundled Mermaid version.
-
-### Unicode and fraction shortcuts
-
-The **Characters** menu groups shortcuts in three-column grids. Each entry shows its rendered symbol and literal input spelling.
-
-| Group | Input → result |
-| --- | --- |
-| Arrows | `->` → →, `<-` → ←, `<->` → ↔, `=>` → ⇒, `<=>` → ⇔ |
-| Typography | `...` → …; ` -- ` → a spaced em dash |
-| Mathematics | `!=` → ≠, `<=` → ≤, `>=` → ≥, `~=` → ≈, `+/-` → ±, `:micro:` → µ |
-| Unicode fractions | `1/2` → ½, `1/4` → ¼, `3/4` → ¾ |
-| Other fractions | Integer `N/D` → inline LaTeX, for example `2/3` → `$\frac{2}{3}$` |
-
-The editor also recognizes all 23 Confluence-style emoticon shortcuts: `:)`, `:(`, `:P`, `:D`, `;)`, `(y)`, `(n)`, `(on)`, `(off)`, `(!)`, `(*)`, `(*r)`, `(*g)`, `(*b)`, `(*y)`, `(/)`, `(x)`, `(i)`, `(+)`, `(-)`, `(?)`, `<3`, and `</3`. These use Unicode symbols rather than image assets; colored stars and status symbols retain their styling.
-
-Symbol and fraction conversions wait for a safe input boundary, so typing `1/23` does not prematurely produce `½3`. They also apply to newly pasted content, but not to code, Mermaid source, mathematics, links, URLs, file paths, or chained dates. Loading an existing description does not rewrite its shortcuts. Fraction parts are limited to 12 digits each; a zero denominator is left unchanged. Backspace immediately after an input-rule conversion restores the typed spelling, and editor undo/redo remains available.
-
-## Languages and translations
-
-Choose the interface language in **Settings**. On first launch, DoDrag uses the Windows user's display language, falling back to English if it is unsupported. The choice is saved and can be changed without restarting. Existing task titles and database names are user data and are not translated when switching languages.
-
-| Language | Code | Verification |
+| Language | Code | Status |
 | --- | --- | --- |
 | German | `de` | Verified |
 | English | `en` | Verified |
-| French | `fr` | Not verified |
-| Spanish | `es` | Not verified |
-| Simplified Chinese | `zh-CN` | Not verified |
-| Ukrainian | `uk` | Not verified |
-| Brazilian Portuguese | `pt-BR` | Not verified |
-| Japanese | `ja` | Not verified |
-| Traditional Chinese | `zh-TW` | Not verified |
-| Korean | `ko` | Not verified |
-| Italian | `it` | Not verified |
-| Polish | `pl` | Not verified |
-| Turkish | `tr` | Not verified |
-| Esperanto | `eo` | Not verified |
-| Toki Pona | `tok` | verified |
+| Toki Pona | `tok` | Verified |
+| French | `fr` | AI-translated |
+| Spanish | `es` | AI-translated |
+| Simplified Chinese | `zh-CN` | AI-translated |
+| Traditional Chinese | `zh-TW` | AI-translated |
+| Ukrainian | `uk` | AI-translated |
+| Brazilian Portuguese | `pt-BR` | AI-translated |
+| Japanese | `ja` | AI-translated |
+| Korean | `ko` | AI-translated |
+| Italian | `it` | AI-translated |
+| Polish | `pl` | AI-translated |
+| Turkish | `tr` | AI-translated |
+| Esperanto | `eo` | AI-translated |
 
-The translations are **AI-generated**; only **English and German have been verified**. The other languages may contain linguistic or contextual mistakes. Automated tests check catalog completeness, interpolation parameters, and untranslated app-owned UI text; they do not establish linguistic correctness. Technical error details from Windows or third-party libraries may remain in their original language. Some Mermaid diagram types generate English standard labels independently of the selected app language.
+</details>
+
+---
 
 ## Getting started
 
-DoDrag is a Windows desktop application built with [Wails](https://wails.io/), Go, and React. You can either run a prebuilt executable or build it from source.
+### Download for Windows
 
-#### Download a release
+Grab the portable executable from the [latest DoDrag release](https://github.com/sulimma/dodrag/releases/latest) — no installer required:
 
-Download the executable for your Windows processor from the [latest DoDrag release](https://github.com/sulimma/dodrag/releases/latest):
-
-- **Most Windows PCs (Intel/AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/latest/download/dodrag-windows-amd64.exe)
+- **Most Windows PCs (Intel / AMD, 64-bit):** [`dodrag-windows-amd64.exe`](https://github.com/sulimma/dodrag/releases/latest/download/dodrag-windows-amd64.exe)
 - **Windows on ARM (ARM64):** [`dodrag-windows-arm64.exe`](https://github.com/sulimma/dodrag/releases/latest/download/dodrag-windows-arm64.exe)
 
-Save the matching `.exe` and open it to run DoDrag; no installer is required. The settings dialog can copy the program to `%LOCALAPPDATA%\Programs\DoDrag` and create desktop or Start menu shortcuts later.
+Just open the `.exe` to run DoDrag. Whenever you like, **Settings** can copy it to `%LOCALAPPDATA%\Programs\DoDrag`, create Desktop/Start Menu shortcuts, and enable autostart.
 
-#### Build from source
+### Build from source
 
-Install Go, Node.js/npm, and the Wails prerequisites for Windows, then run this repository's PowerShell build script:
+DoDrag is a native Windows desktop app built with [Wails](https://wails.io/), Go, and React. Install Go, Node.js/npm, and the Wails prerequisites for Windows, then run:
 
 ```powershell
 $version = Read-Host "Version (MAJOR.MINOR.PATCH)"
 ./build.ps1 -Version $version
 ```
 
-The script synchronizes frontend dependencies in a local cache, compiles the app, and packages `dodrag.exe` into both `build/bin` and the repository root. Add `-Test` for the full pre-commit checks. During development, use `./frontend.ps1 -Action Test -TestFiles src/domain/dates.test.ts` for selected tests. Linguistic heuristics are optional: `./frontend.ps1 -Action LanguageAudit`. It does not start the application. Supply the desired SemVer version with `-Version`; the script injects it into the application and Windows file metadata at build time. Without build-time values the binary reports `dev` and no build time. See [Architecture](ARCHITECTURE.md) for the code layout and runtime boundaries.
+Add `-Test` to run the full test and validation suite. See [ARCHITECTURE.md](ARCHITECTURE.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for architecture and development details.
 
-Standard validation uses frontend unit/DOM tests, TypeScript checking, Go tests, and native Wails packaging. The optional Chromium helper checks bundled Mermaid SVG rendering; they do not verify Windows clipboard, WebView2, multi-monitor, or DPI integration.
+---
 
-## Author and affiliation
+## Author & License
 
-Created by **Kolja Sulimma**, who is affiliated with [cronologic GmbH & Co. KG](https://www.cronologic.de/). cronologic manufactures [time-to-digital converters (TDCs)](https://www.cronologic.de/products/products-overview#tdcdata) and [analog-to-digital converters (ADCs)](https://www.cronologic.de/products/products-overview#adcdata) for applications including time-of-flight mass spectrometry (TOF-MS), quantum key distribution (QKD), and quantum computing.
+Created by **Kolja Sulimma**, affiliated with [cronologic GmbH & Co. KG](https://www.cronologic.de/) — manufacturer of [time-to-digital converters (TDCs)](https://www.cronologic.de/products/products-overview#tdcdata) and [analog-to-digital converters (ADCs)](https://www.cronologic.de/products/products-overview#adcdata) for time-of-flight mass spectrometry (TOF-MS), quantum key distribution (QKD), and quantum computing.
 
-## License
-
-DoDrag is licensed under the [Apache License, Version 2.0](LICENSE).
+Licensed under the [Apache License, Version 2.0](LICENSE).
