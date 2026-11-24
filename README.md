@@ -75,6 +75,7 @@ Switch between **List**, **Dependency graph**, **Gantt**, and **History** at any
 
 - **Built for momentum:** active-task highlighting, optional daily time markers (`11:00`, `14:30`), subtle progress bars, and a daily task balance (`+added -done = open`).
 - **Projects & instant search:** organize with color-coded project badges and search/filter live across titles, IDs, Markdown, checklists, and logs.
+- **Jump straight to your files:** open folders linked to tasks and projects in **Windows Explorer** or **VS Code** with one click.
 - **Full undo & redo:** every drag, edit, and reschedule is stored in an event history so you can experiment fearlessly.
 - **100% local & private:** single portable Windows `.exe`, plain SQLite database files (easy to back up or sync via Google Drive/OneDrive), no account, no cloud lock-in, and no automatic online update checks.
 - **Rich Markdown editor:** checklists, tables, GitHub-style alerts, KaTeX formulas, 30 Mermaid diagram templates, SMILES chemistry formulas, Unicode shortcuts, and `.md` file drag-and-drop. Press **`?`** inside the app for built-in syntax & keyboard shortcut help.
