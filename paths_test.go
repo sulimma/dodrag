@@ -143,3 +143,53 @@ func TestReadMarkdownFile(t *testing.T) {
 		}
 	}
 }
+
+func TestSlashPathResolvesOnCurrentVolume(t *testing.T) {
+	dir := t.TempDir()
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+	file := filepath.Join(dir, "Plan.txt")
+	if err := os.WriteFile(file, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	rooted := filepath.ToSlash(file[len(filepath.VolumeName(file)):])
+	got, _, err := existingPath(rooted, "en")
+	if err != nil || !sameFilePath(got, file) {
+		t.Fatalf("%q => %q: %v", rooted, got, err)
+	}
+	if _, _, err := existingPath(rooted+".missing", "en"); err == nil {
+		t.Fatal("opened missing file")
+	}
+}
+
+func TestDatabasePathIdentity(t *testing.T) {
+	dir := t.TempDir()
+	first := filepath.Join(dir, "Plan.db")
+	lower := filepath.Join(dir, "plan.db")
+	if sameFilePath(first, lower) {
+		t.Fatal("merged missing entries with different names")
+	}
+	if err := os.WriteFile(first, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	second := filepath.Join(dir, "copy.db")
+	if err := os.WriteFile(second, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if sameFilePath(first, second) {
+		t.Fatal("merged distinct empty files")
+	}
+	alias := filepath.Join(dir, "alias.db")
+	if err := os.Link(first, alias); err != nil {
+		t.Skipf("hard links unavailable: %v", err)
+	}
+	if !sameFilePath(first, alias) {
+		t.Fatal("failed to identify hard link")
+	}
+}

@@ -10,10 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
-	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -78,37 +75,23 @@ type persistedSettings struct {
 
 // App struct binds Go methods to the Wails frontend.
 type App struct {
-	ctx                   context.Context
-	mu                    sync.Mutex
-	jumpListMu            sync.Mutex
-	store                 *eventstore.Store
-	appDir                string
-	settingsPath          string
-	demoDBPath            string
-	settings              AppSettings
-	settingsLoadErr       error
-	settingsSaveErr       error
-	databaseOpenErr       error
-	userDefaultUILanguage func() uint16
-	registerJumpList      func(string)
-	hwnd                  uintptr
-	windowMode            WindowMode
-	modeMu                sync.Mutex
-	nativeMode            atomic.Uint32
-	modeRevision          atomic.Uint64
-	lastVisibleMonitor    string
-	lastMiniItemCount     int
-	savedStyle            uintptr
-	savedRect             winRect
-	savedPlacement        windowPlacement
-	bootMinimized         bool
-	unfocusedSince        time.Time
-	watchCancel           context.CancelFunc
-	watchDone             chan struct{}
-	taskMenus             taskMenuState
-	editorReady           bool
-	closePending          bool
-	closeApproved         bool
+	ctx             context.Context
+	mu              sync.Mutex
+	store           *eventstore.Store
+	appDir          string
+	settingsPath    string
+	demoDBPath      string
+	settings        AppSettings
+	settingsLoadErr error
+	settingsSaveErr error
+	databaseOpenErr error
+	desktopState
+	bootMinimized bool
+	windowMode    WindowMode
+	taskMenus     taskMenuState
+	editorReady   bool
+	closePending  bool
+	closeApproved bool
 	// Lock order: mu, then previewMu. Image processing never holds mu.
 	previewMu         sync.Mutex
 	previewCacheDir   string
@@ -126,8 +109,8 @@ func NewApp() *App {
 		}
 	}
 	return &App{
-		bootMinimized:     bootMin,
-		lastMiniItemCount: 1,
+		bootMinimized: bootMin,
+		desktopState:  newDesktopState(),
 	}
 }
 
@@ -136,16 +119,7 @@ func (a *App) startup(ctx context.Context) {
 	a.mu.Lock()
 	a.ctx = ctx
 
-	hwnd := a.ensureWindowHandleLocked()
-	a.mu.Unlock()
-	var rect winRect
-	if hwnd != 0 {
-		rect = applyInitialWindowBoundsNative(hwnd)
-	}
-	a.mu.Lock()
-	if hwnd != 0 {
-		a.savedRect = rect
-	}
+	a.initializeDesktopLocked()
 
 	appDir := "."
 	if configDir, err := os.UserConfigDir(); err == nil {
@@ -162,177 +136,12 @@ func (a *App) startup(ctx context.Context) {
 		runtime.LogErrorf(ctx, "%s: %v", a.textLocked("Settings konnten nicht geladen werden"), err)
 	} else {
 		if a.settings.Autostart {
-			_ = syncWindowsAutostart(true, a.settings.UILanguage)
+			_ = syncDesktopAutostart(true, a.settings.UILanguage)
 		}
 		a.openActiveDatabaseLocked()
 	}
-	watchCtx, cancel := context.WithCancel(ctx)
-	a.watchCancel = cancel
-	a.watchDone = make(chan struct{})
-	done := a.watchDone
+	a.startDesktopLocked(ctx)
 	a.mu.Unlock()
-
-	go a.refreshJumpList()
-	go func() {
-		defer close(done)
-		a.watchNativeMinimize(watchCtx)
-	}()
-}
-
-func (a *App) ensureWindowHandleLocked() uintptr {
-	if a.hwnd == 0 {
-		a.hwnd = findAppWindowHandle()
-	}
-	if a.hwnd != 0 {
-		installWindowSubclassIfNeeded(a.hwnd, a)
-	}
-	return a.hwnd
-}
-
-func (a *App) shouldAutoMiniLocked(now time.Time, foreground bool) bool {
-	if a.currentWindowModeLocked() != WindowModeWindow || foreground {
-		a.unfocusedSince = time.Time{}
-		return false
-	}
-	if a.unfocusedSince.IsZero() {
-		a.unfocusedSince = now
-		return false
-	}
-	return now.Sub(a.unfocusedSince) >= 10*time.Minute
-}
-
-// The observer repairs monitor geometry only. Intentional taskbar minimization is
-// never converted into mini. Auto-mini requests go through the frontend flush path.
-func (a *App) watchNativeMinimize(ctx context.Context) {
-	ticker := time.NewTicker(200 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			a.mu.Lock()
-			hwnd := a.ensureWindowHandleLocked()
-			auto := a.shouldAutoMiniLocked(time.Now(), getForegroundWindowNative() == hwnd)
-			if auto {
-				a.unfocusedSince = time.Now()
-			}
-			a.mu.Unlock()
-			if auto {
-				runtime.EventsEmit(ctx, "window:mode-requested", WindowModeMini, true)
-			}
-		}
-	}
-}
-
-func (a *App) onDisplayChange() {
-	a.modeMu.Lock()
-	defer a.modeMu.Unlock()
-	a.mu.Lock()
-	mode := a.currentWindowModeLocked()
-	hwnd := a.ensureWindowHandleLocked()
-	monitor, corner, count := a.lastVisibleMonitor, a.settings.DockCorner, a.lastMiniItemCount
-	style := a.savedStyle
-	a.mu.Unlock()
-	if mode == WindowModeTaskbar || hwnd == 0 {
-		return
-	}
-	mon, _ := resolveMonitorOrPrimary(monitor)
-	// Win32 may wait for the HWND thread, which needs mu to process WM_CLOSE.
-	if mode == WindowModeMini {
-		w, h := computeMiniLogicalSize(count)
-		monitor, corner = applyMiniWindowBoundsNative(hwnd, mon.DeviceName, corner, w, h, false)
-		a.mu.Lock()
-		a.settings.DockMonitor, a.settings.DockCorner = monitor, corner
-		a.mu.Unlock()
-	} else if rect, ok := getWindowRectNative(hwnd); ok {
-		if _, valid := isRectOnAnyMonitor(rect); !valid {
-			restored := restoreNormalWindowBoundsNative(hwnd, style, rect)
-			a.mu.Lock()
-			a.savedRect = restored
-			a.mu.Unlock()
-		}
-	}
-}
-
-func (a *App) onMiniWindowSnapped(monitorName string, corner string) {
-	a.modeMu.Lock()
-	defer a.modeMu.Unlock()
-	a.mu.Lock()
-	if a.currentWindowModeLocked() != WindowModeMini {
-		a.mu.Unlock()
-		return
-	}
-	hwnd, count := a.hwnd, a.lastMiniItemCount
-	a.mu.Unlock()
-	width, height := computeMiniLogicalSize(count)
-	monitorName, corner = applyMiniWindowBoundsNative(hwnd, monitorName, corner, width, height, true)
-	a.mu.Lock()
-	a.settings.DockMonitor = monitorName
-	a.settings.DockCorner = corner
-	_ = a.saveSettingsLocked()
-	ctx := a.ctx
-	a.mu.Unlock()
-
-	if ctx != nil {
-		runtime.EventsEmit(ctx, "window:cornerChanged", corner)
-	}
-}
-
-// System commands request the same frontend flush as direct mode choices.
-// There is no gesture recognizer or timing heuristic: Windows activates a
-// background window, and its next minimize command advances window -> mini ->
-// taskbar. The iconic restore command always requests the normal window.
-func (a *App) requestWindowMode(mode WindowMode) {
-	a.mu.Lock()
-	ctx, ready := a.ctx, a.editorReady
-	a.mu.Unlock()
-	if ready && ctx != nil {
-		runtime.EventsEmit(ctx, "window:mode-requested", mode)
-		return
-	}
-	_, _ = a.SetWindowMode(mode)
-}
-
-// Expected mode and revision are captured by the HWND callback before its async
-// dispatch. A delayed callback cannot reinterpret a newer direct mode choice.
-func (a *App) requestNativeWindowMode(target, expected WindowMode, revision uint64) {
-	if a.modeRevision.Load() != revision {
-		return
-	}
-	a.mu.Lock()
-	if a.currentWindowModeLocked() != expected {
-		a.mu.Unlock()
-		return
-	}
-	ctx, ready := a.ctx, a.editorReady
-	a.mu.Unlock()
-	if ready && ctx != nil {
-		runtime.EventsEmit(ctx, "window:mode-requested", target, false, expected)
-		return
-	}
-	a.modeMu.Lock()
-	defer a.modeMu.Unlock()
-	if a.modeRevision.Load() == revision {
-		_, _ = a.setWindowMode(target)
-	}
-}
-func (a *App) triggerRestoreFromNative() { a.requestWindowMode(WindowModeWindow) }
-
-func (a *App) onSecondInstanceLaunch(secondInstanceData options.SecondInstanceData) {
-	wantMinimize := false
-	for _, arg := range secondInstanceData.Args {
-		trimmed := strings.TrimSpace(arg)
-		if strings.EqualFold(trimmed, "--minimize") || strings.EqualFold(trimmed, "--minimized") {
-			wantMinimize = true
-			break
-		}
-	}
-	if wantMinimize {
-		a.requestWindowMode(WindowModeMini)
-	} else {
-		a.triggerRestoreFromNative()
-	}
 }
 
 func (a *App) loadOrInitSettingsLocked() (err error) {
@@ -342,8 +151,6 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 	if !validUILanguage(a.settings.UILanguage) {
 		a.settings.UILanguage = "en"
 	}
-	monitors := getConnectedMonitors()
-	primaryMonName := monitors[0].DeviceName
 
 	raw, err := os.ReadFile(a.settingsPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -370,6 +177,9 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 		} else {
 			activePath = ""
 		}
+		if i := knownDatabaseIndex(loaded.KnownDatabases, activePath); i >= 0 {
+			activePath = loaded.KnownDatabases[i].Path
+		}
 		if len(loaded.KnownDatabases) == 0 {
 			loaded.KnownDatabases = []DatabaseEntry{
 				{
@@ -379,16 +189,7 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 				},
 			}
 		}
-		// Default is bottom-left of Monitor 1 (Primary Monitor)
-		if loaded.DockMonitor == "" {
-			loaded.DockMonitor = primaryMonName
-			loaded.DockCorner = "bottom-left"
-		} else if _, exists := resolveMonitorOrPrimary(loaded.DockMonitor); !exists {
-			loaded.DockMonitor = primaryMonName
-		}
-		if loaded.DockCorner == "" {
-			loaded.DockCorner = "bottom-left"
-		}
+		loaded.DockMonitor, loaded.DockCorner = desktopDockPlacement(loaded.DockMonitor, loaded.DockCorner)
 		if !validDefaultDuration(loaded.DefaultDuration, loaded.DefaultDurationUnit) {
 			loaded.DefaultDuration, loaded.DefaultDurationUnit = 1, "days"
 		}
@@ -415,6 +216,7 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 
 	// Only a missing file is first start; unreadable or invalid originals stay untouched.
 	language := a.initialUILanguage()
+	defaultMonitor, defaultCorner := desktopDockPlacement("", "")
 	a.settings = AppSettings{
 		KnownDatabases: []DatabaseEntry{
 			{
@@ -425,8 +227,8 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 		},
 		ActiveDatabasePath:  "",
 		Autostart:           false,
-		DockMonitor:         primaryMonName,
-		DockCorner:          "bottom-left",
+		DockMonitor:         defaultMonitor,
+		DockCorner:          defaultCorner,
 		UILanguage:          language,
 		DefaultDuration:     1,
 		DefaultDurationUnit: "days",
@@ -500,15 +302,6 @@ func (a *App) openActiveDatabaseLocked() {
 		return
 	}
 
-	isDemo := strings.EqualFold(targetPath, a.demoDBPath)
-	for _, entry := range a.settings.KnownDatabases {
-		if strings.EqualFold(filepath.Clean(entry.Path), targetPath) {
-			isDemo = entry.IsDemo
-			break
-		}
-	}
-
-	_ = isDemo // Demo seeding is exclusively an explicit creation option.
 	store, err := eventstore.OpenExistingStore(targetPath, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
 	if err != nil {
 		a.databaseOpenErr = err
@@ -559,53 +352,11 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 	return out
 }
 
-func computeMiniLogicalSize(itemCount int) (int, int) {
-	rows := itemCount
-	if rows < 1 {
-		rows = 1
-	}
-	if rows > 4 {
-		rows = 4
-	}
-	logicalW := 320
-	logicalH := 28 + rows*28 + 2
-	return logicalW, logicalH
-}
-
-// UpdateMiniModeHeight adjusts the compact window height (up to 4 items) while staying docked in the current corner.
-func (a *App) UpdateMiniModeHeight(itemCount int) error {
-	a.modeMu.Lock()
-	defer a.modeMu.Unlock()
-	a.mu.Lock()
-	a.lastMiniItemCount = itemCount
-	if a.currentWindowModeLocked() != WindowModeMini {
-		a.mu.Unlock()
-		return nil
-	}
-	hwnd := a.ensureWindowHandleLocked()
-	monitor, corner := a.settings.DockMonitor, a.settings.DockCorner
-	a.mu.Unlock()
-	logicalW, logicalH := computeMiniLogicalSize(itemCount)
-	monitor, corner = applyMiniWindowBoundsNative(hwnd, monitor, corner, logicalW, logicalH, false)
-	a.mu.Lock()
-	a.settings.DockMonitor, a.settings.DockCorner = monitor, corner
-	a.mu.Unlock()
-	return nil
-}
-
 // shutdown is called when the app terminates.
 func (a *App) shutdown(ctx context.Context) {
-	a.closeTaskContextMenusNative()
-	a.mu.Lock()
-	cancel, done := a.watchCancel, a.watchDone
-	a.mu.Unlock()
-	if cancel != nil {
-		cancel()
-		<-done
-	}
+	a.stopDesktop()
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.unfocusedSince = time.Time{}
 	if a.store != nil {
 		_ = a.store.Close()
 		a.store = nil
@@ -666,7 +417,7 @@ func (a *App) SetDefaultDuration(value float64, unit string) (AppSettings, error
 	return a.snapshotSettingsLocked(), nil
 }
 
-// SetAutostart enables or disables launching DoDrag automatically on Windows boot/login.
+// SetAutostart enables or disables launching DoDrag automatically at login.
 func (a *App) SetAutostart(enabled bool) (AppSettings, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -674,14 +425,14 @@ func (a *App) SetAutostart(enabled bool) (AppSettings, error) {
 	if a.settingsLoadErr != nil {
 		return a.snapshotSettingsLocked(), a.settingsLoadErr
 	}
-	if err := syncWindowsAutostart(enabled, a.settings.UILanguage); err != nil {
+	if err := syncDesktopAutostart(enabled, a.settings.UILanguage); err != nil {
 		return a.snapshotSettingsLocked(), err
 	}
 	previous := a.settings.Autostart
 	a.settings.Autostart = enabled
 	if err := a.saveSettingsLocked(); err != nil {
 		a.settings.Autostart = previous
-		rollbackErr := syncWindowsAutostart(previous, a.settings.UILanguage)
+		rollbackErr := syncDesktopAutostart(previous, a.settings.UILanguage)
 		return a.snapshotSettingsLocked(), errors.Join(err, rollbackErr)
 	}
 	return a.snapshotSettingsLocked(), nil
@@ -711,50 +462,8 @@ func (a *App) SetUILanguage(language string) (AppSettings, error) {
 	}
 	settings := a.snapshotSettingsLocked()
 	a.mu.Unlock()
-	a.refreshJumpList()
+	a.refreshDesktopActions()
 	return settings, nil
-}
-
-// RunSetupAction performs one installation step and returns the refreshed setup state.
-func (a *App) RunSetupAction(action string) (AppSettings, error) {
-	language := a.currentUILanguage()
-	switch action {
-	case setupActionInstall:
-		installed, err := installProgram(a.ctx, language)
-		if installed {
-			a.mu.Lock()
-			autostart := a.settings.Autostart
-			a.mu.Unlock()
-			if autostart {
-				err = errors.Join(err, syncWindowsAutostart(true, language))
-			}
-		}
-		if err != nil {
-			settings, _ := a.GetSettings()
-			return settings, err
-		}
-	case setupActionDesktopShortcut, setupActionStartMenuShortcut:
-		resolve := desktopShortcutPath
-		if action == setupActionStartMenuShortcut {
-			resolve = startMenuShortcutPath
-		}
-		path, err := resolve()
-		if err == nil {
-			var target string
-			target, err = installedExecutable()
-			if err == nil {
-				err = createShortcut(path, target, language)
-			}
-		}
-		if err != nil {
-			settings, _ := a.GetSettings()
-			return settings, err
-		}
-	default:
-		settings, _ := a.GetSettings()
-		return settings, errors.New(backendText(language, "Unbekannte Installationsaktion: {action}", "action", action))
-	}
-	return a.GetSettings()
 }
 
 // SelectFolderDialog opens a native folder picker dialog (e.g. to choose a Google Drive directory).
@@ -784,7 +493,7 @@ func (a *App) CreateDatabase(folderPath string, dbName string, seedDemo bool) (A
 	if trimmedName == "" {
 		return a.snapshotSettingsLocked(), errors.New(a.textLocked("bitte einen Namen für die Datenbank eingeben"))
 	}
-	if strings.ContainsAny(trimmedName, `<>:"/\|?*`) || trimmedName == "." || trimmedName == ".." || strings.HasSuffix(trimmedName, ".") || strings.HasSuffix(trimmedName, " ") {
+	if !validDatabaseFilename(trimmedName) {
 		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbankname muss ein reiner Dateiname sein"))
 	}
 
@@ -828,7 +537,7 @@ func (a *App) CreateDatabase(folderPath string, dbName string, seedDemo bool) (A
 	a.settings.KnownDatabases = append([]DatabaseEntry(nil), previous.KnownDatabases...)
 	found := false
 	for i := range a.settings.KnownDatabases {
-		if strings.EqualFold(filepath.Clean(a.settings.KnownDatabases[i].Path), fullPath) {
+		if sameFilePath(a.settings.KnownDatabases[i].Path, fullPath) {
 			a.settings.KnownDatabases[i].Name = displayName
 			a.settings.KnownDatabases[i].Path = fullPath
 			found = true
@@ -884,7 +593,12 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 	if a.settingsLoadErr != nil {
 		return a.snapshotSettingsLocked(), a.settingsLoadErr
 	}
-	isDemo := strings.EqualFold(fullPath, a.demoDBPath)
+	known := knownDatabaseIndex(a.settings.KnownDatabases, fullPath)
+	if known >= 0 {
+		// Reuse the registered spelling so SQLite opens the same journal path.
+		fullPath = a.settings.KnownDatabases[known].Path
+	}
+	isDemo := sameFilePath(fullPath, a.demoDBPath)
 
 	info, err := os.Stat(fullPath)
 	if err != nil || info.IsDir() {
@@ -904,14 +618,7 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 		displayName = base
 	}
 
-	found := false
-	for i := range a.settings.KnownDatabases {
-		if strings.EqualFold(filepath.Clean(a.settings.KnownDatabases[i].Path), fullPath) {
-			found = true
-			break
-		}
-	}
-	if !found {
+	if known < 0 {
 		a.settings.KnownDatabases = append(a.settings.KnownDatabases, DatabaseEntry{
 			Name:   displayName,
 			Path:   fullPath,
@@ -927,6 +634,21 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 	return a.snapshotSettingsLocked(), nil
 }
 
+// Prefer an exact stored spelling, then let the filesystem resolve aliases.
+func knownDatabaseIndex(entries []DatabaseEntry, path string) int {
+	for i, entry := range entries {
+		if entry.Path == path {
+			return i
+		}
+	}
+	for i, entry := range entries {
+		if sameFilePath(entry.Path, path) {
+			return i
+		}
+	}
+	return -1
+}
+
 // SwitchDatabase switches the active database to dbPath.
 func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 	a.mu.Lock()
@@ -935,31 +657,14 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 	if a.settingsLoadErr != nil {
 		return a.snapshotSettingsLocked(), a.settingsLoadErr
 	}
-	cleanTarget := filepath.Clean(dbPath)
-	known := false
-	for _, entry := range a.settings.KnownDatabases {
-		if strings.EqualFold(filepath.Clean(entry.Path), cleanTarget) {
-			known = true
-			break
-		}
-	}
-	if !known {
+	index := knownDatabaseIndex(a.settings.KnownDatabases, filepath.Clean(dbPath))
+	if index < 0 {
 		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank ist nicht in der Liste"))
 	}
-	isDemo := strings.EqualFold(cleanTarget, a.demoDBPath)
-	for _, entry := range a.settings.KnownDatabases {
-		if strings.EqualFold(filepath.Clean(entry.Path), cleanTarget) {
-			isDemo = entry.IsDemo
-			break
-		}
-	}
-
-	_ = isDemo
-	{
-		info, statErr := os.Stat(cleanTarget)
-		if statErr != nil || info.IsDir() {
-			return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank-Datei wurde nicht gefunden (verschoben oder gelöscht): {path}", "path", cleanTarget))
-		}
+	cleanTarget := a.settings.KnownDatabases[index].Path
+	info, statErr := os.Stat(cleanTarget)
+	if statErr != nil || info.IsDir() {
+		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank-Datei wurde nicht gefunden (verschoben oder gelöscht): {path}", "path", cleanTarget))
 	}
 
 	newStore, err := eventstore.OpenExistingStore(cleanTarget, eventstore.BuildInfo{Version: buildVersion, BuildTime: buildTime})
@@ -984,18 +689,19 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 	if a.settingsLoadErr != nil {
 		return a.snapshotSettingsLocked(), a.settingsLoadErr
 	}
-	cleanTarget := filepath.Clean(dbPath)
-	known := false
-	for _, entry := range a.settings.KnownDatabases {
-		if strings.EqualFold(filepath.Clean(entry.Path), cleanTarget) {
-			known = true
-			break
-		}
-	}
-	if !known {
+	index := knownDatabaseIndex(a.settings.KnownDatabases, filepath.Clean(dbPath))
+	if index < 0 {
 		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank ist nicht in der Liste"))
 	}
-	wasActive := strings.EqualFold(filepath.Clean(a.settings.ActiveDatabasePath), cleanTarget)
+	cleanTarget := a.settings.KnownDatabases[index].Path
+	wasActive := sameFilePath(a.settings.ActiveDatabasePath, cleanTarget)
+
+	remaining := make([]DatabaseEntry, 0, len(a.settings.KnownDatabases))
+	for _, entry := range a.settings.KnownDatabases {
+		if !sameFilePath(entry.Path, cleanTarget) {
+			remaining = append(remaining, entry)
+		}
+	}
 
 	// Close the SQLite connection first if deleting the currently active database so Windows releases the file lock
 	if wasActive && a.store != nil {
@@ -1019,13 +725,6 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 				deleteErr = errors.Join(deleteErr, a.errorLocked("Hauptdatei entfernt, Sidecar nicht geloescht ({path})", err, "path", path))
 			}
-		}
-	}
-
-	remaining := make([]DatabaseEntry, 0, len(a.settings.KnownDatabases))
-	for _, entry := range a.settings.KnownDatabases {
-		if !strings.EqualFold(filepath.Clean(entry.Path), cleanTarget) {
-			remaining = append(remaining, entry)
 		}
 	}
 

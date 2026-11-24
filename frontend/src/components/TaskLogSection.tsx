@@ -1,3 +1,4 @@
+import { hasCommandModifier } from '../desktop';
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Send } from 'lucide-react';
 import { SaveCompletionContext } from '../hooks/saveCompletion';
@@ -157,11 +158,11 @@ export const TaskLogSection = forwardRef<TaskLogSectionHandle, TaskLogSectionPro
       const target = targetFromElement(event.target);
       if (target) { event.preventDefault(); event.stopPropagation(); void openTarget(target).catch(props.onError); }
     }} onKeyDownCapture={event => {
-      if (event.defaultPrevented || event.nativeEvent.isComposing || event.altKey || event.metaKey) return;
+      if (event.defaultPrevented || event.nativeEvent.isComposing || event.altKey) return;
       const key = event.key.toLowerCase();
       const field = event.target instanceof HTMLTextAreaElement;
-      const action = event.ctrlKey && !event.shiftKey ? ({ c: 'copy', x: 'cut', v: 'paste' } as Record<string, string>)[key]
-        : !event.ctrlKey && !event.shiftKey && !field ? key === 'f2' ? 'edit' : key === 'delete' ? 'delete' : undefined : undefined;
+      const action = hasCommandModifier(event) && !event.shiftKey ? ({ c: 'copy', x: 'cut', v: 'paste' } as Record<string, string>)[key]
+        : !event.ctrlKey && !event.metaKey && !event.shiftKey && !field ? key === 'f2' ? 'edit' : key === 'delete' ? 'delete' : undefined : undefined;
       if (!action) return;
       const context = logContext(event.target, true);
       if (!context.items.some(item => item.id === action)) return;

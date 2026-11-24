@@ -89,15 +89,3 @@ func localizedError(language, key string, err error, replacements ...string) err
 func (a *App) errorLocked(key string, err error, replacements ...string) error {
 	return localizedError(a.settings.UILanguage, key, err, replacements...)
 }
-
-// Serialize native registrations and read the latest setting, not a stale queued language.
-func (a *App) refreshJumpList() {
-	a.jumpListMu.Lock()
-	defer a.jumpListMu.Unlock()
-	language := a.currentUILanguage()
-	if a.registerJumpList != nil {
-		a.registerJumpList(language)
-	} else {
-		registerTaskbarJumpList(language)
-	}
-}

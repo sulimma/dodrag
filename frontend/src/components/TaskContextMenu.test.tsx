@@ -15,8 +15,8 @@ it('collects unique directories from description and log, skipping files, URLs a
   });
   const task = { description: '"C:\\My project" https://example.com C:\\file.txt C:\\missing',
     logEntries: [{ text: '"c:\\my project\\" "D:\\Other"' }] } as TaskState;
-  expect(await taskDirectoryPaths(task)).toEqual(['C:\\My project\\', 'D:\\Other\\']);
-  expect(kind).toHaveBeenCalledTimes(4);
+  expect(await taskDirectoryPaths(task)).toEqual(['C:\\My project\\', 'c:\\my project\\', 'D:\\Other\\']);
+  expect(kind).toHaveBeenCalledTimes(5);
 });
 
 it('retains the drive and trailing directory when shortening', () => {

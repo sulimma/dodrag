@@ -1,3 +1,4 @@
+import { hasCommandModifier } from '../desktop';
 import { useEffect } from 'react';
 import { projectEvents } from '../domain/projector';
 import { useTaskSelection } from './useTaskSelection';
@@ -92,7 +93,7 @@ export function useGlobalShortcuts({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.isComposing) return;
-      const contextKey = !e.ctrlKey && !e.altKey && !e.metaKey &&
+      const contextKey = !hasCommandModifier(e) &&
         ((e.key === 'F10' && e.shiftKey) || (e.key === 'ContextMenu' && !e.shiftKey));
       if (contextKey && !showShortcutsModal && !contextMenu) {
         const focused = e.target instanceof Element && e.target !== document.body ? e.target : document.activeElement;
@@ -130,15 +131,15 @@ export function useGlobalShortcuts({
             target.closest('button,a,select,[role="button"],[role="switch"]')
            ));
 
-      const plainControl = e.ctrlKey && !e.altKey && !e.metaKey;
+      const plainControl = hasCommandModifier(e);
       if (plainControl && !e.shiftKey && e.key.toLowerCase() === 'f' && !isMiniMode && onSearch) {
         e.preventDefault(); if (!e.repeat) onSearch(); return;
       }
       if (e.key === 'Escape' && !isMiniMode && onResetSearch?.()) { e.preventDefault(); return; }
-      if (e.key === 'F1' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+      if (e.key === 'F1' && !hasCommandModifier(e) && !e.shiftKey) {
         e.preventDefault(); if (!e.repeat) setShowShortcutsModal(true); return;
       }
-      if (e.key === 'F6' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (e.key === 'F6' && !hasCommandModifier(e)) {
         e.preventDefault(); focusNextRegion(e.shiftKey); return;
       }
       if (plainControl && !e.shiftKey && e.key === ',') {
@@ -180,7 +181,7 @@ export function useGlobalShortcuts({
         }
       }
 
-      if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'm') {
+      if (hasCommandModifier(e) && !e.shiftKey && e.key.toLowerCase() === 'm') {
         e.preventDefault();
         if (e.repeat) return;
         if (isMiniMode) onRestore();

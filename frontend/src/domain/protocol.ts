@@ -21,7 +21,7 @@ export interface ProtocolDay { dateKey: string; entries: ProtocolTaskEntry[]; ba
 
 function sources(text: string): Map<string, EditorTarget> {
   return new Map(tokenizeTargets(text).map(({ kind, value }) => [
-    kind === 'path' ? `path:${value.replace(/\\+$/, '').toLowerCase()}` : `url:${value}`,
+    `${kind}:${value}`,
     { kind, value },
   ]));
 }

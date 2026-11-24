@@ -80,7 +80,7 @@ func programSetupState(current, target string, readVersion func(string) (executa
 	if info, err := os.Stat(target); err != nil || info.IsDir() {
 		return false, false
 	}
-	if strings.EqualFold(current, target) {
+	if sameFilePath(current, target) {
 		return true, false
 	}
 	currentVersion, currentOK := readVersion(current)
@@ -158,7 +158,7 @@ func installProgram(ctx context.Context, language string) (bool, error) {
 	if err != nil {
 		return false, localizedError(language, "Benutzerordner konnte nicht ermittelt werden", err)
 	}
-	if strings.EqualFold(source, target) {
+	if sameFilePath(source, target) {
 		return false, nil
 	}
 	if info, statErr := os.Stat(target); statErr == nil && !info.IsDir() {
@@ -295,4 +295,46 @@ func createShortcut(path, target, language string) error {
 		return localizedError(language, "Verknüpfung konnte nicht erstellt werden", errors.New("IPersistFile.Save"))
 	}
 	return nil
+}
+
+// RunSetupAction performs one installation step and returns the refreshed setup state.
+func (a *App) RunSetupAction(action string) (AppSettings, error) {
+	language := a.currentUILanguage()
+	switch action {
+	case setupActionInstall:
+		installed, err := installProgram(a.ctx, language)
+		if installed {
+			a.mu.Lock()
+			autostart := a.settings.Autostart
+			a.mu.Unlock()
+			if autostart {
+				err = errors.Join(err, syncDesktopAutostart(true, language))
+			}
+		}
+		if err != nil {
+			settings, _ := a.GetSettings()
+			return settings, err
+		}
+	case setupActionDesktopShortcut, setupActionStartMenuShortcut:
+		resolve := desktopShortcutPath
+		if action == setupActionStartMenuShortcut {
+			resolve = startMenuShortcutPath
+		}
+		path, err := resolve()
+		if err == nil {
+			var target string
+			target, err = installedExecutable()
+			if err == nil {
+				err = createShortcut(path, target, language)
+			}
+		}
+		if err != nil {
+			settings, _ := a.GetSettings()
+			return settings, err
+		}
+	default:
+		settings, _ := a.GetSettings()
+		return settings, errors.New(backendText(language, "Unbekannte Installationsaktion: {action}", "action", action))
+	}
+	return a.GetSettings()
 }

@@ -159,14 +159,14 @@ export function useDatabaseSnapshot(
       eventBridge.switchDatabase(dbPath)
     );
     const activeEntry = updatedSettings.knownDatabases.find(
-      (d) => d.path.toLowerCase() === dbPath.toLowerCase()
+      (d) => d.path === dbPath
     );
     pushToast(t('Datenbank „{name}“ geladen', { name: activeEntry?.name || dbPath }), 'info');
   };
 
   const handleDeleteDatabase = async (dbPath: string, deleteFile: boolean) => {
     const targetEntry = appSettings?.knownDatabases.find(
-      (d) => d.path.toLowerCase() === dbPath.toLowerCase()
+      (d) => d.path === dbPath
     );
     const updatedSettings = await changeDatabase(() =>
       eventBridge.deleteDatabase(dbPath, deleteFile)

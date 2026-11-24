@@ -14,20 +14,20 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// Reject relative/drive-relative paths and Win32 device/extended namespaces.
-func absoluteLocalPath(raw string) (string, error) {
-	if raw == "" || strings.IndexFunc(raw, unicode.IsControl) >= 0 || strings.ContainsAny(raw, `"<>|?*`) {
-		return "", errors.New("invalid path characters")
+// Stored names retain their spelling. Missing entries can only match their own path.
+func sameFilePath(left, right string) bool {
+	if left == "" || right == "" {
+		return false
 	}
-	clean := filepath.Clean(raw)
-	if !filepath.IsAbs(clean) || strings.HasPrefix(clean, `\\?\`) || strings.HasPrefix(clean, `\\.\`) {
-		return "", errors.New("absolute filesystem path required")
+	if left == right {
+		return true
 	}
-	// Alternate data streams must not bypass extension/content checks.
-	if strings.Contains(strings.TrimPrefix(clean, filepath.VolumeName(clean)), ":") {
-		return "", errors.New("alternate data streams are not supported")
+	first, err := os.Stat(left)
+	if err != nil {
+		return false
 	}
-	return clean, nil
+	second, err := os.Stat(right)
+	return err == nil && os.SameFile(first, second)
 }
 
 func existingPath(raw, language string) (string, os.FileInfo, error) {

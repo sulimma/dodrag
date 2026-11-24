@@ -77,7 +77,14 @@ export const MarkdownTargets = Node.create({
   },
   markdownTokenizer: {
     name: 'targetLiteral', level: 'inline',
-    start(source) { return tokenizeTargets(source).find(token => !source.slice(token.start).startsWith('!['))?.start ?? -1; },
+    start(source) {
+      // Marked omits the preceding character from this lookahead. A leading
+      // slash here may be inside a word or fraction. tokenize() handles real
+      // token boundaries, including paths at the beginning of a paragraph.
+      return tokenizeTargets(source).find(token =>
+        !(token.start === 0 && source.startsWith('/')) && !source.slice(token.start).startsWith('![')
+      )?.start ?? -1;
+    },
     tokenize(source) {
       const target = tokenizeTargets(source)[0];
       if (!target || target.start !== 0 || source.startsWith('![')) return;

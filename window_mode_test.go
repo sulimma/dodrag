@@ -51,7 +51,7 @@ func TestAutoMiniExemptsTaskbar(t *testing.T) {
 	now := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
 	for _, mode := range []WindowMode{WindowModeTaskbar} {
 		t.Run(string(mode), func(t *testing.T) {
-			a := &App{windowMode: mode, unfocusedSince: now.Add(-time.Hour)}
+			a := &App{windowMode: mode, desktopState: desktopState{unfocusedSince: now.Add(-time.Hour)}}
 			if a.shouldAutoMiniLocked(now, false) {
 				t.Fatal("exempt mode triggered auto-mini")
 			}

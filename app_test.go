@@ -54,7 +54,7 @@ func TestAutoMiniUnfocusedTimer(t *testing.T) {
 func TestShutdownStopsNativeWatcher(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	a := &App{watchCancel: cancel, watchDone: done, unfocusedSince: time.Now()}
+	a := &App{desktopState: desktopState{watchCancel: cancel, watchDone: done, unfocusedSince: time.Now()}}
 	go func() {
 		defer close(done)
 		a.watchNativeMinimize(ctx)
@@ -677,5 +677,54 @@ func TestDefaultTimeMarkersSettings(t *testing.T) {
 	}
 	if a.settings.DefaultTimeMarkers[0] != 720 {
 		t.Fatal("failed save changed defaults")
+	}
+}
+
+func TestForgetOnlyExactMissingDatabase(t *testing.T) {
+	a := testApp(t)
+	upper := filepath.Join(a.appDir, "Plan.db")
+	lower := filepath.Join(a.appDir, "plan.db")
+	a.settings.KnownDatabases = []DatabaseEntry{{Path: upper}, {Path: lower}}
+	a.settings.ActiveDatabasePath = upper
+	settings, err := a.DeleteDatabase(lower, false)
+	if err != nil || len(settings.KnownDatabases) != 1 || settings.KnownDatabases[0].Path != upper || settings.ActiveDatabasePath != upper {
+		t.Fatalf("forgetting %q changed the other entry: %+v, %v", lower, settings, err)
+	}
+}
+
+func TestSwitchDatabaseByFileIdentity(t *testing.T) {
+	a := testApp(t)
+	settings, err := a.CreateDatabase(a.appDir, "Plan.db", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := settings.ActiveDatabasePath
+	alias := filepath.Join(a.appDir, "other-name.db")
+	if err := os.Link(original, alias); err != nil {
+		t.Skipf("hard links unavailable: %v", err)
+	}
+	settings, err = a.SwitchDatabase(alias)
+	if err != nil || settings.ActiveDatabasePath != original || len(settings.KnownDatabases) != 1 {
+		t.Fatalf("alias did not select the registered database: %+v, %v", settings, err)
+	}
+}
+
+func TestCaseDistinctDatabaseFiles(t *testing.T) {
+	a := testApp(t)
+	first, err := a.CreateDatabase(a.appDir, "Plan.db", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lower := filepath.Join(a.appDir, "plan.db")
+	if _, err := os.Stat(lower); err == nil {
+		t.Skip("temporary directory ignores filename case")
+	}
+	second, err := a.CreateDatabase(a.appDir, "plan.db", false)
+	if err != nil || len(second.KnownDatabases) != 2 {
+		t.Fatalf("create: %+v, %v", second, err)
+	}
+	settings, err := a.DeleteDatabase(first.ActiveDatabasePath, true)
+	if err != nil || !settings.DatabaseReady || settings.ActiveDatabasePath != lower || len(settings.KnownDatabases) != 1 {
+		t.Fatalf("deleting the other spelling changed the active database: %+v, %v", settings, err)
 	}
 }

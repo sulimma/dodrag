@@ -311,13 +311,18 @@ func TestNativeTextLocalization(t *testing.T) {
 		text, err := strconv.Unquote(value.Value)
 		return text, err == nil
 	}
-	for _, path := range []string{"app.go", "autostart_windows.go", "window_windows.go", "window_mode.go", "window_titlebar.go"} {
+	for _, path := range []string{"app.go", "autostart_windows.go", "window_windows.go", "desktop_windows.go", "install_windows.go", "window_mode_windows.go", "window_titlebar_windows.go"} {
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
 		ast.Inspect(file, func(node ast.Node) bool {
+			// RunSetupAction moved from app.go. The low-level COM helpers in
+			// this file use API names and HRESULT diagnostics as error causes.
+			if fn, ok := node.(*ast.FuncDecl); ok && path == "install_windows.go" && fn.Name.Name != "RunSetupAction" {
+				return false
+			}
 			if field, ok := node.(*ast.KeyValueExpr); ok {
 				if name, ok := field.Key.(*ast.Ident); ok && (name.Name == "Title" || name.Name == "DisplayName") {
 					if _, raw := literal(field.Value); raw {

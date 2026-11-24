@@ -130,3 +130,19 @@ it('recognizes bare www hosts with nested or unfamiliar domains and preserves th
   expect(tokenizeTargets(text)).toMatchObject([{ kind: 'url', value: 'https://' + raw, start: 1, end: raw.length + 1 }]);
   expect(tokenizeTargets('www.example www.-bad.test')).toEqual([]);
 });
+
+it('keeps distinct POSIX path spellings in editor text, drag payloads and Markdown images', () => {
+  const text = 'See /work/Plan and "/work/my plan" or ![preview](/work/plan.png).';
+  expect(tokenizeTargets(text).map(t => t.value)).toEqual(['/work/Plan', '/work/my plan', '/work/plan.png']);
+  for (const path of ['/work/Plan', '/work/plan', '/work/Plan v2: final?.pdf']) {
+    expect(tokenizeTargets(fileDropText([path])).map(t => t.value)).toEqual([path]);
+    expect(parseSourcePayload(JSON.stringify({ kind: 'path', value: path }))?.value).toBe(path);
+  }
+  expect(tokenizeTargets('file:///etc/passwd or https://example.org/a/b').map(t => t.value))
+    .toEqual(['https://example.org/a/b']);
+});
+
+it('distinguishes slash punctuation in prose from an absolute file reference', () => {
+  expect(tokenizeTargets('(/) and 1/2/3 beside (/docs/Plan)').map(token => token.value))
+    .toEqual(['/docs/Plan']);
+});

@@ -25,19 +25,15 @@ func main() {
 	defer closeDiagnostics()
 	app := NewApp()
 
-	err := wails.Run(&options.App{
+	config := &options.App{
 		Logger:             diagnosticLogger{},
 		LogLevel:           logger.WARNING,
 		LogLevelProduction: logger.WARNING,
-		// The client titlebar owns compact/minimize/maximize/close together.
-		// Wails' default frameless decorations keep native resize borders and
-		// DWM shadow; its WM_NCCALCSIZE handling hides only the OS caption.
-		Frameless: true,
-		Title:     "DoDrag",
-		Width:     defaultWindowWidth,
-		Height:    defaultWindowHeight,
-		MinWidth:  minimumWindowWidth,
-		MinHeight: minimumWindowHeight,
+		Title:              "DoDrag",
+		Width:              defaultWindowWidth,
+		Height:             defaultWindowHeight,
+		MinWidth:           minimumWindowWidth,
+		MinHeight:          minimumWindowHeight,
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
 			Middleware: app.previewAssetMiddleware,
@@ -59,7 +55,9 @@ func main() {
 		Bind: []interface{}{
 			app,
 		},
-	})
+	}
+	configureDesktopWindow(config)
+	err := wails.Run(config)
 
 	if err != nil {
 		diagnosticLogger{}.Error(err.Error())

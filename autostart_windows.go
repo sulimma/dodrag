@@ -14,7 +14,7 @@ const (
 	runValueName    = "DoDrag"
 )
 
-func syncWindowsAutostart(enabled bool, language string) error {
+func syncDesktopAutostart(enabled bool, language string) error {
 	k, err := registry.OpenKey(registry.CURRENT_USER, runRegistryPath, registry.SET_VALUE|registry.QUERY_VALUE)
 	if err != nil {
 		return localizedError(language, "Registry-Zugriff fehlgeschlagen", err)

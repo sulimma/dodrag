@@ -25,7 +25,7 @@ export function targetAsLabel(range: SourceRange): string {
 
 function defaultLinkLabel(target: SourceRange['target']): string {
   if (target.kind === 'path') {
-    const name = target.value.replace(/\\+$/, '').split('\\').pop() ?? target.value;
+    const name = target.value.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? target.value;
     return t('Verzeichnis {name}', { name });
   }
   const url = new URL(target.value);

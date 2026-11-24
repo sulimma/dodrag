@@ -19,7 +19,7 @@ import { projectProtocol } from './domain/protocol';
 import { NetworkPlanView } from './components/NetworkPlanView';
 import { MiniCornerView } from './components/MiniCornerView';
 import { SettingsModal } from './components/SettingsModal';
-import { AppTitleBar } from './components/AppTitleBar';
+import { DesktopTitleBar } from './desktop';
 import { AppToolbar, type ViewMode } from './components/AppToolbar';
 import { TaskSidebar } from './components/TaskSidebar';
 import { projectMenuSources, TaskContextMenu } from './components/TaskContextMenu';
@@ -697,7 +697,7 @@ export function App() {
         if (isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]')) listScrollRef.current?.focus();
         setSelectedTaskId(taskId); setIsDetailPanelOpen(open => !open);
       }}>
-      <AppTitleBar onWindowMode={mode => { void requestWindowMode(mode); }}
+      <DesktopTitleBar onWindowMode={mode => { void requestWindowMode(mode); }}
         onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')} />
       <AppToolbar
         successorOf={successorOf}

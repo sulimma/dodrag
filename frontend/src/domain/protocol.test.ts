@@ -122,3 +122,11 @@ it('projects edited notes at their original position and removes deleted notes, 
   events[2].undone = false; events[3].undone = false;
   expect(notes()).toEqual([]);
 });
+
+it('retains two sources distinguished only by filename case', () => {
+  const events = history([create(),
+    { type: 'TASK_DESCRIPTION_SET', payload: { taskId: 'a', description: '/docs/Plan /docs/plan' } },
+  ]);
+  expect(project(events)[0].entries[0].actions.filter(a => a.kind === 'source').map(a => a.target.value))
+    .toEqual(['/docs/Plan', '/docs/plan']);
+});

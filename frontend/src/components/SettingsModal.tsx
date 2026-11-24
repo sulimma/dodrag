@@ -496,8 +496,8 @@ export function SettingsModal({
                 const isActive =
                   isDbReady &&
                   Boolean(settings.activeDatabasePath) &&
-                  entry.path.toLowerCase() ===
-                    settings.activeDatabasePath.toLowerCase();
+                  entry.path ===
+                    settings.activeDatabasePath;
                 const isConfirmingDelete = confirmDeletePath === entry.path;
                 const isMissing = !entry.exists;
 

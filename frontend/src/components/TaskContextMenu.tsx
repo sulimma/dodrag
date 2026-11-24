@@ -62,13 +62,12 @@ export function taskMenuItems(task: TaskState, relation?: MenuRelation): TaskMen
 // Use the editor's path recognition for description and log sources. Only existing
 // directories belong here; files and unavailable paths must not block task actions.
 export async function taskDirectoryPaths(task: TaskState): Promise<string[]> {
-  const candidates = new Map<string, string>();
+  const candidates = new Set<string>();
   for (const text of [task.description, ...(task.logEntries ?? []).map(entry => entry.text)]) {
     for (const target of tokenizeTargets(text ?? '')) {
       if (target.kind !== 'path') continue;
-      const path = target.value.replace(/\\+$/, '') + '\\';
-      const key = path.toLowerCase();
-      if (!candidates.has(key)) candidates.set(key, path);
+      const separator = target.value.startsWith('/') ? '/' : '\\';
+      candidates.add(target.value.endsWith(separator) ? target.value : target.value + separator);
     }
   }
   const paths: string[] = [];
@@ -99,7 +98,7 @@ export function directoryMenuItems(paths: string[]): TaskMenuItem[] {
 
 export async function projectMenuSources(descriptions: readonly string[] = []) {
   const targets = [...new Map(descriptions.flatMap(text => tokenizeTargets(text).map(target => [
-    target.kind === 'path' ? target.value.toLowerCase() : target.value, target,
+    target.value, target,
   ] as const))).values()];
   return {
     items: await Promise.all(targets.map(async (target, index) => {

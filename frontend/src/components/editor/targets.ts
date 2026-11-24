@@ -43,6 +43,10 @@ export function classifyTarget(raw: string): EditorTarget | undefined {
   // Clipboard paths may use /C:/... (ChatGPT) or C:/... . Normalize only
   // absolute drive paths, after URL handling; never reinterpret a URI scheme.
   if (/^\/?[a-z]:[\\/]/i.test(value)) value = value.replace(/^\//, '').replaceAll('/', '\\');
+  if (value.startsWith('//')) value = value.replaceAll('/', '\\');
+  if (value.startsWith('/') && !/[\x00-\x1f\x7f]/.test(raw)) {
+    return { kind: 'path', value };
+  }
   if (/^(?:[a-z]:\\|\\\\[^\\\s/:*?"<>|]+\\[^\\/:*?"<>|]+)(?:[^:*?"<>|\r\n]*)$/i.test(value)) {
     if (/[\x00-\x1f\x7f]/.test(value) || /^\\\\[?.]\\/.test(value)) return;
     return { kind: 'path', value };
@@ -69,12 +73,14 @@ export const isImagePath = (path: string): boolean => /\.(?:jpe?g|png|gif|webp|b
 export const mediaSource = (taskId: string, path: string): string =>
   `/dodrag-media?taskId=${encodeURIComponent(taskId)}&path=${encodeURIComponent(path)}`;
 
-// A standalone drive-path line retains spaces. In prose, quote paths with spaces.
+// A standalone absolute-path line retains spaces. In prose, quote paths with spaces.
 // Decorations preserve the source spelling; native actions receive normalized paths.
 export function tokenizeTargets(text: string): TargetToken[] {
   const result: TargetToken[] = [];
-  for (const line of text.matchAll(/^[ \t]*\/?[a-z]:[\\/][^\r\n]*$/gim)) {
+  for (const line of text.matchAll(/^[ \t]*(?:\/?[a-z]:[\\/]|\/)[^"\r\n]*$/gim)) {
     const source = line[0].trim();
+    // A second absolute path starts another token, even at the beginning of a line.
+    if (/\s+(?:\/\S|[a-z]:[\\/]|\\\\)/i.test(source)) continue;
     const target = classifyTarget(source);
     if (target?.kind === 'path') {
       const start = line.index! + line[0].indexOf(source);
@@ -82,7 +88,7 @@ export function tokenizeTargets(text: string): TargetToken[] {
     }
   }
   // Consume ISO dates/timestamps before the phone branch can take a date plus hour or timezone.
-  const pattern = new RegExp(String.raw`(?<iso>(?<![\w])\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)|!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|"([^"\r\n]+)"|((?:/?[a-z]:[\\/]|\\\\)[^\r\n]*?)|([^\s)]+))\s*\)|"((?:/?[a-z]:[\\/]|\\\\)[^"\r\n]*)"|tel:\+?[\d(][\d ()_-]*[\d)]|(?:https?:\/\/|mailto:|sip:|tel:)[^\s<>"]+|(?<![\w/:\\])(?:/?[a-z]:[\\/]|\\\\)[^\s<>"|:*?]*|(?<![a-z0-9!#$%&'*+/=?^_\x60{|}~.@:"\\-])(?<email>${emailAddress})(?![a-z0-9@_-]|\.[a-z0-9.])|(?<![\w.@/\\-])www\.[^\s<>"]+|(?<![\w+:(/-])\+?[\d(][\d ()_-]*[\d)](?![\w+()-])`, 'gi');
+  const pattern = new RegExp(String.raw`(?<iso>(?<![\w])\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?)|!\[([^\]\r\n]*)\]\(\s*(?:<([^>\r\n]+)>|"([^"\r\n]+)"|((?:/?[a-z]:[\\/]|\\\\|/)[^\r\n]*?)|([^\s)]+))\s*\)|"((?:/?[a-z]:[\\/]|\\\\|/)[^"\r\n]*)"|tel:\+?[\d(][\d ()_-]*[\d)]|(?:https?:\/\/|mailto:|sip:|tel:)[^\s<>"]+|(?<![\w/:\\])(?:/?[a-z]:[\\/]|\\\\)[^\s<>"|:*?]*|(?<![^\s(\[])\/[^\s<>"]+|(?<![a-z0-9!#$%&'*+/=?^_\x60{|}~.@:"\\-])(?<email>${emailAddress})(?![a-z0-9@_-]|\.[a-z0-9.])|(?<![\w.@/\\-])www\.[^\s<>"]+|(?<![\w+:(/-])\+?[\d(][\d ()_-]*[\d)](?![\w+()-])`, 'gi');
   for (const match of text.matchAll(pattern)) {
     if (match.groups?.iso || result.some(token => match.index! >= token.start && match.index! < token.end)) continue;
     const markdownImage = match[0].startsWith('![');
@@ -91,6 +97,8 @@ export function tokenizeTargets(text: string): TargetToken[] {
       value = value.replace(/[.,;!?]+$/, '');
       while (value.endsWith(')') && (value.match(/\)/g)?.length ?? 0) > (value.match(/\(/g)?.length ?? 0)) value = value.slice(0, -1);
     }
+    // A slash left after stripping prose punctuation (as in "(/)") is not a filename.
+    if (value === '/' && !markdownImage && !match[7]) continue;
     const target = classifyTarget(value);
     if (!target) continue;
     result.push({ ...target, start: match.index!, end: match.index! + (markdownImage || match[7] ? match[0].length : value.length),
@@ -110,7 +118,7 @@ export function targetFromElement(element: EventTarget | null): EditorTarget | u
 export const fileDropText = (paths: readonly string[]): string => paths.map(path => {
   // Only separator spelling is normalized; invalid filenames remain rejected.
   const target = classifyTarget(path);
-  if (/[\x00-\x1f\x7f"<>|?*]/.test(path) || target?.kind !== 'path') {
+  if (/[\x00-\x1f\x7f"]/.test(path) || target?.kind !== 'path') {
     throw new Error(t('Ungültiger Dateipfad'));
   }
   return `"${target.value}"`;
