@@ -31,6 +31,8 @@ interface MiniCornerViewProps {
   newTaskInputRef: React.RefObject<HTMLInputElement>;
   snapshotReady: boolean;
   onCreateTask: (event: React.FormEvent) => void;
+  timerRow?: boolean;
+  timerStatus?: React.ReactNode;
 }
 
 // Shows a compact task list and restores the main window on interaction.
@@ -52,6 +54,8 @@ export function MiniCornerView({
   newTaskInputRef,
   snapshotReady,
   onCreateTask,
+  timerRow,
+  timerStatus,
 }: MiniCornerViewProps) {
   return (
     <div className="h-screen w-screen bg-white border border-slate-300 shadow-lg flex flex-col select-none overflow-hidden">
@@ -101,8 +105,9 @@ export function MiniCornerView({
         </div>
       </div>
 
-      {/* Compact Vertical Task List (limited to 4 entries = 112px max height, mouse-wheel scrollable) */}
-      <div ref={listScrollRef} tabIndex={0} data-shortcut-region="1" className="max-h-[112px] overflow-y-auto divide-y divide-slate-100">
+      {timerStatus}
+      {/* The timer reserves one of the four native rows, outside the scroll area. */}
+      <div ref={listScrollRef} tabIndex={0} data-shortcut-region="1" className={`${timerRow ? 'max-h-[84px]' : 'max-h-[112px]'} overflow-y-auto divide-y divide-slate-100`}>
         {tasks.length === 0 ? (
           <div
             onClick={onRestoreWindow}

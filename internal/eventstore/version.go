@@ -9,13 +9,15 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	timemeasurement "dodrag/internal/plugins/time-measurement"
 )
 
 // MinimumAppVersion is the first app version that understands the format this
 // code writes. Bump it for data-format changes, never for UI/bugfix-only changes.
 // Release x.y.z: format changes increment y (reset z); other changes increment z.
 // Only the developer decides changes to x. The rc suffix is irrelevant here.
-const MinimumAppVersion = "0.8.0"
+const MinimumAppVersion = "0.9.0"
 
 // Keep this historical fallback fixed, even when MinimumAppVersion advances.
 const UnversionedMinimumAppVersion = "0.5.0"
@@ -166,6 +168,9 @@ func (s *Store) writeDatabaseVersion(build BuildInfo) error {
 	}
 	if err := s.ensureCache(tx); err != nil {
 		return err
+	}
+	if err := timemeasurement.Migrate(tx); err != nil {
+		return fmt.Errorf("migrate time measurement: %w", err)
 	}
 	if versionLess(required, MinimumAppVersion) {
 		required = MinimumAppVersion

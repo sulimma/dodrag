@@ -38,6 +38,8 @@ type Store struct {
 	stamp      changeStamp
 	ready      bool
 	closed     bool
+	timerID    int64            // Only a session started through this live store can be stopped automatically.
+	timerClock func() time.Time // nil uses the system clock
 	// Benchmarks only; production stores always retain snapshot writes.
 	skipSnapshots bool
 }
@@ -475,11 +477,19 @@ func (s *Store) setHistoryUndone(undone bool) ([]Event, error) {
 		}
 	}
 	events := append([]Event{}, s.events...)
+	completed := make(map[string]bool)
 	var earliest int64
 	if err == nil {
 		for i := range events {
 			if events[i].Seq == seq || group != "" && events[i].GroupID == group {
 				events[i].Undone = undone
+				if !undone && s.timerID != 0 && events[i].Type == "TASK_COMPLETED" {
+					p, err := validatePayload(events[i].Type, events[i].Payload)
+					if err != nil {
+						return nil, err
+					}
+					completed[p["taskId"].(string)] = true
+				}
 				if earliest == 0 || events[i].Seq < earliest {
 					earliest = events[i].Seq
 				}
@@ -492,6 +502,9 @@ func (s *Store) setHistoryUndone(undone bool) ([]Event, error) {
 	tasks, err := s.replayFromSnapshot(events, earliest)
 	if err != nil {
 		return nil, fmt.Errorf("history change rejected: %w", err)
+	}
+	if err := s.stopTimerForCompletions(tx, completed); err != nil {
+		return nil, err
 	}
 	stamp, err := readChangeStamp(tx)
 	if err != nil {

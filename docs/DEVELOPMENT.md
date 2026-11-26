@@ -14,6 +14,25 @@ Wails 2.9.2 benötigt hier beim Packaging `GOTOOLCHAIN=go1.23.12`, weil seine CL
 
 Native Exitcodes auch unter PowerShell 5.1 ausdrücklich prüfen; ErrorActionPreference allein genügt nicht. Eine gesperrte Ziel-EXE melden; keine laufenden Anwendungen beenden.
 
+### Time Measurement: format and manual acceptance
+
+Time Measurement is off by default. The event store migrates its session table and records plugin schema version `1` in the same transaction as the format stamp. The database-format floor changes from `0.8.0` to `0.9.0`; the fallback for unversioned databases remains `0.5.0`. **Opening an older database with the new build can raise its minimum even before Time Measurement is enabled.** Use copies and keep an untouched backup if you need to reopen a file with an older app. The app's release version is not changed locally.
+
+Standalone branch validation:
+
+- Windows root/backend tests: `go test . -run 'TestTimeMeasurement|TestEditorCloseProtocol|TestPluginSettings' -count=1`. This is the branch's native root test; it uses disposable SQLite fixtures and does not launch the GUI.
+- Linux-host checks: `go test ./internal/eventstore -run 'TestTimeMeasurement|TestDatabaseVersion' -count=1`, then `cd frontend && npx vitest run src/domain/protocol.test.ts src/i18n/i18n.test.ts` and `npm run build`. These do not validate Wails or Linux desktop integration.
+- This timer branch does not contain the separate Linux port's desktop adapters or packaging. Do not use the Linux-port command `go test -tags webkit2_41 . ...` as validation of this standalone branch. Linux GUI validation belongs with the Linux-port branch.
+
+Windows GUI acceptance remains pending. Use a disposable profile and two disposable databases. Opening older databases with this build can raise the format floor from `0.8.0` to `0.9.0`; never use real databases for this check.
+
+1. Verify Time Measurement starts off. Enable it, open a task, and start timing. Select a second task and collapse Details; the running task and Stop must remain available. On Windows, check Mini and restore from the taskbar.
+2. Stop under 30 seconds and verify the feedback and unchanged history. Start again, let it reach 30 seconds, and start the other task without stopping first. Verify one saved session and one running timer. Planned duration, progress and Active must not change because of either timer operation.
+3. Complete the timed task, including through multi-select. Verify the stop and completion, then Undo; the timer must remain stopped. Start a new run on the reopened task and Redo to verify it stops again.
+4. Check normal close/reopen, a cancelled database picker, switching to the other database, and disabling/re-enabling. Only real departure or disable stops the timer; short runs must not leave history. Re-enabled history must still be there.
+5. Interrupt only the disposable instance with an active timer. Reopen, confirm the start is shown and a new timer is blocked. Choose an end time and check that only the chosen interval counts. Repeat and discard, including a task hidden by Undo.
+6. Edit a saved end time, try one in the future and one that overlaps another session, then confirm deletion. Check keyboard interaction, the UTC times and edit field, unchanged history after rejected edits, and persistence after reopening. Task Undo must not undo the history edit.
+
 ## Grenzen und bekannte Werkzeugbefunde
 DOM-Tests verwenden jsdom, nicht WebView2. Optionale Chromiumtests belegen keine Windows-/COM-/Registry-/DPI-/Clipboardintegration. Bei einschlägigen Änderungen die tatsächlich verbleibende native Testlücke benennen, nicht bei jeder Dokumentationsänderung eine vollständige Warnliste wiederholen.
 
