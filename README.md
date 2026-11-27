@@ -5,7 +5,7 @@
 <h1 align="center">DoDrag</h1>
 
 <p align="center">
-  <strong>A focus-first task manager for Windows — designed for ADHD brains and anyone tired of overwhelming TODO lists.</strong>
+  <strong>A focus-first task manager for Windows and Linux — designed for ADHD brains and anyone tired of overwhelming TODO lists.</strong>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sulimma/dodrag/releases/latest"><strong>Download for Windows</strong></a> ·
+  <a href="https://github.com/sulimma/dodrag/releases/latest"><strong>Download for Windows or Linux</strong></a> ·
   <a href="#see-it-in-action">See it in action</a> ·
   <a href="#getting-started">Getting started</a>
 </p>
@@ -77,7 +77,7 @@ Switch between **List**, **Dependency graph**, **Gantt**, and **History** at any
 - **Projects & instant search:** organize with color-coded project badges and search/filter live across titles, IDs, Markdown, checklists, and logs.
 - **Jump straight to your files:** open folders linked to tasks and projects in **Windows Explorer** or **VS Code** with one click.
 - **Full undo & redo:** every drag, edit, and reschedule is stored in an event history so you can experiment fearlessly.
-- **100% local & private:** single portable Windows `.exe`, plain SQLite database files (easy to back up or sync via Google Drive/OneDrive), no account, no cloud lock-in, and no automatic online update checks.
+- **100% local & private:** portable Windows `.exe` and Ubuntu/Kubuntu 25.10 Linux `.deb`, plain SQLite database files (easy to back up or sync via Google Drive/OneDrive), no account, no cloud lock-in, and no automatic online update checks.
 - **Rich Markdown editor:** checklists, tables, GitHub-style alerts, KaTeX formulas, 30 Mermaid diagram templates, SMILES chemistry formulas, Unicode shortcuts, and `.md` file drag-and-drop. Press **`?`** inside the app for built-in syntax & keyboard shortcut help.
 - **15 interface languages:** auto-detected from Windows and switchable on the fly in Settings.
 
@@ -119,9 +119,13 @@ Grab the portable executable from the [latest DoDrag release](https://github.com
 
 Just open the `.exe` to run DoDrag. Whenever you like, **Settings** can copy it to `%LOCALAPPDATA%\Programs\DoDrag`, create Desktop/Start Menu shortcuts, and enable autostart.
 
+### Download for Linux
+
+Download `dodrag_<version>_amd64.deb` from the [latest DoDrag release](https://github.com/sulimma/dodrag/releases/latest) and install it with your package manager or `sudo apt install ./dodrag_<version>_amd64.deb`. The native package targets x86-64 Ubuntu/Kubuntu 25.10 (Questing) and uses the system GTK 3 and WebKitGTK 4.1 runtime libraries. Linux packaging is currently limited to this Ubuntu release and architecture.
+
 ### Build from source
 
-DoDrag is a native Windows desktop app built with [Wails](https://wails.io/), Go, and React. Install Go, Node.js/npm, and the Wails prerequisites for Windows, then run:
+DoDrag is a native desktop app built with [Wails](https://wails.io/), Go, and React. The Windows build uses Windows Wails prerequisites; Linux packaging targets Ubuntu/Kubuntu 25.10 (Questing) x86-64 and uses GTK 3 and WebKitGTK 4.1 development packages. For Windows, install Go, Node.js/npm, and the Wails prerequisites, then run:
 
 ```powershell
 $version = Read-Host "Version (MAJOR.MINOR.PATCH)"

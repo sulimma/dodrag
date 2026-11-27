@@ -134,3 +134,20 @@ Markerfokus nach Inlinebearbeitung: `App.test.tsx` prüft geänderte/begrenzte u
 
 - Neu eingefügte Mermaid- und SMILES-Diagramme müssen sofort den fokussierten Quelltext zeigen. Mit Escape zur Vorschau wechseln. Die Vorschau hat keine Überschrift und keine Bearbeiten-/Löschen-Schaltflächen. Im Kontextmenü Bearbeiten, Löschen und SVG speichern prüfen, danach Löschen rückgängig machen.
 - Bei einem beschrifteten Link am Anfang und Ende tippen. Die Eingabe gehört zum Linktext und lässt das Ziel unverändert. An der Grenze mit Pfeil links/rechts aussteigen und normalen Text schreiben. Innerhalb des Linktextes zwei Leerzeichen tippen. Es bleibt genau ein unformatiertes Leerzeichen, und weiterer Text bleibt außerhalb des Links.
+
+
+## Linux packaging and shared releases
+
+`scripts/package-linux.sh <version>` builds the frontend, runs `go test -tags webkit2_41 ./...`, and uses Wails 2.9.2 to package a native Ubuntu/Kubuntu 25.10 (Questing) x86-64 `.deb` as `build/bin/dodrag_<version>_amd64.deb`. The package installs the app under `/opt/dodrag`, a desktop entry, and its application icon. The script validates the generated package metadata and contents with `dpkg-deb`; it cannot launch the GUI in a headless packaging job. It depends on GTK 3 and WebKitGTK 4.1 runtime libraries. Building requires Go 1.23.12, Node.js/npm, `dpkg-deb`, a C compiler, pkg-config, and the GTK 3/WebKitGTK 4.1 development packages. The Linux executable is not copied over the Windows `dodrag.exe` output.
+
+On Ubuntu/Kubuntu 25.10 amd64, install Go 1.23.12 and Node.js/npm, then run:
+
+```sh
+sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev dpkg-dev
+read -r -p "Version (MAJOR.MINOR.PATCH): " version
+./scripts/package-linux.sh "$version"
+```
+
+Wails receives `-tags webkit2_41` explicitly. The runtime package names are `libgtk-3-0t64` and `libwebkit2gtk-4.1-0`; the GTK package uses Ubuntu's time64 name. The package command builds and tests only; it does not install, launch, tag, or publish the app.
+
+The manually dispatched `.github/workflows/release.yml` only builds and publishes when dispatched from `main` and the required `publish` input is explicitly enabled. It builds Windows amd64, x86 (Wails `386`), and arm64 assets, plus an Ubuntu Questing amd64 `.deb`, then creates the tag and GitHub release after all build jobs succeed. It validates that the release commit is still the tip of `main` and rejects existing local or remote tags before tagging. Leave `publish` unchecked for the default no-op run. The workflow does not use `release.ps1`; that script remains the local Windows release flow. Workflow runs were not triggered during this change.
