@@ -48,7 +48,7 @@ func (a *App) previewCacheDirectory() string {
 	if a.previewCacheDir != "" {
 		return a.previewCacheDir
 	}
-	return filepath.Join(os.TempDir(), "DoDrag", "previews")
+	return defaultPreviewCacheDirectory()
 }
 
 func previewTaskDirectory(cacheDir, taskID string) string {
@@ -256,7 +256,7 @@ func (a *App) serveImagePreview(w http.ResponseWriter, r *http.Request) {
 	a.previewMu.Lock()
 	a.mu.Unlock()
 	defer a.previewMu.Unlock()
-	f, err := os.Open(path)
+	f, err := openLocalFile(path)
 	if err != nil {
 		fail(http.StatusNotFound)
 		return

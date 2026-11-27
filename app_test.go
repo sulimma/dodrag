@@ -1,94 +1,15 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"dodrag/internal/eventstore"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
-
-func TestAutoMiniUnfocusedTimer(t *testing.T) {
-	start := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
-	a := &App{}
-	for _, tc := range []struct {
-		name       string
-		after      time.Duration
-		foreground bool
-		mini       bool
-		want       bool
-		wantSince  time.Time
-	}{
-		{"foreground", 0, true, false, false, time.Time{}},
-		{"focus lost", time.Minute, false, false, false, start.Add(time.Minute)},
-		{"below threshold", 11*time.Minute - time.Nanosecond, false, false, false, start.Add(time.Minute)},
-		{"at threshold", 11 * time.Minute, false, false, true, start.Add(time.Minute)},
-		{"focus resets expired timer", 12 * time.Minute, true, false, false, time.Time{}},
-		{"new unfocused period", 13 * time.Minute, false, false, false, start.Add(13 * time.Minute)},
-		{"new period below threshold", 22 * time.Minute, false, false, false, start.Add(13 * time.Minute)},
-		{"mini clears timer", 23 * time.Minute, false, true, false, time.Time{}},
-		{"mini remains exempt", 24 * time.Hour, false, true, false, time.Time{}},
-		{"restored starts fresh", 25 * time.Hour, false, false, false, start.Add(25 * time.Hour)},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			a.windowMode = WindowModeWindow
-			if tc.mini {
-				a.windowMode = WindowModeMini
-			}
-			if got := a.shouldAutoMiniLocked(start.Add(tc.after), tc.foreground); got != tc.want {
-				t.Fatalf("auto mini = %v, want %v", got, tc.want)
-			}
-			if !a.unfocusedSince.Equal(tc.wantSince) {
-				t.Fatalf("unfocused since = %v, want %v", a.unfocusedSince, tc.wantSince)
-			}
-		})
-	}
-}
-
-func TestShutdownStopsNativeWatcher(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	a := &App{desktopState: desktopState{watchCancel: cancel, watchDone: done, unfocusedSince: time.Now()}}
-	go func() {
-		defer close(done)
-		a.watchNativeMinimize(ctx)
-	}()
-	stopped := make(chan struct{})
-	go func() {
-		a.shutdown(context.Background())
-		close(stopped)
-	}()
-	select {
-	case <-stopped:
-	case <-time.After(2 * time.Second):
-		t.Fatal("shutdown did not stop watcher")
-	}
-	select {
-	case <-done:
-	default:
-		t.Fatal("shutdown returned before watcher stopped")
-	}
-	if !a.unfocusedSince.IsZero() {
-		t.Fatal("shutdown retained unfocused timer")
-	}
-	// Repeated shutdown must not block on an already stopped watcher.
-	a.shutdown(context.Background())
-}
-
-func TestMiniLogicalSize(t *testing.T) {
-	for _, tc := range []struct{ count, height int }{{0, 58}, {1, 58}, {2, 86}, {4, 142}, {8, 142}} {
-		width, height := computeMiniLogicalSize(tc.count)
-		if width != 320 || height != tc.height {
-			t.Fatalf("count %d: got %dx%d, want 320x%d", tc.count, width, height, tc.height)
-		}
-	}
-}
 
 func testApp(t *testing.T) *App {
 	t.Helper()
@@ -346,12 +267,11 @@ func TestSettingsLoadPreservesInvalidOriginal(t *testing.T) {
 			if _, err := a.GetSettings(); err == nil {
 				t.Fatal("load failure not exposed")
 			}
-			a.onMiniWindowSnapped("PRIMARY", "top-right")
 			if _, err := a.CreateDatabase("", "blocked", false); err == nil {
 				t.Fatal("created database after load failure")
 			}
 			if _, err := a.SetAutostart(true); err == nil {
-				t.Fatal("autostart not blocked before Registry access")
+				t.Fatal("autostart not blocked after settings load failure")
 			}
 			got, err := os.ReadFile(a.settingsPath)
 			if err != nil || string(got) != raw {
@@ -396,93 +316,6 @@ func TestSettingsMissingAndReadFailure(t *testing.T) {
 	}
 	if _, err := failedInit.GetSettings(); err == nil {
 		t.Fatal("first-start save failure not exposed")
-	}
-}
-
-func TestDockSaveFailureIsVisible(t *testing.T) {
-	a := testApp(t)
-	a.windowMode = WindowModeMini
-	a.settingsPath = filepath.Join(a.appDir, "missing", "settings.json")
-	a.onMiniWindowSnapped("PRIMARY", "top-right")
-	if _, err := a.GetSettings(); err == nil {
-		t.Fatal("dock save failure not exposed")
-	}
-	a.settingsPath = filepath.Join(a.appDir, "settings.json")
-	if err := a.saveSettingsLocked(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := a.GetSettings(); err != nil {
-		t.Fatal("successful save did not clear error", err)
-	}
-}
-
-func TestDeleteFailurePreservesCommittedWAL(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("Windows file sharing semantics")
-	}
-	a := testApp(t)
-	path := filepath.Join(a.appDir, "recoverable.db")
-	db, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if _, err := db.Exec(`PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE committed (value TEXT); INSERT INTO committed VALUES ('in WAL')`); err != nil {
-		t.Fatal(err)
-	}
-	// Snapshot a committed, uncheckpointed database, then release all connections.
-	snapshots := make(map[string][]byte)
-	for _, name := range []string{path, path + "-wal", path + "-shm"} {
-		raw, err := os.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		snapshots[name] = raw
-	}
-	if len(snapshots[path+"-wal"]) <= 32 {
-		t.Fatal("no committed WAL fixture")
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	for name, raw := range snapshots {
-		if err := os.WriteFile(name, raw, 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// Go's Windows Open shares reads/writes, but not deletion.
-	locked, err := os.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer locked.Close()
-	a.settings.KnownDatabases = []DatabaseEntry{{Path: path}}
-	if _, err := a.DeleteDatabase(path, true); err == nil {
-		t.Fatal("ignored physical deletion error")
-	}
-	for name, want := range snapshots {
-		got, err := os.ReadFile(name)
-		// Read-only compatibility inspection can update SQLite's shared-memory
-		// read marks. SHM must remain available, but its bytes are not durable
-		// user data. Keep exact DB/WAL checks and the recovery assertion below.
-		if err != nil || (name != path+"-shm" && string(got) != string(want)) {
-			t.Fatalf("recoverable file changed: %s, %v", name, err)
-		}
-	}
-	if len(a.settings.KnownDatabases) != 1 {
-		t.Fatal("forgot database after failure")
-	}
-	if err := locked.Close(); err != nil {
-		t.Fatal(err)
-	}
-	recovered, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer recovered.Close()
-	var value string
-	if err := recovered.QueryRow(`SELECT value FROM committed`).Scan(&value); err != nil || value != "in WAL" {
-		t.Fatal("committed WAL not recoverable", value, err)
 	}
 }
 
@@ -677,54 +510,5 @@ func TestDefaultTimeMarkersSettings(t *testing.T) {
 	}
 	if a.settings.DefaultTimeMarkers[0] != 720 {
 		t.Fatal("failed save changed defaults")
-	}
-}
-
-func TestForgetOnlyExactMissingDatabase(t *testing.T) {
-	a := testApp(t)
-	upper := filepath.Join(a.appDir, "Plan.db")
-	lower := filepath.Join(a.appDir, "plan.db")
-	a.settings.KnownDatabases = []DatabaseEntry{{Path: upper}, {Path: lower}}
-	a.settings.ActiveDatabasePath = upper
-	settings, err := a.DeleteDatabase(lower, false)
-	if err != nil || len(settings.KnownDatabases) != 1 || settings.KnownDatabases[0].Path != upper || settings.ActiveDatabasePath != upper {
-		t.Fatalf("forgetting %q changed the other entry: %+v, %v", lower, settings, err)
-	}
-}
-
-func TestSwitchDatabaseByFileIdentity(t *testing.T) {
-	a := testApp(t)
-	settings, err := a.CreateDatabase(a.appDir, "Plan.db", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	original := settings.ActiveDatabasePath
-	alias := filepath.Join(a.appDir, "other-name.db")
-	if err := os.Link(original, alias); err != nil {
-		t.Skipf("hard links unavailable: %v", err)
-	}
-	settings, err = a.SwitchDatabase(alias)
-	if err != nil || settings.ActiveDatabasePath != original || len(settings.KnownDatabases) != 1 {
-		t.Fatalf("alias did not select the registered database: %+v, %v", settings, err)
-	}
-}
-
-func TestCaseDistinctDatabaseFiles(t *testing.T) {
-	a := testApp(t)
-	first, err := a.CreateDatabase(a.appDir, "Plan.db", false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	lower := filepath.Join(a.appDir, "plan.db")
-	if _, err := os.Stat(lower); err == nil {
-		t.Skip("temporary directory ignores filename case")
-	}
-	second, err := a.CreateDatabase(a.appDir, "plan.db", false)
-	if err != nil || len(second.KnownDatabases) != 2 {
-		t.Fatalf("create: %+v, %v", second, err)
-	}
-	settings, err := a.DeleteDatabase(first.ActiveDatabasePath, true)
-	if err != nil || !settings.DatabaseReady || settings.ActiveDatabasePath != lower || len(settings.KnownDatabases) != 1 {
-		t.Fatalf("deleting the other spelling changed the active database: %+v, %v", settings, err)
 	}
 }

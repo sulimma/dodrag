@@ -139,11 +139,18 @@ func (a *App) ReadMarkdownFile(raw string) (string, error) {
 	if info.IsDir() || !strings.EqualFold(filepath.Ext(path), ".md") {
 		return "", localizedError(language, "Pfad konnte nicht geoeffnet werden", errors.New("Markdown .md file required"))
 	}
-	file, err := os.Open(path)
+	file, err := openLocalFile(path)
 	if err != nil {
 		return "", localizedError(language, "Pfad konnte nicht geoeffnet werden", err)
 	}
 	defer file.Close()
+	openedInfo, err := file.Stat()
+	if err == nil && !openedInfo.Mode().IsRegular() {
+		err = errors.New("regular file required")
+	}
+	if err != nil {
+		return "", localizedError(language, "Pfad konnte nicht geoeffnet werden", err)
+	}
 	const limit = 16 * 1024 * 1024
 	data, err := io.ReadAll(io.LimitReader(file, limit+1))
 	if err == nil && (len(data) > limit || !utf8.Valid(data)) {

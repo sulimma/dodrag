@@ -40,25 +40,34 @@ type SetupState struct {
 	StartMenuShortcut     bool   `json:"startMenuShortcut"`
 }
 
-// AppSettings stores known databases, the currently active database, autostart flag, and dock monitor/corner in %APPDATA%\DoDrag\settings.json.
+// DesktopCapabilities describe the optional native behaviors exposed to the UI.
+type DesktopCapabilities struct {
+	MiniWindow     bool `json:"miniWindow"`
+	NativeTaskMenu bool `json:"nativeTaskMenu"`
+	SelfInstall    bool `json:"selfInstall"`
+	Autostart      bool `json:"autostart"`
+}
+
+// AppSettings combines persisted preferences with runtime state.
 type AppSettings struct {
-	DefaultTimeMarkers  []int           `json:"defaultTimeMarkers"`
-	DefaultDuration     float64         `json:"defaultDuration"`
-	DefaultDurationUnit string          `json:"defaultDurationUnit"`
-	KnownDatabases      []DatabaseEntry `json:"knownDatabases"`
-	ActiveDatabasePath  string          `json:"activeDatabasePath"`
-	Autostart           bool            `json:"autostart"`
-	DockMonitor         string          `json:"dockMonitor"`
-	DockCorner          string          `json:"dockCorner"`
-	UILanguage          string          `json:"uiLanguage"`
-	BootMinimized       bool            `json:"bootMinimized,omitempty"`
-	DatabaseReady       bool            `json:"databaseReady,omitempty"`
-	DatabaseError       string          `json:"databaseError,omitempty"`
-	Version             string          `json:"version,omitempty"`
-	BuildTime           string          `json:"buildTime,omitempty"`
-	PreviewCacheDir     string          `json:"previewCacheDir,omitempty"`
-	PreviewCacheError   string          `json:"previewCacheError,omitempty"`
-	Setup               SetupState      `json:"setup"`
+	Capabilities        DesktopCapabilities `json:"capabilities"`
+	DefaultTimeMarkers  []int               `json:"defaultTimeMarkers"`
+	DefaultDuration     float64             `json:"defaultDuration"`
+	DefaultDurationUnit string              `json:"defaultDurationUnit"`
+	KnownDatabases      []DatabaseEntry     `json:"knownDatabases"`
+	ActiveDatabasePath  string              `json:"activeDatabasePath"`
+	Autostart           bool                `json:"autostart"`
+	DockMonitor         string              `json:"dockMonitor"`
+	DockCorner          string              `json:"dockCorner"`
+	UILanguage          string              `json:"uiLanguage"`
+	BootMinimized       bool                `json:"bootMinimized,omitempty"`
+	DatabaseReady       bool                `json:"databaseReady,omitempty"`
+	DatabaseError       string              `json:"databaseError,omitempty"`
+	Version             string              `json:"version,omitempty"`
+	BuildTime           string              `json:"buildTime,omitempty"`
+	PreviewCacheDir     string              `json:"previewCacheDir,omitempty"`
+	PreviewCacheError   string              `json:"previewCacheError,omitempty"`
+	Setup               SetupState          `json:"setup"`
 }
 
 type persistedSettings struct {
@@ -109,7 +118,7 @@ func NewApp() *App {
 		}
 	}
 	return &App{
-		bootMinimized: bootMin,
+		bootMinimized: bootMin && desktopCapabilities().MiniWindow,
 		desktopState:  newDesktopState(),
 	}
 }
@@ -135,7 +144,7 @@ func (a *App) startup(ctx context.Context) {
 	if err := a.loadOrInitSettingsLocked(); err != nil {
 		runtime.LogErrorf(ctx, "%s: %v", a.textLocked("Settings konnten nicht geladen werden"), err)
 	} else {
-		if a.settings.Autostart {
+		if desktopCapabilities().Autostart && a.settings.Autostart {
 			_ = syncDesktopAutostart(true, a.settings.UILanguage)
 		}
 		a.openActiveDatabaseLocked()
@@ -317,6 +326,7 @@ func (a *App) openActiveDatabaseLocked() {
 
 func (a *App) snapshotSettingsLocked() AppSettings {
 	out := AppSettings{
+		Capabilities:        desktopCapabilities(),
 		DefaultTimeMarkers:  append([]int{}, a.settings.DefaultTimeMarkers...),
 		ActiveDatabasePath:  a.settings.ActiveDatabasePath,
 		Autostart:           a.settings.Autostart,

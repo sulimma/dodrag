@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -32,7 +34,15 @@ type desktopState struct {
 	watchDone             chan struct{}
 }
 
+func desktopCapabilities() DesktopCapabilities {
+	return DesktopCapabilities{MiniWindow: true, NativeTaskMenu: true, SelfInstall: true, Autostart: true}
+}
+
 func newDesktopState() desktopState { return desktopState{lastMiniItemCount: 1} }
+func defaultPreviewCacheDirectory() string {
+	return filepath.Join(os.TempDir(), "DoDrag", "previews")
+}
+
 func desktopDockPlacement(monitor, corner string) (string, string) {
 	if monitor == "" {
 		return getConnectedMonitors()[0].DeviceName, "bottom-left"

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -30,6 +31,10 @@ func absoluteLocalPath(raw string) (string, error) {
 		return "", errors.New("alternate data streams are not supported")
 	}
 	return clean, nil
+}
+
+func openLocalFile(path string) (*os.File, error) {
+	return os.Open(path)
 }
 
 func validDatabaseFilename(trimmedName string) bool {
