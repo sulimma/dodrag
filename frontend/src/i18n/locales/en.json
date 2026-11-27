@@ -426,5 +426,6 @@
   "Vorgänger": "Predecessors",
   "Nachfolger": "Successors",
   "Abhängigkeit entfernen": "Remove dependency",
-  "Nachfolger {id} lösen": "Unlink successor {id}"
+  "Nachfolger {id} lösen": "Unlink successor {id}",
+  "Kontextmenü": "Context menu"
 }

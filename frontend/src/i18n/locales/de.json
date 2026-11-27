@@ -426,5 +426,6 @@
   "Vorgänger": "Vorgänger",
   "Nachfolger": "Nachfolger",
   "Abhängigkeit entfernen": "Abhängigkeit entfernen",
-  "Nachfolger {id} lösen": "Nachfolger {id} lösen"
+  "Nachfolger {id} lösen": "Nachfolger {id} lösen",
+  "Kontextmenü": "Kontextmenü"
 }

@@ -426,5 +426,6 @@
   "Vorgänger": "pali monsi",
   "Nachfolger": "pali sinpin",
   "Abhängigkeit entfernen": "o weka e linja pali",
-  "Nachfolger {id} lösen": "o weka e linja pi pali sinpin {id}"
+  "Nachfolger {id} lösen": "o weka e linja pi pali sinpin {id}",
+  "Kontextmenü": "poki pi pali ken"
 }

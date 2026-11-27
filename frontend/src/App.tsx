@@ -1,6 +1,6 @@
 import { selectionActionIds } from './domain/selection';
 import { openTarget } from './components/editor/contextMenu';
-import { contextMenuAnchor } from './hooks/keyboardNavigation';
+import { ContextMenuDispatch, menuPosition, useDesktopContextMenu } from './components/ContextMenuPopup';
 import { useProjects } from './hooks/useProjects';
 import { SaveCompletionContext } from './hooks/saveCompletion';
 import { newTaskMemberships, projectProgress } from './domain/projects';
@@ -142,6 +142,10 @@ export function App() {
     loadSnapshot,
     changeDatabase,
   } = database;
+  const capabilities = appSettings?.capabilities;
+  const miniWindow = capabilities?.miniWindow !== false;
+  const miniAvailable = appSettings !== null && miniWindow;
+  const { showMenu, popup } = useDesktopContextMenu(capabilities?.nativeTaskMenu !== false, appSettings?.activeDatabasePath);
   const projects = useProjects(database);
   const descriptions = useDescriptionDrafts(database);
   const state = useMemo(() => projectEvents(events, now), [events, now, language]);
@@ -275,28 +279,32 @@ export function App() {
       setEditOwner(isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]') ? 'detail' : 'view');
       editors.startInlineEdit(task);
     },
-    onMinimize: () => { void requestWindowMode('mini'); },
-    onRestore: () => { void requestWindowMode('window'); },
+    onMinimize: miniWindow ? () => { void requestWindowMode('mini'); } : undefined,
+    onRestore: miniWindow ? () => { void requestWindowMode('window'); } : undefined,
   });
 
   useEffect(() => {
     let current = true;
     mutationBusy.current = true;
     const version = modeVersion.current;
-    const initialMode = eventBridge.getWindowMode().then(mode => {
-      if (current && modeVersion.current === version) { confirmedMode.current = mode; setWindowMode(mode); }
-    }).catch(error => pushToast(errorText(t('Anwendung konnte nicht geladen werden'), error), 'warning'));
     loadSnapshot(() => current)
       .then(async settings => {
-        await initialMode;
         if (!current) return;
-        // Register the final task count before applying compact geometry.
-        await eventBridge.updateMiniModeHeight(computeMiniWindowTasks(projectEvents(confirmedEvents.current, new Date()).openTasks, new Date()).length);
+        if (settings.capabilities?.miniWindow !== false) {
+          await eventBridge.getWindowMode().then(mode => {
+            if (current && modeVersion.current === version) { confirmedMode.current = mode; setWindowMode(mode); }
+          }).catch(error => pushToast(errorText(t('Anwendung konnte nicht geladen werden'), error), 'warning'));
+          if (!current) return;
+          // Register the final task count before applying compact geometry.
+          await eventBridge.updateMiniModeHeight(computeMiniWindowTasks(projectEvents(confirmedEvents.current, new Date()).openTasks, new Date()).length);
+        } else {
+          confirmedMode.current = 'window';
+        }
         if (!current) return;
-        if (settings.setup?.installedVersionOlder) {
+        if (settings.capabilities?.selfInstall !== false && settings.setup?.installedVersionOlder) {
           await requestWindowMode('window');
           if (current) setShowSettingsModal(true);
-        } else if (settings.databaseReady && settings.bootMinimized) {
+        } else if (settings.capabilities?.miniWindow !== false && settings.databaseReady && settings.bootMinimized) {
           await requestWindowMode('mini', true);
         }
       })
@@ -332,8 +340,8 @@ export function App() {
 
 
   useEffect(() => {
-    void eventBridge.updateMiniModeHeight(miniTasks.length);
-  }, [miniTasks.length]);
+    if (miniAvailable) void eventBridge.updateMiniModeHeight(miniTasks.length);
+  }, [miniAvailable, miniTasks.length]);
   useEffect(() => {
     // React may remove an editor without firing blur (selection, collapse, mini).
     const taskId = isDetailPanelOpen && !isMiniMode ? selectedTaskId : null;
@@ -435,6 +443,7 @@ export function App() {
   // Failed transitions roll back to the last confirmed mode without blanking the root.
   const requestWindowMode = (mode: WindowMode, automatic = false, expectedMode?: WindowMode, selectTaskId?: string): Promise<boolean> => {
     const operation = modeQueue.current.then(async () => {
+      if (!miniWindow) return mode === 'window';
       if (expectedMode !== undefined && confirmedMode.current !== expectedMode) return false;
       if (confirmedMode.current === mode && !selectTaskId) return true;
       if (automatic && mode === 'mini' && automaticBlocked()) return false;
@@ -593,7 +602,7 @@ export function App() {
     retainTask(null); mainSelection.reset(); setProjectDetailId(id);
   };
   const menuProject = async (id: string, event: React.MouseEvent) => {
-    const anchor = contextMenuAnchor(event);
+    const position = menuPosition(event);
     const db = database.databaseIdentity.current;
     const project = projects.drafts.current.get(id) ?? projects.projects.get(id);
     if (!project) return;
@@ -601,12 +610,12 @@ export function App() {
     try {
       const sources = await projectMenuSources([project.description, ...(projects.logs.get(id) ?? []).map(note => note.text)]);
       if (database.databaseIdentity.current !== db) return;
-      const action = await eventBridge.showTaskContextMenu([
+      const action = await showMenu([
         { id: 'details', label: t('Details anzeigen'), disabled: false },
         { id: 'filter', label: t('Nur dieses Projekt anzeigen'), disabled: false },
         ...sources.items,
         { id: 'delete', label: t('Projekt löschen'), disabled: false },
-      ], anchor);
+      ], position);
       if (database.databaseIdentity.current !== db) return;
       if (action === 'details') await showProject(id);
       else if (action === 'filter') selectProject(id);
@@ -632,6 +641,7 @@ export function App() {
   const listBackgroundKey = 'list-background';
   const todayKey = toDateKey(now);
   return (
+    <ContextMenuDispatch.Provider value={showMenu}>
     <SaveCompletionContext.Provider value={database.saves}>
     <ProjectContext.Provider value={{ ...projects, select: selectProject, details: showProject, menu: menuProject }}>
     {deleteId && projects.projects.has(deleteId) && <DeleteProjectDialog code={projects.projects.get(deleteId)!.code} cancel={() => setDeleteId(null)}
@@ -697,8 +707,8 @@ export function App() {
         if (isDetailPanelOpen && document.activeElement?.closest('[data-task-detail-panel]')) listScrollRef.current?.focus();
         setSelectedTaskId(taskId); setIsDetailPanelOpen(open => !open);
       }}>
-      <DesktopTitleBar onWindowMode={mode => { void requestWindowMode(mode); }}
-        onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')} />
+      {miniAvailable && <DesktopTitleBar onWindowMode={mode => { void requestWindowMode(mode); }}
+        onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')} />}
       <AppToolbar
         successorOf={successorOf}
         viewMode={viewMode}
@@ -891,6 +901,7 @@ export function App() {
       {!isMiniMode && taskContextMenu}
       <ShortcutHelp
         open={!isMiniMode && showShortcutsModal}
+        miniWindow={miniWindow}
         initialPage={helpPage}
         onClose={() => setShowShortcutsModal(false)}
       />
@@ -933,5 +944,7 @@ export function App() {
     </div>
     </ProjectContext.Provider>
     </SaveCompletionContext.Provider>
+    {popup}
+    </ContextMenuDispatch.Provider>
   );
 }

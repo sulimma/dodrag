@@ -34,7 +34,15 @@ export interface SetupState {
   startMenuShortcut: boolean;
 }
 
+export interface DesktopCapabilities {
+  miniWindow: boolean;
+  nativeTaskMenu: boolean;
+  selfInstall: boolean;
+  autostart: boolean;
+}
+
 export interface AppSettings {
+  capabilities?: DesktopCapabilities;
   defaultTimeMarkers?: number[];
   defaultDuration?: number;
   defaultDurationUnit?: import('../domain/duration').DurationUnit;

@@ -426,5 +426,6 @@
   "Vorgänger": "Tareas predecesoras",
   "Nachfolger": "Tareas sucesoras",
   "Abhängigkeit entfernen": "Quitar dependencia",
-  "Nachfolger {id} lösen": "Desvincular la sucesora {id}"
+  "Nachfolger {id} lösen": "Desvincular la sucesora {id}",
+  "Kontextmenü": "Menú contextual"
 }

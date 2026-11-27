@@ -426,5 +426,6 @@
   "Vorgänger": "Antaŭuloj",
   "Nachfolger": "Posteuloj",
   "Abhängigkeit entfernen": "Forigi dependecon",
-  "Nachfolger {id} lösen": "Malkonekti posteulon {id}"
+  "Nachfolger {id} lösen": "Malkonekti posteulon {id}",
+  "Kontextmenü": "Kunteksta menuo"
 }

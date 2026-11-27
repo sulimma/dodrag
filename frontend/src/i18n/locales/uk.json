@@ -426,5 +426,6 @@
   "Vorgänger": "Попередники",
   "Nachfolger": "Наступники",
   "Abhängigkeit entfernen": "Вилучити залежність",
-  "Nachfolger {id} lösen": "Від’єднати наступника {id}"
+  "Nachfolger {id} lösen": "Від’єднати наступника {id}",
+  "Kontextmenü": "Контекстне меню"
 }

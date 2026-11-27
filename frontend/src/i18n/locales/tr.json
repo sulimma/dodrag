@@ -426,5 +426,6 @@
   "Vorgänger": "Öncüller",
   "Nachfolger": "Ardıllar",
   "Abhängigkeit entfernen": "Bağımlılığı kaldırma",
-  "Nachfolger {id} lösen": "{id} ardılının bağlantısını kaldırma"
+  "Nachfolger {id} lösen": "{id} ardılının bağlantısını kaldırma",
+  "Kontextmenü": "Bağlam menüsü"
 }

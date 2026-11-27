@@ -113,6 +113,73 @@ function input(label: string): HTMLInputElement | HTMLSpanElement {
     ? element.querySelector<HTMLSpanElement>(`span[role="textbox"][data-task-title-editing="true"][aria-label="${label}"]`)!
     : element.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
 }
+it('uses the decorated desktop without offering unsupported window, setup or autostart actions', async () => {
+  activeSettings.capabilities = { miniWindow: false, nativeTaskMenu: false, selfInstall: false, autostart: false };
+  activeSettings.bootMinimized = true;
+  activeSettings.setup = { currentExe: '/opt/dodrag', installPath: '/opt/dodrag', programInstalled: false,
+    installedVersionOlder: true, desktopShortcut: false, startMenuShortcut: false };
+  await mount();
+  const settingsHeading = () => Array.from(element.querySelectorAll('h2')).find(heading =>
+    heading.textContent === t('Einstellungen & Datenbanken'));
+  expect(button(t('Kompaktansicht'))).toBeNull();
+  expect(settingsHeading()).toBeUndefined();
+  key('m', document.body, { ctrlKey: true });
+  expect(api.GetWindowMode).not.toHaveBeenCalled();
+  expect(api.GetWindowMaximized).not.toHaveBeenCalled();
+  expect(api.SetWindowMode).not.toHaveBeenCalled();
+  expect(api.UpdateMiniModeHeight).not.toHaveBeenCalled();
+  await act(async () => key(',', document.body, { ctrlKey: true }));
+  expect(settingsHeading()).toBeDefined();
+  expect(element.querySelector(`[role="switch"][aria-label="${t('Beim Booten automatisch starten')}"]`)).toBeNull();
+  expect(textButton(t('Programm in den Benutzerordner installieren'))).toBeUndefined();
+});
+
+it('opens Linux task menus with the keyboard and pointer and returns focus on dismissal', async () => {
+  activeSettings.capabilities = { miniWindow: false, nativeTaskMenu: false, selfInstall: false, autostart: false };
+  const folder = '/work/Plan #2';
+  api.GetPathKind = vi.fn(async (path: string) => {
+    if (path === folder + '/') return 'directory' as const;
+    throw new Error('missing path');
+  });
+  api.OpenFolderInExplorer = vi.fn(async () => {});
+  vi.mocked(api.GetEvents).mockResolvedValue([...history, {
+    seq: 3, id: 'desc', timestamp: date, undone: false, type: 'TASK_DESCRIPTION_SET',
+    payload: { taskId: '26-101', description: `Files: "${folder}"` },
+  }]);
+  await mount();
+  const region = element.querySelector<HTMLElement>('[data-shortcut-region="1"]')!;
+  const menu = () => document.querySelector('[role="menu"]');
+  act(() => region.focus());
+  selectTask('26-101');
+  await act(async () => key('F10', region, { shiftKey: true }));
+  expect(menu()?.contains(document.activeElement)).toBe(true);
+  const first = document.activeElement;
+  key('End', first!);
+  expect(document.activeElement?.textContent).toContain(folder);
+  key('ArrowUp', document.activeElement!);
+  expect((document.activeElement as HTMLButtonElement).disabled).toBe(false);
+  key('Home', document.activeElement!);
+  expect(document.activeElement).toBe(first);
+  await act(async () => key('Escape', first!));
+  expect(menu()).toBeNull();
+  expect(document.activeElement).toBe(region);
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+  await act(async () => key('ContextMenu', region));
+  key('End', document.activeElement!);
+  await act(async () => (document.activeElement as HTMLButtonElement).click());
+  expect(api.OpenFolderInExplorer).toHaveBeenCalledWith(folder + '/', false);
+  expect(menu()).toBeNull();
+  const task = element.querySelector('[data-task-drag="26-101"]')!;
+  await act(async () => task.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 100, clientY: 80 })));
+  expect(menu()).not.toBeNull();
+  const complete = Array.from(menu()!.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+    .find(item => item.textContent?.startsWith(t('Als erledigt markieren')))!;
+  await act(async () => complete.click());
+  expect(menu()).toBeNull();
+  expect(vi.mocked(api.AppendBatch).mock.lastCall?.[0]).toMatchObject([{ type: 'TASK_COMPLETED', payload: { taskId: '26-101' } }]);
+  expect(api.ShowTaskContextMenu).not.toHaveBeenCalled();
+});
+
 it('displays the native mini mode returned on startup', async () => {
   vi.mocked(api.GetWindowMode).mockResolvedValueOnce('mini');
   await mount();

@@ -426,5 +426,6 @@
   "Vorgänger": "Prédécesseurs",
   "Nachfolger": "Successeurs",
   "Abhängigkeit entfernen": "Supprimer la dépendance",
-  "Nachfolger {id} lösen": "Dissocier le successeur {id}"
+  "Nachfolger {id} lösen": "Dissocier le successeur {id}",
+  "Kontextmenü": "Menu contextuel"
 }

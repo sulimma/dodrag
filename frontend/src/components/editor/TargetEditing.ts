@@ -5,7 +5,7 @@ import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { SourceRange } from './PathAndUrlExtension';
 import { t } from '../../i18n';
 import { getDomainWithoutSuffix } from 'tldts';
-import { classifyTarget, fileDropText } from './targets';
+import { classifyTarget, fileDropText, pathSeparator } from './targets';
 
 const editing = new PluginKey<DecorationSet>('targetEditing');
 
@@ -25,7 +25,7 @@ export function targetAsLabel(range: SourceRange): string {
 
 function defaultLinkLabel(target: SourceRange['target']): string {
   if (target.kind === 'path') {
-    const name = target.value.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? target.value;
+    const name = target.value.split(pathSeparator(target.value)).filter(Boolean).at(-1) ?? target.value;
     return t('Verzeichnis {name}', { name });
   }
   const url = new URL(target.value);

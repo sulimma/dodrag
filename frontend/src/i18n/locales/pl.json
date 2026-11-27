@@ -426,5 +426,6 @@
   "Vorgänger": "Zadania poprzedzające",
   "Nachfolger": "Zadania następujące",
   "Abhängigkeit entfernen": "Usunięcie zależności",
-  "Nachfolger {id} lösen": "Odłączenie zadania następującego {id}"
+  "Nachfolger {id} lösen": "Odłączenie zadania następującego {id}",
+  "Kontextmenü": "Menu kontekstowe"
 }

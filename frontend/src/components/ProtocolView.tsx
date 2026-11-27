@@ -9,9 +9,9 @@ import type { TaskViewInteractions } from './taskInteractions';
 import { taskDropTargetInteractions } from './taskInteractions';
 import type { InlineEditor } from './inlineEditor';
 import { SourceIcon } from './editor/SourceIcon';
+import { pathRoot } from './editor/targets';
 import { openTarget, targetMenuItems } from './editor/contextMenu';
-import { eventBridge } from '../bridge/eventBridge';
-import { contextMenuAnchor } from '../hooks/keyboardNavigation';
+import { menuPosition, useContextMenu } from './ContextMenuPopup';
 import { locale, t } from '../i18n';
 
 // Separate header heights and compact single-line actions bound DOM size even for a
@@ -54,17 +54,18 @@ interface ProtocolViewProps extends TaskViewInteractions {
 }
 
 function ProtocolActionContent({ action, ...props }: Pick<ProtocolViewProps, 'onError' | 'onNativeMenuChange'> & { action: ProtocolAction }) {
+  const showMenu = useContextMenu();
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   if (action.kind === 'source') {
     const { target } = action;
-    const pathRoot = target.kind === 'path' ? target.value.match(/^(?:[a-z]:\\|\\\\[^\\]+\\[^\\]+\\)/i)?.[0] ?? '' : '';
+    const root = target.kind === 'path' ? pathRoot(target.value) : '';
     const openMenu = async (event: React.MouseEvent) => {
       event.preventDefault(); event.stopPropagation();
       props.onNativeMenuChange(true);
       try {
         const items = targetMenuItems(target);
-        const id = await eventBridge.showTaskContextMenu(items, contextMenuAnchor(event));
+        const id = await showMenu(items, menuPosition(event));
         if (alive.current && items.some(item => item.id === id)) await openTarget(target, id);
       } catch (error) { props.onError(error); }
       finally { props.onNativeMenuChange(false); }
@@ -72,9 +73,9 @@ function ProtocolActionContent({ action, ...props }: Pick<ProtocolViewProps, 'on
     return <div className="flex items-center gap-1 min-w-0" data-context-menu-target onContextMenu={openMenu}>
       <SourceIcon target={target} />
       <button type="button" className="flex min-w-0 max-w-full text-sky-700 underline text-left" title={target.value}
-        onClick={event => { event.stopPropagation(); void openTarget(target).catch(props.onError); }}>{pathRoot ? <>
-          <span className="shrink-0">{pathRoot}</span>
-          <span className="truncate min-w-0" style={{ direction: 'rtl', textAlign: 'left' }}><bdi dir="ltr">{target.value.slice(pathRoot.length)}</bdi></span>
+        onClick={event => { event.stopPropagation(); void openTarget(target).catch(props.onError); }}>{root ? <>
+          <span className="shrink-0">{root}</span>
+          <span className="truncate min-w-0" style={{ direction: 'rtl', textAlign: 'left' }}><bdi dir="ltr">{target.value.slice(root.length)}</bdi></span>
         </> : <span className="truncate">{target.value}</span>}</button>
     </div>;
   }

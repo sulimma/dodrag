@@ -18,7 +18,8 @@ import { TaskDescriptionEditor, type TaskDescriptionEditorHandle } from './edito
 import type { EditorContextMenu, EditorTarget } from './editor/types';
 import { TaskLogSection, type TaskLogSectionHandle } from './TaskLogSection';
 import { ResizeHandle } from './ResizeHandle';
-import { contextMenuAnchor, shortcutLabel } from '../hooks/keyboardNavigation';
+import { shortcutLabel } from '../hooks/keyboardNavigation';
+import { menuPosition, useContextMenu } from './ContextMenuPopup';
 
 interface TaskDetailPanelProps extends TaskMenuActions {
   task: TaskState | null;
@@ -48,6 +49,7 @@ interface TaskDetailPanelProps extends TaskMenuActions {
 const dateLabelCSS = '@container task-detail (max-width: 440px) { .detail-date-label { display: none; } } [data-task-detail-panel]:has([data-resize-dragging]) { transition: none; }';
 
 export function TaskDetailPanel(props: TaskDetailPanelProps) {
+  const showMenu = useContextMenu();
   const { task, interactions, titleEditor, dateEditor, open = true } = props;
   const panel = useRef<HTMLElement>(null);
   const editor = useRef<TaskDescriptionEditorHandle>(null);
@@ -86,13 +88,13 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
     event.stopPropagation();
     if (!task) return;
     const original = task.id;
-    const anchor = contextMenuAnchor(event);
+    const position = menuPosition(event);
     props.onNativeMenuChange?.(true);
     try {
       const sources = await projectMenuSources(context ? [] : props.projectDescriptions);
       const items: TaskMenuItem[] = context ? context.items : [...taskMenuItems(task), ...sources.items];
       if (!items.length || latest.current.task?.id !== original || latest.current.active === false) return;
-      const id = await eventBridge.showTaskContextMenu(items, anchor);
+      const id = await showMenu(items, position);
       const current = latest.current;
       if (current.active === false || current.task?.id !== original || !items.some(item => item.id === id && !item.disabled && !item.separator)) return;
       if (context) await context.execute(id);

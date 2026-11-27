@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { eventBridge, type AppSettings, type DatabaseEntry } from '../bridge/eventBridge';
 import { t, formatDate, useLanguage, supportedLanguages, languageNames, errorText } from '../i18n';
-import { contextMenuAnchor } from '../hooks/keyboardNavigation';
+import { menuPosition, useContextMenu } from './ContextMenuPopup';
 
 const PROJECT_URL = 'https://github.com/sulimma/dodrag';
 const RELEASES_URL = `${PROJECT_URL}/releases`;
@@ -96,6 +96,7 @@ export function SettingsModal({
   onOpenFolderInVSCode,
 }: SettingsModalProps) {
   const language = useLanguage();
+  const showMenu = useContextMenu();
   const [folderPath, setFolderPath] = useState<string>('');
   const [dbName, setDbName] = useState<string>('');
   const [seedDemo, setSeedDemo] = useState(() => !settings.knownDatabases.some(entry => entry.exists));
@@ -141,7 +142,7 @@ export function SettingsModal({
       }
     }
   };
-  const setup = settings.setup;
+  const setup = settings.capabilities?.selfInstall === false ? undefined : settings.setup;
   const currentDir = setup?.currentDir;
   const setupNeeded = Boolean(setup && (!setup.programInstalled || !setup.desktopShortcut || !setup.startMenuShortcut));
 
@@ -211,7 +212,7 @@ export function SettingsModal({
       { id: 'vscode', label: t('In VS Code öffnen'), disabled: busy || !onOpenFolderInVSCode },
     ];
     try {
-      const id = await eventBridge.showTaskContextMenu(items, contextMenuAnchor(event));
+      const id = await showMenu(items, menuPosition(event));
       if (pathMenuRequest.current !== request) return;
       pathMenuRequest.current = null;
       if (busyRef.current || !items.some(item => item.id === id && !item.disabled)) return;
@@ -276,7 +277,7 @@ export function SettingsModal({
       disabled: busyRef.current,
     }];
     try {
-      const id = await eventBridge.showTaskContextMenu(items, contextMenuAnchor(event));
+      const id = await showMenu(items, menuPosition(event));
       if (pathMenuRequest.current !== request) return;
       pathMenuRequest.current = null;
       if (id === 'open-cache-explorer' && !items[0].disabled) await handleCacheAction('explorer');
@@ -641,7 +642,7 @@ export function SettingsModal({
                     type="text"
                     value={folderPath}
                     onChange={(e) => setFolderPath(e.target.value)}
-                    placeholder={t('Standard: %APPDATA%\\DoDrag (oder Ordner wählen)')}
+                    placeholder={settings.capabilities?.selfInstall === false ? undefined : t('Standard: %APPDATA%\\DoDrag (oder Ordner wählen)')}
                     className="flex-1 px-3 py-1.5 text-xs font-mono bg-white border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500"
                   />
                   <button
@@ -680,7 +681,7 @@ export function SettingsModal({
           </form>
 
           {/* Section 3: Windows Autostart */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-4">
+          {settings.capabilities?.autostart !== false && <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-xl bg-slate-100 text-slate-600 mt-0.5">
                 <Power className="w-4 h-4" />
@@ -724,7 +725,7 @@ export function SettingsModal({
                 }`}
               />
             </button>
-          </div>
+          </div>}
           <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-4">
             <label htmlFor="ui-language" className="text-sm font-semibold text-slate-900">{t('Sprache (Language)')}</label>
             <select id="ui-language" value={language} disabled={busy || !onSetUILanguage}

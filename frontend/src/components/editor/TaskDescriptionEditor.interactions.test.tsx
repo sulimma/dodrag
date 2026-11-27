@@ -605,7 +605,7 @@ it('retains resolved source widgets when typing shifts paths and repeated URLs',
 
 it('inserts a browser URI drop once at the drop position without the native file transport', async () => {
   const { editor } = await mount('before after');
-  vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: -1 });
+  vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: -1, affinity: 0 });
   const native = vi.fn(); window.addEventListener('drop', native);
   try {
     const drop = new MouseEvent('drop', { bubbles: true, cancelable: true, clientX: 10, clientY: 20 });

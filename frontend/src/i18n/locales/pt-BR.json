@@ -426,5 +426,6 @@
   "Vorgänger": "Tarefas predecessoras",
   "Nachfolger": "Tarefas sucessoras",
   "Abhängigkeit entfernen": "Remover dependência",
-  "Nachfolger {id} lösen": "Desvincular a tarefa sucessora {id}"
+  "Nachfolger {id} lösen": "Desvincular a tarefa sucessora {id}",
+  "Kontextmenü": "Menu de contexto"
 }

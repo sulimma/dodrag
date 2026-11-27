@@ -1,12 +1,13 @@
 import { sourceSymbol } from './editor/SourceIcon';
-// Product rule: native Windows popups extend beyond the mini window. All views share these actions; any task can be used as the source of a new task, and title editing stays outside the menu.
+// All views share these actions; any task can be used as the source of a new task, and title editing stays outside the menu.
+import { useContextMenu } from './ContextMenuPopup';
 import { useEffect, useRef } from 'react';
 import { eventBridge, type TaskMenuItem } from '../bridge/eventBridge';
 import type { TaskState } from '../domain/types';
 import type { ContextMenuState, MenuRelation } from '../hooks/useTaskSelection';
 import { t } from '../i18n';
 import { openTarget } from './editor/contextMenu';
-import { tokenizeTargets } from './editor/targets';
+import { pathRoot, pathSeparator, tokenizeTargets } from './editor/targets';
 
 interface TaskContextMenuProps {
   contextMenu: ContextMenuState;
@@ -40,7 +41,7 @@ export function executeTaskMenuAction(id: string, task: TaskState, actions: Task
   else if (id.startsWith('remove:')) actions.onRemovePredecessor(task.id, id.slice(7));
 }
 
-// One menu definition and action path for every layout; Windows owns placement and keyboard input.
+// One menu definition and action path for native and in-app menus in every layout.
 export function taskMenuItems(task: TaskState, relation?: MenuRelation): TaskMenuItem[] {
   const openCopy = { id: 'open-copy', label: t('Kopie Öffnen'), disabled: false };
   const successor = { id: 'create-successor', label: t('Nachfolger anlegen'), disabled: false };
@@ -66,7 +67,7 @@ export async function taskDirectoryPaths(task: TaskState): Promise<string[]> {
   for (const text of [task.description, ...(task.logEntries ?? []).map(entry => entry.text)]) {
     for (const target of tokenizeTargets(text ?? '')) {
       if (target.kind !== 'path') continue;
-      const separator = target.value.startsWith('/') ? '/' : '\\';
+      const separator = pathSeparator(target.value);
       candidates.add(target.value.endsWith(separator) ? target.value : target.value + separator);
     }
   }
@@ -82,8 +83,8 @@ export async function taskDirectoryPaths(task: TaskState): Promise<string[]> {
 export function shortenedDirectoryPath(path: string): string {
   const characters = Array.from(path);
   if (characters.length <= 48) return path;
-  // Keep the drive root (or UNC server/share) and the most useful trailing text.
-  const root = path.match(/^(?:[a-z]:\\|\\\\[^\\]+\\[^\\]+\\)/i)?.[0] ?? '';
+  // Keep the root and the most useful trailing text.
+  const root = pathRoot(path);
   return root + '...' + characters.slice(-Math.max(16, 48 - root.length - 3)).join('');
 }
 
@@ -110,19 +111,22 @@ export async function projectMenuSources(descriptions: readonly string[] = []) {
 }
 
 export function TaskContextMenu(props: TaskContextMenuProps) {
+  const showMenu = useContextMenu();
   const latest = useRef(props);
   latest.current = props;
   useEffect(() => {
-    let current = true;
+    const abort = new AbortController();
+    const { signal } = abort;
     // Defer one microtask so StrictMode's discarded effect never opens a second native popup.
     Promise.resolve().then(async () => {
-      if (!current) return;
+      if (signal.aborted) return;
       try {
         const [paths, sources] = await Promise.all([taskDirectoryPaths(props.task), projectMenuSources(props.projectDescriptions)]);
         const items = [...taskMenuItems(props.task, props.contextMenu.relation), ...sources.items];
-        if (!current) return;
-        const id = await eventBridge.showTaskContextMenu([...items, ...directoryMenuItems(paths)], props.contextMenu.anchor);
-        if (!current) return;
+        if (signal.aborted) return;
+        const { anchor, x, y } = props.contextMenu;
+        const id = await showMenu([...items, ...directoryMenuItems(paths)], { nativeAnchor: anchor, point: anchor ?? { x, y } }, signal);
+        if (signal.aborted) return;
         const active = latest.current;
         const source = sources.target(id);
         if (source) { active.onClose(); await openTarget(source).catch(active.onError); return; }
@@ -138,13 +142,13 @@ export function TaskContextMenu(props: TaskContextMenuProps) {
         if (!item || !items.some(item => item.id === id && !item.disabled)) return;
         executeTaskMenuAction(id, active.task, active, active.contextMenu.relation);
       } catch (error) {
-        if (current) {
+        if (!signal.aborted) {
           latest.current.onClose();
           latest.current.onError(error);
         }
       }
     });
-    return () => { current = false; };
-  }, [props.contextMenu, props.databaseKey]);
+    return () => abort.abort();
+  }, [props.contextMenu, props.databaseKey, showMenu]);
   return null;
 }

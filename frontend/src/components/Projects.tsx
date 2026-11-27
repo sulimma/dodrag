@@ -8,7 +8,7 @@ import { TaskLogSection } from './TaskLogSection';
 import type { TaskLogEntry } from '../domain/types';
 import { ResizeHandle } from './ResizeHandle';
 import type { EditorContextMenuCallback, TaskDescriptionEditorHandle, TaskLogSectionHandle } from './editor/types';
-import { contextMenuAnchor } from '../hooks/keyboardNavigation';
+import { menuPosition, useContextMenu } from './ContextMenuPopup';
 
 export const ProjectContext = createContext<{
   projects: Map<string, Project>;
@@ -108,6 +108,7 @@ export function ProjectDetails({ project, progress, change, flush, entries, save
   entries: TaskLogEntry[]; saveNote(entryId: string, text: string): Promise<void>;
   project: Project; progress: { days: number; done: number }; change(project: Project): void; flush(): void; onError(error: unknown): void;
 }) {
+  const showMenu = useContextMenu();
   const [taskTitle, setTaskTitle] = useState<string | null>(null);
   const [code, setCode] = useState(project.code);
   const [codeEditing, setCodeEditing] = useState(false);
@@ -129,7 +130,7 @@ export function ProjectDetails({ project, progress, change, flush, entries, save
     const origin = panel.current;
     onNativeMenuChange(true);
     try {
-      const id = await eventBridge.showTaskContextMenu(context.items, contextMenuAnchor(event));
+      const id = await showMenu(context.items, menuPosition(event));
       if (origin?.isConnected && !origin.closest('[inert]') && context.items.some(item => item.id === id && !item.disabled)) await context.execute(id);
     } catch (error) { onError(error); }
     finally { onNativeMenuChange(false); }

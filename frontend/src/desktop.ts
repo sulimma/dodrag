@@ -1,5 +1,5 @@
-// Build-time desktop integration. A future target can supply its native
-// caption and accelerator policy without changing the task views.
+// Platforms with a custom compact window also own the client-side caption.
+// Decorated windows keep their native titlebar and controls.
 export { AppTitleBar as DesktopTitleBar } from './components/AppTitleBar';
 
 type ModifierKeys = Pick<KeyboardEvent, 'ctrlKey' | 'metaKey' | 'altKey'>;

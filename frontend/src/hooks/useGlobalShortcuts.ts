@@ -37,8 +37,8 @@ interface ShortcutContext {
   listScrollRef: React.RefObject<HTMLElement>;
   newTaskInputRef: React.RefObject<HTMLInputElement>;
   startInlineEdit: InlineEditor['onStart'];
-  onMinimize: () => void;
-  onRestore: () => void;
+  onMinimize?: () => void;
+  onRestore?: () => void;
   onSearch?: () => void;
   onResetSearch?: () => boolean;
   onSettings?: () => void;
@@ -181,7 +181,7 @@ export function useGlobalShortcuts({
         }
       }
 
-      if (hasCommandModifier(e) && !e.shiftKey && e.key.toLowerCase() === 'm') {
+      if (onRestore && onMinimize && hasCommandModifier(e) && !e.shiftKey && e.key.toLowerCase() === 'm') {
         e.preventDefault();
         if (e.repeat) return;
         if (isMiniMode) onRestore();

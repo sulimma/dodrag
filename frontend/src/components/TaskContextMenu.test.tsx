@@ -67,3 +67,11 @@ it('opens a shared project link and lists a source only once across project desc
     expect(open).toHaveBeenCalledWith(url);
   } finally { act(() => root.unmount()); }
 });
+
+it('keeps POSIX separators and distinct casing for task directories', async () => {
+  vi.spyOn(eventBridge, 'getPathKind').mockResolvedValue('directory');
+  const task = { description: '"/work/Plan" "/work/plan" "/work/literal\\name"', logEntries: [] } as unknown as TaskState;
+  expect(await taskDirectoryPaths(task)).toEqual(['/work/Plan/', '/work/plan/', '/work/literal\\name/']);
+  const longPath = '/' + 'long-directory/'.repeat(8) + 'project/';
+  expect(shortenedDirectoryPath(longPath)).toMatch(/^\/\.\.\..*project\/$/);
+});

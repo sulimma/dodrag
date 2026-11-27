@@ -426,5 +426,6 @@
   "Vorgänger": "前置任务",
   "Nachfolger": "后续任务",
   "Abhängigkeit entfernen": "移除依赖关系",
-  "Nachfolger {id} lösen": "解除与后续任务 {id} 的关联"
+  "Nachfolger {id} lösen": "解除与后续任务 {id} 的关联",
+  "Kontextmenü": "上下文菜单"
 }

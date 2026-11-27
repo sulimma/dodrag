@@ -55,10 +55,12 @@ export function ShortcutHelp({
   open,
   onClose,
   initialPage = 'shortcuts',
+  miniWindow = true,
 }: {
   open: boolean;
   onClose: () => void;
   initialPage?: HelpPage;
+  miniWindow?: boolean;
 }) {
   useLanguage();
   const [page, setPage] = useState<HelpPage>(initialPage);
@@ -129,7 +131,7 @@ export function ShortcutHelp({
                 { label: t('Gantt'), shortcut: 'Ctrl+3', note: t('Nur Hauptansicht') },
                 { label: t('Protokoll'), shortcut: 'Ctrl+4', note: t('Nur Hauptansicht') },
                 { label: t('Details ein-/ausblenden'), shortcut: 'Ctrl+Shift+D', note: t('Nur Hauptansicht') },
-                { label: t('Wiedervorlage +1 Tag'), shortcut: 'Ctrl++', note: t('Hauptansicht und Mini-Ansicht'), condition: t('Nur außerhalb Texteingaben. Offener ausgewählter Task erforderlich.') },
+                { label: t('Wiedervorlage +1 Tag'), shortcut: 'Ctrl++', note: miniWindow ? t('Hauptansicht und Mini-Ansicht') : undefined, condition: t('Nur außerhalb Texteingaben. Offener ausgewählter Task erforderlich.') },
               ].map(({ label, shortcut, alternative, note, condition }) => (
                 <div key={shortcut} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
                   <span>
@@ -174,7 +176,7 @@ export function ShortcutHelp({
                   {t('F2 / E / Enter / Doppelklick')}
                 </kbd>
               </div>
-              <p className="py-1 text-xs text-slate-600">{t('In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.')}</p>
+              {miniWindow && <p className="py-1 text-xs text-slate-600">{t('In der Kompaktansicht öffnen F2, E und Enter den ausgewählten Task im Fenster.')}</p>}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
                 <span>{t('N: Eingabe für neuen Task fokussieren')}</span>
                 <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700 whitespace-normal">
@@ -201,12 +203,12 @@ export function ShortcutHelp({
                   T
                 </kbd>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
+              {miniWindow && <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
                 <span>{t('Kompaktansicht / Hauptansicht wiederherstellen')}</span>
                 <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700 whitespace-normal">
                   Ctrl+M
                 </kbd>
-              </div>
+              </div>}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-1 border-b border-slate-100">
                 <span>{t('Undo / Redo')}</span>
                 <kbd className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded font-mono text-slate-700 whitespace-normal">

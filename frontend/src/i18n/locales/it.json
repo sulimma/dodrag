@@ -426,5 +426,6 @@
   "Vorgänger": "Predecessori",
   "Nachfolger": "Successori",
   "Abhängigkeit entfernen": "Rimuovere dipendenza",
-  "Nachfolger {id} lösen": "Scollegare il successore {id}"
+  "Nachfolger {id} lösen": "Scollegare il successore {id}",
+  "Kontextmenü": "Menu contestuale"
 }

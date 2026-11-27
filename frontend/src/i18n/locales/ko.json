@@ -426,5 +426,6 @@
   "Vorgänger": "선행 작업",
   "Nachfolger": "후속 작업",
   "Abhängigkeit entfernen": "의존성 제거",
-  "Nachfolger {id} lösen": "후속 작업 {id} 연결 해제"
+  "Nachfolger {id} lösen": "후속 작업 {id} 연결 해제",
+  "Kontextmenü": "상황에 맞는 메뉴"
 }

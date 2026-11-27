@@ -44,7 +44,7 @@ export function classifyTarget(raw: string): EditorTarget | undefined {
   // absolute drive paths, after URL handling; never reinterpret a URI scheme.
   if (/^\/?[a-z]:[\\/]/i.test(value)) value = value.replace(/^\//, '').replaceAll('/', '\\');
   if (value.startsWith('//')) value = value.replaceAll('/', '\\');
-  if (value.startsWith('/') && !/[\x00-\x1f\x7f]/.test(raw)) {
+  if (value.startsWith('/') && !/\p{Cc}/u.test(raw) && !value.includes('"')) {
     return { kind: 'path', value };
   }
   if (/^(?:[a-z]:\\|\\\\[^\\\s/:*?"<>|]+\\[^\\/:*?"<>|]+)(?:[^:*?"<>|\r\n]*)$/i.test(value)) {
@@ -69,6 +69,10 @@ export function parseSourcePayload(raw: string): EditorTarget | undefined {
   } catch { return; }
 }
 
+// POSIX filenames may contain a literal backslash; split only on the path's own separator.
+export const pathSeparator = (path: string) => path.startsWith('/') ? '/' : '\\';
+export const pathRoot = (path: string) => path.startsWith('/') ? '/'
+  : path.match(/^(?:[a-z]:\\|\\\\[^\\]+\\[^\\]+(?:\\|$))/i)?.[0] ?? '';
 export const isImagePath = (path: string): boolean => /\.(?:jpe?g|png|gif|webp|bmp|svg)$/i.test(path);
 export const mediaSource = (taskId: string, path: string): string =>
   `/dodrag-media?taskId=${encodeURIComponent(taskId)}&path=${encodeURIComponent(path)}`;

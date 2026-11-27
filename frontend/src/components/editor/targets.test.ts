@@ -146,3 +146,13 @@ it('distinguishes slash punctuation in prose from an absolute file reference', (
   expect(tokenizeTargets('(/) and 1/2/3 beside (/docs/Plan)').map(token => token.value))
     .toEqual(['/docs/Plan']);
 });
+
+it('roundtrips POSIX special characters and rejects control characters and embedded quotes atomically', () => {
+  const path = '/work/Plan #2?/literal\\name';
+  expect(classifyTarget(path)).toEqual({ kind: 'path', value: path });
+  expect(tokenizeTargets(fileDropText([path])).map(target => target.value)).toEqual([path]);
+  for (const invalid of ['/work/line\nbreak', '/work/control\u0085name', '/work/a"b']) {
+    expect(classifyTarget(invalid)).toBeUndefined();
+    expect(() => fileDropText([path, invalid])).toThrow();
+  }
+});

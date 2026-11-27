@@ -474,6 +474,7 @@ it('opens a URL only from its menu and edits the destination independently of th
 });
 
 it.each([
+  ['"/work/literal\\name"', '/work/new name', 'Verzeichnis literal\\name', 'Pfad bearbeiten', 'path:explorer'],
   ['"G:\\Ablage\\alt.txt"', 'G:\\Neue Ablage\\neu (1).txt', 'Verzeichnis alt.txt', 'Pfad bearbeiten', 'path:explorer'],
   ['+49 (30) 1234_5678', 'tel:+493087654321', 'Telefon ...678', 'Telefonnummer bearbeiten', 'url:open'],
   ['mail@example.org', 'mailto:neu@example.org', 'mail@example.org', 'E-Mail-Adresse bearbeiten', 'url:open'],

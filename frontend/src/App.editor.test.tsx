@@ -238,7 +238,7 @@ it('keeps native file drop and local undo in the same unsaved editing session', 
   const panel = detailPanel(), log = host.querySelector<HTMLElement>('[data-task-log]')!.parentElement!;
   vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 480, 800));
   vi.spyOn(log, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 600, 480, 200));
-  const coords = vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: editor.state.selection.from, inside: 0 });
+  const coords = vi.spyOn(editor.view, 'posAtCoords').mockReturnValue({ pos: editor.state.selection.from, inside: 0, affinity: 0 });
   const path = 'C:\\Files\\dropped document.txt';
   Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => dom });
   await act(async () => {

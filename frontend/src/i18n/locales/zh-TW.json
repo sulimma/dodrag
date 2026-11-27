@@ -426,5 +426,6 @@
   "Vorgänger": "前置任務",
   "Nachfolger": "後續任務",
   "Abhängigkeit entfernen": "移除依賴關係",
-  "Nachfolger {id} lösen": "解除與後續任務 {id} 的關聯"
+  "Nachfolger {id} lösen": "解除與後續任務 {id} 的關聯",
+  "Kontextmenü": "快顯功能表"
 }
