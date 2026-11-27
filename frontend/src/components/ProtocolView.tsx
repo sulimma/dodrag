@@ -1,4 +1,5 @@
 import { TaskBalance } from './TaskBalance';
+import { Timer } from 'lucide-react';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ListEntry, TaskState } from '../domain/types';
 import { dateKeyToIsoStart, toDateKey } from '../domain/projector';
@@ -57,6 +58,16 @@ function ProtocolActionContent({ action, ...props }: Pick<ProtocolViewProps, 'on
   const showMenu = useContextMenu();
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  if ('durationMs' in action) {
+    const seconds = Math.floor(Math.max(0, action.durationMs) / 1000);
+    const format = new Intl.NumberFormat(locale, { minimumIntegerDigits: 2, useGrouping: false });
+    const duration = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map(value => format.format(value)).join(':');
+    return <span className="flex items-center gap-1.5 truncate" title={`${t('Zeit erfasst')}: ${duration}`}>
+      <Timer className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <span className="shrink-0">{t('Zeit erfasst')}</span>
+      <span className="font-mono tabular-nums">{duration}</span>
+    </span>;
+  }
   if (action.kind === 'source') {
     const { target } = action;
     const root = target.kind === 'path' ? pathRoot(target.value) : '';
@@ -80,9 +91,7 @@ function ProtocolActionContent({ action, ...props }: Pick<ProtocolViewProps, 'on
     </div>;
   }
   if (action.kind === 'renamed') return <span className="block truncate" title={action.oldTitle}>{protocolActionText(action)}</span>;
-  if (action.kind === 'log') return <div className="truncate" title={action.text}>
-    🟦 {action.text}
-  </div>;
+  if (action.kind === 'log') return <div className="truncate" title={action.text}>🟦 {action.text}</div>;
   return <span>{action.kind === 'completed' ? '🟥 ' : '🟩 '}{protocolActionText(action)}</span>;
 }
 

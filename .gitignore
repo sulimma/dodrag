@@ -7,6 +7,7 @@ dodrag_app.exe
 *.db-wal
 
 # Build & Dependencies
+.local-build/
 frontend/node_modules/
 frontend/dist/
 build/bin/

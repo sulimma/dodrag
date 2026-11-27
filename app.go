@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"dodrag/internal/eventstore"
+	timemeasurement "dodrag/internal/plugins/time-measurement"
 	"encoding/json"
 	"errors"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -51,6 +54,7 @@ type DesktopCapabilities struct {
 // AppSettings combines persisted preferences with runtime state.
 type AppSettings struct {
 	Capabilities        DesktopCapabilities `json:"capabilities"`
+	PluginEnabled       map[string]bool     `json:"pluginEnabled"`
 	DefaultTimeMarkers  []int               `json:"defaultTimeMarkers"`
 	DefaultDuration     float64             `json:"defaultDuration"`
 	DefaultDurationUnit string              `json:"defaultDurationUnit"`
@@ -62,6 +66,7 @@ type AppSettings struct {
 	UILanguage          string              `json:"uiLanguage"`
 	BootMinimized       bool                `json:"bootMinimized,omitempty"`
 	DatabaseReady       bool                `json:"databaseReady,omitempty"`
+	DatabaseGeneration  uint64              `json:"databaseGeneration,omitempty"`
 	DatabaseError       string              `json:"databaseError,omitempty"`
 	Version             string              `json:"version,omitempty"`
 	BuildTime           string              `json:"buildTime,omitempty"`
@@ -71,6 +76,7 @@ type AppSettings struct {
 }
 
 type persistedSettings struct {
+	PluginEnabled       map[string]bool `json:"pluginEnabled,omitempty"`
 	DefaultTimeMarkers  []int           `json:"defaultTimeMarkers"`
 	DefaultDuration     float64         `json:"defaultDuration"`
 	DefaultDurationUnit string          `json:"defaultDurationUnit"`
@@ -84,16 +90,17 @@ type persistedSettings struct {
 
 // App struct binds Go methods to the Wails frontend.
 type App struct {
-	ctx             context.Context
-	mu              sync.Mutex
-	store           *eventstore.Store
-	appDir          string
-	settingsPath    string
-	demoDBPath      string
-	settings        AppSettings
-	settingsLoadErr error
-	settingsSaveErr error
-	databaseOpenErr error
+	ctx                context.Context
+	mu                 sync.Mutex
+	store              *eventstore.Store
+	databaseGeneration uint64
+	appDir             string
+	settingsPath       string
+	demoDBPath         string
+	settings           AppSettings
+	settingsLoadErr    error
+	settingsSaveErr    error
+	databaseOpenErr    error
 	desktopState
 	bootMinimized bool
 	windowMode    WindowMode
@@ -207,6 +214,7 @@ func (a *App) loadOrInitSettingsLocked() (err error) {
 			return a.errorLocked("Settings lesen ({path})", markerErr, "path", a.settingsPath)
 		}
 		a.settings = AppSettings{
+			PluginEnabled:       loaded.PluginEnabled,
 			DefaultTimeMarkers:  markers,
 			DefaultDuration:     loaded.DefaultDuration,
 			DefaultDurationUnit: loaded.DefaultDurationUnit,
@@ -257,6 +265,7 @@ func (a *App) saveSettingsLocked() (err error) {
 		return a.settingsLoadErr
 	}
 	toSave := persistedSettings{
+		PluginEnabled:       a.settings.PluginEnabled,
 		DefaultTimeMarkers:  append([]int{}, a.settings.DefaultTimeMarkers...),
 		KnownDatabases:      a.settings.KnownDatabases,
 		ActiveDatabasePath:  a.settings.ActiveDatabasePath,
@@ -322,10 +331,20 @@ func (a *App) openActiveDatabaseLocked() {
 		return
 	}
 	a.store = store
+	a.databaseGeneration++
 }
 
+// Only these built-in IDs are exposed to the frontend. Unknown persisted flags
+// stay in local settings for round trips through older versions of DoDrag.
+var supportedPluginIDs = [...]string{"copy-task-summary", timemeasurement.ID}
+
 func (a *App) snapshotSettingsLocked() AppSettings {
+	flags := make(map[string]bool, len(supportedPluginIDs))
+	for _, id := range supportedPluginIDs {
+		flags[id] = a.settings.PluginEnabled[id]
+	}
 	out := AppSettings{
+		PluginEnabled:       flags,
 		Capabilities:        desktopCapabilities(),
 		DefaultTimeMarkers:  append([]int{}, a.settings.DefaultTimeMarkers...),
 		ActiveDatabasePath:  a.settings.ActiveDatabasePath,
@@ -343,6 +362,9 @@ func (a *App) snapshotSettingsLocked() AppSettings {
 		PreviewCacheError:   a.previewCacheError,
 		Setup:               computeSetupState(),
 		KnownDatabases:      make([]DatabaseEntry, len(a.settings.KnownDatabases)),
+	}
+	if a.store != nil {
+		out.DatabaseGeneration = a.databaseGeneration
 	}
 	if a.databaseOpenErr != nil {
 		out.DatabaseError = a.errorLocked("Datenbank konnte nicht geöffnet werden", a.databaseOpenErr).Error()
@@ -381,6 +403,34 @@ func (a *App) GetSettings() (AppSettings, error) {
 		return a.snapshotSettingsLocked(), a.settingsLoadErr
 	}
 	return a.snapshotSettingsLocked(), a.settingsSaveErr
+}
+
+// SetPluginEnabled confirms a built-in plugin preference after it is saved locally.
+func (a *App) SetPluginEnabled(id string, enabled bool) (AppSettings, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !slices.Contains(supportedPluginIDs[:], id) {
+		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Unbekanntes Plugin: {id}", "id", id))
+	}
+	if a.settingsLoadErr != nil {
+		return a.snapshotSettingsLocked(), a.settingsLoadErr
+	}
+	if id == timemeasurement.ID && !enabled && a.settings.PluginEnabled[id] {
+		if err := a.stopOwnedTimeMeasurementLocked(); err != nil {
+			return a.snapshotSettingsLocked(), err
+		}
+	}
+	previous := a.settings.PluginEnabled
+	a.settings.PluginEnabled = maps.Clone(previous)
+	if a.settings.PluginEnabled == nil {
+		a.settings.PluginEnabled = make(map[string]bool)
+	}
+	a.settings.PluginEnabled[id] = enabled
+	if err := a.saveSettingsLocked(); err != nil {
+		a.settings.PluginEnabled = previous
+		return a.snapshotSettingsLocked(), err
+	}
+	return a.snapshotSettingsLocked(), nil
 }
 
 func validDefaultDuration(value float64, unit string) bool {
@@ -545,16 +595,10 @@ func (a *App) CreateDatabase(folderPath string, dbName string, seedDemo bool) (A
 
 	previous := a.settings
 	a.settings.KnownDatabases = append([]DatabaseEntry(nil), previous.KnownDatabases...)
-	found := false
-	for i := range a.settings.KnownDatabases {
-		if sameFilePath(a.settings.KnownDatabases[i].Path, fullPath) {
-			a.settings.KnownDatabases[i].Name = displayName
-			a.settings.KnownDatabases[i].Path = fullPath
-			found = true
-			break
-		}
-	}
-	if !found {
+	if index := knownDatabaseIndex(a.settings.KnownDatabases, fullPath); index >= 0 {
+		a.settings.KnownDatabases[index].Name = displayName
+		a.settings.KnownDatabases[index].Path = fullPath
+	} else {
 		a.settings.KnownDatabases = append(a.settings.KnownDatabases, DatabaseEntry{
 			Name:   displayName,
 			Path:   fullPath,
@@ -607,6 +651,9 @@ func (a *App) OpenExistingDatabaseDialog() (AppSettings, error) {
 	if known >= 0 {
 		// Reuse the registered spelling so SQLite opens the same journal path.
 		fullPath = a.settings.KnownDatabases[known].Path
+	}
+	if a.store != nil && sameFilePath(a.settings.ActiveDatabasePath, fullPath) {
+		return a.snapshotSettingsLocked(), nil
 	}
 	isDemo := sameFilePath(fullPath, a.demoDBPath)
 
@@ -672,6 +719,9 @@ func (a *App) SwitchDatabase(dbPath string) (AppSettings, error) {
 		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank ist nicht in der Liste"))
 	}
 	cleanTarget := a.settings.KnownDatabases[index].Path
+	if a.store != nil && sameFilePath(a.settings.ActiveDatabasePath, cleanTarget) {
+		return a.snapshotSettingsLocked(), nil
+	}
 	info, statErr := os.Stat(cleanTarget)
 	if statErr != nil || info.IsDir() {
 		return a.snapshotSettingsLocked(), errors.New(a.textLocked("Datenbank-Datei wurde nicht gefunden (verschoben oder gelöscht): {path}", "path", cleanTarget))
@@ -715,6 +765,9 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 
 	// Close the SQLite connection first if deleting the currently active database so Windows releases the file lock
 	if wasActive && a.store != nil {
+		if err := a.stopOwnedTimeMeasurementLocked(); err != nil {
+			return a.snapshotSettingsLocked(), err
+		}
 		if err := a.store.Close(); err != nil {
 			return a.snapshotSettingsLocked(), a.errorLocked("Datenbank konnte nicht geschlossen werden", err)
 		}
@@ -746,7 +799,7 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 		a.settings.ActiveDatabasePath = ""
 	}
 
-	if err := a.saveSettingsLocked(); err != nil {
+	if err := a.saveDatabaseSelectionLocked(); err != nil {
 		a.settings = previous
 		if wasActive {
 			a.openActiveDatabaseLocked()
@@ -759,19 +812,36 @@ func (a *App) DeleteDatabase(dbPath string, deleteFile bool) (AppSettings, error
 	return a.snapshotSettingsLocked(), deleteErr
 }
 
+// Selection methods already report a settings failure directly. Do not poison
+// the subsequent settings/snapshot read used to show the actual active store.
+func (a *App) saveDatabaseSelectionLocked() error {
+	previousWarning := a.settingsSaveErr
+	err := a.saveSettingsLocked()
+	if err != nil {
+		a.settingsSaveErr = previousWarning
+	}
+	return err
+}
+
 func (a *App) activateStoreLocked(candidate *eventstore.Store, previous AppSettings) error {
 	if _, err := candidate.GetEvents(); err != nil {
 		candidate.Close()
 		a.settings = previous
 		return a.errorLocked("Ereignisse konnten nicht geladen werden", err)
 	}
-	if err := a.saveSettingsLocked(); err != nil {
+	if err := a.stopOwnedTimeMeasurementLocked(); err != nil {
+		candidate.Close()
+		a.settings = previous
+		return err
+	}
+	if err := a.saveDatabaseSelectionLocked(); err != nil {
 		candidate.Close()
 		a.settings = previous
 		return err
 	}
 	old := a.store
 	a.store = candidate
+	a.databaseGeneration++
 	a.databaseOpenErr = nil
 	if old != nil {
 		if err := old.Close(); err != nil {

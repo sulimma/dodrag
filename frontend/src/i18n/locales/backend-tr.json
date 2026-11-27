@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "Başlat menüsü klasörü belirlenemedi",
   "Verknüpfung konnte nicht erstellt werden": "Kısayol oluşturulamadı",
   "Unbekannte Installationsaktion: {action}": "Bilinmeyen kurulum işlemi: {action}",
+  "Unbekanntes Plugin: {id}": "Bilinmeyen eklenti: {id}",
   "Vorhandene Version überschreiben?": "Mevcut sürümün üzerine yazılsın mı?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Hedef konumda zaten bir DoDrag sürümü var. Üzerine yazılsın mı?",
   "Ja": "Evet",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code açılamadı",
   "Fenstermodus konnte nicht angewendet werden": "Pencere modu uygulanamadı",
   "Ungültige Standarddauer": "Geçersiz varsayılan süre",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Bu veritabanı, uygulamanın bu sürümüyle uyumlu değil. Lütfen DoDrag uygulamasının daha yeni bir sürümünü (en az {version}) yükleyin."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Bu veritabanı, uygulamanın bu sürümüyle uyumlu değil. Lütfen DoDrag uygulamasının daha yeni bir sürümünü (en az {version}) yükleyin.",
+  "Zeiterfassung ist nicht aktiviert": "Zaman takibi etkin değil",
+  "Zeiterfassung konnte nicht geladen werden": "Zaman takibi verileri yüklenemedi",
+  "Zeiterfassung konnte nicht gespeichert werden": "Zaman takibi verileri kaydedilemedi",
+  "Zeiterfassung konnte nicht gestoppt werden": "Zaman takibi durdurulamadı",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "Görev artık kullanılamıyor veya zaten tamamlandı",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "Önce yarıda kesilen oturumla ilgili karar verilmelidir",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "Zaman takibi oturumu artık kullanılamıyor",
+  "Die Endzeit liegt in der Zukunft": "Bitiş zamanı gelecekte",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "Kaydedilen bir oturum en az 30 saniye sürmelidir",
+  "Die Messung überschneidet sich mit einer anderen Messung": "Oturum başka bir oturumla çakışıyor"
 }

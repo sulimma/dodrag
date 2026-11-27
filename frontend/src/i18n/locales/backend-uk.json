@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "Не вдалося визначити папку меню «Пуск»",
   "Verknüpfung konnte nicht erstellt werden": "Не вдалося створити ярлик",
   "Unbekannte Installationsaktion: {action}": "Невідома дія встановлення: {action}",
+  "Unbekanntes Plugin: {id}": "Невідомий плагін: {id}",
   "Vorhandene Version überschreiben?": "Перезаписати наявну версію?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "У цільовій папці вже є версія DoDrag. Перезаписати її?",
   "Ja": "Так",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Не вдалося відкрити Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "Не вдалося застосувати режим вікна",
   "Ungültige Standarddauer": "Некоректна типова тривалість",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Ця база даних несумісна з цією версією застосунку. Установіть новішу версію DoDrag (щонайменше {version})."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Ця база даних несумісна з цією версією застосунку. Установіть новішу версію DoDrag (щонайменше {version}).",
+  "Zeiterfassung ist nicht aktiviert": "Облік часу не ввімкнено",
+  "Zeiterfassung konnte nicht geladen werden": "Не вдалося завантажити дані обліку часу",
+  "Zeiterfassung konnte nicht gespeichert werden": "Не вдалося зберегти дані обліку часу",
+  "Zeiterfassung konnte nicht gestoppt werden": "Не вдалося зупинити облік часу",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "Завдання вже недоступне або виконане",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "Спочатку потрібно опрацювати перерваний сеанс",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "Сеанс обліку часу більше недоступний",
+  "Die Endzeit liegt in der Zukunft": "Час завершення в майбутньому",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "Сеанс має тривати щонайменше 30 секунд, щоб його можна було зберегти",
+  "Die Messung überschneidet sich mit einer anderen Messung": "Час цього сеансу перекривається з часом іншого сеансу"
 }

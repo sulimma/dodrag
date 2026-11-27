@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "ilo li sona ala e poki pi lipu open",
   "Verknüpfung konnte nicht erstellt werden": "ilo li ken ala pali e linja open",
   "Unbekannte Installationsaktion: {action}": "ilo li sona ala e pali ni: {action}",
+  "Unbekanntes Plugin: {id}": "ilo li sona ala e ilo namako ni: {id}",
   "Vorhandene Version überschreiben?": "sina wile ala wile ante e ilo lon?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "ilo DoDrag li lon poki ni a. sina wile ala wile pana e ilo sin lon ma ona?",
   "Ja": "wile",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "ilo li ken ala open e ilo VS Code",
   "Fenstermodus konnte nicht angewendet werden": "ilo li ken ala ante e nasin pi lukin ona",
   "Ungültige Standarddauer": "tenpo pi pali sin li ike",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "ilo DoDrag ni li ken ala lukin e poki sona ni. o pana e ilo DoDrag sin tawa ilo sina. nanpa pi ilo sin li {version} anu suli."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "ilo DoDrag ni li ken ala lukin e poki sona ni. o pana e ilo DoDrag sin tawa ilo sina. nanpa pi ilo sin li {version} anu suli.",
+  "Zeiterfassung ist nicht aktiviert": "ilo pi sona pi tenpo pali li lon ala",
+  "Zeiterfassung konnte nicht geladen werden": "ilo li ken ala kama jo e sona pi tenpo pali",
+  "Zeiterfassung konnte nicht gespeichert werden": "ilo li ken ala awen e sona pi tenpo pali",
+  "Zeiterfassung konnte nicht gestoppt werden": "ilo li ken ala pini e ilo tenpo",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "pali li weka anu pini",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "ilo tenpo li pini lon nasin pakala. o pona e ni lon open",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "sitelen tenpo ni li weka",
+  "Die Endzeit liegt in der Zukunft": "tenpo pini li lon tenpo kama",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "sina ken awen e sitelen tenpo la tenpo o suli sama sike lili 30 anu suli mute",
+  "Die Messung überschneidet sich mit einer anderen Messung": "sitelen tenpo ni en sitelen tenpo ante li lon tenpo sama"
 }

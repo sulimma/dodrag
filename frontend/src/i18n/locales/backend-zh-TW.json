@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "無法確定開始功能表資料夾",
   "Verknüpfung konnte nicht erstellt werden": "無法建立捷徑",
   "Unbekannte Installationsaktion: {action}": "未知的安裝操作：{action}",
+  "Unbekanntes Plugin: {id}": "未知的外掛：{id}",
   "Vorhandene Version überschreiben?": "覆寫現有版本？",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "目標位置已存在 DoDrag 版本。是否要覆寫？",
   "Ja": "是",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "無法開啟 Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "無法套用視窗模式",
   "Ungültige Standarddauer": "預設時長無效",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "此資料庫與目前的應用程式版本不相容。請安裝較新版本的 DoDrag（至少為 {version}）。"
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "此資料庫與目前的應用程式版本不相容。請安裝較新版本的 DoDrag（至少為 {version}）。",
+  "Zeiterfassung ist nicht aktiviert": "工時記錄尚未啟用",
+  "Zeiterfassung konnte nicht geladen werden": "無法載入工時記錄",
+  "Zeiterfassung konnte nicht gespeichert werden": "無法儲存工時記錄",
+  "Zeiterfassung konnte nicht gestoppt werden": "無法停止計時",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "工作已無法使用或已完成",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "請先處理中斷的計時",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "這筆計時記錄已無法使用",
+  "Die Endzeit liegt in der Zukunft": "結束時間不得晚於目前時間",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "計時長度至少須達 30 秒才能儲存",
+  "Die Messung überschneidet sich mit einer anderen Messung": "這段計時與另一段計時重疊"
 }

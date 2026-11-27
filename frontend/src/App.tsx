@@ -24,6 +24,9 @@ import { AppToolbar, type ViewMode } from './components/AppToolbar';
 import { TaskSidebar } from './components/TaskSidebar';
 import { projectMenuSources, TaskContextMenu } from './components/TaskContextMenu';
 import { TaskDetailPanel } from './components/TaskDetailPanel';
+import { plugins } from './plugins/registry';
+import { TimeMeasurementDetails, TimeMeasurementStatus, TimeMeasurementButton } from './plugins/time-measurement/TimeMeasurement';
+import { useTimeMeasurement } from './plugins/time-measurement/useTimeMeasurement';
 import type { InlineEditor } from './components/inlineEditor';
 import { ShortcutHelp, type HelpPage } from './components/ShortcutHelp';
 import { Toasts } from './components/Toasts';
@@ -142,6 +145,8 @@ export function App() {
     loadSnapshot,
     changeDatabase,
   } = database;
+  const timer = useTimeMeasurement(database, pushToast);
+  const miniTimerRow = Boolean(timer.state?.running || timer.state?.interrupted || timer.loadError);
   const capabilities = appSettings?.capabilities;
   const miniWindow = capabilities?.miniWindow !== false;
   const miniAvailable = appSettings !== null && miniWindow;
@@ -150,7 +155,7 @@ export function App() {
   const descriptions = useDescriptionDrafts(database);
   const state = useMemo(() => projectEvents(events, now), [events, now, language]);
   const needsProtocol = viewMode === 'protocol' || newTaskTitle.length > 0;
-  const protocolDays = useMemo(() => needsProtocol ? projectProtocol(events, state.tasks) : [], [needsProtocol, events, state.tasks]);
+  const protocolDays = useMemo(() => needsProtocol ? projectProtocol(events, state.tasks, timer.enabled ? timer.state?.sessions ?? [] : []) : [], [needsProtocol, events, state.tasks, timer.enabled, timer.state?.sessions]);
   const projectIds = projects.selectedIds;
   const textFilter = filterEnabled && newTaskTitle.length > 0;
   const filtering = textFilter || projectIds.length > 0;
@@ -340,8 +345,8 @@ export function App() {
 
 
   useEffect(() => {
-    if (miniAvailable) void eventBridge.updateMiniModeHeight(miniTasks.length);
-  }, [miniAvailable, miniTasks.length]);
+    if (miniAvailable) void eventBridge.updateMiniModeHeight(miniTimerRow ? Math.max(1, miniTasks.length) + 1 : miniTasks.length);
+  }, [miniAvailable, miniTasks.length, miniTimerRow]);
   useEffect(() => {
     // React may remove an editor without firing blur (selection, collapse, mini).
     const taskId = isDetailPanelOpen && !isMiniMode ? selectedTaskId : null;
@@ -362,7 +367,8 @@ export function App() {
         await eventBridge.finishClose(saved);
       }).catch(async error => {
         closing = false; document.body.inert = previousInert;
-        pushToast(errorText(t('Beschreibung konnte nicht gespeichert werden'), error), 'warning');
+        database.refreshSnapshotDependents();
+        pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning');
         try { await eventBridge.finishClose(false); } catch { /* Native host is already unavailable. */ }
       });
     });
@@ -556,6 +562,13 @@ export function App() {
   // Retain view-local geometry, scroll, log drafts and description undo. Inert
   // removes hidden controls from focus and global target queries; native file
   // callbacks and the retained description editor also have explicit activity guards.
+  const runningTimer = timer.state?.running;
+  const timerTaskTitle = runningTimer && timer.creationId(runningTimer.taskId) === runningTimer.taskCreationEventId
+    ? state.tasks[runningTimer.taskId]?.title : undefined;
+  const timerBlocked = database.settingsBusy || showSettingsModal || showShortcutsModal || Boolean(deleteId && projects.projects.has(deleteId));
+  const renderTaskTimer: TaskViewInteractions['renderTaskTimer'] = !isMiniMode && timer.enabled
+    ? task => !task.completed && <TimeMeasurementButton timer={timer} task={task} taskTitle={task.title} disabled={timerBlocked} inTaskRow />
+    : undefined;
   const miniSurface = isMiniMode ? (
       <>
         <MiniCornerView
@@ -580,6 +593,9 @@ export function App() {
           newTaskInputRef={newTaskInputRef}
           snapshotReady={snapshotReady}
           onCreateTask={handleCreateTask}
+          timerRow={miniTimerRow}
+          timerStatus={timer.enabled && <TimeMeasurementStatus timer={timer} taskTitle={timerTaskTitle || undefined}
+            miniRestore={() => { void handleRestoreFromMiniMode(); }} disabled={timerBlocked} />}
         />
         {taskContextMenu}
         <ShortcutHelp open={showShortcutsModal} initialPage={helpPage} onClose={() => setShowShortcutsModal(false)} />
@@ -638,6 +654,37 @@ export function App() {
     }}/>;
   const detailId = !mainSelection.selectedTaskId ? projectDetailId : null;
   const detailProject = detailId && (projects.drafts.current.get(detailId) ?? projects.projects.get(detailId));
+  const shownTask = shownTaskId ? state.tasks[shownTaskId] ?? null : null;
+  const pluginRows = plugins.flatMap(plugin => {
+    const enabled = appSettings?.pluginEnabled?.[plugin.id];
+    return typeof enabled === 'boolean' ? [{ id: plugin.id, label: plugin.label(), description: plugin.description(), enabled }] : [];
+  });
+  const detailActionBlocked = showSettingsModal || showShortcutsModal || Boolean(deleteId && projects.projects.has(deleteId));
+  const taskDetailDatabase = appSettings?.activeDatabasePath;
+  const pluginTaskId = windowMode === 'window' && snapshotReady && isDetailPanelOpen && !detailProject ? shownTask?.id : undefined;
+  const pluginView = useMemo(() => pluginTaskId && taskDetailDatabase
+    ? { taskId: pluginTaskId, database: taskDetailDatabase, flags: appSettings?.pluginEnabled } : null,
+  [pluginTaskId, taskDetailDatabase, appSettings?.pluginEnabled]);
+  const currentPluginView = useRef<{ view: typeof pluginView; task: typeof shownTask } | null>(null);
+  useLayoutEffect(() => {
+    currentPluginView.current = detailActionBlocked ? null : { view: pluginView, task: shownTask };
+    return () => { currentPluginView.current = null; };
+  }, [pluginView, shownTask, detailActionBlocked]);
+  const detailAction = pluginView && plugins.flatMap(plugin => 'TaskDetailAction' in plugin && pluginView.flags?.[plugin.id] === true ? [<plugin.TaskDetailAction
+    key={JSON.stringify([plugin.id, pluginView.database, pluginView.taskId])}
+    label={plugin.label()}
+    disabled={detailActionBlocked}
+    currentTask={() => {
+      const current = currentPluginView.current;
+      const task = current?.task;
+      if (current?.view !== pluginView || !task || task.id !== pluginView.taskId ||
+        !database.snapshotConfirmed.current || database.databaseIdentity.current !== pluginView.database ||
+        database.confirmedSettings.current?.pluginEnabled?.[plugin.id] !== true ||
+        document.body.inert || document.querySelector('dialog[open]')) return null;
+      return { id: task.id, title: task.title, status: task.completed ? 'done' : task.isActive ? 'active' : 'open', date: task.effectiveDateKey };
+    }} />] : []);
+  const timerCreationId = pluginTaskId && timer.creationId(pluginTaskId);
+  const timerInDetails = Boolean(timerCreationId && runningTimer?.taskCreationEventId === timerCreationId && runningTimer?.taskId === pluginTaskId);
   const listBackgroundKey = 'list-background';
   const todayKey = toDateKey(now);
   return (
@@ -710,6 +757,11 @@ export function App() {
       {miniAvailable && <DesktopTitleBar onWindowMode={mode => { void requestWindowMode(mode); }}
         onError={error => pushToast(errorText(t('Aktion fehlgeschlagen'), error), 'warning')} />}
       <AppToolbar
+        timerControl={!isMiniMode && timer.enabled && <TimeMeasurementButton
+          timer={timer} task={mainSelection.selectedTaskId ? shownTask : null} taskTitle={timerTaskTitle || undefined}
+          disabled={timerBlocked} />}
+        timerStatus={!isMiniMode && timer.enabled && <TimeMeasurementStatus key={timer.generation} timer={timer} taskTitle={timerTaskTitle || undefined}
+          hideRunning={timerInDetails} disabled={timerBlocked} />}
         successorOf={successorOf}
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -761,8 +813,12 @@ export function App() {
           onToggle={() => setIsDetailPanelOpen(open => !open)}
           onSyntaxHelp={() => { setHelpPage('syntax'); setShowShortcutsModal(true); }}
           key={appSettings?.activeDatabasePath ?? ''}
-          task={descriptions.taskWithDraft(shownTaskId ? state.tasks[shownTaskId] ?? null : null)}
-          interactions={interactions} titleEditor={scopedEditor(editors.titleEditor, 'detail')} dateEditor={scopedEditor(editors.dateEditor, 'detail')}
+          task={descriptions.taskWithDraft(shownTask)}
+          detailAction={detailAction}
+          detailSection={timer.enabled && shownTask && timerCreationId && <TimeMeasurementDetails
+            key={JSON.stringify([timer.generation, timerCreationId])} timer={timer} task={shownTask}
+            creationId={timerCreationId} disabled={timerBlocked} />}
+          interactions={{ ...interactions, renderTaskTimer }} titleEditor={scopedEditor(editors.titleEditor, 'detail')} dateEditor={scopedEditor(editors.dateEditor, 'detail')}
           onClose={() => setIsDetailPanelOpen(false)}
           onToggleActive={actions.handleToggleActive}
           onCompleteTask={actions.handleCompleteTask} onReopenTask={actions.handleReopenTask} onOpenCopy={actions.handleOpenCopy}
@@ -836,6 +892,7 @@ export function App() {
               </div>
             ) : viewMode === 'list' ? (
               <ListView
+                renderTaskTimer={renderTaskTimer}
                 scrollRef={mainScrollRef}
                 {...interactions}
                 listEntries={visibleState.listEntries}
@@ -845,6 +902,7 @@ export function App() {
               />
             ) : viewMode === 'network' ? (
               <NetworkPlanView
+                renderTaskTimer={renderTaskTimer}
                 projectMembers={projects.members}
                 projectOrder={projects.orderedIds}
                 projectFilterActive={projectIds.length > 0}
@@ -871,6 +929,7 @@ export function App() {
               />
             ) : (
               <GanttView
+                renderTaskTimer={renderTaskTimer}
                 projectFilterActive={projectIds.length > 0}
                 {...interactions}
                 openTasks={visibleState.openTasks}
@@ -915,6 +974,9 @@ export function App() {
             }),
             databaseReady: snapshotReady,
           }}
+          settingsBusy={database.settingsBusy}
+          pluginRows={pluginRows}
+          onSetPluginEnabled={database.handleSetPluginEnabled}
           onClose={database.handleCloseSettingsModal}
           onReloadDatabase={async () => {
             await changeDatabase(async () => {

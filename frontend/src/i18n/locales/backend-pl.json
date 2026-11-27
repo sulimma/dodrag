@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "Nie udało się ustalić folderu menu Start",
   "Verknüpfung konnte nicht erstellt werden": "Nie udało się utworzyć skrótu",
   "Unbekannte Installationsaktion: {action}": "Nieznana czynność instalacji: {action}",
+  "Unbekanntes Plugin: {id}": "Nieznana wtyczka: {id}",
   "Vorhandene Version überschreiben?": "Nadpisać istniejącą wersję?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "W miejscu docelowym istnieje już wersja DoDrag. Czy chcesz ją nadpisać?",
   "Ja": "Tak",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Nie udało się otworzyć Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "Nie udało się zastosować trybu okna",
   "Ungültige Standarddauer": "Nieprawidłowy domyślny czas trwania",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Ta baza danych jest niezgodna z tą wersją aplikacji. Zainstaluj nowszą wersję DoDrag (co najmniej {version})."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Ta baza danych jest niezgodna z tą wersją aplikacji. Zainstaluj nowszą wersję DoDrag (co najmniej {version}).",
+  "Zeiterfassung ist nicht aktiviert": "Rejestrowanie czasu nie jest włączone",
+  "Zeiterfassung konnte nicht geladen werden": "Nie udało się wczytać danych o czasie",
+  "Zeiterfassung konnte nicht gespeichert werden": "Nie udało się zapisać danych o czasie",
+  "Zeiterfassung konnte nicht gestoppt werden": "Nie udało się zatrzymać rejestrowania czasu",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "Zadanie nie jest już dostępne lub zostało ukończone",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "Najpierw trzeba rozliczyć przerwaną sesję",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "Sesja rejestrowania czasu nie jest już dostępna",
+  "Die Endzeit liegt in der Zukunft": "Czas zakończenia jest w przyszłości",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "Zapisywana sesja musi trwać co najmniej 30 sekund",
+  "Die Messung überschneidet sich mit einer anderen Messung": "Sesja nakłada się na inną sesję"
 }

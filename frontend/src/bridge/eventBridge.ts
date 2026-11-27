@@ -1,3 +1,4 @@
+import type { TimeMeasurementState } from '../plugins/time-measurement/types';
 import type { EventType, StoredEvent } from '../domain/types';
 import { parseCommand } from '../domain/eventSchema';
 import type { EventCommand } from '../domain/eventSchema';
@@ -42,6 +43,8 @@ export interface DesktopCapabilities {
 }
 
 export interface AppSettings {
+  pluginEnabled?: Readonly<Record<string, boolean>>;
+  databaseGeneration?: number;
   capabilities?: DesktopCapabilities;
   defaultTimeMarkers?: number[];
   defaultDuration?: number;
@@ -88,6 +91,13 @@ declare global {
           Undo: () => Promise<unknown>;
           Redo: () => Promise<unknown>;
           GetSettings: () => Promise<AppSettings>;
+          SetPluginEnabled?: (id: string, enabled: boolean) => Promise<AppSettings>;
+          GetTimeMeasurement?: (generation: number) => Promise<TimeMeasurementState>;
+          StartTimeMeasurement?: (generation: number, taskId: string, taskCreationEventId: string) => Promise<TimeMeasurementState>;
+          StopTimeMeasurement?: (generation: number, sessionId: number) => Promise<TimeMeasurementState>;
+          UpdateTimeMeasurementEnd?: (generation: number, sessionId: number, endMs: number) => Promise<TimeMeasurementState>;
+          DeleteTimeMeasurementSession?: (generation: number, sessionId: number) => Promise<TimeMeasurementState>;
+          RecoverTimeMeasurement?: (generation: number, sessionId: number, endMs: number, discard: boolean) => Promise<TimeMeasurementState>;
           SetAutostart: (enabled: boolean) => Promise<AppSettings>;
           SetDefaultTimeMarkers?: (minutes: number[]) => Promise<AppSettings>;
           SetDefaultDuration?: (value: number, unit: string) => Promise<AppSettings>;
@@ -204,6 +214,29 @@ export const eventBridge = {
     const settings = await nativeMethod('SetUILanguage')(language);
     setLanguage(settings.uiLanguage || language);
     return settings;
+  },
+
+  async setPluginEnabled(id: string, enabled: boolean): Promise<AppSettings> {
+    return nativeMethod('SetPluginEnabled')(id, enabled);
+  },
+
+  async getTimeMeasurement(generation: number) {
+    return nativeMethod('GetTimeMeasurement')(generation);
+  },
+  async startTimeMeasurement(generation: number, taskId: string, taskCreationEventId: string) {
+    return nativeMethod('StartTimeMeasurement')(generation, taskId, taskCreationEventId);
+  },
+  async stopTimeMeasurement(generation: number, sessionId: number) {
+    return nativeMethod('StopTimeMeasurement')(generation, sessionId);
+  },
+  async updateTimeMeasurementEnd(generation: number, sessionId: number, endMs: number) {
+    return nativeMethod('UpdateTimeMeasurementEnd')(generation, sessionId, endMs);
+  },
+  async deleteTimeMeasurementSession(generation: number, sessionId: number) {
+    return nativeMethod('DeleteTimeMeasurementSession')(generation, sessionId);
+  },
+  async recoverTimeMeasurement(generation: number, sessionId: number, endMs: number, discard: boolean) {
+    return nativeMethod('RecoverTimeMeasurement')(generation, sessionId, endMs, discard);
   },
 
   async setAutostart(enabled: boolean): Promise<AppSettings> {

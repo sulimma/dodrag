@@ -19,10 +19,11 @@ function TimeValue({ minute, save, disabled, onError }: { minute: number; save: 
      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDraft(formatMarkerTime(minute)); }
    }} />;
 }
-export function TimeMarkerDefaults({ minutes, onSave, onError }: {
- minutes: number[]; onSave: (minutes: number[]) => Promise<void>; onError: (error: unknown) => void;
+export function TimeMarkerDefaults({ minutes, onSave, onError, disabled = false }: {
+ minutes: number[]; disabled?: boolean; onSave: (minutes: number[]) => Promise<void>; onError: (error: unknown) => void;
 }) {
- const [busy, setBusy] = useState(false);
+ const [saving, setBusy] = useState(false);
+ const busy = saving || disabled;
  const save = async (values: number[]) => {
    if (busy) return;
    const sorted = [...values].sort((a, b) => a - b);

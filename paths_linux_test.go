@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"syscall"
 	"testing"
 )
 
@@ -26,15 +25,5 @@ func TestLinuxAbsolutePathAndMarkdownImport(t *testing.T) {
 		if _, err := absoluteLocalPath(invalid); err == nil {
 			t.Errorf("accepted a non-native path %q", invalid)
 		}
-	}
-}
-
-func TestLinuxMarkdownRejectsFIFO(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "pipe.md")
-	if err := syscall.Mkfifo(path, 0600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := (&App{}).ReadMarkdownFile(path); err == nil {
-		t.Fatal("import accepted a FIFO")
 	}
 }

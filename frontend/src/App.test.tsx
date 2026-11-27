@@ -5,6 +5,7 @@ import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { AppSettings } from './bridge/eventBridge';
+import type { TimeMeasurementSession, TimeMeasurementState } from './plugins/time-measurement/types';
 import { StoredEvent } from './domain/types';
 import { projectEvents, toDateKey } from './domain/projector';
 import { setLanguage, supportedLanguages, t } from './i18n';
@@ -1096,7 +1097,7 @@ it('changes every view and settings immediately in all languages without rewriti
   expect(api.SetUILanguage).toHaveBeenCalledTimes(supportedLanguages.length);
   expect(activeSettings.knownDatabases.map(entry => entry.name)).toEqual(['A', 'B']);
   expect(api.AppendBatch).not.toHaveBeenCalled();
-});
+}, 20_000);
 
 it('opens the GitHub project from the version footer', async () => {
   const browserOpenURL = vi.fn();
@@ -1709,4 +1710,367 @@ it('retains usable marker selection after unchanged Enter and Escape without ste
  await act(async () => key('Enter', finalEditor));
  await act(async () => key('Delete', document.activeElement!));
  expect(fixture.state().timeline.markers.get(id)?.removed).toBe(true);
+});
+
+const copySummaryId = 'copy-task-summary';
+const copySummary = () => textButton(t('Task-Zusammenfassung kopieren'));
+const pluginSwitch = () => Array.from(element.querySelectorAll<HTMLButtonElement>('button[role="switch"]')).find(control =>
+  document.getElementById(control.getAttribute('aria-labelledby') ?? '')?.textContent === t('Task-Zusammenfassung kopieren'))!;
+function activatePluginSwitch(by: 'Enter' | ' ') {
+  const control = pluginSwitch();
+  // jsdom does not provide the native button activation default. Make sure
+  // DoDrag does not consume either key, then deliver the resulting click.
+  const event = new KeyboardEvent('keydown', { key: by, bubbles: true, cancelable: true });
+  act(() => { control.focus(); if (control.dispatchEvent(event)) control.click(); });
+  expect(event.defaultPrevented).toBe(false);
+}
+
+it('keeps the checked flag and detail contribution at their last confirmed values until saving succeeds', async () => {
+  activeSettings.pluginEnabled = { [copySummaryId]: false };
+  const enable = deferred<AppSettings>();
+  api.SetPluginEnabled = vi.fn(() => enable.promise);
+  await mount(); selectTask('26-101'); click(button(t('Details anzeigen')));
+  const editor = element.querySelector('.tiptap');
+  expect(editor).not.toBeNull();
+  await openSettings();
+  const control = pluginSwitch();
+  expect(control.getAttribute('aria-checked')).toBe('false');
+  expect(document.getElementById(control.getAttribute('aria-describedby')!)?.textContent).not.toBe('');
+  activatePluginSwitch('Enter');
+  activatePluginSwitch(' ');
+  expect(api.SetPluginEnabled).toHaveBeenCalledOnce();
+  expect(api.SetPluginEnabled).toHaveBeenCalledWith(copySummaryId, true);
+  expect(document.activeElement).toBe(control);
+  expect(control.getAttribute('aria-checked')).toBe('false');
+  expect(control.getAttribute('aria-disabled')).toBe('true');
+  expect(textButton('Verwenden').disabled).toBe(true);
+  expect(copySummary()).toBeUndefined();
+  await act(async () => enable.resolve(activeSettings = { ...activeSettings, pluginEnabled: { [copySummaryId]: true } }));
+  expect(control.getAttribute('aria-checked')).toBe('true');
+  expect(control.getAttribute('aria-disabled')).toBe('false');
+  expect(document.activeElement).toBe(control);
+  expect(copySummary().disabled).toBe(true);
+  const failure = deferred<AppSettings>();
+  vi.mocked(api.SetPluginEnabled).mockReturnValueOnce(failure.promise);
+  activatePluginSwitch(' ');
+  expect(api.SetPluginEnabled).toHaveBeenLastCalledWith(copySummaryId, false);
+  await act(async () => failure.reject(new Error('fixture save error')));
+  expect(element.querySelector('[role="alert"]')?.textContent).toContain('fixture save error');
+  expect(control.getAttribute('aria-checked')).toBe('true');
+  expect(document.activeElement).toBe(control);
+  vi.mocked(api.SetPluginEnabled).mockResolvedValueOnce({ ...activeSettings, pluginEnabled: { [copySummaryId]: false } });
+  await act(async () => activatePluginSwitch('Enter'));
+  expect(control.getAttribute('aria-checked')).toBe('false');
+  expect(copySummary()).toBeUndefined();
+  expect(element.querySelector('[role="alert"]')).toBeNull();
+  click(textButton('Fertig'));
+  expect(element.querySelector('.tiptap')).toBe(editor);
+  expect(api.GetEvents).toHaveBeenCalledTimes(1);
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+  expect(api.AppendEvent).not.toHaveBeenCalled();
+});
+
+it('blocks plugin setting changes while refreshing Settings and makes them available without an open database', async () => {
+  activeSettings = { ...settings, databaseReady: false, pluginEnabled: { [copySummaryId]: false } };
+  api.SetPluginEnabled = vi.fn(async () => (activeSettings = { ...activeSettings, pluginEnabled: { [copySummaryId]: true } }));
+  await mount();
+  const refresh = deferred<AppSettings>();
+  vi.mocked(api.GetSettings).mockReturnValueOnce(refresh.promise);
+  click(textButton(t('Aktive Datenbank erneut laden')));
+  expect(pluginSwitch().getAttribute('aria-disabled')).toBe('true');
+  activatePluginSwitch('Enter');
+  expect(api.SetPluginEnabled).not.toHaveBeenCalled();
+  // Recovery here fails to reopen a database, but finishes the settings refresh.
+  vi.mocked(api.SwitchDatabase).mockRejectedValueOnce(new Error('unavailable'));
+  await act(async () => refresh.resolve(activeSettings));
+  expect(pluginSwitch().getAttribute('aria-disabled')).toBe('false');
+  await act(async () => activatePluginSwitch(' '));
+  expect(pluginSwitch().getAttribute('aria-checked')).toBe('true');
+  expect(api.GetEvents).not.toHaveBeenCalled();
+  expect(copySummary()).toBeUndefined();
+});
+
+it('limits the copy action to visible normal-mode task details and ignores late feedback after task or database changes', async () => {
+  activeSettings.pluginEnabled = { [copySummaryId]: true };
+  const first = deferred<void>(), second = deferred<void>();
+  const clipboard = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+  const previous = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: clipboard } });
+  const project: StoredEvent = { seq: 3, id: 'project', timestamp: date, undone: false, type: 'PROJECT_SAVED',
+    payload: { projectId: 'P1', code: 'P1', color: '#334455', summary: '', description: '' } };
+  vi.mocked(api.GetEvents).mockResolvedValue([...history, project]);
+  try {
+    await mount();
+    click(button(t('Details anzeigen')));
+    expect(copySummary()).toBeUndefined();
+    selectTask('26-101');
+    const alpha = copySummary();
+    click(alpha);
+    expect(clipboard).toHaveBeenCalledOnce();
+    selectTask('26-102');
+    click(alpha);
+    await act(async () => first.resolve());
+    expect(clipboard).toHaveBeenCalledOnce();
+    expect(element.textContent).not.toContain(t('Task-Zusammenfassung kopiert.'));
+    click(button(t('Details schließen')));
+    expect(copySummary()).toBeUndefined();
+    click(button(t('Details anzeigen')));
+    await act(async () => element.querySelector('[data-project-drag="P1"]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })));
+    expect(element.querySelector('[data-project-details]')).not.toBeNull();
+    expect(copySummary()).toBeUndefined();
+    selectTask('26-102');
+    const beta = copySummary();
+    await openSettings();
+    expect(beta.disabled).toBe(true);
+    click(beta);
+    expect(clipboard).toHaveBeenCalledOnce();
+    click(textButton('Fertig'));
+    click(beta);
+    expect(clipboard).toHaveBeenCalledTimes(2);
+    await openSettings();
+    await act(async () => click(textButton('Verwenden')));
+    await act(async () => second.reject(new Error('stale clipboard failure')));
+    expect(element.textContent).not.toContain('stale clipboard failure');
+    click(textButton('Fertig'));
+    expect(copySummary()).toBeUndefined();
+    activeSettings.pluginEnabled = { [copySummaryId]: true };
+    await openSettings(); click(textButton('Fertig'));
+    selectTask('26-101');
+    expect(copySummary()).toBeDefined();
+    await act(async () => key('m', document.body, { ctrlKey: true }));
+    expect(button('Fenster')).not.toBeNull();
+    expect(copySummary()).toBeUndefined();
+    expect(api.AppendBatch).not.toHaveBeenCalled();
+    expect(api.AppendEvent).not.toHaveBeenCalled();
+  } finally {
+    if (previous) Object.defineProperty(navigator, 'clipboard', previous);
+    else Reflect.deleteProperty(navigator, 'clipboard');
+  }
+});
+
+function timeMeasurementFixture() {
+  activeSettings = { ...activeSettings, databaseGeneration: 42, pluginEnabled: { 'time-measurement': true } };
+  const startMs = Date.parse(date);
+  const session: TimeMeasurementSession = {
+    id: 17, taskId: '26-101', taskCreationEventId: history[0].id, startMs, endMs: null, elapsedMs: null,
+  };
+  const empty: TimeMeasurementState = { running: null, interrupted: null, sessions: [], discarded: false };
+  const saved = { ...session, endMs: startMs + 90_000, elapsedMs: 90_000 };
+  let confirmed = empty;
+  api.GetTimeMeasurement = vi.fn(async () => confirmed);
+  return { empty, session, saved, setConfirmed: (value: TimeMeasurementState) => { confirmed = value; return value; } };
+}
+
+it('shows elapsed time and starts or stops tracking from the overview toolbar', async () => {
+  const { empty, session, setConfirmed } = timeMeasurementFixture();
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+  vi.setSystemTime(session.startMs);
+  api.StartTimeMeasurement = vi.fn(async () => setConfirmed({ ...empty, running: session }));
+  api.StopTimeMeasurement = vi.fn(async () => setConfirmed(empty));
+  const control = (label: string) => element.querySelector<HTMLButtonElement>(`header button[aria-label="${label}"]`)!;
+  const start = () => control(t('Messung starten'));
+  const stop = () => control(t('Messung stoppen'));
+  await mount();
+  expect(start().disabled).toBe(true);
+  selectTask('26-101');
+  await act(async () => click(start()));
+  expect(api.StartTimeMeasurement).toHaveBeenCalledWith(42, '26-101', history[0].id);
+  await act(async () => vi.advanceTimersByTime(31_000));
+  expect(stop().textContent).toContain('00:00:31');
+  selectTask('26-102');
+  expect(stop().textContent).toContain('Alpha');
+  expect(stop().textContent).not.toContain('Beta');
+  await act(async () => click(stop()));
+  expect(api.StopTimeMeasurement).toHaveBeenCalledWith(42, session.id);
+  expect(start().textContent).toContain('00:00:00');
+  expect(start().textContent).toContain('Beta');
+});
+
+it('starts and hands off timers directly beside the task row Activate button', async () => {
+  const { empty, session, saved, setConfirmed } = timeMeasurementFixture();
+  const second = { ...session, id: 18, taskId: '26-102', taskCreationEventId: history[1].id };
+  const earlier = { ...saved, id: 19, startMs: session.startMs - 30_000, endMs: session.startMs, elapsedMs: 30_000 };
+  const savedSecond = { ...second, endMs: second.startMs + 45_000, elapsedMs: 45_000 };
+  const state = setConfirmed({ ...empty, sessions: [saved, earlier, { ...saved, id: 20, taskCreationEventId: 'old-task' }] });
+  api.StartTimeMeasurement = vi.fn(async (_generation, taskId) => setConfirmed({ ...state, running: taskId === session.taskId ? session : second }));
+  api.StopTimeMeasurement = vi.fn(async () => setConfirmed({ ...state, sessions: [...state.sessions, savedSecond] }));
+  const timerByActivate = (id: string) => element.querySelector(`main [data-source-task-id="${id}"] button[title="${t('Aktivieren (Space)')}"]`)!.nextElementSibling!;
+  await mount();
+  expect(timerByActivate(session.taskId).getAttribute('aria-label')).toBe(t('Messung starten'));
+  expect(timerByActivate(session.taskId).textContent).toBe('00:02:00');
+  await act(async () => click(timerByActivate(session.taskId)));
+  expect(api.StartTimeMeasurement).toHaveBeenCalledWith(42, session.taskId, history[0].id);
+  expect(timerByActivate(session.taskId).getAttribute('aria-label')).toBe(t('Messung stoppen'));
+  expect(timerByActivate(session.taskId).textContent).toBe('00:02:00');
+  await act(async () => click(timerByActivate(second.taskId)));
+  expect(api.StartTimeMeasurement).toHaveBeenLastCalledWith(42, second.taskId, history[1].id);
+  expect(timerByActivate(session.taskId).getAttribute('aria-label')).toBe(t('Messung starten'));
+  expect(timerByActivate(second.taskId).textContent).toBe('00:00:00');
+  await act(async () => click(timerByActivate(second.taskId)));
+  expect(api.StopTimeMeasurement).toHaveBeenCalledWith(42, second.id);
+  expect(timerByActivate(second.taskId).textContent).toBe('00:00:45');
+});
+
+it('keeps the confirmed running timer on a failed handoff and can stop it from compact mode', async () => {
+  const { empty, session, setConfirmed } = timeMeasurementFixture();
+  const firstStart = deferred<TimeMeasurementState>();
+  api.StartTimeMeasurement = vi.fn().mockReturnValueOnce(firstStart.promise).mockRejectedValueOnce(new Error('handoff rejected'));
+  api.StopTimeMeasurement = vi.fn(async () => setConfirmed({ ...empty, discarded: true }));
+  await mount();
+  selectTask('26-101'); click(button(t('Details anzeigen')));
+  await act(async () => click(textButton(t('Messung starten'))));
+  expect(api.StartTimeMeasurement).toHaveBeenCalledWith(42, '26-101', history[0].id);
+  expect(textButton(t('Messung starten')).disabled).toBe(true);
+  expect(textButton(t('Messung stoppen'))).toBeUndefined();
+  await act(async () => firstStart.resolve(setConfirmed({ ...empty, running: session })));
+  expect(textButton(t('Messung stoppen')).closest('[data-task-detail-panel]')).not.toBeNull();
+  selectTask('26-102');
+  expect(textButton(t('Messung stoppen')).closest('[data-task-detail-panel]')).toBeNull();
+  await act(async () => click(textButton(t('Messung starten'))));
+  expect(api.StartTimeMeasurement).toHaveBeenLastCalledWith(42, '26-102', history[1].id);
+  expect(element.textContent).toContain('handoff rejected');
+  expect(element.textContent).toContain(t('Laufende Messung: {task}', { task: 'Alpha' }));
+  click(button(t('Details schließen')));
+  expect(textButton(t('Messung stoppen'))).toBeDefined();
+  await act(async () => click(button('Kompaktansicht')));
+  expect(api.SetWindowMode).toHaveBeenCalledWith('mini');
+  await act(async () => click(textButton(t('Messung stoppen'))));
+  expect(api.StopTimeMeasurement).toHaveBeenCalledWith(42, session.id);
+  expect(element.textContent).toContain(t('Messung unter 30 Sekunden wurde verworfen.'));
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+});
+
+it('offers recovery for an interrupted timer without a visible task and waits for confirmation', async () => {
+  const { empty, session, setConfirmed } = timeMeasurementFixture();
+  const interrupted = { ...session, taskId: '26-999' };
+  setConfirmed({ ...empty, interrupted });
+  api.RecoverTimeMeasurement = vi.fn()
+    .mockRejectedValueOnce(new Error('recovery rejected'))
+    .mockImplementationOnce(async () => setConfirmed(empty));
+  await mount();
+  selectTask('26-101'); click(button(t('Details anzeigen')));
+  expect(textButton(t('Messung starten')).disabled).toBe(true);
+  click(textButton(t('Endzeit wählen')));
+  const input = element.querySelector<HTMLInputElement>('form input[placeholder$="Z"]')!;
+  expect(input.value).toBe('');
+  expect(input.placeholder).toBe(new Date(interrupted.startMs).toISOString().replace('.000Z', 'Z'));
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '2026-10-17T09:01:00Z');
+  act(() => input.dispatchEvent(new Event('input', { bubbles: true })));
+  await act(async () => input.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(api.RecoverTimeMeasurement).toHaveBeenCalledWith(42, session.id, Date.parse('2026-10-17T09:01:00Z'), false);
+  expect(element.textContent).toContain('recovery rejected');
+  expect(textButton(t('Messung starten')).disabled).toBe(true);
+  await act(async () => click(textButton(t('Messung verwerfen'))));
+  expect(api.RecoverTimeMeasurement).toHaveBeenLastCalledWith(42, session.id, 0, true);
+  expect(textButton(t('Messung starten')).disabled).toBe(false);
+});
+
+it('uses creation identity for timer history, edits the end, and requires separate delete confirmation', async () => {
+  const { empty, saved, setConfirmed } = timeMeasurementFixture();
+  const old = { ...saved, id: saved.id + 1, taskCreationEventId: 'old-alpha', elapsedMs: 100_000 };
+  setConfirmed({ ...empty, sessions: [saved, old] });
+  api.UpdateTimeMeasurementEnd = vi.fn(async (_generation, _id, endMs) => setConfirmed({
+    ...empty, sessions: [{ ...saved, endMs, elapsedMs: endMs - saved.startMs }, old],
+  }));
+  api.DeleteTimeMeasurementSession = vi.fn(async () => setConfirmed({ ...empty, sessions: [old] }));
+  await mount();
+  selectTask('26-101'); click(button(t('Details anzeigen')));
+  expect(element.textContent).toContain(t('Gespeicherte Zeit: {duration}', { duration: '00:01:30' }));
+  const panel = element.querySelector<HTMLElement>(`section[aria-label="${t('Zeiterfassung')}"]`)!;
+  act(() => { panel.querySelector('details')!.open = true; });
+  expect(panel.querySelectorAll('li')).toHaveLength(1);
+  click(textButton(t('Endzeit ändern')));
+  const endInput = panel.querySelector('input')!;
+  const endMs = saved.startMs + 120_000;
+  type(endInput, new Date(endMs).toISOString());
+  await act(async () => endInput.form!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(api.UpdateTimeMeasurementEnd).toHaveBeenCalledWith(42, saved.id, endMs);
+  expect(panel.textContent).toContain(t('Gespeicherte Zeit: {duration}', { duration: '00:02:00' }));
+  click(textButton(t('Sitzung löschen')));
+  expect(api.DeleteTimeMeasurementSession).not.toHaveBeenCalled();
+  await act(async () => click(textButton(t('löschen'))));
+  expect(api.DeleteTimeMeasurementSession).toHaveBeenCalledWith(42, saved.id);
+  expect(panel.querySelectorAll('li')).toHaveLength(0);
+  expect(api.AppendBatch).not.toHaveBeenCalled();
+});
+
+it.each(['disabled', 'no database'])('does not load time measurement when %s', async mode => {
+  timeMeasurementFixture();
+  if (mode === 'disabled') activeSettings.pluginEnabled = { 'time-measurement': false };
+  else activeSettings.databaseReady = false;
+  await mount();
+  expect(api.GetTimeMeasurement).not.toHaveBeenCalled();
+  expect(element.querySelector(`header button[aria-label="${t('Messung starten')}"]`)).toBeNull();
+  expect(textButton(t('Messung starten'))).toBeUndefined();
+});
+
+it('refreshes the original database after stopping succeeded but switch failed', async () => {
+  const { empty, session, saved, setConfirmed } = timeMeasurementFixture();
+  setConfirmed({ ...empty, running: session });
+  vi.mocked(api.SwitchDatabase).mockImplementationOnce(async () => {
+    setConfirmed({ ...empty, sessions: [saved] });
+    throw new Error('settings could not persist');
+  });
+  await mount();
+  expect(textButton(t('Messung stoppen'))).toBeDefined();
+  await openSettings();
+  await act(async () => click(textButton('Verwenden')));
+  expect(activeSettings.activeDatabasePath).toBe('A.db');
+  expect(api.GetTimeMeasurement).toHaveBeenLastCalledWith(42);
+  expect(textButton(t('Messung stoppen'))).toBeUndefined();
+  expect(element.textContent).toContain('settings could not persist');
+  click(textButton('Fertig'));
+  selectTask('26-101'); click(button(t('Details anzeigen')));
+  expect(element.textContent).toContain(t('Gespeicherte Zeit: {duration}', { duration: '00:01:30' }));
+});
+
+it('refreshes the stopped state even when saving plugin disable fails', async () => {
+  const { empty, session, setConfirmed } = timeMeasurementFixture();
+  setConfirmed({ ...empty, running: session });
+  api.SetPluginEnabled = vi.fn(async () => {
+    setConfirmed(empty);
+    throw new Error('disable did not persist');
+  });
+  await mount();
+  await openSettings();
+  const control = Array.from(element.querySelectorAll<HTMLButtonElement>('button[role="switch"]')).find(node =>
+    document.getElementById(node.getAttribute('aria-labelledby') ?? '')?.textContent === t('Zeiterfassung'))!;
+  await act(async () => click(control));
+  expect(api.SetPluginEnabled).toHaveBeenCalledWith('time-measurement', false);
+  expect(control.getAttribute('aria-checked')).toBe('true');
+  expect(textButton(t('Messung stoppen'))).toBeUndefined();
+  expect(element.textContent).toContain('disable did not persist');
+});
+
+it('does not publish an overdue timer read after database generation changes', async () => {
+  const { empty, session, setConfirmed } = timeMeasurementFixture();
+  const oldReply = deferred<TimeMeasurementState>();
+  vi.mocked(api.GetTimeMeasurement!).mockReturnValueOnce(oldReply.promise);
+  vi.mocked(api.SwitchDatabase).mockImplementationOnce(async path => {
+    activeSettings = { ...activeSettings, activeDatabasePath: path, databaseGeneration: 43 };
+    setConfirmed({ ...empty, sessions: [] });
+    return activeSettings;
+  });
+  await mount();
+  expect(api.GetTimeMeasurement).toHaveBeenCalledWith(42);
+  await openSettings();
+  await act(async () => click(textButton('Verwenden')));
+  expect(api.GetTimeMeasurement).toHaveBeenLastCalledWith(43);
+  await act(async () => oldReply.resolve({ ...empty, running: session }));
+  expect(textButton(t('Messung stoppen'))).toBeUndefined();
+});
+
+it('restores interaction and the running timer when native close cannot stop it', async () => {
+  const { empty, session, setConfirmed } = timeMeasurementFixture();
+  setConfirmed({ ...empty, running: session });
+  const events = new Map<string, (...args: unknown[]) => void>();
+  window.runtime = { EventsOn: (name, callback) => { events.set(name, callback); return () => events.delete(name); } };
+  vi.mocked(api.FinishClose!).mockRejectedValueOnce(new Error('native stop rejected'));
+  await mount();
+  await act(async () => events.get('app:before-close')!());
+  expect(api.FinishClose).toHaveBeenNthCalledWith(1, true);
+  expect(document.body.inert).not.toBe(true);
+  expect(api.GetTimeMeasurement).toHaveBeenCalledTimes(2);
+  expect(textButton(t('Messung stoppen')).disabled).toBe(false);
+  expect(element.textContent).toContain('native stop rejected');
 });

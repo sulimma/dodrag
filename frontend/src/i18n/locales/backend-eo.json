@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "Ne eblis determini la dosierujon de la Starta menuo",
   "Verknüpfung konnte nicht erstellt werden": "Ne eblis krei la ligilon",
   "Unbekannte Installationsaktion: {action}": "Nekonata instala ago: {action}",
+  "Unbekanntes Plugin: {id}": "Nekonata kromprogramo: {id}",
   "Vorhandene Version überschreiben?": "Ĉu anstataŭigi la ekzistantan version?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Ĉe la celloko jam ekzistas DoDrag-versio. Ĉu anstataŭigi ĝin?",
   "Ja": "Jes",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Ne eblis malfermi Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "Ne eblis apliki la fenestran reĝimon",
   "Ungültige Standarddauer": "Nevalida defaŭlta daŭro",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Ĉi tiu datumbazo ne kongruas kun ĉi tiu versio de la aplikaĵo. Bonvolu instali pli novan version de DoDrag (almenaŭ {version})."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Ĉi tiu datumbazo ne kongruas kun ĉi tiu versio de la aplikaĵo. Bonvolu instali pli novan version de DoDrag (almenaŭ {version}).",
+  "Zeiterfassung ist nicht aktiviert": "Tempomezurado ne estas aktivigita",
+  "Zeiterfassung konnte nicht geladen werden": "Ne eblis ŝargi la datumojn de tempomezurado",
+  "Zeiterfassung konnte nicht gespeichert werden": "Ne eblis konservi la datumojn de tempomezurado",
+  "Zeiterfassung konnte nicht gestoppt werden": "Ne eblis haltigi la tempomezuradon",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "La tasko ne plu disponeblas aŭ jam estas plenumita",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "Unue solvu la interrompitan tempomezuradon",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "La tempomezura sesio ne plu disponeblas",
+  "Die Endzeit liegt in der Zukunft": "La fintempo estas en la estonteco",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "Konservita tempomezurado devas daŭri almenaŭ 30 sekundojn",
+  "Die Messung überschneidet sich mit einer anderen Messung": "La tempomezurado interkovriĝas kun alia tempomezurado"
 }

@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "Impossibile determinare la cartella del menu Start",
   "Verknüpfung konnte nicht erstellt werden": "Impossibile creare il collegamento",
   "Unbekannte Installationsaktion: {action}": "Azione di installazione sconosciuta: {action}",
+  "Unbekanntes Plugin: {id}": "Plugin sconosciuto: {id}",
   "Vorhandene Version überschreiben?": "Sovrascrivere la versione esistente?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Una versione di DoDrag è già presente nella destinazione. Vuoi sovrascriverla?",
   "Ja": "Sì",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Impossibile aprire Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "Impossibile applicare la modalità finestra",
   "Ungültige Standarddauer": "Durata predefinita non valida",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Questo database non è compatibile con questa versione dell’app. Installa una versione più recente di DoDrag (almeno {version})."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Questo database non è compatibile con questa versione dell’app. Installa una versione più recente di DoDrag (almeno {version}).",
+  "Zeiterfassung ist nicht aktiviert": "Il monitoraggio del tempo non è attivo",
+  "Zeiterfassung konnte nicht geladen werden": "Impossibile caricare i dati di monitoraggio del tempo",
+  "Zeiterfassung konnte nicht gespeichert werden": "Impossibile salvare i dati di monitoraggio del tempo",
+  "Zeiterfassung konnte nicht gestoppt werden": "Impossibile interrompere il monitoraggio del tempo",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "L’attività non è più disponibile o è già completata",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "Occorre prima gestire la sessione interrotta",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "La sessione di monitoraggio del tempo non è più disponibile",
+  "Die Endzeit liegt in der Zukunft": "L’ora di fine è nel futuro",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "Una sessione salvata deve durare almeno 30 secondi",
+  "Die Messung überschneidet sich mit einer anderen Messung": "La sessione si sovrappone a un’altra"
 }

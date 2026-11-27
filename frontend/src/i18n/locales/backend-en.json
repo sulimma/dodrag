@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "Could not determine the Start menu folder",
   "Verknüpfung konnte nicht erstellt werden": "Could not create the shortcut",
   "Unbekannte Installationsaktion: {action}": "Unknown installation action: {action}",
+  "Unbekanntes Plugin: {id}": "Unknown plugin: {id}",
   "Vorhandene Version überschreiben?": "Overwrite existing version?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "DoDrag already exists at the destination. Overwrite it?",
   "Ja": "Yes",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Could not open Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "Could not apply the window mode",
   "Ungültige Standarddauer": "Invalid default duration",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "This database is incompatible with this app version. Please install a newer version of DoDrag (at least {version})."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "This database is incompatible with this app version. Please install a newer version of DoDrag (at least {version}).",
+  "Zeiterfassung ist nicht aktiviert": "Time tracking is not enabled",
+  "Zeiterfassung konnte nicht geladen werden": "Could not load time tracking data",
+  "Zeiterfassung konnte nicht gespeichert werden": "Could not save time tracking data",
+  "Zeiterfassung konnte nicht gestoppt werden": "Could not stop time tracking",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "The task is no longer available or is already complete",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "Resolve the interrupted time tracking session first",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "The time tracking session is no longer available",
+  "Die Endzeit liegt in der Zukunft": "The end time is in the future",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "A saved session must last at least 30 seconds",
+  "Die Messung überschneidet sich mit einer anderen Messung": "This session overlaps another session"
 }

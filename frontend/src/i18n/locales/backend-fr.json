@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "Impossible de déterminer le dossier du menu Démarrer",
   "Verknüpfung konnte nicht erstellt werden": "Impossible de créer le raccourci",
   "Unbekannte Installationsaktion: {action}": "Action d’installation inconnue : {action}",
+  "Unbekanntes Plugin: {id}": "Extension inconnue : {id}",
   "Vorhandene Version überschreiben?": "Écraser la version existante ?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Une version de DoDrag existe déjà à l’emplacement cible. Voulez-vous l’écraser ?",
   "Ja": "Oui",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Impossible d'ouvrir Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "Impossible d’appliquer le mode de fenêtre",
   "Ungültige Standarddauer": "Durée par défaut non valide",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Cette base de données est incompatible avec cette version de l’application. Veuillez installer une version plus récente de DoDrag (au moins {version})."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Cette base de données est incompatible avec cette version de l’application. Veuillez installer une version plus récente de DoDrag (au moins {version}).",
+  "Zeiterfassung ist nicht aktiviert": "Le suivi du temps n’est pas activé",
+  "Zeiterfassung konnte nicht geladen werden": "Impossible de charger les données de suivi du temps",
+  "Zeiterfassung konnte nicht gespeichert werden": "Impossible d’enregistrer les données de suivi du temps",
+  "Zeiterfassung konnte nicht gestoppt werden": "Impossible d’arrêter le suivi du temps",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "La tâche n’est plus disponible ou est déjà terminée",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "Il faut d’abord traiter la session interrompue",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "La session de suivi du temps n’est plus disponible",
+  "Die Endzeit liegt in der Zukunft": "L’heure de fin est dans le futur",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "Une session enregistrée doit durer au moins 30 secondes",
+  "Die Messung überschneidet sich mit einer anderen Messung": "La session chevauche une autre session"
 }

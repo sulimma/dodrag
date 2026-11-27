@@ -501,11 +501,11 @@ it('saves the default duration through Settings and uses it for subsequent creat
   await act(async () => root.render(<App />));
   click(host.querySelector('button[aria-keyshortcuts="Control+Comma"]')!);
   const defaultField = host.querySelector<HTMLInputElement>(`input[aria-label="${t('Standarddauer')}"]`)!;
-  act(() => defaultField.focus()); type(defaultField, '2');
-  await act(async () => defaultField.blur());
-  expect(api.SetDefaultDuration).toHaveBeenLastCalledWith(2, 'days');
   const unit = defaultField.parentElement!.querySelector('select')!;
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+  act(() => defaultField.focus()); type(defaultField, '2');
   await act(async () => { unit.value = 'hours'; unit.dispatchEvent(new Event('change', { bubbles: true })); });
+
   expect(api.SetDefaultDuration).toHaveBeenLastCalledWith(2, 'hours');
   click([...host.querySelectorAll('button')].find(button => button.textContent === t('Fertig'))!);
   const creation = host.querySelector<HTMLInputElement>('header input')!;

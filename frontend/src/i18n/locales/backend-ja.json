@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "スタートメニューフォルダーを特定できませんでした",
   "Verknüpfung konnte nicht erstellt werden": "ショートカットを作成できませんでした",
   "Unbekannte Installationsaktion: {action}": "不明なインストール操作: {action}",
+  "Unbekanntes Plugin: {id}": "不明なプラグイン: {id}",
   "Vorhandene Version überschreiben?": "既存のバージョンを上書きしますか？",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "保存先には既に DoDrag が存在します。上書きしますか？",
   "Ja": "はい",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code を開けませんでした",
   "Fenstermodus konnte nicht angewendet werden": "ウィンドウモードを適用できませんでした",
   "Ungültige Standarddauer": "既定の所要時間が無効です",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "このデータベースは現在のアプリのバージョンと互換性がありません。DoDrag を新しいバージョン（{version} 以降）に更新してください。"
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "このデータベースは現在のアプリのバージョンと互換性がありません。DoDrag を新しいバージョン（{version} 以降）に更新してください。",
+  "Zeiterfassung ist nicht aktiviert": "時間計測は有効になっていません",
+  "Zeiterfassung konnte nicht geladen werden": "時間計測データを読み込めませんでした",
+  "Zeiterfassung konnte nicht gespeichert werden": "時間計測データを保存できませんでした",
+  "Zeiterfassung konnte nicht gestoppt werden": "時間計測を停止できませんでした",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "タスクは利用できなくなったか、すでに完了しています",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "先に中断された計測を処理してください",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "この時間計測セッションは利用できなくなりました",
+  "Die Endzeit liegt in der Zukunft": "終了時刻が未来に設定されています",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "保存する計測は30秒以上である必要があります",
+  "Die Messung überschneidet sich mit einer anderen Messung": "計測時間が別のセッションと重複しています"
 }

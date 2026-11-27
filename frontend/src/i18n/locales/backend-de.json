@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "Startmenü-Ordner konnte nicht ermittelt werden",
   "Verknüpfung konnte nicht erstellt werden": "Verknüpfung konnte nicht erstellt werden",
   "Unbekannte Installationsaktion: {action}": "Unbekannte Installationsaktion: {action}",
+  "Unbekanntes Plugin: {id}": "Unbekanntes Plugin: {id}",
   "Vorhandene Version überschreiben?": "Vorhandene Version überschreiben?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?",
   "Ja": "Ja",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code konnte nicht geöffnet werden",
   "Fenstermodus konnte nicht angewendet werden": "Fenstermodus konnte nicht angewendet werden",
   "Ungültige Standarddauer": "Ungültige Standarddauer",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version})."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).",
+  "Zeiterfassung ist nicht aktiviert": "Zeiterfassung ist nicht aktiviert",
+  "Zeiterfassung konnte nicht geladen werden": "Zeiterfassung konnte nicht geladen werden",
+  "Zeiterfassung konnte nicht gespeichert werden": "Zeiterfassung konnte nicht gespeichert werden",
+  "Zeiterfassung konnte nicht gestoppt werden": "Zeiterfassung konnte nicht gestoppt werden",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "Die unterbrochene Messung muss zuerst geklärt werden",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "Die Zeiterfassungssitzung ist nicht mehr verfügbar",
+  "Die Endzeit liegt in der Zukunft": "Die Endzeit liegt in der Zukunft",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein",
+  "Die Messung überschneidet sich mit einer anderen Messung": "Die Messung überschneidet sich mit einer anderen Messung"
 }

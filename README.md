@@ -123,6 +123,13 @@ Just open the `.exe` to run DoDrag. Whenever you like, **Settings** can copy it 
 
 Download `dodrag_<version>_amd64.deb` from the [latest DoDrag release](https://github.com/sulimma/dodrag/releases/latest) and install it with your package manager or `sudo apt install ./dodrag_<version>_amd64.deb`. The native package targets x86-64 Ubuntu/Kubuntu 25.10 (Questing) and uses the system GTK 3 and WebKitGTK 4.1 runtime libraries. Linux packaging is currently limited to this Ubuntu release and architecture.
 
+
+### Copy a task summary
+
+In **Settings → Plugins**, turn on **Copy task summary**. Select a task and expand its detail panel in the main window, then click **Copy task summary** and paste the text where you need it. The action appears only for a visible task in expanded main-window details, not in mini mode or project details. It copies the saved task ID and title, localized status, and ISO effective date as three lines; it does not copy the description, draft, or log.
+
+The plugin is off by default. To remove the button, turn it off in the same settings section. Your choice stays in effect when you switch databases or restart DoDrag. Turning it off does not clear your clipboard.
+
 ### Build from source
 
 DoDrag is a native desktop app built with [Wails](https://wails.io/), Go, and React. The Windows build uses Windows Wails prerequisites; Linux packaging targets Ubuntu/Kubuntu 25.10 (Questing) x86-64 and uses GTK 3 and WebKitGTK 4.1 development packages. For Windows, install Go, Node.js/npm, and the Wails prerequisites, then run:

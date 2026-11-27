@@ -17,6 +17,34 @@ export function useDatabaseSnapshot(
 ) {
   const [events, setEvents] = useState<StoredEvent[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const confirmedSettings = useRef<AppSettings | null>(null);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [snapshotRevision, setSnapshotRevision] = useState(0);
+  const refreshSnapshotDependents = () => setSnapshotRevision(revision => revision + 1);
+  const pendingSettings = useRef<{ startup: boolean } | null>(null);
+  const confirmSettings = (settings: AppSettings) => {
+    confirmedSettings.current = settings;
+    setAppSettings(settings);
+  };
+  // All settings snapshot operations share one gate. Only a replacement startup
+  // can bypass it: the obsolete startup checks its lifecycle before publishing.
+  const runSettings = async <T,>(operation: () => Promise<T>, startup = false): Promise<T> => {
+    if (pendingSettings.current && !(startup && pendingSettings.current.startup))
+      throw new Error(t('Eine Aenderung wird noch gespeichert'));
+    const request = { startup };
+    pendingSettings.current = request;
+    setSettingsBusy(true);
+    try { return await operation(); }
+    finally {
+      if (pendingSettings.current === request) {
+        pendingSettings.current = null;
+        setSettingsBusy(false);
+      }
+    }
+  };
+  const savePreference = (operation: () => Promise<AppSettings>) => runSettings(async () => {
+    confirmSettings(await operation());
+  });
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [snapshotReady, setSnapshotReady] = useState(false);
   const [saves] = useState(createSaveCompletion);
@@ -57,6 +85,7 @@ export function useDatabaseSnapshot(
       pushToast(errorText(t('Änderung konnte nicht gespeichert werden'), error), 'warning');
       return null;
     } finally {
+      if (confirmedSettings.current?.databaseGeneration) refreshSnapshotDependents();
       queuedMutations.current--;
       mutationBusy.current = queuedMutations.current > 0;
       release();
@@ -71,10 +100,10 @@ export function useDatabaseSnapshot(
     setEvents([]);
     onInvalidate();
   };
-  const loadSnapshot = async (isCurrent = () => true) => {
+  const readSnapshot = async (isCurrent = () => true) => {
     const settings = await eventBridge.getSettings();
     if (!isCurrent()) return settings;
-    setAppSettings(settings);
+    confirmSettings(settings);
     if (!settings.databaseReady) {
       setShowSettingsModal(true);
       return settings;
@@ -86,14 +115,16 @@ export function useDatabaseSnapshot(
     setEvents(updated);
     snapshotConfirmed.current = true;
     setSnapshotReady(true);
+    refreshSnapshotDependents();
     return settings;
   };
+  const loadSnapshot = (isCurrent = () => true) => runSettings(() => readSnapshot(isCurrent), true);
   const handleCloseSettingsModal = () => {
-    if (mutationBusy.current || !snapshotConfirmed.current) return;
+    if (pendingSettings.current || mutationBusy.current || !snapshotConfirmed.current) return;
     setShowSettingsModal(false);
   };
 
-  const changeDatabase = async (operation: () => Promise<AppSettings>) => {
+  const changeDatabase = (operation: () => Promise<AppSettings>) => runSettings(async () => {
     if (dragIdentity.current)
       throw new Error(t('Datenbankwechsel erst nach Ende des Ziehens'));
     if (changingDatabase.current || (mutationBusy.current && !canAwaitBeforeChange?.()))
@@ -115,7 +146,7 @@ export function useDatabaseSnapshot(
       // Read the actual backend identity after both success and partial failure.
       let settings: AppSettings;
       try {
-        settings = await loadSnapshot();
+        settings = await readSnapshot();
       } catch (error) {
         if (operationError !== undefined)
           throw new Error(`${String(operationError)}; ${String(error)}`);
@@ -131,7 +162,7 @@ export function useDatabaseSnapshot(
       changingDatabase.current = false;
       mutationBusy.current = queuedMutations.current > 0;
     }
-  };
+  });
 
   const handleCreateDatabase = async (
     folderPath: string,
@@ -181,8 +212,7 @@ export function useDatabaseSnapshot(
   };
 
   const handleToggleAutostart = async (enabled: boolean) => {
-    const updatedSettings = await eventBridge.setAutostart(enabled);
-    setAppSettings(updatedSettings);
+    await savePreference(() => eventBridge.setAutostart(enabled));
     pushToast(
       enabled
         ? t('Autostart beim Windows-Booten aktiviert')
@@ -191,21 +221,23 @@ export function useDatabaseSnapshot(
     );
   };
   const handleSetDefaultTimeMarkers = async (minutes: number[]) => {
-    setAppSettings(await eventBridge.setDefaultTimeMarkers(minutes));
+    await savePreference(() => eventBridge.setDefaultTimeMarkers(minutes));
   };
   const handleSetDefaultDuration = async (value: number, unit: string) => {
-    setAppSettings(await eventBridge.setDefaultDuration(value, unit));
+    await savePreference(() => eventBridge.setDefaultDuration(value, unit));
   };
 
   const handleSetUILanguage = async (language: string) => {
-    const updated = await eventBridge.setUILanguage(language);
-    setAppSettings(updated);
+    await savePreference(() => eventBridge.setUILanguage(language));
   };
+  const handleSetPluginEnabled = (id: string, enabled: boolean) => runSettings(async () => {
+    try { confirmSettings(await eventBridge.setPluginEnabled(id, enabled)); }
+    finally { refreshSnapshotDependents(); }
+  });
   const handleRunSetupAction = async (
     action: 'install' | 'desktop-shortcut' | 'startmenu-shortcut'
   ) => {
-    const updated = await eventBridge.runSetupAction(action);
-    setAppSettings(updated);
+    await savePreference(() => eventBridge.runSetupAction(action));
     if (action === 'desktop-shortcut')
       pushToast(t('Desktop-Verknüpfung angelegt'), 'success');
     if (action === 'startmenu-shortcut')
@@ -213,10 +245,11 @@ export function useDatabaseSnapshot(
   };
   const openSettings = async () => {
     setShowSettingsModal(true);
+    if (pendingSettings.current) return;
     try {
       if (!snapshotConfirmed.current)
         await changeDatabase(() => eventBridge.getSettings());
-      else setAppSettings(await eventBridge.getSettings());
+      else await runSettings(async () => { confirmSettings(await eventBridge.getSettings()); });
     } catch (error) {
       pushToast(errorText(t('Einstellungen konnten nicht geladen werden'), error), 'warning');
     }
@@ -224,9 +257,13 @@ export function useDatabaseSnapshot(
   return {
     events,
     appSettings,
+    confirmedSettings,
+    settingsBusy,
     showSettingsModal,
     setShowSettingsModal,
     snapshotReady,
+    snapshotRevision,
+    refreshSnapshotDependents,
     mutationBusy,
     snapshotConfirmed,
     confirmedEvents,
@@ -242,6 +279,7 @@ export function useDatabaseSnapshot(
     handleSwitchDatabase,
     handleDeleteDatabase,
     handleToggleAutostart,
+    handleSetPluginEnabled,
     handleSetUILanguage,
     handleSetDefaultDuration,
     handleSetDefaultTimeMarkers,

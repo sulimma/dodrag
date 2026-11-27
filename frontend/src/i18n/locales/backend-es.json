@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "No se pudo determinar la carpeta del menú Inicio",
   "Verknüpfung konnte nicht erstellt werden": "No se pudo crear el acceso directo",
   "Unbekannte Installationsaktion: {action}": "Acción de instalación desconocida: {action}",
+  "Unbekanntes Plugin: {id}": "Complemento desconocido: {id}",
   "Vorhandene Version überschreiben?": "¿Sobrescribir la versión existente?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Ya existe una versión de DoDrag en el destino. ¿Quieres sobrescribirla?",
   "Ja": "Sí",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "No se pudo abrir Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "No se pudo aplicar el modo de ventana",
   "Ungültige Standarddauer": "Duración predeterminada no válida",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Esta base de datos no es compatible con esta versión de la aplicación. Instala una versión más reciente de DoDrag (como mínimo {version})."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Esta base de datos no es compatible con esta versión de la aplicación. Instala una versión más reciente de DoDrag (como mínimo {version}).",
+  "Zeiterfassung ist nicht aktiviert": "El registro de tiempo no está activado",
+  "Zeiterfassung konnte nicht geladen werden": "No se pudieron cargar los datos del registro de tiempo",
+  "Zeiterfassung konnte nicht gespeichert werden": "No se pudieron guardar los datos del registro de tiempo",
+  "Zeiterfassung konnte nicht gestoppt werden": "No se pudo detener el registro de tiempo",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "La tarea ya no está disponible o ya está completada",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "Primero hay que resolver la sesión interrumpida",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "La sesión de registro de tiempo ya no está disponible",
+  "Die Endzeit liegt in der Zukunft": "La hora de finalización está en el futuro",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "Una sesión guardada debe durar al menos 30 segundos",
+  "Die Messung überschneidet sich mit einer anderen Messung": "La sesión se solapa con otra"
 }

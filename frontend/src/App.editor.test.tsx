@@ -95,7 +95,7 @@ afterEach(async () => {
 });
 
 async function mount(description = '') {
-  if (description) history.push({ seq: 2, id: 'description-editor-fixture', timestamp: date,
+  if (description) history.push({ seq: history.length + 1, id: 'description-editor-fixture', timestamp: date,
     undone: false, type: 'TASK_DESCRIPTION_SET', payload: { taskId, description } });
   await act(async () => root.render(<App />));
   await act(async () => {
@@ -377,4 +377,49 @@ it('shows durable save state only after SQLite acknowledgement and keeps local u
   await key(dom, 'z', true);
   expect(api.Undo).not.toHaveBeenCalled();
   expect(api.AppendBatch).not.toHaveBeenCalled();
+});
+
+it('copies only the task summary and keeps the mounted description editor and its unsaved draft', async () => {
+  const pluginId = 'copy-task-summary';
+  vi.mocked(api.GetSettings).mockResolvedValue({ ...settings, pluginEnabled: { [pluginId]: false } });
+  api.SetPluginEnabled = vi.fn(async (_id, enabled) => ({ ...settings, pluginEnabled: { [pluginId]: enabled } }));
+  history.push({ seq: 2, id: 'log', timestamp: date, undone: false,
+    type: 'TASK_LOG_ADDED', payload: { taskId, entryId: 'entry', text: 'Private log', createdAt: date } });
+  const writeText = vi.fn(async () => {});
+  const previous = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  try {
+    const { editor, dom } = await mount('Private description');
+    await typeLocally(editor, 'Private draft');
+    const draft = editor.getMarkdown();
+    const text = (value: string) => Array.from(host.querySelectorAll('button')).find(button => button.textContent === value)!;
+    // Open Settings without yet leaving the focused editor to preserve the draft.
+    await key(dom, ',', true);
+    const control = () => host.querySelector<HTMLButtonElement>('button[role="switch"][aria-labelledby]')!;
+    await act(async () => control().click());
+    expect(text(t('Task-Zusammenfassung kopieren')).disabled).toBe(true);
+    act(() => text('Fertig').click());
+    const copy = text(t('Task-Zusammenfassung kopieren'));
+    // The mouse interaction deliberately prevents the default editor blur.
+    const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 });
+    act(() => copy.dispatchEvent(down));
+    expect(down.defaultPrevented).toBe(true);
+    await act(async () => copy.click());
+    const task = projectEvents(history).tasks[taskId];
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText).toHaveBeenCalledWith(`${taskId} · Alpha\nOffen\n${task.effectiveDateKey}`);
+    expect(dom.closest('[data-task-detail-panel]')?.querySelector('[role="status"]')?.textContent).toContain(t('Task-Zusammenfassung kopiert.'));
+    expect(document.activeElement).toBe(dom);
+    expect(host.querySelector('.tiptap')).toBe(dom);
+    expect(editor.getMarkdown()).toBe(draft);
+    expect(storedDescription()).toBe('Private description');
+    writeText.mockRejectedValueOnce(new Error('clipboard denied'));
+    await act(async () => copy.click());
+    expect(dom.closest('[data-task-detail-panel]')?.querySelector('[role="status"]')?.textContent).toContain(t('Task-Zusammenfassung konnte nicht kopiert werden.'));
+    expect(api.AppendBatch).not.toHaveBeenCalled();
+    expect(api.AppendEvent).not.toHaveBeenCalled();
+  } finally {
+    if (previous) Object.defineProperty(navigator, 'clipboard', previous);
+    else Reflect.deleteProperty(navigator, 'clipboard');
+  }
 });

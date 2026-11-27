@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "Não foi possível determinar a pasta do menu Iniciar",
   "Verknüpfung konnte nicht erstellt werden": "Não foi possível criar o atalho",
   "Unbekannte Installationsaktion: {action}": "Ação de instalação desconhecida: {action}",
+  "Unbekanntes Plugin: {id}": "Plugin desconhecido: {id}",
   "Vorhandene Version überschreiben?": "Sobrescrever a versão existente?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "Já existe uma versão do DoDrag no destino. Deseja sobrescrevê-la?",
   "Ja": "Sim",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Não foi possível abrir o Visual Studio Code",
   "Fenstermodus konnte nicht angewendet werden": "Não foi possível aplicar o modo de janela",
   "Ungültige Standarddauer": "Duração padrão inválida",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Este banco de dados é incompatível com esta versão do aplicativo. Instale uma versão mais recente do DoDrag (no mínimo {version})."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "Este banco de dados é incompatível com esta versão do aplicativo. Instale uma versão mais recente do DoDrag (no mínimo {version}).",
+  "Zeiterfassung ist nicht aktiviert": "O controle de tempo não está ativado",
+  "Zeiterfassung konnte nicht geladen werden": "Não foi possível carregar os dados de controle de tempo",
+  "Zeiterfassung konnte nicht gespeichert werden": "Não foi possível salvar os dados de controle de tempo",
+  "Zeiterfassung konnte nicht gestoppt werden": "Não foi possível parar o controle de tempo",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "A tarefa não está mais disponível ou já foi concluída",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "É necessário resolver primeiro a sessão interrompida",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "A sessão de controle de tempo não está mais disponível",
+  "Die Endzeit liegt in der Zukunft": "O horário de término está no futuro",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "Uma sessão salva deve durar pelo menos 30 segundos",
+  "Die Messung überschneidet sich mit einer anderen Messung": "A sessão se sobrepõe a outra sessão"
 }

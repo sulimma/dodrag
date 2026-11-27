@@ -66,6 +66,7 @@
   "Startmenü-Ordner konnte nicht ermittelt werden": "시작 메뉴 폴더를 확인하지 못했습니다",
   "Verknüpfung konnte nicht erstellt werden": "바로 가기를 만들지 못했습니다",
   "Unbekannte Installationsaktion: {action}": "알 수 없는 설치 작업: {action}",
+  "Unbekanntes Plugin: {id}": "알 수 없는 플러그인: {id}",
   "Vorhandene Version überschreiben?": "기존 버전을 덮어쓸까요?",
   "Am Zielort ist bereits eine DoDrag-Version vorhanden. Soll sie überschrieben werden?": "대상 위치에 DoDrag 버전이 이미 있습니다. 덮어쓸까요?",
   "Ja": "예",
@@ -77,5 +78,15 @@
   "Visual Studio Code konnte nicht geöffnet werden": "Visual Studio Code를 열지 못했습니다",
   "Fenstermodus konnte nicht angewendet werden": "창 모드를 적용할 수 없습니다",
   "Ungültige Standarddauer": "기본 소요 시간이 잘못되었습니다",
-  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "이 데이터베이스는 현재 앱 버전과 호환되지 않습니다. DoDrag를 더 최신 버전({version} 이상)으로 설치해 주세요."
+  "Diese Datenbank ist mit dieser App-Version nicht kompatibel. Bitte eine neuere Version von DoDrag installieren (mindestens {version}).": "이 데이터베이스는 현재 앱 버전과 호환되지 않습니다. DoDrag를 더 최신 버전({version} 이상)으로 설치해 주세요.",
+  "Zeiterfassung ist nicht aktiviert": "시간 추적이 활성화되어 있지 않습니다",
+  "Zeiterfassung konnte nicht geladen werden": "시간 추적 데이터를 불러올 수 없습니다",
+  "Zeiterfassung konnte nicht gespeichert werden": "시간 추적 데이터를 저장할 수 없습니다",
+  "Zeiterfassung konnte nicht gestoppt werden": "시간 추적을 중지할 수 없습니다",
+  "Die Aufgabe ist nicht mehr verfügbar oder bereits erledigt": "작업을 더 이상 사용할 수 없거나 이미 완료되었습니다",
+  "Die unterbrochene Messung muss zuerst geklärt werden": "중단된 세션을 먼저 처리해야 합니다",
+  "Die Zeiterfassungssitzung ist nicht mehr verfügbar": "시간 추적 세션을 더 이상 사용할 수 없습니다",
+  "Die Endzeit liegt in der Zukunft": "종료 시간이 미래로 설정되어 있습니다",
+  "Eine gespeicherte Messung muss mindestens 30 Sekunden lang sein": "저장할 세션은 30초 이상이어야 합니다",
+  "Die Messung überschneidet sich mit einer anderen Messung": "세션이 다른 세션과 겹칩니다"
 }

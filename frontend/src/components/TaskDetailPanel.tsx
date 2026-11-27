@@ -34,6 +34,8 @@ interface TaskDetailPanelProps extends TaskMenuActions {
   open?: boolean;
   onToggle?: () => void;
   onSyntaxHelp?: () => void;
+  detailAction?: React.ReactNode;
+  detailSection?: React.ReactNode;
   onTimingChange?: (taskId: string, timing: TaskTiming) => Promise<void>;
   descriptionSaveState?: 'saving' | 'saved' | 'error';
   onDescriptionChange: (taskId: string, markdown: string) => void;
@@ -152,6 +154,7 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
             {!task.completed && <button type="button" title={task.isActive ? t('Deaktivieren (Space)') : t('Aktivieren (Space)')}
               className={`p-1 rounded ${task.isActive ? 'bg-emerald-500 text-white' : 'text-slate-400 hover:text-emerald-600'}`}
               onClick={() => props.onToggleActive(task)}><Flame size={16} /></button>}
+            {props.interactions.renderTaskTimer?.(task)}
             <button type="button" title={task.completed ? t('Erneut öffnen') : t('Als erledigt markieren')}
               className="p-1 rounded text-slate-500 hover:text-emerald-600"
               onClick={() => task.completed ? props.onReopenTask(task.id) : props.onCompleteTask(task.id)}>
@@ -165,8 +168,9 @@ export function TaskDetailPanel(props: TaskDetailPanelProps) {
             <span className="detail-date-label">{t('Berechnet')}:</span>
             <span className="font-mono" title={t('Berechnet')}>{formatDate(task.calculatedStart ?? task.effectiveStart)}</span>
             <div ref={setHistoryTarget} className="ml-auto flex shrink-0" data-detail-history />
-          </div></>}
+          </div>{props.detailAction}</>}
       </header>
+      {props.detailSection}
       {!task ? <p className="p-6 text-sm text-slate-400">{t('Task auswählen, um Details, Beschreibung und Log anzuzeigen')}</p> : <>
         <div role="status" aria-live="polite" data-description-save-state={props.descriptionSaveState}
           className={`px-3 text-xs shrink-0 ${props.descriptionSaveState === 'error' ? 'text-red-700' : 'text-slate-500'}`}>

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=DoDrag
+Comment=Put aside and resume small tasks
+Exec=dodrag
+Icon=dodrag
+Terminal=false
+Categories=Utility;

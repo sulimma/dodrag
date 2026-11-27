@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(rc)?$')]
     [string]$Version,
-    [ValidateSet('amd64', 'x86', 'arm64')][string]$Architecture = 'amd64',
+    [ValidateSet('amd64', 'x86', 'arm64', '386')][string]$Architecture = 'amd64',
     [switch]$Test
 )
 $ErrorActionPreference = "Stop"
@@ -31,10 +31,15 @@ try {
     if ($LASTEXITCODE -ge 8) { throw 'Frontend artifact synchronization failed' }
     if ($Test) {
         & "$PSScriptRoot\scripts\publish-executable.test.ps1"
-        go test ./...
-        Assert-NativeSuccess 'Go tests'
-        go test -tags 'desktop,production' ./...
-        Assert-NativeSuccess 'Production Go tests'
+        $oldArchitecture = $env:GOARCH
+        try {
+            # The amd64 Windows runner can execute both native amd64 and x86 (WOW64) tests.
+            $env:GOARCH = $Architecture
+            go test ./...
+            Assert-NativeSuccess "Go tests (windows/$Architecture)"
+            go test -tags 'desktop,production' ./...
+            Assert-NativeSuccess "Production Go tests (windows/$Architecture)"
+        } finally { $env:GOARCH = $oldArchitecture }
         & powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\release.test.ps1"
         Assert-NativeSuccess 'Release guard tests'
     }
@@ -59,13 +64,15 @@ try {
             $wailsConfig.info | Add-Member -MemberType NoteProperty -Name productVersion -Value ($Version -replace 'rc$', '') -Force
             $wailsConfigJson = $wailsConfig | ConvertTo-Json -Depth 100
             [IO.File]::WriteAllText($wailsConfigPath, $wailsConfigJson, (New-Object System.Text.UTF8Encoding -ArgumentList $false))
-            $platformArchitecture = if ($Architecture -eq 'x86') { '386' } else { $Architecture }
+            $platformArchitecture = if ($Architecture -eq 'x86') { '386' } else { $Architecture}
             go run github.com/wailsapp/wails/v2/cmd/wails@v2.9.2 build -s -platform "windows/$platformArchitecture" -ldflags "-X main.buildVersion=$buildVersion -X main.buildTime=$buildTime" -o $packageName
             Assert-NativeSuccess "Wails packaging"
         } finally {
             [IO.File]::WriteAllBytes($wailsConfigPath, $wailsConfigBytes)
         }
-        $binary = Join-Path $PSScriptRoot 'build\bin\dodrag.exe'
+        # Keep x86 separate so a local build never overwrites the amd64 artifacts.
+        $binaryName = if ($Architecture -eq 'amd64') { 'dodrag.exe' } elseif ($Architecture -eq 'arm64') { 'dodrag-windows-arm64.exe' } else { 'dodrag-windows-386.exe' }
+        $binary = Join-Path $PSScriptRoot "build\bin\$binaryName"
         if ($Architecture -eq 'amd64') {
             # Keep both names on this volume so each publication can use a rename.
             $rootStage = Join-Path $PSScriptRoot $packageName

@@ -1,6 +1,7 @@
 import { TimeMarkerDefaults } from './TimeMarkerDefaults';
 import { TaskTimingInput } from './TaskTimingInput';
 import type { DurationUnit } from '../domain/duration';
+import type { PluginSettingsRow } from '../plugins/registry';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Check,
@@ -25,6 +26,9 @@ const RELEASES_URL = `${PROJECT_URL}/releases`;
 
 interface SettingsModalProps {
   settings: AppSettings;
+  settingsBusy?: boolean;
+  pluginRows?: readonly PluginSettingsRow[];
+  onSetPluginEnabled?: (id: string, enabled: boolean) => Promise<void>;
   onClose: () => void;
   onReloadDatabase?: () => Promise<void>;
   onSelectFolder: () => Promise<string>;
@@ -80,6 +84,9 @@ function PathLabel({
 // Manages database selection, creation, deletion, and application settings.
 export function SettingsModal({
   settings,
+  settingsBusy = false,
+  pluginRows = [],
+  onSetPluginEnabled,
   onClose,
   onReloadDatabase,
   onSelectFolder,
@@ -106,7 +113,8 @@ export function SettingsModal({
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [cacheStatus, setCacheStatus] = useState(false);
-  const [busy, setBusy] = useState<boolean>(false);
+  const [localBusy, setBusy] = useState(false);
+  const busy = localBusy || settingsBusy;
   const pathMenuRequest = useRef<object | null>(null);
   const mounted = useRef(true);
   const busyRef = useRef(busy);
@@ -120,6 +128,22 @@ export function SettingsModal({
     };
   }, []);
 
+  const togglePlugin = async (row: PluginSettingsRow) => {
+    if (busyRef.current || !onSetPluginEnabled) return;
+    busyRef.current = true;
+    setBusy(true);
+    setErrorMsg(null);
+    try {
+      await onSetPluginEnabled(row.id, !row.enabled);
+    } catch (error) {
+      if (mounted.current) setErrorMsg(errorText(t('Plugin-Einstellung konnte nicht geändert werden.'), error));
+    } finally {
+      if (mounted.current) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
+  };
   const isDbReady = Boolean(settings.databaseReady);
   const needsUpdate = settings.knownDatabases.some(database => database.requiresUpdate);
   // Compatibility is determined from local database metadata. No network request
@@ -382,7 +406,7 @@ export function SettingsModal({
         <div className="p-6 overflow-y-auto space-y-6">
           <div className="flex items-center gap-3 text-sm">
             <span>{t('Standarddauer')}</span>
-            <TaskTimingInput defaultOnly value={{ duration: settings.defaultDuration ?? 1, durationUnit: settings.defaultDurationUnit ?? 'days', progress: null }}
+            <TaskTimingInput defaultOnly disabled={busy} value={{ duration: settings.defaultDuration ?? 1, durationUnit: settings.defaultDurationUnit ?? 'days', progress: null }}
               onSave={async value => {
                 setBusy(true); setErrorMsg(null);
                 try { await onSetDefaultDuration?.(value.duration, value.durationUnit); }
@@ -407,7 +431,7 @@ export function SettingsModal({
           )}
 
           {errorMsg && (
-            <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-2.5 text-xs text-rose-700 flex items-center gap-2">
+            <div role="alert" className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-2.5 text-xs text-rose-700 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
               <span>{errorMsg}</span>
             </div>
@@ -680,6 +704,21 @@ export function SettingsModal({
             </div>
           </form>
 
+          {pluginRows.length > 0 && <section aria-labelledby="settings-plugins" className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+            <h3 id="settings-plugins" className="text-sm font-semibold text-slate-900">{t('Plugins')}</h3>
+            {pluginRows.map(row => <div key={row.id} className="flex items-center justify-between gap-4">
+              <div>
+                <div id={`plugin-label-${row.id}`} className="text-sm font-medium text-slate-900">{row.label}</div>
+                <p id={`plugin-description-${row.id}`} className="mt-0.5 text-xs text-slate-500">{row.description}</p>
+              </div>
+              <button type="button" role="switch" aria-labelledby={`plugin-label-${row.id}`} aria-describedby={`plugin-description-${row.id}`}
+                aria-checked={row.enabled} aria-disabled={busy || !onSetPluginEnabled} onClick={() => void togglePlugin(row)}
+                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-sky-500 aria-disabled:opacity-50 ${row.enabled ? 'bg-sky-600' : 'bg-slate-200'}`}>
+                <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${row.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+            </div>)}
+          </section>}
+
           {/* Section 3: Windows Autostart */}
           {settings.capabilities?.autostart !== false && <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-4">
             <div className="flex items-start gap-3">
@@ -754,7 +793,7 @@ export function SettingsModal({
               <p role="status" className="text-xs text-emerald-700">{t('Vorschau-Cache wurde gelöscht.')}</p>
             )}
           </div>
-          {onSetDefaultTimeMarkers && <TimeMarkerDefaults minutes={settings.defaultTimeMarkers ?? []}
+          {onSetDefaultTimeMarkers && <TimeMarkerDefaults disabled={busy} minutes={settings.defaultTimeMarkers ?? []}
             onSave={onSetDefaultTimeMarkers} onError={error => setErrorMsg(errorText(t('Aktion fehlgeschlagen'), error))} />}
         </div>
 

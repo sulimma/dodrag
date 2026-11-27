@@ -1,4 +1,24 @@
-# Entwicklungsumgebung
+# Entwicklung und Tests
+
+## Linux: Kubuntu 25.10 (Questing), amd64
+
+Auf einem Questing-amd64-System Go 1.23.12, Node.js 24 und die nativen Build-Abhängigkeiten bereitstellen. Die installierten Bibliotheken bzw. Archive müssen aus Questing stammen. Wails bleibt auf 2.9.2; `webkit2_41` wählt WebKitGTK 4.1 (GTK3), nicht 4.0 oder GTK4.
+
+```sh
+sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev desktop-file-utils dpkg-dev binutils
+./build-linux.sh X.Y.Z --test
+sudo apt install ./build/bin/dodrag_X.Y.Z-1_amd64.deb
+```
+
+`--test` führt Frontend- und native Linux-Go-Tests (auch mit Produktions-Tags) aus, startet aber kein Fenster. Das Paket enthält weder Installationsskripte für Benutzerdaten noch eine automatische Updateprüfung. Einstellungen liegen unter `$XDG_CONFIG_HOME/DoDrag` (Standard `~/.config/DoDrag`), Vorschauen unter `$XDG_CACHE_HOME/DoDrag/previews` (Standard `~/.cache/DoDrag/previews`). Datenbanken verbleiben am gewählten Ort.
+
+Native Abnahme in einer separaten Plasma-Sitzung mit Testdaten: aus dem Anwendungsmenü starten, Datenbank anlegen, Aufgabe per Drag verschieben, über das Kontextmenü zurückstellen, Beschreibung ändern und ohne Wartezeit über die Systemtitelleiste schließen. Neu starten und beides prüfen. Schreibfehler provozieren: Fenster und Entwurf müssen offen bleiben. Außerdem Datenbankwechsel beim Editieren, Neustart mit fehlender DB, Dateiauswahl, Markdown-Import per Dialog und Drop, Bildvorschau, lokale und fremde Dateiverweise prüfen. Paketinstallation, Upgrade und Entfernung mit Testdaten getrennt vom UI-Test prüfen.
+
+## Gemeinsamer Release
+
+Aus demselben Commit: `build-linux.sh X.Y.Z --test` auf Questing; `build.ps1 -Version X.Y.Z -Architecture amd64 -Test` und entsprechend `-Architecture 386` auf Windows. `386` ist Windows-x86 (32 Bit); das Linux-Paket bleibt amd64. Der WebView2-Go-Adapter enthält den x86-Resize-Fix; ein PE32-Build ersetzt den nativen Windows-Starttest nicht. Den 32-Bit-Build auch auf einem 32-Bit-Windows-kompatiblen Testsystem starten.
+
+`workflow_dispatch` erzeugt nur herunterladbare Actions-Artefakte; auf einem öffentlichen Repository sind sie für angemeldete Leser nicht privat. Normale Pushes veröffentlichen nichts. Für einen späteren freigegebenen Release einen neuen `vX.Y.Z`-Tag auf den geprüften Commit setzen. Das geschützte Environment `release` mit Tag-Regeln und Freigabe einrichten, dort `DODRAG_RELEASE_GATE=enabled` als Secret setzen und die Repository-Variable `DODRAG_RELEASE_ENABLED=true` freischalten. Erst nach erfolgreichen Windows- und Linux-Jobs hängt ein einziger Job alle Pakete an einen neuen Release zum vorhandenen Tag. `release.ps1` veröffentlicht nicht selbst.
 
 ## Lokales Frontend
 Der Workspace liegt auf Google Drive. `npm install` dort scheiterte mit EBADF/UNKNOWN; Junctions lösten das Problem ebenfalls nicht. `frontend.ps1` synchronisiert Quellen und Konfiguration einschließlich Löschungen nach `%LOCALAPPDATA%\dodrag_node_cache`. `scripts/frontend-cache.ps1` ist die einzige Synchronisierungsimplementierung. Quellen nur im Workspace ändern.
@@ -13,6 +33,16 @@ Der SHA256 von `frontend/package.json` invalidiert Dependencies. Es gibt bewusst
 Wails 2.9.2 benötigt hier beim Packaging `GOTOOLCHAIN=go1.23.12`, weil seine CLI-Abhängigkeit x/tools mit Go 1.27 inkompatibel war. Das Buildskript stellt die vorherige Umgebung wieder her. Der erste Download kann Netzwerkzugriff benötigen. Direktes `go build` ersetzt Ressourcen-/Manifest-Packaging nicht. `main.go` benötigt wegen go:embed zuerst ein gebautes `frontend/dist`.
 
 Native Exitcodes auch unter PowerShell 5.1 ausdrücklich prüfen; ErrorActionPreference allein genügt nicht. Eine gesperrte Ziel-EXE melden; keine laufenden Anwendungen beenden.
+
+## Bundled plugins
+
+Bundled plugins are first-party code compiled into DoDrag. The supported extension point is an action in the expanded task detail panel; there is no runtime plugin loading or public SDK.
+
+1. Add a folder under `frontend/src/plugins/`, using `copy-task-summary/` as the example. Keep the action and its tests there. Give the plugin a stable ID and add its descriptor to `frontend/src/plugins/registry.ts` and the same ID to the Go allowlist in `app.go`.
+2. Add user-facing text to all 15 languages following the [translation instructions](../frontend/src/i18n/AGENTS.md). Use the existing `detailAction` slot in `TaskDetailPanel.tsx`. Pass only the task fields the action needs, not the editor, database path, or full task record.
+3. Add a focused plugin test for its output or effect. For this plugin, run `cd frontend && npm test -- src/plugins/copy-task-summary/CopyTaskSummary.test.ts`; run `npm test -- src/App.test.tsx -t "keeps the checked flag|blocks plugin setting|limits the copy action"` for settings and action behavior, and `npm test -- src/i18n/i18n.test.ts` for catalog structure. Extend app-level tests for availability, failed preference saves, and existing task edits. The Go test `TestPluginSettingsMatchFrontendRegistry` checks that the Go and frontend IDs agree.
+
+Plugin flags live in local `settings.json`, not in the task database. The Go host validates and saves updates before the frontend changes availability. Native plugin operations check the enabled flag; database-scoped calls also check the generation of the current open store.
 
 ### Time Measurement: format and manual acceptance
 
@@ -32,6 +62,12 @@ Windows GUI acceptance remains pending. Use a disposable profile and two disposa
 4. Check normal close/reopen, a cancelled database picker, switching to the other database, and disabling/re-enabling. Only real departure or disable stops the timer; short runs must not leave history. Re-enabled history must still be there.
 5. Interrupt only the disposable instance with an active timer. Reopen, confirm the start is shown and a new timer is blocked. Choose an end time and check that only the chosen interval counts. Repeat and discard, including a task hidden by Undo.
 6. Edit a saved end time, try one in the future and one that overlaps another session, then confirm deletion. Check keyboard interaction, the UTC times and edit field, unchanged history after rejected edits, and persistence after reopening. Task Undo must not undo the history edit.
+
+Native clipboard check (Windows WebView2 and Kubuntu WebKitGTK, using a separate test profile and test databases):
+
+1. Start with fresh local settings. In **Settings → Plugins**, confirm **Copy task summary** is off. Toggle it on from the keyboard.
+2. Open a task in the expanded main-window detail panel. Copy and paste into a plain text editor. Confirm the ID, title, status, and effective date are present, with no description or log. Check that copying leaves the task and its description unchanged. The action is absent in mini mode and when the details are collapsed.
+3. Switch databases and restart DoDrag; confirm the enabled setting and action persist. Turn the plugin off, check that the action disappears and pasted text is still available, then restart and confirm the plugin remains off.
 
 ## Grenzen und bekannte Werkzeugbefunde
 DOM-Tests verwenden jsdom, nicht WebView2. Optionale Chromiumtests belegen keine Windows-/COM-/Registry-/DPI-/Clipboardintegration. Bei einschlägigen Änderungen die tatsächlich verbleibende native Testlücke benennen, nicht bei jeder Dokumentationsänderung eine vollständige Warnliste wiederholen.
