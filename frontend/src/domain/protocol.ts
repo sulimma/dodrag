@@ -5,12 +5,14 @@ import { tokenizeTargets } from '../components/editor/targets';
 import { t } from '../i18n';
 import type { EditorTarget } from '../components/editor/types';
 import { taskCreatedText } from './taskLog';
+import type { TimeMeasurementSession } from '../plugins/time-measurement/types';
 
 export type ProtocolAction = { timestamp: string } & (
   | { key: string; kind: 'created' | 'completed' | 'reopened'; copiedFromId?: string }
   | { key: string; kind: 'source'; target: EditorTarget }
   | { key: string; kind: 'renamed'; oldTitle: string }
-  | { key: string; kind: 'log'; text: string });
+  | { key: string; kind: 'log'; text: string }
+  | { key: string; kind: 'time-tracked'; durationMs: number });
 export interface ProtocolTaskEntry {
   key: string;
   taskId: string;
@@ -34,7 +36,7 @@ function sources(text: string): Map<string, EditorTarget> {
 // Only visible essential actions create task/day headers. Dates, dependencies
 // and activation never create protocol entries. Source additions compare saved snapshots,
 // never the live filesystem, so historical sources survive moves/deletions.
-export function projectProtocol(events: readonly StoredEvent[], tasks: Record<string, TaskState>): ProtocolDay[] {
+export function projectProtocol(events: readonly StoredEvent[], tasks: Record<string, TaskState>, sessions: readonly TimeMeasurementSession[] = []): ProtocolDay[] {
   const days = new Map<string, Map<string, ProtocolTaskEntry>>();
   const titles = new Map<string, string>();
   const descriptions = new Map<string, string>();
@@ -116,11 +118,29 @@ export function projectProtocol(events: readonly StoredEvent[], tasks: Record<st
       }
     }
   }
+  const activeCreations = new Map<string, string>();
+  for (const event of [...events].sort((a, b) => a.seq - b.seq)) {
+    if (event.undone || event.type !== 'TASK_CREATED') continue;
+    activeCreations.set(event.payload.taskId, event.id);
+  }
+  for (const session of sessions) {
+    if (session.endMs === null || session.elapsedMs === null || !tasks[session.taskId] ||
+      activeCreations.get(session.taskId) !== session.taskCreationEventId) continue;
+    const timestamp = new Date(session.startMs).toISOString();
+    const dateKey = toDateKey(new Date(session.startMs));
+    let day = days.get(dateKey);
+    if (!day) { day = new Map(); days.set(dateKey, day); }
+    let entry = day.get(session.taskId);
+    if (!entry) { entry = { key: `${dateKey}:${session.taskId}`, taskId: session.taskId, dateKey, actions: [] }; day.set(session.taskId, entry); }
+    entry.actions.push({ key: `time:${session.id}`, timestamp, kind: 'time-tracked', durationMs: session.elapsedMs });
+  }
   const balances = projectTaskBalances(events);
   return [...days].sort(([a], [b]) => a.localeCompare(b)).map(([dateKey, day]) => ({
     dateKey,
     balance: balances.get(dateKey),
-    entries: [...day.values()].map(entry => ({ ...entry, actions: entry.actions.filter(action => !hidden.has(action)) })).filter(entry => entry.actions.length > 0).sort((a, b) => {
+    entries: [...day.values()].map(entry => ({ ...entry, actions: entry.actions.filter(action => !hidden.has(action))
+      .map((action, index) => ({ action, index })).sort((a, b) => Date.parse(a.action.timestamp) - Date.parse(b.action.timestamp) || a.index - b.index)
+      .map(({ action }) => action) })).filter(entry => entry.actions.length > 0).sort((a, b) => {
       const x = tasks[a.taskId], y = tasks[b.taskId];
       return x.topologyLevel - y.topologyLevel || x.creationOrder - y.creationOrder || x.id.localeCompare(y.id);
     }),
@@ -151,6 +171,7 @@ export function protocolActionText(action: ProtocolAction): string {
     case 'created': return taskCreatedText(action.copiedFromId);
     case 'completed': return t('Task geschlossen');
     case 'reopened': return t('Task erneut geöffnet');
+    case 'time-tracked': return t('Zeit erfasst');
   }
 }
 export function protocolTime(timestamp: string): string {

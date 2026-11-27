@@ -512,6 +512,17 @@ func (s *Store) appendBatch(commands []Command, recoveryBases map[string]string)
 	if err := s.invalidateSnapshots(tx, earliest); err != nil {
 		return nil, err
 	}
+	if s.timerID != 0 {
+		completed := make(map[string]bool)
+		for _, command := range changed {
+			if command.Type == "TASK_COMPLETED" {
+				completed[payloads[command.ID]["taskId"].(string)] = true
+			}
+		}
+		if err := s.stopTimerForCompletions(tx, completed); err != nil {
+			return nil, err
+		}
+	}
 	newSnapshots, err := s.writeSnapshots(tx, workingEvents, earliest)
 	if err != nil {
 		return nil, err

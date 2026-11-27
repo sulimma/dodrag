@@ -488,6 +488,7 @@ export function GanttView(props: GanttViewProps) {
               >
                 <Flame className="w-3 h-3" />
               </button>
+              {props.renderTaskTimer?.(task)}
               <span className="font-mono text-[10px] text-slate-500 shrink-0">
                 {task.id}
               </span>

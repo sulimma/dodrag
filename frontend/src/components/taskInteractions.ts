@@ -44,6 +44,7 @@ export interface TaskViewInteractions extends TaskInteractions {
   onClearTaskSelection: () => void;
   onSetConfiguredDate: (id: string, date: string, label: string) => void;
   onToggleActive: (task: TaskState) => void;
+  renderTaskTimer?: (task: TaskState) => React.ReactNode;
 }
 // Frozen pointer-drag id first; the transfer value only survives local drags.
 export function draggedTaskIdOf(

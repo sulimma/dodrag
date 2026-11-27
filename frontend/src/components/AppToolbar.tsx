@@ -37,6 +37,8 @@ interface AppToolbarProps {
   onRedo: () => void;
   onSettings: () => void;
   onHelp: () => void;
+  timerControl?: React.ReactNode;
+  timerStatus?: React.ReactNode;
 }
 // Presents view controls, task creation, history actions, and app settings.
 export function AppToolbar({
@@ -59,6 +61,8 @@ export function AppToolbar({
   onRedo,
   onSettings,
   onHelp,
+  timerControl,
+  timerStatus,
 }: AppToolbarProps) {
   return (
     <header data-shortcut-region="0" className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white/90 backdrop-blur-md z-20 shadow-sm shrink-0">
@@ -114,40 +118,44 @@ export function AppToolbar({
       </div>
 
       {/* Quick Task Creation Bar */}
-      <form onSubmit={onSubmit} className="flex-1 max-w-md mx-6">
-        <div className="relative flex items-center">
-          <span className="absolute left-3 text-xs font-mono font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
-            {nextTaskId}
-          </span>
-          <input
-            data-search-ignore
-            ref={newTaskInputRef}
-            type="text"
-            disabled={!snapshotReady}
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            title={successorOf ? t('Nachfolger von {id} anlegen', { id: successorOf }) : undefined}
-            placeholder={successorOf ? t('Nachfolger von {id} anlegen', { id: successorOf }) : t('Neues kleines TODO eingeben... (Taste N)')}
-            className="w-full pl-20 pr-[4.5rem] py-1.5 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
-          />
-          <button
-            type="button"
-            onClick={onCreateTask}
-            disabled={!snapshotReady}
-            title={filterEnabled ? t('Task hinzufügen') : t('Task hinzufügen (Enter)')}
-            className="absolute right-10 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-          <button type="button" disabled={!snapshotReady} aria-pressed={filterEnabled}
-            aria-label={t('Tasks filtern')} title={shortcutLabel(t('Tasks filtern'), 'Ctrl+F')} aria-keyshortcuts="Control+F"
-            onMouseDown={event => event.preventDefault()}
-            onClick={onToggleFilter}
-            className={`absolute right-2 p-1.5 rounded-lg transition-colors ${filterEnabled
-              ? 'text-sky-700 bg-sky-100' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/60'}`}>
-            <Filter className="w-4 h-4" />
-          </button>
+      <form onSubmit={onSubmit} className="flex flex-1 min-w-0 flex-col items-center gap-1 max-w-md mx-6">
+        <div className="flex w-full min-w-0 items-center gap-2">
+          <div className="relative flex min-w-0 flex-1 items-center">
+            <span className="absolute left-3 text-xs font-mono font-medium text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
+              {nextTaskId}
+            </span>
+            <input
+              data-search-ignore
+              ref={newTaskInputRef}
+              type="text"
+              disabled={!snapshotReady}
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              title={successorOf ? t('Nachfolger von {id} anlegen', { id: successorOf }) : undefined}
+              placeholder={successorOf ? t('Nachfolger von {id} anlegen', { id: successorOf }) : t('Neues kleines TODO eingeben... (Taste N)')}
+              className="w-full pl-20 pr-[4.5rem] py-1.5 text-sm bg-slate-50 border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all"
+            />
+            <button
+              type="button"
+              onClick={onCreateTask}
+              disabled={!snapshotReady}
+              title={filterEnabled ? t('Task hinzufügen') : t('Task hinzufügen (Enter)')}
+              className="absolute right-10 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+            <button type="button" disabled={!snapshotReady} aria-pressed={filterEnabled}
+              aria-label={t('Tasks filtern')} title={shortcutLabel(t('Tasks filtern'), 'Ctrl+F')} aria-keyshortcuts="Control+F"
+              onMouseDown={event => event.preventDefault()}
+              onClick={onToggleFilter}
+              className={`absolute right-2 p-1.5 rounded-lg transition-colors ${filterEnabled
+                ? 'text-sky-700 bg-sky-100' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/60'}`}>
+              <Filter className="w-4 h-4" />
+            </button>
+          </div>
+          {timerControl}
         </div>
+        {timerStatus}
       </form>
 
       {/* Undo/Redo & Controls */}

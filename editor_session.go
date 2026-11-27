@@ -2,28 +2,36 @@ package main
 
 import (
 	"context"
+
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Descriptions remain local while the user edits. Closing is asynchronous:
-// Windows asks, the ready frontend flushes drafts/queued mutations, then confirms.
-// Never call Wails while holding mu. Before frontend readiness no editable task
-// snapshot exists, so an early close must not wait for a listener that isn't there.
-func (a *App) requestEditorClose() (prevent, notify bool) {
+// The native window asks, the ready frontend flushes drafts and queued mutations, then confirms.
+// Never call Wails while holding mu. Without a ready frontend, do not wait for
+// a listener, but still stop any timer owned by this native process.
+func (a *App) requestEditorClose() (prevent, notify bool, err error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if !a.editorReady || a.closeApproved {
-		return false, false
+	if a.closeApproved {
+		return false, false, nil
+	}
+	if !a.editorReady {
+		err := a.stopOwnedTimeMeasurementLocked()
+		return err != nil, false, err
 	}
 	if a.closePending {
-		return true, false
+		return true, false, nil
 	}
 	a.closePending = true
-	return true, true
+	return true, true, nil
 }
 
 func (a *App) beforeClose(ctx context.Context) bool {
-	prevent, notify := a.requestEditorClose()
+	prevent, notify, err := a.requestEditorClose()
+	if err != nil {
+		runtime.LogError(ctx, err.Error())
+	}
 	if notify {
 		runtime.EventsEmit(ctx, "app:before-close")
 	}
@@ -41,17 +49,24 @@ func (a *App) SetEditorReady(ready bool) {
 	}
 }
 
-func (a *App) FinishClose(saved bool) {
+func (a *App) FinishClose(saved bool) error {
 	a.mu.Lock()
 	if !a.closePending {
 		a.mu.Unlock()
-		return
+		return nil
 	}
 	a.closePending = false
+	if saved {
+		if err := a.stopOwnedTimeMeasurementLocked(); err != nil {
+			a.mu.Unlock()
+			return err
+		}
+	}
 	a.closeApproved = saved
 	ctx := a.ctx
 	a.mu.Unlock()
 	if saved && ctx != nil {
 		runtime.Quit(ctx)
 	}
+	return nil
 }

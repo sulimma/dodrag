@@ -3,10 +3,28 @@ import { projectProtocol, protocolRows } from './protocol';
 import { projectEvents, toDateKey } from './projector';
 import type { EventCommand } from './eventSchema';
 import type { StoredEvent } from './types';
+import type { TimeMeasurementSession } from '../plugins/time-measurement/types';
 const day = '2026-10-17T09:00:00Z', later = '2026-10-20T09:00:00Z';
 const create = (taskId = 'a'): EventCommand => ({ type: 'TASK_CREATED', payload: { taskId, title: taskId, configuredStart: day, createdAt: day } });
 const history = (commands: EventCommand[]): StoredEvent[] => commands.map((command, i) => ({ ...command, seq: i + 1, id: `e${i}`, timestamp: day, undone: false }));
 const project = (events: StoredEvent[]) => projectProtocol(events, projectEvents(events, new Date(later)).tasks);
+
+it('projects only completed timer sessions belonging to the current task creation identity', () => {
+  const events = history([create()]);
+  const task = projectEvents(events, new Date(later)).tasks.a;
+  const sessions: TimeMeasurementSession[] = [
+    { id: 1, taskId: 'a', taskCreationEventId: 'e0', startMs: new Date(day).getTime() + 60_000, endMs: 1, elapsedMs: 90_000 },
+    { id: 2, taskId: 'a', taskCreationEventId: 'stale', startMs: new Date(later).getTime(), endMs: 2, elapsedMs: 1 },
+    { id: 3, taskId: 'missing', taskCreationEventId: 'old', startMs: new Date(day).getTime(), endMs: 2, elapsedMs: 1 },
+    { id: 4, taskId: 'a', taskCreationEventId: 'e0', startMs: new Date(later).getTime(), endMs: null, elapsedMs: null },
+  ];
+  const days = projectProtocol(events, { a: task }, sessions);
+  expect(days.flatMap(entry => entry.entries.flatMap(taskEntry => taskEntry.actions)).filter(action => action.kind === 'time-tracked'))
+    .toMatchObject([{ key: 'time:1', durationMs: 90_000 }]);
+  expect(days[0].entries[0].actions.map(action => action.kind)).toEqual(['created', 'time-tracked']);
+  expect(projectProtocol(events.map(event => ({ ...event, undone: true })), { a: task }, sessions)
+    .flatMap(entry => entry.entries.flatMap(taskEntry => taskEntry.actions))).toEqual([]);
+});
 
 it('groups all edits by local day and current topology, repeats tasks across days and keeps action execution order', () => {
   const events = history([create('b'), create('a'),

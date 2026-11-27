@@ -130,6 +130,7 @@ export function ListTaskRow(props: SharedListRowProps & {
         >
           <Flame className="w-3.5 h-3.5" />
         </button>
+        {props.renderTaskTimer?.(task)}
 
         <span
           className={`font-mono text-xs px-2 py-0.5 rounded-md border shrink-0 ${

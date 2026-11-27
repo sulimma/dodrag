@@ -544,6 +544,7 @@ export function NetworkPlanView(props: NetworkPlanViewProps) {
                 >
                   <Flame className="w-3 h-3" />
                 </button>
+                {props.renderTaskTimer?.(task)}
                 <span
                   className={`font-mono text-[11px] px-1.5 py-0.2 rounded border shrink-0 ${
                     task.isActive
